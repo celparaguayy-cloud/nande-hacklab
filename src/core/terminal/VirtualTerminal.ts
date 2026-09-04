@@ -106,7 +106,7 @@ export class VirtualTerminal {
         return this.cat(args[0]);
 
       case "echo":
-        return args.join(" ");
+        return this.echo(args);
 
       case "mkdir":
         return this.mkdir(args);
@@ -135,6 +135,104 @@ export class VirtualTerminal {
       default:
         return `${command}: comando no encontrado`;
     }
+  }
+
+  private echo(args: string[]): string {
+    const redirectionIndex = args.findIndex(
+      (arg) => arg === ">" || arg === ">>",
+    );
+
+    if (redirectionIndex === -1) {
+      return args.join(" ");
+    }
+
+    const operator = args[redirectionIndex];
+    const path = args[redirectionIndex + 1];
+
+    if (!path) {
+      return "echo: falta el nombre del archivo";
+    }
+
+    const content = args
+      .slice(0, redirectionIndex)
+      .join(" ");
+
+    const resolvedPath =
+      this.resolvePath(path);
+
+    const target =
+      this.kernel.filesystem.getFile(
+        resolvedPath,
+      );
+
+    if (target) {
+      if (target.type !== "file") {
+        return `echo: ${path}: es un directorio`;
+      }
+
+      if (
+        !this.hasPermission(
+          resolvedPath,
+          "write",
+        )
+      ) {
+        return `echo: permiso denegado: ${path}`;
+      }
+
+      if (operator === ">") {
+        this.kernel.filesystem.writeFile(
+          resolvedPath,
+          content,
+        );
+      } else {
+        const previous =
+          this.kernel.filesystem.readFile(
+            resolvedPath,
+          );
+
+        const next =
+          previous.length > 0
+            ? `${previous}\n${content}`
+            : content;
+
+        this.kernel.filesystem.writeFile(
+          resolvedPath,
+          next,
+        );
+      }
+
+      return "";
+    }
+
+    const parentPath =
+      this.getParentPath(resolvedPath);
+
+    if (
+      !this.hasPermission(
+        parentPath,
+        "write",
+      ) ||
+      !this.hasPermission(
+        parentPath,
+        "execute",
+      )
+    ) {
+      return `echo: permiso denegado: ${path}`;
+    }
+
+    try {
+      this.kernel.filesystem.createFile(
+        resolvedPath,
+        content,
+        this.currentUser,
+        this.getCurrentUserGroups()[0] ??
+          "users",
+      );
+    } catch {
+      return `echo: no se pudo crear: ${path}`;
+    }
+
+    return "";
   }
 
   private parseCommand(
@@ -823,6 +921,8 @@ export class VirtualTerminal {
       "",
       "Utilidades:",
       "  echo <texto>         Mostrar texto",
+      "  echo <texto> > file  Escribir/reemplazar archivo",
+      "  echo <texto> >> file Agregar al archivo",
       "  clear                Limpiar terminal",
       "  help                 Mostrar esta ayuda",
       "",
