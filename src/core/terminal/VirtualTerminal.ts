@@ -25,6 +25,9 @@ export class VirtualTerminal {
       case "whoami":
         return this.currentUser;
 
+      case "id":
+        return this.id();
+
       case "hostname":
         return this.kernel.os.getState().hostname;
 
@@ -32,70 +35,34 @@ export class VirtualTerminal {
         return this.kernel.os.getState().kernel;
 
       case "cd":
-        return this.cd(args[0] ?? "/home/student");
+        return this.cd(args[0] ?? "~");
 
       case "ls":
         return this.ls(args[0] ?? this.currentDirectory);
 
       case "cat":
-        if (!args[0]) {
-          return "cat: falta el nombre del archivo";
-        }
+        return this.cat(args[0]);
 
-        return this.kernel.filesystem.readFile(
-          this.resolvePath(args[0]),
-        );
+      case "echo":
+        return args.join(" ");
 
       case "mkdir":
-        if (!args[0]) {
-          return "mkdir: falta el nombre del directorio";
-        }
-
-        this.kernel.filesystem.createDirectory(
-          this.resolvePath(args[0]),
-        );
-
-        return "";
+        return this.mkdir(args);
 
       case "touch":
-        if (!args[0]) {
-          return "touch: falta el nombre del archivo";
-        }
+        return this.touch(args);
 
-        this.kernel.filesystem.createFile(
-          this.resolvePath(args[0]),
-        );
-
-        return "";
+      case "rm":
+        return this.rm(args);
 
       case "ps":
-        return this.kernel.processes
-          .getAllProcesses()
-          .map(
-            (process) =>
-              `${process.pid}\t${process.status}\t${process.owner}\t${process.name}`,
-          )
-          .join("\n");
+        return this.ps();
 
       case "clear":
         return "\x1b[CLEAR";
 
       case "help":
-        return [
-          "Comandos disponibles:",
-          "  pwd",
-          "  whoami",
-          "  hostname",
-          "  uname",
-          "  cd <directorio>",
-          "  ls [directorio]",
-          "  cat <archivo>",
-          "  mkdir <directorio>",
-          "  touch <archivo>",
-          "  ps",
-          "  clear",
-          "  help",
-        ].join("\n");
+        return this.help();
 
       default:
         return `${command}: comando no encontrado`;
@@ -125,21 +92,293 @@ export class VirtualTerminal {
   private ls(path: string): string {
     const resolvedPath = this.resolvePath(path);
 
-    return this.kernel.filesystem
-      .listDirectory(resolvedPath)
+    const target = this.kernel.filesystem.getFile(
+      resolvedPath,
+    );
+
+    if (!target) {
+      return `ls: no existe el archivo o directorio: ${path}`;
+    }
+
+    if (target.type !== "directory") {
+      return `${target.permissions} ${this.getName(target.path)}`;
+    }
+
+    const entries =
+      this.kernel.filesystem.listDirectory(
+        resolvedPath,
+      );
+
+    if (entries.length === 0) {
+      return "";
+    }
+
+    return entries
       .map((file) => {
         const suffix =
           file.type === "directory" ? "/" : "";
 
-        const name =
-          file.path.split("/").pop() || "/";
-
-        return `${file.permissions} ${name}${suffix}`;
+        return `${file.permissions} ${this.getName(
+          file.path,
+        )}${suffix}`;
       })
       .join("\n");
   }
 
+  private cat(path?: string): string {
+    if (!path) {
+      return "cat: falta el nombre del archivo";
+    }
+
+    const resolvedPath = this.resolvePath(path);
+
+    const target = this.kernel.filesystem.getFile(
+      resolvedPath,
+    );
+
+    if (!target) {
+      return `cat: no existe el archivo: ${path}`;
+    }
+
+    if (target.type === "directory") {
+      return `cat: ${path}: es un directorio`;
+    }
+
+    return this.kernel.filesystem.readFile(
+      resolvedPath,
+    );
+  }
+
+  private mkdir(args: string[]): string {
+    if (args.length === 0) {
+      return "mkdir: falta el nombre del directorio";
+    }
+
+    const recursive =
+      args.includes("-p");
+
+    const paths = args.filter(
+      (arg) => arg !== "-p",
+    );
+
+    for (const path of paths) {
+      const resolvedPath =
+        this.resolvePath(path);
+
+      if (
+        this.kernel.filesystem.exists(
+          resolvedPath,
+        )
+      ) {
+        if (recursive) {
+          continue;
+        }
+
+        return `mkdir: ya existe: ${path}`;
+      }
+
+      try {
+        if (recursive) {
+          this.mkdirRecursive(resolvedPath);
+        } else {
+          this.kernel.filesystem.createDirectory(
+            resolvedPath,
+          );
+        }
+      } catch {
+        return `mkdir: no se pudo crear: ${path}`;
+      }
+    }
+
+    return "";
+  }
+
+  private mkdirRecursive(path: string): void {
+    const parts = path
+      .split("/")
+      .filter(Boolean);
+
+    let current = "";
+
+    for (const part of parts) {
+      current += `/${part}`;
+
+      if (
+        !this.kernel.filesystem.exists(
+          current,
+        )
+      ) {
+        this.kernel.filesystem.createDirectory(
+          current,
+        );
+      }
+    }
+  }
+
+  private touch(args: string[]): string {
+    if (args.length === 0) {
+      return "touch: falta el nombre del archivo";
+    }
+
+    for (const path of args) {
+      if (path.startsWith("-")) {
+        continue;
+      }
+
+      const resolvedPath =
+        this.resolvePath(path);
+
+      if (
+        this.kernel.filesystem.exists(
+          resolvedPath,
+        )
+      ) {
+        continue;
+      }
+
+      try {
+        this.kernel.filesystem.createFile(
+          resolvedPath,
+        );
+      } catch {
+        return `touch: no se pudo crear: ${path}`;
+      }
+    }
+
+    return "";
+  }
+
+  private rm(args: string[]): string {
+    if (args.length === 0) {
+      return "rm: falta el nombre del archivo";
+    }
+
+    const recursive =
+      args.includes("-r") ||
+      args.includes("-rf");
+
+    const force =
+      args.includes("-f") ||
+      args.includes("-rf");
+
+    const paths = args.filter(
+      (arg) =>
+        arg !== "-r" &&
+        arg !== "-f" &&
+        arg !== "-rf",
+    );
+
+    for (const path of paths) {
+      const resolvedPath =
+        this.resolvePath(path);
+
+      const target =
+        this.kernel.filesystem.getFile(
+          resolvedPath,
+        );
+
+      if (!target) {
+        if (force) {
+          continue;
+        }
+
+        return `rm: no existe: ${path}`;
+      }
+
+      if (
+        target.type === "directory" &&
+        !recursive
+      ) {
+        return `rm: ${path}: es un directorio`;
+      }
+
+      try {
+        this.kernel.filesystem.remove(
+          resolvedPath,
+        );
+      } catch {
+        return `rm: no se pudo eliminar: ${path}`;
+      }
+    }
+
+    return "";
+  }
+
+  private ps(): string {
+    const processes =
+      this.kernel.processes.getAllProcesses();
+
+    if (processes.length === 0) {
+      return "No hay procesos.";
+    }
+
+    return [
+      "PID\tSTATUS\tUSER\tNAME",
+      ...processes.map(
+        (process) =>
+          `${process.pid}\t${process.status}\t${process.owner}\t${process.name}`,
+      ),
+    ].join("\n");
+  }
+
+  private id(): string {
+    const user =
+      this.kernel.users.getUser(
+        this.currentUser,
+      );
+
+    if (!user) {
+      return `uid=?(${this.currentUser})`;
+    }
+
+    return `uid=${user.uid}(${user.username}) groups=${user.groups.join(",")}`;
+  }
+
+  private help(): string {
+    return [
+      "ÑANDE OS — Terminal",
+      "",
+      "Navegación:",
+      "  pwd                  Mostrar directorio actual",
+      "  cd <ruta>             Cambiar directorio",
+      "  cd ~                  Ir al directorio personal",
+      "  cd ..                 Subir un directorio",
+      "  cd .                  Mantener directorio actual",
+      "  ls [ruta]             Listar contenido",
+      "",
+      "Archivos:",
+      "  cat <archivo>         Mostrar contenido",
+      "  touch <archivo>       Crear archivo",
+      "  mkdir <directorio>    Crear directorio",
+      "  mkdir -p <ruta>       Crear ruta completa",
+      "  rm <ruta>             Eliminar archivo",
+      "  rm -r <directorio>    Eliminar directorio",
+      "",
+      "Sistema:",
+      "  whoami                Usuario actual",
+      "  id                    Identidad del usuario",
+      "  hostname              Nombre del sistema",
+      "  uname                 Kernel virtual",
+      "  ps                    Procesos virtuales",
+      "",
+      "Utilidades:",
+      "  echo <texto>          Mostrar texto",
+      "  clear                 Limpiar terminal",
+      "  help                  Mostrar esta ayuda",
+    ].join("\n");
+  }
+
   private resolvePath(path: string): string {
+    if (path === "~") {
+      return "/home/student";
+    }
+
+    if (path.startsWith("~/")) {
+      return this.normalizePath(
+        `/home/student/${path.slice(2)}`,
+      );
+    }
+
     if (path.startsWith("/")) {
       return this.normalizePath(path);
     }
@@ -161,7 +400,10 @@ export class VirtualTerminal {
       }
 
       if (part === "..") {
-        result.pop();
+        if (result.length > 0) {
+          result.pop();
+        }
+
         continue;
       }
 
@@ -169,5 +411,16 @@ export class VirtualTerminal {
     }
 
     return "/" + result.join("/");
+  }
+
+  private getName(path: string): string {
+    if (path === "/") {
+      return "/";
+    }
+
+    return (
+      path.split("/").filter(Boolean).pop() ||
+      "/"
+    );
   }
 }
