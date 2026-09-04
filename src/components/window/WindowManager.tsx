@@ -1,5 +1,4 @@
-import { useState } from "react";
-import type { ReactNode } from "react";
+import { useState, type PointerEvent, type ReactNode } from "react";
 
 interface WindowState {
 id: string;
@@ -30,6 +29,12 @@ height: 450,
 },
 ]);
 
+const [dragging, setDragging] = useState<{
+id: string;
+offsetX: number;
+offsetY: number;
+} | null>(null);
+
 function updateWindow(
 id: string,
 changes: Partial<WindowState>,
@@ -45,6 +50,49 @@ function closeWindow(id: string) {
 setWindows((current) =>
 current.filter((window) => window.id !== id),
 );
+}
+
+function startDragging(
+event: PointerEvent<HTMLDivElement>,
+window: WindowState,
+) {
+if (window.maximized) return;
+
+const target = event.currentTarget.parentElement;
+
+if (!target) return;
+
+const rect = target.getBoundingClientRect();
+
+setDragging({
+  id: window.id,
+  offsetX: event.clientX - rect.left,
+  offsetY: event.clientY - rect.top,
+});
+
+event.currentTarget.setPointerCapture(event.pointerId);
+
+}
+
+function dragWindow(event: PointerEvent<HTMLDivElement>) {
+if (!dragging) return;
+
+setWindows((current) =>
+  current.map((window) =>
+    window.id === dragging.id
+      ? {
+          ...window,
+          x: Math.max(0, event.clientX - dragging.offsetX),
+          y: Math.max(42, event.clientY - dragging.offsetY),
+        }
+      : window,
+  ),
+);
+
+}
+
+function stopDragging() {
+setDragging(null);
 }
 
 return (
@@ -80,8 +128,13 @@ height: "${window.height}px",
           zIndex: 10,
         }}
       >
-        {/* Barra da janela */}
         <div
+          onPointerDown={(event) =>
+            startDragging(event, window)
+          }
+          onPointerMove={dragWindow}
+          onPointerUp={stopDragging}
+          onPointerCancel={stopDragging}
           style={{
             height: "36px",
             display: "flex",
@@ -93,11 +146,20 @@ height: "${window.height}px",
             borderBottom: "1px solid #26313b",
             color: "#e6edf3",
             fontSize: "13px",
+            cursor: window.maximized ? "default" : "move",
+            touchAction: "none",
+            userSelect: "none",
           }}
         >
           <span>{window.title}</span>
 
-          <div style={{ display: "flex", gap: "6px" }}>
+          <div
+            style={{
+              display: "flex",
+              gap: "6px",
+            }}
+            onPointerDown={(event) => event.stopPropagation()}
+          >
             <button
               onClick={() =>
                 updateWindow(window.id, {
@@ -129,7 +191,6 @@ height: "${window.height}px",
           </div>
         </div>
 
-        {/* Contenido */}
         <div
           style={{
             width: "100%",
