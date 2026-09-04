@@ -15,11 +15,19 @@ export class VirtualFilesystem {
   constructor() {
     this.files = new Map();
 
-    this.createDirectory("/", "root", "root");
-    this.createDirectory("/home", "root", "root");
-    this.createDirectory("/home/student", "student", "users");
-    this.createDirectory("/tmp", "root", "root");
-    this.createDirectory("/etc", "root", "root");
+    this.createDirectory("/", "root", "root", "755");
+    this.createDirectory("/home", "root", "root", "755");
+    this.createDirectory("/home/student", "student", "users", "755");
+    this.createDirectory("/tmp", "root", "root", "1777");
+    this.createDirectory("/etc", "root", "root", "755");
+
+    this.createFile(
+      "/etc/motd",
+      "Bienvenido a ÑANDE OS.",
+      "root",
+      "root",
+      "644",
+    );
   }
 
   exists(path: string): boolean {
@@ -30,16 +38,21 @@ export class VirtualFilesystem {
     path: string,
     owner = "student",
     group = "users",
+    permissions = "755",
   ): void {
     if (this.exists(path)) {
       throw new Error(`El directorio ya existe: ${path}`);
+    }
+
+    if (!/^[0-7]{3,4}$/.test(permissions)) {
+      throw new Error(`Permisos inválidos: ${permissions}`);
     }
 
     this.files.set(path, {
       path,
       type: "directory",
       content: "",
-      permissions: "755",
+      permissions,
       owner,
       group,
     });
@@ -50,16 +63,21 @@ export class VirtualFilesystem {
     content = "",
     owner = "student",
     group = "users",
+    permissions = "644",
   ): void {
     if (this.exists(path)) {
       throw new Error(`El archivo ya existe: ${path}`);
+    }
+
+    if (!/^[0-7]{3,4}$/.test(permissions)) {
+      throw new Error(`Permisos inválidos: ${permissions}`);
     }
 
     this.files.set(path, {
       path,
       type: "file",
       content,
-      permissions: "644",
+      permissions,
       owner,
       group,
     });
@@ -114,6 +132,18 @@ export class VirtualFilesystem {
       throw new Error(`No existe: ${path}`);
     }
 
+    const target = this.files.get(path);
+
+    if (target?.type === "directory") {
+      const prefix = path === "/" ? "/" : `${path}/`;
+
+      for (const filePath of this.files.keys()) {
+        if (filePath.startsWith(prefix)) {
+          this.files.delete(filePath);
+        }
+      }
+    }
+
     this.files.delete(path);
   }
 
@@ -124,7 +154,7 @@ export class VirtualFilesystem {
       throw new Error(`No existe: ${path}`);
     }
 
-    if (!/^[0-7]{3}$/.test(permissions)) {
+    if (!/^[0-7]{3,4}$/.test(permissions)) {
       throw new Error(`Permisos inválidos: ${permissions}`);
     }
 
@@ -138,9 +168,13 @@ export class VirtualFilesystem {
       throw new Error(`No existe: ${path}`);
     }
 
+    if (!owner) {
+      throw new Error("Propietario inválido");
+    }
+
     file.owner = owner;
 
-    if (group !== undefined) {
+    if (group !== undefined && group.length > 0) {
       file.group = group;
     }
   }
@@ -149,6 +183,7 @@ export class VirtualFilesystem {
     path: string,
     username: string,
     action: "read" | "write" | "execute",
+    groups: string[] = [],
   ): boolean {
     const file = this.files.get(path);
 
@@ -161,15 +196,26 @@ export class VirtualFilesystem {
       return true;
     }
 
-    const permissions = file.permissions;
+    const permissions = file.permissions.padStart(3, "0");
 
-    const ownerPermissions = Number(permissions[0]);
-    const otherPermissions = Number(permissions[2]);
+    const ownerPermissions = Number(
+      permissions[permissions.length - 3],
+    );
+
+    const groupPermissions = Number(
+      permissions[permissions.length - 2],
+    );
+
+    const otherPermissions = Number(
+      permissions[permissions.length - 1],
+    );
 
     let permissionValue = otherPermissions;
 
     if (username === file.owner) {
       permissionValue = ownerPermissions;
+    } else if (groups.includes(file.group)) {
+      permissionValue = groupPermissions;
     }
 
     const requiredBit = {

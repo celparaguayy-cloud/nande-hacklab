@@ -271,6 +271,46 @@ export class VirtualTerminal {
     );
   }
 
+  private getCurrentUserGroups(): string[] {
+    const user = this.kernel.users.getUser(
+      this.currentUser,
+    );
+
+    return user?.groups ?? [];
+  }
+
+  private hasPermission(
+    path: string,
+    action: "read" | "write" | "execute",
+  ): boolean {
+    return this.kernel.filesystem.canAccess(
+      path,
+      this.currentUser,
+      action,
+      this.getCurrentUserGroups(),
+    );
+  }
+
+  private isRoot(): boolean {
+    return this.kernel.users.isRoot(
+      this.currentUser,
+    );
+  }
+
+  private getParentPath(path: string): string {
+    if (path === "/") {
+      return "/";
+    }
+
+    const index = path.lastIndexOf("/");
+
+    if (index <= 0) {
+      return "/";
+    }
+
+    return path.slice(0, index);
+  }
+
   private cd(path: string): string {
     const resolvedPath =
       this.resolvePath(path);
@@ -289,9 +329,8 @@ export class VirtualTerminal {
     }
 
     if (
-      !this.kernel.filesystem.canAccess(
+      !this.hasPermission(
         resolvedPath,
-        this.currentUser,
         "execute",
       )
     ) {
@@ -321,6 +360,10 @@ export class VirtualTerminal {
       return `${target.permissions} ${target.owner} ${target.group} ${this.getName(
         target.path,
       )}`;
+    }
+
+    if (!this.hasPermission(resolvedPath, "read")) {
+      return `ls: permiso denegado: ${path}`;
     }
 
     const entries =
@@ -367,13 +410,7 @@ export class VirtualTerminal {
       return `cat: ${path}: es un directorio`;
     }
 
-    if (
-      !this.kernel.filesystem.canAccess(
-        resolvedPath,
-        this.currentUser,
-        "read",
-      )
-    ) {
+    if (!this.hasPermission(resolvedPath, "read")) {
       return `cat: permiso denegado: ${path}`;
     }
 
@@ -414,6 +451,16 @@ export class VirtualTerminal {
         return `mkdir: ya existe: ${path}`;
       }
 
+      const parentPath =
+        this.getParentPath(resolvedPath);
+
+      if (
+        !this.hasPermission(parentPath, "write") ||
+        !this.hasPermission(parentPath, "execute")
+      ) {
+        return `mkdir: permiso denegado: ${path}`;
+      }
+
       try {
         if (recursive) {
           this.mkdirRecursive(
@@ -422,6 +469,8 @@ export class VirtualTerminal {
         } else {
           this.kernel.filesystem.createDirectory(
             resolvedPath,
+            this.currentUser,
+            this.getCurrentUserGroups()[0] ?? "users",
           );
         }
       } catch {
@@ -449,8 +498,22 @@ export class VirtualTerminal {
           current,
         )
       ) {
+        const parentPath =
+          this.getParentPath(current);
+
+        if (
+          !this.hasPermission(parentPath, "write") ||
+          !this.hasPermission(parentPath, "execute")
+        ) {
+          throw new Error(
+            `Permiso denegado: ${current}`,
+          );
+        }
+
         this.kernel.filesystem.createDirectory(
           current,
+          this.currentUser,
+          this.getCurrentUserGroups()[0] ?? "users",
         );
       }
     }
@@ -477,9 +540,22 @@ export class VirtualTerminal {
         continue;
       }
 
+      const parentPath =
+        this.getParentPath(resolvedPath);
+
+      if (
+        !this.hasPermission(parentPath, "write") ||
+        !this.hasPermission(parentPath, "execute")
+      ) {
+        return `touch: permiso denegado: ${path}`;
+      }
+
       try {
         this.kernel.filesystem.createFile(
           resolvedPath,
+          "",
+          this.currentUser,
+          this.getCurrentUserGroups()[0] ?? "users",
         );
       } catch {
         return `touch: no se pudo crear: ${path}`;
@@ -537,6 +613,16 @@ export class VirtualTerminal {
         return `rm: ${path}: es un directorio`;
       }
 
+      const parentPath =
+        this.getParentPath(resolvedPath);
+
+      if (
+        !this.hasPermission(parentPath, "write") ||
+        !this.hasPermission(parentPath, "execute")
+      ) {
+        return `rm: permiso denegado: ${path}`;
+      }
+
       try {
         this.kernel.filesystem.remove(
           resolvedPath,
@@ -557,7 +643,7 @@ export class VirtualTerminal {
     const permissions = args[0];
     const paths = args.slice(1);
 
-    if (!/^[0-7]{3}$/.test(permissions)) {
+    if (!/^[0-7]{3,4}$/.test(permissions)) {
       return `chmod: permisos inválidos: ${permissions}`;
     }
 
@@ -565,13 +651,29 @@ export class VirtualTerminal {
       const resolvedPath =
         this.resolvePath(path);
 
+      const target =
+        this.kernel.filesystem.getFile(
+          resolvedPath,
+        );
+
+      if (!target) {
+        return `chmod: no existe: ${path}`;
+      }
+
+      if (
+        !this.isRoot() &&
+        target.owner !== this.currentUser
+      ) {
+        return `chmod: permiso denegado: ${path}`;
+      }
+
       try {
         this.kernel.filesystem.chmod(
           resolvedPath,
           permissions,
         );
       } catch {
-        return `chmod: no existe: ${path}`;
+        return `chmod: no se pudo cambiar: ${path}`;
       }
     }
 
@@ -593,6 +695,10 @@ export class VirtualTerminal {
 
     if (!owner) {
       return "chown: propietario inválido";
+    }
+
+    if (!this.isRoot()) {
+      return "chown: solo root puede cambiar el propietario";
     }
 
     for (const path of paths) {
