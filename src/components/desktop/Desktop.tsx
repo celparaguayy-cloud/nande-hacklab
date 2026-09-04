@@ -1,7 +1,16 @@
-import Terminal from "../terminal/Terminal";
 import WindowManager from "../window/WindowManager";
+import Terminal from "../terminal/Terminal";
 
 function Desktop() {
+function openTerminal() {
+const nandeWindow = window as Window & {
+openNandeWindow?: (id: string) => void;
+};
+
+nandeWindow.openNandeWindow?.("terminal");
+
+}
+
 return (
 <div
 style={{
@@ -15,7 +24,6 @@ overflow: "hidden",
 position: "relative",
 }}
 >
-{/* Barra superior */}
 <div
 style={{
 height: "42px",
@@ -31,22 +39,23 @@ fontSize: "14px",
 >
 <strong>ÑANDE OS</strong>
 
-    <div>LAB • student • online</div>
+    <div>
+      LAB • student • online
+    </div>
   </div>
 
-  {/* Escritorio */}
   <div
     style={{
       padding: "24px",
-      display: "flex",
-      gap: "20px",
     }}
   >
-    <div
+    <button
+      onClick={openTerminal}
       style={{
         width: "90px",
         height: "90px",
-        background: "rgba(20, 27, 35, 0.9)",
+        background:
+          "rgba(20, 27, 35, 0.9)",
         border: "1px solid #34414d",
         borderRadius: "12px",
         color: "#e6edf3",
@@ -55,19 +64,25 @@ fontSize: "14px",
         alignItems: "center",
         justifyContent: "center",
         fontSize: "13px",
+        cursor: "pointer",
       }}
     >
-      <div style={{ fontSize: "28px", marginBottom: "8px" }}>
+      <div
+        style={{
+          fontSize: "28px",
+          marginBottom: "8px",
+        }}
+      >
         &gt;_
       </div>
+
       Terminal
-    </div>
+    </button>
   </div>
 
-  {/* Administrador de ventanas */}
   <WindowManager>
-  <Terminal />
-</WindowManager>
+    <Terminal />
+  </WindowManager>
 </div>
 
 );

@@ -1,220 +1,401 @@
-import { useState, type PointerEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 interface WindowState {
-id: string;
-title: string;
-minimized: boolean;
-maximized: boolean;
-x: number;
-y: number;
-width: number;
-height: number;
+  id: string;
+  title: string;
+  minimized: boolean;
+  maximized: boolean;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  zIndex: number;
+}
+
+interface DragState {
+  id: string;
+  offsetX: number;
+  offsetY: number;
 }
 
 interface WindowManagerProps {
-children: ReactNode;
+  children: ReactNode;
 }
 
 function WindowManager({ children }: WindowManagerProps) {
-const [windows, setWindows] = useState<WindowState[]>([
-{
-id: "terminal",
-title: "Terminal — student@nande-os",
-minimized: false,
-maximized: false,
-x: 180,
-y: 90,
-width: 700,
-height: 450,
-},
-]);
+  const [windows, setWindows] = useState<WindowState[]>([
+    {
+      id: "terminal",
+      title: "Terminal — student@nande-os",
+      minimized: false,
+      maximized: false,
+      x: 180,
+      y: 90,
+      width: 700,
+      height: 450,
+      zIndex: 10,
+    },
+  ]);
 
-const [dragging, setDragging] = useState<{
-id: string;
-offsetX: number;
-offsetY: number;
-} | null>(null);
+  const dragRef = useRef<DragState | null>(null);
+  const zIndexRef = useRef(20);
 
-function updateWindow(
-id: string,
-changes: Partial<WindowState>,
-) {
-setWindows((current) =>
-current.map((window) =>
-window.id === id ? { ...window, ...changes } : window,
-),
-);
-}
+  function bringToFront(id: string) {
+    zIndexRef.current += 1;
 
-function closeWindow(id: string) {
-setWindows((current) =>
-current.filter((window) => window.id !== id),
-);
-}
-
-function startDragging(
-event: PointerEvent<HTMLDivElement>,
-window: WindowState,
-) {
-if (window.maximized) return;
-
-const target = event.currentTarget.parentElement;
-
-if (!target) return;
-
-const rect = target.getBoundingClientRect();
-
-setDragging({
-  id: window.id,
-  offsetX: event.clientX - rect.left,
-  offsetY: event.clientY - rect.top,
-});
-
-event.currentTarget.setPointerCapture(event.pointerId);
-
-}
-
-function dragWindow(event: PointerEvent<HTMLDivElement>) {
-if (!dragging) return;
-
-setWindows((current) =>
-  current.map((window) =>
-    window.id === dragging.id
-      ? {
-          ...window,
-          x: Math.max(0, event.clientX - dragging.offsetX),
-          y: Math.max(42, event.clientY - dragging.offsetY),
-        }
-      : window,
-  ),
-);
-
-}
-
-function stopDragging() {
-setDragging(null);
-}
-
-return (
-<>
-{windows.map((window) => {
-const style = window.maximized
-? {
-position: "absolute" as const,
-top: "42px",
-left: "0",
-width: "100vw",
-height: "calc(100vh - 42px)",
-}
-: {
-position: "absolute" as const,
-top: "${window.y}px",
-left: "${window.x}px",
-width: "${window.width}px",
-height: "${window.height}px",
-};
-
-    return (
-      <div
-        key={window.id}
-        style={{
-          ...style,
-          display: window.minimized ? "none" : "block",
-          background: "#0b0f14",
-          border: "1px solid #34414d",
-          borderRadius: "10px",
-          overflow: "hidden",
-          boxShadow: "0 20px 60px rgba(0, 0, 0, 0.45)",
-          zIndex: 10,
-        }}
-      >
-        <div
-          onPointerDown={(event) =>
-            startDragging(event, window)
-          }
-          onPointerMove={dragWindow}
-          onPointerUp={stopDragging}
-          onPointerCancel={stopDragging}
-          style={{
-            height: "36px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: "0 10px",
-            boxSizing: "border-box",
-            background: "#111820",
-            borderBottom: "1px solid #26313b",
-            color: "#e6edf3",
-            fontSize: "13px",
-            cursor: window.maximized ? "default" : "move",
-            touchAction: "none",
-            userSelect: "none",
-          }}
-        >
-          <span>{window.title}</span>
-
-          <div
-            style={{
-              display: "flex",
-              gap: "6px",
-            }}
-            onPointerDown={(event) => event.stopPropagation()}
-          >
-            <button
-              onClick={() =>
-                updateWindow(window.id, {
-                  minimized: true,
-                })
-              }
-              style={buttonStyle}
-            >
-              −
-            </button>
-
-            <button
-              onClick={() =>
-                updateWindow(window.id, {
-                  maximized: !window.maximized,
-                })
-              }
-              style={buttonStyle}
-            >
-              □
-            </button>
-
-            <button
-              onClick={() => closeWindow(window.id)}
-              style={buttonStyle}
-            >
-              ×
-            </button>
-          </div>
-        </div>
-
-        <div
-          style={{
-            width: "100%",
-            height: "calc(100% - 36px)",
-          }}
-        >
-          {window.id === "terminal" ? children : null}
-        </div>
-      </div>
+    setWindows((current) =>
+      current.map((win) =>
+        win.id === id
+          ? {
+              ...win,
+              zIndex: zIndexRef.current,
+            }
+          : win,
+      ),
     );
-  })}
-</>
+  }
 
-);
+  function beginDrag(
+    id: string,
+    clientX: number,
+    clientY: number,
+  ) {
+    const currentWindow = windows.find(
+      (win) => win.id === id,
+    );
+
+    if (!currentWindow || currentWindow.maximized) {
+      return;
+    }
+
+    dragRef.current = {
+      id,
+      offsetX: clientX - currentWindow.x,
+      offsetY: clientY - currentWindow.y,
+    };
+
+    bringToFront(id);
+  }
+
+  function moveDrag(
+    clientX: number,
+    clientY: number,
+  ) {
+    const drag = dragRef.current;
+
+    if (!drag) return;
+
+    setWindows((current) =>
+      current.map((win) =>
+        win.id === drag.id
+          ? {
+              ...win,
+              x: Math.max(
+                0,
+                clientX - drag.offsetX,
+              ),
+              y: Math.max(
+                42,
+                clientY - drag.offsetY,
+              ),
+            }
+          : win,
+      ),
+    );
+  }
+
+  function endDrag() {
+    dragRef.current = null;
+  }
+
+  function minimizeWindow(id: string) {
+    setWindows((current) =>
+      current.map((win) =>
+        win.id === id
+          ? {
+              ...win,
+              minimized: true,
+            }
+          : win,
+      ),
+    );
+  }
+
+  function maximizeWindow(id: string) {
+    setWindows((current) =>
+      current.map((win) =>
+        win.id === id
+          ? {
+              ...win,
+              maximized: !win.maximized,
+              minimized: false,
+            }
+          : win,
+      ),
+    );
+  }
+
+  function closeWindow(id: string) {
+    endDrag();
+
+    setWindows((current) =>
+      current.filter((win) => win.id !== id),
+    );
+  }
+
+  function openWindow(id: string) {
+    setWindows((current) => {
+      const existing = current.find(
+        (win) => win.id === id,
+      );
+
+      if (existing) {
+        zIndexRef.current += 1;
+
+        return current.map((win) =>
+          win.id === id
+            ? {
+                ...win,
+                minimized: false,
+                zIndex: zIndexRef.current,
+              }
+            : win,
+        );
+      }
+
+      zIndexRef.current += 1;
+
+      return [
+        ...current,
+        {
+          id,
+          title: "Terminal — student@nande-os",
+          minimized: false,
+          maximized: false,
+          x: 180,
+          y: 90,
+          width: 700,
+          height: 450,
+          zIndex: zIndexRef.current,
+        },
+      ];
+    });
+  }
+
+  useEffect(() => {
+    const globalWindow = window as Window & {
+      openNandeWindow?: (id: string) => void;
+    };
+
+    globalWindow.openNandeWindow = openWindow;
+
+    return () => {
+      delete globalWindow.openNandeWindow;
+    };
+  }, []);
+
+  useEffect(() => {
+    function handlePointerMove(event: PointerEvent) {
+      if (!dragRef.current) return;
+
+      moveDrag(
+        event.clientX,
+        event.clientY,
+      );
+    }
+
+    function handlePointerUp() {
+      endDrag();
+    }
+
+    window.addEventListener(
+      "pointermove",
+      handlePointerMove,
+    );
+
+    window.addEventListener(
+      "pointerup",
+      handlePointerUp,
+    );
+
+    window.addEventListener(
+      "pointercancel",
+      handlePointerUp,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "pointermove",
+        handlePointerMove,
+      );
+
+      window.removeEventListener(
+        "pointerup",
+        handlePointerUp,
+      );
+
+      window.removeEventListener(
+        "pointercancel",
+        handlePointerUp,
+      );
+    };
+  }, []);
+
+  return (
+    <>
+      {windows.map((win) => {
+        const position = win.maximized
+          ? {
+              top: "42px",
+              left: "0",
+              width: "100vw",
+              height: "calc(100vh - 42px)",
+            }
+          : {
+              top: `${win.y}px`,
+              left: `${win.x}px`,
+              width: `${win.width}px`,
+              height: `${win.height}px`,
+            };
+
+        return (
+          <div
+            key={win.id}
+            onPointerDown={() =>
+              bringToFront(win.id)
+            }
+            style={{
+              position: "absolute",
+              ...position,
+              display: win.minimized
+                ? "none"
+                : "block",
+              background: "#0b0f14",
+              border: "1px solid #34414d",
+              borderRadius: "10px",
+              overflow: "hidden",
+              boxShadow:
+                "0 20px 60px rgba(0,0,0,0.45)",
+              zIndex: win.zIndex,
+            }}
+          >
+            <div
+              onPointerDown={(event) => {
+                const target =
+                  event.target as HTMLElement;
+
+                if (
+                  target.closest("button")
+                ) {
+                  return;
+                }
+
+                event.preventDefault();
+
+                beginDrag(
+                  win.id,
+                  event.clientX,
+                  event.clientY,
+                );
+              }}
+              style={{
+                height: "44px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "0 10px",
+                boxSizing: "border-box",
+                background: "#111820",
+                borderBottom:
+                  "1px solid #26313b",
+                color: "#e6edf3",
+                fontSize: "13px",
+                cursor: win.maximized
+                  ? "default"
+                  : "grab",
+                touchAction: "none",
+                userSelect: "none",
+              }}
+            >
+              <span
+                style={{
+                  pointerEvents: "none",
+                }}
+              >
+                {win.title}
+              </span>
+
+              <div
+                style={{
+                  display: "flex",
+                  gap: "6px",
+                }}
+              >
+                <button
+                  onPointerDown={(event) =>
+                    event.stopPropagation()
+                  }
+                  onClick={() =>
+                    minimizeWindow(win.id)
+                  }
+                  style={buttonStyle}
+                >
+                  −
+                </button>
+
+                <button
+                  onPointerDown={(event) =>
+                    event.stopPropagation()
+                  }
+                  onClick={() =>
+                    maximizeWindow(win.id)
+                  }
+                  style={buttonStyle}
+                >
+                  □
+                </button>
+
+                <button
+                  onPointerDown={(event) =>
+                    event.stopPropagation()
+                  }
+                  onClick={() =>
+                    closeWindow(win.id)
+                  }
+                  style={buttonStyle}
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+
+            <div
+              style={{
+                width: "100%",
+                height: "calc(100% - 44px)",
+              }}
+            >
+              {win.id === "terminal"
+                ? children
+                : null}
+            </div>
+          </div>
+        );
+      })}
+    </>
+  );
 }
 
-const buttonStyle: React.CSSProperties = {
-width: "28px",
-height: "24px",
-border: "1px solid #34414d",
-borderRadius: "5px",
-background: "#18212b",
-color: "#d7f9e9",
-cursor: "pointer",
+const buttonStyle: CSSProperties = {
+  width: "30px",
+  height: "28px",
+  border: "1px solid #34414d",
+  borderRadius: "5px",
+  background: "#18212b",
+  color: "#d7f9e9",
+  cursor: "pointer",
+  fontSize: "16px",
 };
 
 export default WindowManager;
