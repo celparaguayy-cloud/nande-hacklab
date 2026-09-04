@@ -5,6 +5,8 @@ export interface VirtualFile {
   type: FileType;
   content: string;
   permissions: string;
+  owner: string;
+  group: string;
 }
 
 export class VirtualFilesystem {
@@ -13,18 +15,22 @@ export class VirtualFilesystem {
   constructor() {
     this.files = new Map();
 
-    this.createDirectory("/");
-    this.createDirectory("/home");
-    this.createDirectory("/home/student");
-    this.createDirectory("/tmp");
-    this.createDirectory("/etc");
+    this.createDirectory("/", "root", "root");
+    this.createDirectory("/home", "root", "root");
+    this.createDirectory("/home/student", "student", "users");
+    this.createDirectory("/tmp", "root", "root");
+    this.createDirectory("/etc", "root", "root");
   }
 
   exists(path: string): boolean {
     return this.files.has(path);
   }
 
-  createDirectory(path: string): void {
+  createDirectory(
+    path: string,
+    owner = "student",
+    group = "users",
+  ): void {
     if (this.exists(path)) {
       throw new Error(`El directorio ya existe: ${path}`);
     }
@@ -34,10 +40,17 @@ export class VirtualFilesystem {
       type: "directory",
       content: "",
       permissions: "755",
+      owner,
+      group,
     });
   }
 
-  createFile(path: string, content = ""): void {
+  createFile(
+    path: string,
+    content = "",
+    owner = "student",
+    group = "users",
+  ): void {
     if (this.exists(path)) {
       throw new Error(`El archivo ya existe: ${path}`);
     }
@@ -47,6 +60,8 @@ export class VirtualFilesystem {
       type: "file",
       content,
       permissions: "644",
+      owner,
+      group,
     });
   }
 
@@ -80,10 +95,16 @@ export class VirtualFilesystem {
     const prefix = path === "/" ? "/" : `${path}/`;
 
     return Array.from(this.files.values()).filter((file) => {
-      if (file.path === path) return false;
-      if (!file.path.startsWith(prefix)) return false;
+      if (file.path === path) {
+        return false;
+      }
+
+      if (!file.path.startsWith(prefix)) {
+        return false;
+      }
 
       const remaining = file.path.slice(prefix.length);
+
       return !remaining.includes("/");
     });
   }
@@ -103,7 +124,61 @@ export class VirtualFilesystem {
       throw new Error(`No existe: ${path}`);
     }
 
+    if (!/^[0-7]{3}$/.test(permissions)) {
+      throw new Error(`Permisos inválidos: ${permissions}`);
+    }
+
     file.permissions = permissions;
+  }
+
+  chown(path: string, owner: string, group?: string): void {
+    const file = this.files.get(path);
+
+    if (!file) {
+      throw new Error(`No existe: ${path}`);
+    }
+
+    file.owner = owner;
+
+    if (group !== undefined) {
+      file.group = group;
+    }
+  }
+
+  canAccess(
+    path: string,
+    username: string,
+    action: "read" | "write" | "execute",
+  ): boolean {
+    const file = this.files.get(path);
+
+    if (!file) {
+      return false;
+    }
+
+    // root tiene acceso administrativo dentro del sistema virtual.
+    if (username === "root") {
+      return true;
+    }
+
+    const permissions = file.permissions;
+
+    const ownerPermissions = Number(permissions[0]);
+    const otherPermissions = Number(permissions[2]);
+
+    let permissionValue = otherPermissions;
+
+    if (username === file.owner) {
+      permissionValue = ownerPermissions;
+    }
+
+    const requiredBit = {
+      read: 4,
+      write: 2,
+      execute: 1,
+    }[action];
+
+    return (permissionValue & requiredBit) !== 0;
   }
 
   getFile(path: string): VirtualFile | undefined {

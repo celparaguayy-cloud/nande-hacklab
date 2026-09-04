@@ -117,6 +117,12 @@ export class VirtualTerminal {
       case "rm":
         return this.rm(args);
 
+      case "chmod":
+        return this.chmod(args);
+
+      case "chown":
+        return this.chown(args);
+
       case "ps":
         return this.ps();
 
@@ -282,6 +288,16 @@ export class VirtualTerminal {
       return `cd: no es un directorio: ${path}`;
     }
 
+    if (
+      !this.kernel.filesystem.canAccess(
+        resolvedPath,
+        this.currentUser,
+        "execute",
+      )
+    ) {
+      return `cd: permiso denegado: ${path}`;
+    }
+
     this.currentDirectory =
       resolvedPath;
 
@@ -302,7 +318,7 @@ export class VirtualTerminal {
     }
 
     if (target.type !== "directory") {
-      return `${target.permissions} ${this.getName(
+      return `${target.permissions} ${target.owner} ${target.group} ${this.getName(
         target.path,
       )}`;
     }
@@ -323,7 +339,7 @@ export class VirtualTerminal {
             ? "/"
             : "";
 
-        return `${file.permissions} ${this.getName(
+        return `${file.permissions} ${file.owner} ${file.group} ${this.getName(
           file.path,
         )}${suffix}`;
       })
@@ -349,6 +365,16 @@ export class VirtualTerminal {
 
     if (target.type === "directory") {
       return `cat: ${path}: es un directorio`;
+    }
+
+    if (
+      !this.kernel.filesystem.canAccess(
+        resolvedPath,
+        this.currentUser,
+        "read",
+      )
+    ) {
+      return `cat: permiso denegado: ${path}`;
     }
 
     return this.kernel.filesystem.readFile(
@@ -517,6 +543,70 @@ export class VirtualTerminal {
         );
       } catch {
         return `rm: no se pudo eliminar: ${path}`;
+      }
+    }
+
+    return "";
+  }
+
+  private chmod(args: string[]): string {
+    if (args.length < 2) {
+      return "chmod: falta el modo o el archivo";
+    }
+
+    const permissions = args[0];
+    const paths = args.slice(1);
+
+    if (!/^[0-7]{3}$/.test(permissions)) {
+      return `chmod: permisos inválidos: ${permissions}`;
+    }
+
+    for (const path of paths) {
+      const resolvedPath =
+        this.resolvePath(path);
+
+      try {
+        this.kernel.filesystem.chmod(
+          resolvedPath,
+          permissions,
+        );
+      } catch {
+        return `chmod: no existe: ${path}`;
+      }
+    }
+
+    return "";
+  }
+
+  private chown(args: string[]): string {
+    if (args.length < 2) {
+      return "chown: falta el propietario o el archivo";
+    }
+
+    const ownerGroup = args[0];
+    const paths = args.slice(1);
+
+    const parts = ownerGroup.split(":");
+
+    const owner = parts[0];
+    const group = parts[1];
+
+    if (!owner) {
+      return "chown: propietario inválido";
+    }
+
+    for (const path of paths) {
+      const resolvedPath =
+        this.resolvePath(path);
+
+      try {
+        this.kernel.filesystem.chown(
+          resolvedPath,
+          owner,
+          group,
+        );
+      } catch {
+        return `chown: no existe: ${path}`;
       }
     }
 
