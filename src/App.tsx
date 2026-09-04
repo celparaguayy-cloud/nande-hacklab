@@ -1,18 +1,7 @@
-import Terminal from "./components/terminal/Terminal";
+import Desktop from "./components/desktop/Desktop";
 
 function App() {
-return (
-<div
-style={{
-width: "100vw",
-height: "100vh",
-background: "#080b10",
-overflow: "hidden",
-}}
->
-<Terminal />
-</div>
-);
+return <Desktop />;
 }
 
 export default App;
