@@ -1,5 +1,15 @@
 import { VirtualKernel } from "../VirtualKernel";
 
+interface ParsedCommand {
+  command: string;
+  args: string[];
+}
+
+interface ChainedCommand {
+  command: string;
+  operator: ";" | "&&" | null;
+}
+
 export class VirtualTerminal {
   private kernel: VirtualKernel;
   private currentUser = "student";
@@ -16,7 +26,57 @@ export class VirtualTerminal {
       return "";
     }
 
-    const [command, ...args] = input.split(/\s+/);
+    const chained = this.splitChainedCommands(input);
+
+    if (chained.length > 1) {
+      const outputs: string[] = [];
+      let previousFailed = false;
+
+      for (const item of chained) {
+        if (
+          item.operator === "&&" &&
+          previousFailed
+        ) {
+          break;
+        }
+
+        const output = this.executeSingle(
+          item.command,
+        );
+
+        if (output) {
+          outputs.push(output);
+        }
+
+        previousFailed =
+          this.isError(output);
+      }
+
+      return outputs.join("\n");
+    }
+
+    return this.executeSingle(input);
+  }
+
+  getCurrentDirectory(): string {
+    return this.currentDirectory;
+  }
+
+  getCurrentUser(): string {
+    return this.currentUser;
+  }
+
+  private executeSingle(
+    input: string,
+  ): string {
+    const parsed =
+      this.parseCommand(input);
+
+    if (!parsed.command) {
+      return "";
+    }
+
+    const { command, args } = parsed;
 
     switch (command) {
       case "pwd":
@@ -38,7 +98,9 @@ export class VirtualTerminal {
         return this.cd(args[0] ?? "~");
 
       case "ls":
-        return this.ls(args[0] ?? this.currentDirectory);
+        return this.ls(
+          args[0] ?? this.currentDirectory,
+        );
 
       case "cat":
         return this.cat(args[0]);
@@ -69,12 +131,148 @@ export class VirtualTerminal {
     }
   }
 
-  private cd(path: string): string {
-    const resolvedPath = this.resolvePath(path);
+  private parseCommand(
+    input: string,
+  ): ParsedCommand {
+    const tokens: string[] = [];
 
-    const target = this.kernel.filesystem.getFile(
-      resolvedPath,
+    let current = "";
+    let quote: "'" | '"' | null = null;
+
+    for (const character of input) {
+      if (
+        character === "'" ||
+        character === '"'
+      ) {
+        if (quote === null) {
+          quote = character;
+          continue;
+        }
+
+        if (quote === character) {
+          quote = null;
+          continue;
+        }
+      }
+
+      if (
+        /\s/.test(character) &&
+        quote === null
+      ) {
+        if (current.length > 0) {
+          tokens.push(current);
+          current = "";
+        }
+
+        continue;
+      }
+
+      current += character;
+    }
+
+    if (current.length > 0) {
+      tokens.push(current);
+    }
+
+    return {
+      command: tokens[0] ?? "",
+      args: tokens.slice(1),
+    };
+  }
+
+  private splitChainedCommands(
+    input: string,
+  ): ChainedCommand[] {
+    const result: ChainedCommand[] = [];
+
+    let current = "";
+    let quote: "'" | '"' | null = null;
+
+    let i = 0;
+
+    while (i < input.length) {
+      const character = input[i];
+
+      if (
+        character === "'" ||
+        character === '"'
+      ) {
+        if (quote === null) {
+          quote = character;
+        } else if (quote === character) {
+          quote = null;
+        }
+
+        current += character;
+        i++;
+        continue;
+      }
+
+      if (quote === null) {
+        if (
+          character === "&" &&
+          input[i + 1] === "&"
+        ) {
+          if (current.trim()) {
+            result.push({
+              command: current.trim(),
+              operator: "&&",
+            });
+          }
+
+          current = "";
+          i += 2;
+          continue;
+        }
+
+        if (character === ";") {
+          if (current.trim()) {
+            result.push({
+              command: current.trim(),
+              operator: ";",
+            });
+          }
+
+          current = "";
+          i++;
+          continue;
+        }
+      }
+
+      current += character;
+      i++;
+    }
+
+    if (current.trim()) {
+      result.push({
+        command: current.trim(),
+        operator: null,
+      });
+    }
+
+    return result;
+  }
+
+  private isError(output: string): boolean {
+    return (
+      output.startsWith("cd:") ||
+      output.startsWith("ls:") ||
+      output.startsWith("cat:") ||
+      output.startsWith("mkdir:") ||
+      output.startsWith("touch:") ||
+      output.startsWith("rm:") ||
+      output.includes("comando no encontrado")
     );
+  }
+
+  private cd(path: string): string {
+    const resolvedPath =
+      this.resolvePath(path);
+
+    const target =
+      this.kernel.filesystem.getFile(
+        resolvedPath,
+      );
 
     if (!target) {
       return `cd: no existe el directorio: ${path}`;
@@ -84,24 +282,29 @@ export class VirtualTerminal {
       return `cd: no es un directorio: ${path}`;
     }
 
-    this.currentDirectory = resolvedPath;
+    this.currentDirectory =
+      resolvedPath;
 
     return "";
   }
 
   private ls(path: string): string {
-    const resolvedPath = this.resolvePath(path);
+    const resolvedPath =
+      this.resolvePath(path);
 
-    const target = this.kernel.filesystem.getFile(
-      resolvedPath,
-    );
+    const target =
+      this.kernel.filesystem.getFile(
+        resolvedPath,
+      );
 
     if (!target) {
       return `ls: no existe el archivo o directorio: ${path}`;
     }
 
     if (target.type !== "directory") {
-      return `${target.permissions} ${this.getName(target.path)}`;
+      return `${target.permissions} ${this.getName(
+        target.path,
+      )}`;
     }
 
     const entries =
@@ -116,7 +319,9 @@ export class VirtualTerminal {
     return entries
       .map((file) => {
         const suffix =
-          file.type === "directory" ? "/" : "";
+          file.type === "directory"
+            ? "/"
+            : "";
 
         return `${file.permissions} ${this.getName(
           file.path,
@@ -130,11 +335,13 @@ export class VirtualTerminal {
       return "cat: falta el nombre del archivo";
     }
 
-    const resolvedPath = this.resolvePath(path);
+    const resolvedPath =
+      this.resolvePath(path);
 
-    const target = this.kernel.filesystem.getFile(
-      resolvedPath,
-    );
+    const target =
+      this.kernel.filesystem.getFile(
+        resolvedPath,
+      );
 
     if (!target) {
       return `cat: no existe el archivo: ${path}`;
@@ -161,6 +368,10 @@ export class VirtualTerminal {
       (arg) => arg !== "-p",
     );
 
+    if (paths.length === 0) {
+      return "mkdir: falta el nombre del directorio";
+    }
+
     for (const path of paths) {
       const resolvedPath =
         this.resolvePath(path);
@@ -179,7 +390,9 @@ export class VirtualTerminal {
 
       try {
         if (recursive) {
-          this.mkdirRecursive(resolvedPath);
+          this.mkdirRecursive(
+            resolvedPath,
+          );
         } else {
           this.kernel.filesystem.createDirectory(
             resolvedPath,
@@ -193,7 +406,9 @@ export class VirtualTerminal {
     return "";
   }
 
-  private mkdirRecursive(path: string): void {
+  private mkdirRecursive(
+    path: string,
+  ): void {
     const parts = path
       .split("/")
       .filter(Boolean);
@@ -268,6 +483,10 @@ export class VirtualTerminal {
         arg !== "-rf",
     );
 
+    if (paths.length === 0) {
+      return "rm: falta el nombre del archivo";
+    }
+
     for (const path of paths) {
       const resolvedPath =
         this.resolvePath(path);
@@ -340,35 +559,42 @@ export class VirtualTerminal {
       "",
       "Navegación:",
       "  pwd                  Mostrar directorio actual",
-      "  cd <ruta>             Cambiar directorio",
-      "  cd ~                  Ir al directorio personal",
-      "  cd ..                 Subir un directorio",
-      "  cd .                  Mantener directorio actual",
-      "  ls [ruta]             Listar contenido",
+      "  cd <ruta>            Cambiar directorio",
+      "  cd ~                 Ir al directorio personal",
+      "  cd ..                Subir un directorio",
+      "  cd .                 Mantener directorio actual",
+      "  ls [ruta]            Listar contenido",
       "",
       "Archivos:",
-      "  cat <archivo>         Mostrar contenido",
-      "  touch <archivo>       Crear archivo",
-      "  mkdir <directorio>    Crear directorio",
-      "  mkdir -p <ruta>       Crear ruta completa",
-      "  rm <ruta>             Eliminar archivo",
-      "  rm -r <directorio>    Eliminar directorio",
+      "  cat <archivo>        Mostrar contenido",
+      "  touch <archivo>      Crear archivo",
+      "  mkdir <directorio>   Crear directorio",
+      "  mkdir -p <ruta>      Crear ruta completa",
+      "  rm <ruta>            Eliminar archivo",
+      "  rm -r <directorio>   Eliminar directorio",
       "",
       "Sistema:",
-      "  whoami                Usuario actual",
-      "  id                    Identidad del usuario",
-      "  hostname              Nombre del sistema",
-      "  uname                 Kernel virtual",
-      "  ps                    Procesos virtuales",
+      "  whoami               Usuario actual",
+      "  id                   Identidad del usuario",
+      "  hostname             Nombre del sistema",
+      "  uname                Kernel virtual",
+      "  ps                   Procesos virtuales",
       "",
       "Utilidades:",
-      "  echo <texto>          Mostrar texto",
-      "  clear                 Limpiar terminal",
-      "  help                  Mostrar esta ayuda",
+      "  echo <texto>         Mostrar texto",
+      "  clear                Limpiar terminal",
+      "  help                 Mostrar esta ayuda",
+      "",
+      "Parser:",
+      "  comando1 ; comando2      Ejecutar ambos",
+      "  comando1 && comando2     Ejecutar segundo si el primero funciona",
+      "  echo \"texto con espacios\"  Usar argumentos con espacios",
     ].join("\n");
   }
 
-  private resolvePath(path: string): string {
+  private resolvePath(
+    path: string,
+  ): string {
     if (path === "~") {
       return "/home/student";
     }
@@ -390,7 +616,9 @@ export class VirtualTerminal {
     );
   }
 
-  private normalizePath(path: string): string {
+  private normalizePath(
+    path: string,
+  ): string {
     const parts = path.split("/");
     const result: string[] = [];
 
@@ -413,14 +641,18 @@ export class VirtualTerminal {
     return "/" + result.join("/");
   }
 
-  private getName(path: string): string {
+  private getName(
+    path: string,
+  ): string {
     if (path === "/") {
       return "/";
     }
 
     return (
-      path.split("/").filter(Boolean).pop() ||
-      "/"
+      path
+        .split("/")
+        .filter(Boolean)
+        .pop() || "/"
     );
   }
 }
