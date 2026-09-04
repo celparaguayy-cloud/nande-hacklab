@@ -16,11 +16,25 @@ export class VirtualFilesystem {
     this.files = new Map();
 
     this.createDirectory("/", "root", "root", "755");
-    this.createDirectory("/home", "root", "root", "755");
-    this.createDirectory("/root", "root", "root", "700");
-    this.createDirectory("/home/student", "student", "users", "755");
-    this.createDirectory("/tmp", "root", "root", "1777");
+
+    this.createDirectory("/bin", "root", "root", "755");
+    this.createDirectory("/dev", "root", "root", "755");
     this.createDirectory("/etc", "root", "root", "755");
+
+    this.createDirectory("/home", "root", "root", "755");
+    this.createDirectory("/home/student", "student", "users", "755");
+
+    this.createDirectory("/root", "root", "root", "700");
+
+    this.createDirectory("/tmp", "root", "root", "1777");
+
+    this.createDirectory("/usr", "root", "root", "755");
+    this.createDirectory("/usr/bin", "root", "root", "755");
+    this.createDirectory("/usr/lib", "root", "root", "755");
+
+    this.createDirectory("/var", "root", "root", "755");
+    this.createDirectory("/var/log", "root", "root", "755");
+    this.createDirectory("/var/tmp", "root", "root", "1777");
 
     this.createFile(
       "/etc/motd",
@@ -129,6 +143,10 @@ export class VirtualFilesystem {
   }
 
   remove(path: string): void {
+    if (path === "/") {
+      throw new Error("No se puede eliminar el directorio raíz");
+    }
+
     if (!this.exists(path)) {
       throw new Error(`No existe: ${path}`);
     }
