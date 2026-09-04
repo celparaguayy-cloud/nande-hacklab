@@ -31,6 +31,9 @@ export class VirtualTerminal {
       case "uname":
         return this.kernel.os.getState().kernel;
 
+      case "cd":
+        return this.cd(args[0] ?? "/home/student");
+
       case "ls":
         return this.ls(args[0] ?? this.currentDirectory);
 
@@ -84,7 +87,8 @@ export class VirtualTerminal {
           "  whoami",
           "  hostname",
           "  uname",
-          "  ls",
+          "  cd <directorio>",
+          "  ls [directorio]",
           "  cat <archivo>",
           "  mkdir <directorio>",
           "  touch <archivo>",
@@ -98,25 +102,72 @@ export class VirtualTerminal {
     }
   }
 
+  private cd(path: string): string {
+    const resolvedPath = this.resolvePath(path);
+
+    const target = this.kernel.filesystem.getFile(
+      resolvedPath,
+    );
+
+    if (!target) {
+      return `cd: no existe el directorio: ${path}`;
+    }
+
+    if (target.type !== "directory") {
+      return `cd: no es un directorio: ${path}`;
+    }
+
+    this.currentDirectory = resolvedPath;
+
+    return "";
+  }
+
   private ls(path: string): string {
     const resolvedPath = this.resolvePath(path);
 
     return this.kernel.filesystem
       .listDirectory(resolvedPath)
       .map((file) => {
-        const suffix = file.type === "directory" ? "/" : "";
-        return `${file.permissions} ${file.path.split("/").pop()}${suffix}`;
+        const suffix =
+          file.type === "directory" ? "/" : "";
+
+        const name =
+          file.path.split("/").pop() || "/";
+
+        return `${file.permissions} ${name}${suffix}`;
       })
       .join("\n");
   }
 
   private resolvePath(path: string): string {
     if (path.startsWith("/")) {
-      return path;
+      return this.normalizePath(path);
     }
 
-    return this.currentDirectory === "/"
-      ? `/${path}`
-      : `${this.currentDirectory}/${path}`;
+    return this.normalizePath(
+      this.currentDirectory === "/"
+        ? `/${path}`
+        : `${this.currentDirectory}/${path}`,
+    );
+  }
+
+  private normalizePath(path: string): string {
+    const parts = path.split("/");
+    const result: string[] = [];
+
+    for (const part of parts) {
+      if (!part || part === ".") {
+        continue;
+      }
+
+      if (part === "..") {
+        result.pop();
+        continue;
+      }
+
+      result.push(part);
+    }
+
+    return "/" + result.join("/");
   }
 }
