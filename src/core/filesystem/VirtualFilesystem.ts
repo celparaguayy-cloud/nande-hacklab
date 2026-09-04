@@ -17,6 +17,7 @@ export class VirtualFilesystem {
 
     this.createDirectory("/", "root", "root", "755");
     this.createDirectory("/home", "root", "root", "755");
+    this.createDirectory("/root", "root", "root", "700");
     this.createDirectory("/home/student", "student", "users", "755");
     this.createDirectory("/tmp", "root", "root", "1777");
     this.createDirectory("/etc", "root", "root", "755");

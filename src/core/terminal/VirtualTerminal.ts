@@ -267,6 +267,8 @@ export class VirtualTerminal {
       output.startsWith("mkdir:") ||
       output.startsWith("touch:") ||
       output.startsWith("rm:") ||
+      output.startsWith("chmod:") ||
+      output.startsWith("chown:") ||
       output.includes("comando no encontrado")
     );
   }
@@ -362,7 +364,16 @@ export class VirtualTerminal {
       )}`;
     }
 
-    if (!this.hasPermission(resolvedPath, "read")) {
+    if (
+      !this.hasPermission(
+        resolvedPath,
+        "read",
+      ) ||
+      !this.hasPermission(
+        resolvedPath,
+        "execute",
+      )
+    ) {
       return `ls: permiso denegado: ${path}`;
     }
 
@@ -410,7 +421,12 @@ export class VirtualTerminal {
       return `cat: ${path}: es un directorio`;
     }
 
-    if (!this.hasPermission(resolvedPath, "read")) {
+    if (
+      !this.hasPermission(
+        resolvedPath,
+        "read",
+      )
+    ) {
       return `cat: permiso denegado: ${path}`;
     }
 
@@ -455,8 +471,14 @@ export class VirtualTerminal {
         this.getParentPath(resolvedPath);
 
       if (
-        !this.hasPermission(parentPath, "write") ||
-        !this.hasPermission(parentPath, "execute")
+        !this.hasPermission(
+          parentPath,
+          "write",
+        ) ||
+        !this.hasPermission(
+          parentPath,
+          "execute",
+        )
       ) {
         return `mkdir: permiso denegado: ${path}`;
       }
@@ -470,7 +492,8 @@ export class VirtualTerminal {
           this.kernel.filesystem.createDirectory(
             resolvedPath,
             this.currentUser,
-            this.getCurrentUserGroups()[0] ?? "users",
+            this.getCurrentUserGroups()[0] ??
+              "users",
           );
         }
       } catch {
@@ -502,8 +525,14 @@ export class VirtualTerminal {
           this.getParentPath(current);
 
         if (
-          !this.hasPermission(parentPath, "write") ||
-          !this.hasPermission(parentPath, "execute")
+          !this.hasPermission(
+            parentPath,
+            "write",
+          ) ||
+          !this.hasPermission(
+            parentPath,
+            "execute",
+          )
         ) {
           throw new Error(
             `Permiso denegado: ${current}`,
@@ -513,7 +542,8 @@ export class VirtualTerminal {
         this.kernel.filesystem.createDirectory(
           current,
           this.currentUser,
-          this.getCurrentUserGroups()[0] ?? "users",
+          this.getCurrentUserGroups()[0] ??
+            "users",
         );
       }
     }
@@ -544,8 +574,14 @@ export class VirtualTerminal {
         this.getParentPath(resolvedPath);
 
       if (
-        !this.hasPermission(parentPath, "write") ||
-        !this.hasPermission(parentPath, "execute")
+        !this.hasPermission(
+          parentPath,
+          "write",
+        ) ||
+        !this.hasPermission(
+          parentPath,
+          "execute",
+        )
       ) {
         return `touch: permiso denegado: ${path}`;
       }
@@ -555,7 +591,8 @@ export class VirtualTerminal {
           resolvedPath,
           "",
           this.currentUser,
-          this.getCurrentUserGroups()[0] ?? "users",
+          this.getCurrentUserGroups()[0] ??
+            "users",
         );
       } catch {
         return `touch: no se pudo crear: ${path}`;
@@ -617,8 +654,14 @@ export class VirtualTerminal {
         this.getParentPath(resolvedPath);
 
       if (
-        !this.hasPermission(parentPath, "write") ||
-        !this.hasPermission(parentPath, "execute")
+        !this.hasPermission(
+          parentPath,
+          "write",
+        ) ||
+        !this.hasPermission(
+          parentPath,
+          "execute",
+        )
       ) {
         return `rm: permiso denegado: ${path}`;
       }
@@ -768,6 +811,8 @@ export class VirtualTerminal {
       "  mkdir -p <ruta>      Crear ruta completa",
       "  rm <ruta>            Eliminar archivo",
       "  rm -r <directorio>   Eliminar directorio",
+      "  chmod <modo> <ruta>  Cambiar permisos",
+      "  chown <user> <ruta>  Cambiar propietario (root)",
       "",
       "Sistema:",
       "  whoami               Usuario actual",
