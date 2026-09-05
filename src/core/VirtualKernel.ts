@@ -23,6 +23,8 @@ import { Store } from "./game/Store";
 import { Economy } from "./economy/Economy";
 import { VirtualMail } from "./mail/VirtualMail";
 import { Chat } from "./chat/Chat";
+import { Appearance } from "./desktop/Appearance";
+import { Notes } from "./notes/Notes";
 import { WorldMap } from "./world/WorldMap";
 import { VirtualHardware } from "./hardware/VirtualHardware";
 import { VirtualWiFi } from "./hardware/VirtualWiFi";
@@ -62,6 +64,8 @@ export class VirtualKernel {
   public economy: Economy;
   public mail: VirtualMail;
   public chat: Chat;
+  public appearance: Appearance;
+  public notes: Notes;
   public map: WorldMap;
   public hardware: VirtualHardware;
   public wifi: VirtualWiFi;
@@ -101,6 +105,8 @@ export class VirtualKernel {
     this.economy = new Economy(this.events);
     this.mail = new VirtualMail(this.events);
     this.chat = new Chat(this.events);
+    this.appearance = new Appearance(this.events);
+    this.notes = new Notes();
     this.map = new WorldMap(
       this.registry,
       this.worldEngine.professions() as never,
