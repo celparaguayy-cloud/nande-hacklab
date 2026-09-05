@@ -181,8 +181,8 @@ describe("Store del mundo", () => {
     expect(listing).toBeDefined();
     expect(listing!.price).toBe(kernel.store.priceOf(entity));
 
-    // store.nande es navegable y lo muestra.
-    const page = kernel.browser.open("store.nande");
+    // La creación aparece en la tienda navegable (shop.nande, categoría software).
+    const page = kernel.browser.open("shop.nande", "/category/software");
     expect(page.content).toContain("Escáner Yvoty");
 
     kernel.dispose();

@@ -25,6 +25,8 @@ import { VirtualMail } from "./mail/VirtualMail";
 import { Chat } from "./chat/Chat";
 import { Appearance } from "./desktop/Appearance";
 import { Notes } from "./notes/Notes";
+import { Marketplace } from "./web/Marketplace";
+import { renderGitSite } from "./web/gitSite";
 import { WorldMap } from "./world/WorldMap";
 import { VirtualHardware } from "./hardware/VirtualHardware";
 import { VirtualWiFi } from "./hardware/VirtualWiFi";
@@ -66,6 +68,7 @@ export class VirtualKernel {
   public chat: Chat;
   public appearance: Appearance;
   public notes: Notes;
+  public shop: Marketplace;
   public map: WorldMap;
   public hardware: VirtualHardware;
   public wifi: VirtualWiFi;
@@ -107,6 +110,7 @@ export class VirtualKernel {
     this.chat = new Chat(this.events);
     this.appearance = new Appearance(this.events);
     this.notes = new Notes();
+    this.shop = new Marketplace(this.registry);
     this.map = new WorldMap(
       this.registry,
       this.worldEngine.professions() as never,
@@ -154,32 +158,59 @@ export class VirtualKernel {
       },
     });
 
-    // store.nande se arma leyendo lo que los habitantes crearon.
+    // shop.nande: tienda navegable con categorías y compra real en N$.
+    this.dns.register("shop.nande", "10.10.0.36");
+
     this.internet.registerDynamicSite({
-      hostname: "store.nande",
+      hostname: "shop.nande",
       title: "ÑANDE Store",
-      description: "Herramientas, apps y juegos hechos por los habitantes.",
+      description: "Tienda del mundo: buscá y comprá con N$.",
       resolve: (path) => {
+        const html = (content: string) => ({
+          path,
+          mimeType: "text/html",
+          content,
+        });
+
         if (path === "/") {
-          return {
-            path,
-            mimeType: "text/html",
-            content: this.store.renderFront(),
-          };
+          return html(this.shop.renderFront());
         }
 
-        const match = path.match(/^\/item\/([\w-]+)$/);
+        const cat = path.match(/^\/category\/([\w-]+)$/);
+        if (cat) {
+          const c = this.shop.renderCategory(cat[1]);
+          return c ? html(c) : undefined;
+        }
 
-        if (match) {
-          const content = this.store.renderItem(match[1]);
+        const item = path.match(/^\/item\/([\w-]+)$/);
+        if (item) {
+          const c = this.shop.renderItem(item[1]);
+          return c ? html(c) : undefined;
+        }
 
-          return content
-            ? { path, mimeType: "text/html", content }
-            : undefined;
+        // Comprar: el enlace /buy/<id> ejecuta la compra y muestra el
+        // resultado. El cobro sale del saldo real del jugador.
+        const buy = path.match(/^\/buy\/([\w-]+)$/);
+        if (buy) {
+          const result = this.shop.buy(buy[1], (amount) =>
+            this.player.spend(amount),
+          );
+          return html(this.shop.renderBuyResult(buy[1], result.ok, result.message));
         }
 
         return undefined;
       },
+    });
+
+    // git.nande: ecosistema Git virtual con repos y herramientas de los
+    // habitantes, navegable.
+    this.dns.register("git.nande", "10.10.0.34");
+
+    this.internet.registerDynamicSite({
+      hostname: "git.nande",
+      title: "ÑANDE Git",
+      description: "Repositorios y herramientas del mundo virtual.",
+      resolve: (path) => renderGitSite(this.registry, path),
     });
 
     this.internet.registerDynamicSite({
