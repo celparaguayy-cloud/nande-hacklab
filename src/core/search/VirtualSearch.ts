@@ -106,6 +106,48 @@ export class VirtualSearch {
     return this.index_.length;
   }
 
+  /**
+   * Respuestas rápidas: ciertas palabras llevan directo al sitio útil
+   * (buscar "compras" o "ferretería" apunta a la tienda, "github" al Git
+   * virtual, etc.), como un buscador de verdad.
+   */
+  private smartResults(query: string): SearchResult[] {
+    const q = query.toLowerCase();
+    const out: SearchResult[] = [];
+    const add = (
+      hostname: string,
+      title: string,
+      description: string,
+    ) => out.push({ hostname, title, description, keywords: [] });
+
+    if (/(compra|comprar|tienda|shop|producto|precio)/.test(q)) {
+      add("shop.nande", "🛒 ÑANDE Store", "Buscá y comprá productos con N$.");
+    }
+    if (/(ferreter|herramienta|taladro|martillo|taller)/.test(q)) {
+      add("shop.nande/category/ferreteria", "🔧 Ferretería", "Herramientas del taller.");
+    }
+    if (/(electr[oó]nica|laptop|monitor|router|computadora)/.test(q)) {
+      add("shop.nande/category/electronica", "💻 Electrónica", "Equipos y dispositivos.");
+    }
+    if (/(github|git|repositori|repo|c[oó]digo)/.test(q)) {
+      add("git.nande", "💻 ÑANDE Git", "Repositorios y herramientas del mundo.");
+    }
+    if (/(curso|aprender|academia|estudiar|hacking)/.test(q)) {
+      add("academy.nande", "🎓 ÑANDE Academy", "Aprendé ciberseguridad de cero a experto.");
+    }
+    if (/(noticia|news|diario|actualidad)/.test(q)) {
+      add("news.nande", "📰 ÑANDE News", "Lo último del mundo virtual.");
+    }
+    if (/(herramienta.*seguridad|nmap|tool|toolbox)/.test(q)) {
+      add("tools.nande", "🧰 ÑANDE Toolbox", "Biblioteca de herramientas de seguridad.");
+    }
+    if (/(comunidad|grupo|gente|social)/.test(q)) {
+      add("community.nande", "👥 Comunidades", "Comunidades de habitantes.");
+    }
+
+    return out;
+  }
+
   search(query: string): SearchResult[] {
     const normalized = query.trim().toLowerCase();
 
@@ -115,7 +157,7 @@ export class VirtualSearch {
 
     const terms = normalized.split(/\s+/);
 
-    return this.index_
+    const indexed = this.index_
       .map((result) => {
         const searchable = [
           result.hostname,
@@ -140,6 +182,12 @@ export class VirtualSearch {
       .filter((item) => item.score > 0)
       .sort((a, b) => b.score - a.score)
       .map((item) => structuredClone(item.result));
+
+    // Las respuestas rápidas van primero, sin duplicar dominios.
+    const smart = this.smartResults(normalized);
+    const seen = new Set(smart.map((s) => s.hostname));
+
+    return [...smart, ...indexed.filter((r) => !seen.has(r.hostname))];
   }
 
   all(): SearchResult[] {

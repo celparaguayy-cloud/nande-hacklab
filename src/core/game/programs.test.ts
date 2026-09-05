@@ -114,16 +114,19 @@ describe("run en la terminal", () => {
     kernel.dispose();
   });
 
-  it("la store muestra qué hace cada creación funcional", () => {
+  it("la creación de un habitante tiene programa ejecutable", async () => {
+    const { VirtualTerminal } = await import("../terminal/VirtualTerminal");
     const kernel = new VirtualKernel();
+    const term = new VirtualTerminal(kernel);
 
     const tool = kernel.registry.create(
-      "tool", "Reversor", "d", "person-1", 1, [], { ownerName: "Y" },
+      "tool", "Reversor", "hola", "person-1", 1, [], { ownerName: "Y" },
     );
 
-    const page = kernel.browser.open("store.nande", `/item/${tool.id}`);
-    expect(page.content).toContain("programa funcional");
-    expect(page.content).toContain(`run ${tool.id}`);
+    // El programa existe y se ejecuta desde la terminal.
+    expect(kernel.store.programOf(tool.id)).toBeDefined();
+    const out = term.execute(`run ${tool.id} prueba`);
+    expect(out).toContain("Reversor");
 
     kernel.dispose();
   });

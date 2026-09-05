@@ -162,27 +162,6 @@ export class VirtualInternet {
       ],
     });
 
-    this.registerSite({
-      hostname: "git.nande",
-      title: "ÑANDE Git",
-      description: "Plataforma virtual de repositorios.",
-      resources: [
-        {
-          path: "/",
-          mimeType: "text/html",
-          content: `
-            <h1>💻 ÑANDE Git</h1>
-            <p>Repositorios de código dentro del laboratorio.</p>
-            <h2>Repositorios destacados</h2>
-            <ul>
-              <li>nande-os</li>
-              <li>security-labs</li>
-              <li>ctf-challenges</li>
-            </ul>
-          `,
-        },
-      ],
-    });
 
     this.registerSite({
       hostname: "ctf.nande",
