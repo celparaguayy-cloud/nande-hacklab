@@ -46,28 +46,21 @@ export class VirtualTerminal {
     const commands = this.splitChain(commandLine);
 
     let output = "";
-    let previousError = false;
 
-    for (let i = 0; i < commands.length; i++) {
-      const item = commands[i];
-
-      if (i > 0) {
-        if (item.operator === "&&" && previousError) {
-          continue;
-        }
-
-        if (item.operator === "||" && !previousError) {
-          continue;
-        }
-      }
-
-      const result = this.executeSingle(item.command);
+    for (const command of commands) {
+      const result = this.executeSingle(command.command);
 
       if (result.output) {
         output += result.output;
       }
 
-      previousError = result.isError;
+      if (result.isError) {
+        return output;
+      }
+
+      if (command.operator === "&&" && result.isError) {
+        return output;
+      }
     }
 
     return output;
@@ -91,13 +84,7 @@ export class VirtualTerminal {
         continue;
       }
 
-      // Un solo "|" es pipe.
-      // "||" pertenece al operador lógico OR.
-      if (
-        char === "|" &&
-        input[i + 1] !== "|" &&
-        input[i - 1] !== "|"
-      ) {
+      if (char === "|") {
         return true;
       }
     }
@@ -269,88 +256,70 @@ export class VirtualTerminal {
     return pipelineOutput;
   }
 
-  private splitChain(
-    input: string,
-  ): {
+  private splitChain(input: string): {
     command: string;
-    operator: "&&" | "||" | ";" | null;
+    operator: ";" | "&&" | null;
   }[] {
     const result: {
       command: string;
-      operator: "&&" | "||" | ";" | null;
+      operator: ";" | "&&" | null;
     }[] = [];
 
     let current = "";
-    let nextOperator: "&&" | "||" | ";" | null = null;
-    let quote: "'" | '"' | null = null;
+    let quote = "";
+    let i = 0;
 
-    for (let i = 0; i < input.length; i++) {
+    while (i < input.length) {
       const char = input[i];
 
       if (quote) {
         current += char;
 
         if (char === quote) {
-          quote = null;
+          quote = "";
         }
 
+        i++;
         continue;
       }
 
-      if (char === "'" || char === '"') {
+      if (char === '"' || char === "'") {
         quote = char;
         current += char;
-        continue;
-      }
-
-      if (char === "&" && input[i + 1] === "&") {
-        if (current.trim()) {
-          result.push({
-            command: current.trim(),
-            operator: nextOperator,
-          });
-        }
-
-        current = "";
-        nextOperator = "&&";
         i++;
         continue;
       }
 
-      if (char === "|" && input[i + 1] === "|") {
-        if (current.trim()) {
-          result.push({
-            command: current.trim(),
-            operator: nextOperator,
-          });
-        }
+      if (input.slice(i, i + 2) === "&&") {
+        result.push({
+          command: current.trim(),
+          operator: "&&",
+        });
 
         current = "";
-        nextOperator = "||";
-        i++;
+        i += 2;
         continue;
       }
 
       if (char === ";") {
-        if (current.trim()) {
-          result.push({
-            command: current.trim(),
-            operator: nextOperator,
-          });
-        }
+        result.push({
+          command: current.trim(),
+          operator: ";",
+        });
 
         current = "";
-        nextOperator = ";";
+        i++;
         continue;
       }
 
       current += char;
+      i++;
     }
 
     if (current.trim()) {
       result.push({
         command: current.trim(),
-        operator: nextOperator,
+        operator: null,
       });
     }
 
@@ -553,21 +522,6 @@ export class VirtualTerminal {
         };
       }
 
-      case "grep":
-        return this.grep(commandArgs);
-
-      case "head":
-        return this.head(commandArgs);
-
-      case "tail":
-        return this.tail(commandArgs);
-
-      case "wc":
-        return this.wc(commandArgs);
-
-      case "printf":
-        return this.printf(commandArgs);
-
       case "true":
         return {
           output: "",
@@ -674,78 +628,6 @@ export class VirtualTerminal {
         isError: true,
       };
     }
-  }
-
-  private grep(args: string[]): {
-    output: string;
-    isError: boolean;
-  } {
-    if (!args[0]) {
-      return {
-        output: "grep: falta el patrón\\n",
-        isError: true,
-      };
-    }
-
-    return {
-      output: `grep: uso independiente: usa grep dentro de un pipe\\n`,
-      isError: true,
-    };
-  }
-
-  private head(_args: string[]): {
-    output: string;
-    isError: boolean;
-  } {
-    return {
-      output: "head: uso independiente: usa head dentro de un pipe\\n",
-      isError: true,
-    };
-  }
-
-  private tail(_args: string[]): {
-    output: string;
-    isError: boolean;
-  } {
-    return {
-      output: "tail: uso independiente: usa tail dentro de un pipe\\n",
-      isError: true,
-    };
-  }
-
-  private wc(_args: string[]): {
-    output: string;
-    isError: boolean;
-  } {
-    return {
-      output: "wc: uso independiente: usa wc dentro de un pipe\\n",
-      isError: true,
-    };
-  }
-
-  private printf(args: string[]): {
-    output: string;
-    isError: boolean;
-  } {
-    if (args.length === 0) {
-      return {
-        output: "",
-        isError: false,
-      };
-    }
-
-    let format = args[0];
-    const values = args.slice(1);
-
-    let index = 0;
-
-    format = format.replace(/%s/g, () => values[index++] ?? "");
-    format = format.replace(/\\n/g, "\\n");
-
-    return {
-      output: format,
-      isError: false,
-    };
   }
 
   private id(): string {
@@ -1078,14 +960,9 @@ export class VirtualTerminal {
       };
     }
 
-    if (this.kernel.filesystem.exists(path)) {
-      return {
-        output: `El archivo ya existe: ${path}\n`,
-        isError: true,
-      };
+    if (!this.kernel.filesystem.exists(path)) {
+      this.kernel.filesystem.createFile(path);
     }
-
-    this.kernel.filesystem.createFile(path);
 
     return {
       output: "",

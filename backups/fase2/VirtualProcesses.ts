@@ -17,9 +17,9 @@ export class VirtualProcesses {
     this.processes = new Map();
     this.nextPid = 1;
 
-    this.create("init", "root", 0.2, 12);
-    this.create("network-manager", "root", 0.4, 28);
-    this.create("terminal", "student", 0.8, 36);
+    this.create("init", "root");
+    this.create("network-manager", "root");
+    this.create("terminal", "student");
   }
 
   create(
@@ -80,9 +80,5 @@ export class VirtualProcesses {
     }
 
     this.processes.delete(pid);
-  }
-
-  count(): number {
-    return this.processes.size;
   }
 }

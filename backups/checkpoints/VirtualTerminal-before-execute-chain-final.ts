@@ -48,17 +48,13 @@ export class VirtualTerminal {
     let output = "";
     let previousError = false;
 
-    for (let i = 0; i < commands.length; i++) {
-      const item = commands[i];
+    for (const item of commands) {
+      if (item.operator === "&&" && previousError) {
+        continue;
+      }
 
-      if (i > 0) {
-        if (item.operator === "&&" && previousError) {
-          continue;
-        }
-
-        if (item.operator === "||" && !previousError) {
-          continue;
-        }
+      if (item.operator === "||" && !previousError) {
+        continue;
       }
 
       const result = this.executeSingle(item.command);
@@ -91,13 +87,7 @@ export class VirtualTerminal {
         continue;
       }
 
-      // Un solo "|" es pipe.
-      // "||" pertenece al operador lógico OR.
-      if (
-        char === "|" &&
-        input[i + 1] !== "|" &&
-        input[i - 1] !== "|"
-      ) {
+      if (char === "|") {
         return true;
       }
     }
@@ -1078,14 +1068,9 @@ export class VirtualTerminal {
       };
     }
 
-    if (this.kernel.filesystem.exists(path)) {
-      return {
-        output: `El archivo ya existe: ${path}\n`,
-        isError: true,
-      };
+    if (!this.kernel.filesystem.exists(path)) {
+      this.kernel.filesystem.createFile(path);
     }
-
-    this.kernel.filesystem.createFile(path);
 
     return {
       output: "",

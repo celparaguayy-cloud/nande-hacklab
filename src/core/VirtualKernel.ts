@@ -1,42 +1,46 @@
-import { EventBus } from "./events/EventBus";
-import { VirtualFilesystem } from "./filesystem/VirtualFilesystem";
-import { VirtualOS } from "./os/VirtualOS";
-import { VirtualProcesses } from "./processes/VirtualProcesses";
 import { VirtualWorld } from "./world/VirtualWorld";
+import { VirtualOS } from "./os/VirtualOS";
+import { VirtualFilesystem } from "./filesystem/VirtualFilesystem";
 import { VirtualUsers } from "./users/VirtualUsers";
+import { VirtualProcesses } from "./processes/VirtualProcesses";
+import { EventBus } from "./events/EventBus";
+import { VirtualPrograms } from "./programs/VirtualPrograms";
 
 export class VirtualKernel {
-  readonly world: VirtualWorld;
-  readonly os: VirtualOS;
-  readonly filesystem: VirtualFilesystem;
-  readonly users: VirtualUsers;
-  readonly processes: VirtualProcesses;
-  readonly events: EventBus;
+  public world: VirtualWorld;
+  public os: VirtualOS;
+  public filesystem: VirtualFilesystem;
+  public users: VirtualUsers;
+  public processes: VirtualProcesses;
+  public programs: VirtualPrograms;
+  public events: EventBus;
 
   constructor() {
-    this.events = new EventBus();
     this.world = new VirtualWorld();
     this.os = new VirtualOS(this.world);
     this.filesystem = new VirtualFilesystem();
     this.users = new VirtualUsers();
     this.processes = new VirtualProcesses();
+    this.programs = new VirtualPrograms();
+    this.events = new EventBus();
   }
 
   tick(): void {
     this.os.tick();
 
-    this.events.emit("world.tick", {
-      world: this.world.getState(),
-      os: this.os.getState(),
-    });
+    this.events.emit(
+      "world.tick",
+      this.world.getState(),
+    );
   }
 
-  getSnapshot() {
+  snapshot() {
     return {
       world: this.world.getState(),
       os: this.os.getState(),
-      users: this.users.getAllUsers(),
-      processes: this.processes.getAllProcesses(),
+      users: this.users,
+      processes: this.processes,
+      programs: this.programs.all(),
     };
   }
 }

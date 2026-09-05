@@ -48,17 +48,13 @@ export class VirtualTerminal {
     let output = "";
     let previousError = false;
 
-    for (let i = 0; i < commands.length; i++) {
-      const item = commands[i];
+    for (const item of commands) {
+      if (item.operator === "&&" && previousError) {
+        continue;
+      }
 
-      if (i > 0) {
-        if (item.operator === "&&" && previousError) {
-          continue;
-        }
-
-        if (item.operator === "||" && !previousError) {
-          continue;
-        }
+      if (item.operator === "||" && !previousError) {
+        continue;
       }
 
       const result = this.executeSingle(item.command);
@@ -91,13 +87,7 @@ export class VirtualTerminal {
         continue;
       }
 
-      // Un solo "|" es pipe.
-      // "||" pertenece al operador lógico OR.
-      if (
-        char === "|" &&
-        input[i + 1] !== "|" &&
-        input[i - 1] !== "|"
-      ) {
+      if (char === "|") {
         return true;
       }
     }
@@ -269,88 +259,81 @@ export class VirtualTerminal {
     return pipelineOutput;
   }
 
-  private splitChain(
-    input: string,
-  ): {
+  private splitChain(input: string): {
     command: string;
-    operator: "&&" | "||" | ";" | null;
+    operator: ";" | "&&" | "||" | null;
   }[] {
     const result: {
       command: string;
-      operator: "&&" | "||" | ";" | null;
+      operator: ";" | "&&" | "||" | null;
     }[] = [];
 
     let current = "";
-    let nextOperator: "&&" | "||" | ";" | null = null;
-    let quote: "'" | '"' | null = null;
+    let quote = "";
+    let i = 0;
 
-    for (let i = 0; i < input.length; i++) {
+    while (i < input.length) {
       const char = input[i];
 
       if (quote) {
         current += char;
 
         if (char === quote) {
-          quote = null;
+          quote = "";
         }
 
+        i++;
         continue;
       }
 
-      if (char === "'" || char === '"') {
+      if (char === '"' || char === "'") {
         quote = char;
         current += char;
-        continue;
-      }
-
-      if (char === "&" && input[i + 1] === "&") {
-        if (current.trim()) {
-          result.push({
-            command: current.trim(),
-            operator: nextOperator,
-          });
-        }
-
-        current = "";
-        nextOperator = "&&";
         i++;
         continue;
       }
 
-      if (char === "|" && input[i + 1] === "|") {
-        if (current.trim()) {
-          result.push({
-            command: current.trim(),
-            operator: nextOperator,
-          });
-        }
+      if (input.slice(i, i + 2) === "&&") {
+        result.push({
+          command: current.trim(),
+          operator: "&&",
+        });
 
         current = "";
-        nextOperator = "||";
-        i++;
+        i += 2;
+        continue;
+      }
+
+      if (input.slice(i, i + 2) === "||") {
+        result.push({
+          command: current.trim(),
+          operator: "||",
+        });
+
+        current = "";
+        i += 2;
         continue;
       }
 
       if (char === ";") {
-        if (current.trim()) {
-          result.push({
-            command: current.trim(),
-            operator: nextOperator,
-          });
-        }
+        result.push({
+          command: current.trim(),
+          operator: ";",
+        });
 
         current = "";
-        nextOperator = ";";
+        i++;
         continue;
       }
 
       current += char;
+      i++;
     }
 
     if (current.trim()) {
       result.push({
         command: current.trim(),
-        operator: nextOperator,
+        operator: null,
       });
     }
 
@@ -1078,14 +1061,9 @@ export class VirtualTerminal {
       };
     }
 
-    if (this.kernel.filesystem.exists(path)) {
-      return {
-        output: `El archivo ya existe: ${path}\n`,
-        isError: true,
-      };
+    if (!this.kernel.filesystem.exists(path)) {
+      this.kernel.filesystem.createFile(path);
     }
-
-    this.kernel.filesystem.createFile(path);
 
     return {
       output: "",

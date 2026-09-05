@@ -1078,14 +1078,9 @@ export class VirtualTerminal {
       };
     }
 
-    if (this.kernel.filesystem.exists(path)) {
-      return {
-        output: `El archivo ya existe: ${path}\n`,
-        isError: true,
-      };
+    if (!this.kernel.filesystem.exists(path)) {
+      this.kernel.filesystem.createFile(path);
     }
-
-    this.kernel.filesystem.createFile(path);
 
     return {
       output: "",

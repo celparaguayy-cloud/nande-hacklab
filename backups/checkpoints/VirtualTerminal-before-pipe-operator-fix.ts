@@ -91,13 +91,7 @@ export class VirtualTerminal {
         continue;
       }
 
-      // Un solo "|" es pipe.
-      // "||" pertenece al operador lógico OR.
-      if (
-        char === "|" &&
-        input[i + 1] !== "|" &&
-        input[i - 1] !== "|"
-      ) {
+      if (char === "|") {
         return true;
       }
     }
@@ -1078,14 +1072,9 @@ export class VirtualTerminal {
       };
     }
 
-    if (this.kernel.filesystem.exists(path)) {
-      return {
-        output: `El archivo ya existe: ${path}\n`,
-        isError: true,
-      };
+    if (!this.kernel.filesystem.exists(path)) {
+      this.kernel.filesystem.createFile(path);
     }
-
-    this.kernel.filesystem.createFile(path);
 
     return {
       output: "",
