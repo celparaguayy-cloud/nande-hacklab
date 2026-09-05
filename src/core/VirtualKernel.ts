@@ -22,6 +22,7 @@ import { MissionEngine } from "./game/Missions";
 import { Store } from "./game/Store";
 import { Economy } from "./economy/Economy";
 import { VirtualMail } from "./mail/VirtualMail";
+import { Chat } from "./chat/Chat";
 import { WorldMap } from "./world/WorldMap";
 import { VirtualHardware } from "./hardware/VirtualHardware";
 import { VirtualWiFi } from "./hardware/VirtualWiFi";
@@ -60,6 +61,7 @@ export class VirtualKernel {
   public store: Store;
   public economy: Economy;
   public mail: VirtualMail;
+  public chat: Chat;
   public map: WorldMap;
   public hardware: VirtualHardware;
   public wifi: VirtualWiFi;
@@ -98,6 +100,7 @@ export class VirtualKernel {
     this.store = new Store(this.registry);
     this.economy = new Economy(this.events);
     this.mail = new VirtualMail(this.events);
+    this.chat = new Chat(this.events);
     this.map = new WorldMap(
       this.registry,
       this.worldEngine.professions() as never,
@@ -292,6 +295,7 @@ export class VirtualKernel {
     this.player.flush();
     this.economy.flush();
     this.mail.flush();
+    this.chat.flush();
   }
 
   isRunning(): boolean {
@@ -306,6 +310,18 @@ export class VirtualKernel {
     this.worldEngine.tick(worldState.clock.tick, worldState.clock.hour);
     this.economy.tick(worldState.clock.tick);
     this.mail.tick(worldState.clock.tick, this.worldEngine);
+
+    // De vez en cuando un habitante en línea escribe primero por chat.
+    if (
+      worldState.clock.tick % 130 === 0 &&
+      Math.random() < 0.5
+    ) {
+      const online = this.worldEngine.getOnlinePeople();
+      if (online.length > 0) {
+        const who = online[Math.floor(Math.random() * online.length)];
+        this.chat.incoming(who, worldState.clock.tick);
+      }
+    }
 
     this.events.emit(
       "world.tick",
@@ -339,6 +355,7 @@ export class VirtualKernel {
       missions: this.missions.progress(),
       economy: this.economy.snapshot(),
       unreadMail: this.mail.unreadCount(),
+      unreadChat: this.chat.unreadTotal(),
       map: this.map.snapshot(
         this.worldEngine.presenceByZone(this.world.getState().clock.hour),
       ),

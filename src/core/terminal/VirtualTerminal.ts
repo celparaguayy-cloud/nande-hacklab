@@ -874,6 +874,9 @@ export class VirtualTerminal {
         case "mail":
           return this.mailCmd(commandArgs);
 
+        case "chat":
+          return this.chatCmd(commandArgs);
+
         case "neofetch":
         case "hw":
           return { output: `${this.kernel.hardware.render()}\n`, isError: false };
@@ -1267,6 +1270,83 @@ export class VirtualTerminal {
       output: current
         ? `📶 Conectado a "${current}" (wlan0 activa).\n`
         : `WiFi desconectado. Escaneá con 'wifi scan'.\n`,
+      isError: false,
+    };
+  }
+
+  /** Chat con los habitantes: listar, ver una charla, escribir. */
+  private chatCmd(args: string[]): { output: string; isError: boolean } {
+    const engine = this.kernel.worldEngine;
+
+    // chat contactos: muestra gente en línea para escribirle.
+    if (args[0] === "contactos" || args[0] === "who") {
+      const online = engine.getOnlinePeople().slice(0, 12);
+      const lines = online
+        .map((p) => `  ${p.id}  ${p.name} (${p.profession})`)
+        .join("\n");
+      return {
+        output:
+          `👥 En línea ahora (escribiles con: chat <id> <mensaje>)\n\n${lines}\n`,
+        isError: false,
+      };
+    }
+
+    // chat <id/nombre> <mensaje>: escribir a alguien.
+    if (args.length >= 2) {
+      const target = args[0];
+      const text = args.slice(1).join(" ");
+
+      // Buscar por id exacto o por nombre.
+      let person = engine.getPerson(target);
+      if (!person) {
+        person = engine
+          .getPeople()
+          .find(
+            (p) => p.name.toLowerCase() === target.toLowerCase(),
+          );
+      }
+
+      if (!person) {
+        return {
+          output: `chat: no encontré a "${target}". Mirá 'chat contactos'.\n`,
+          isError: true,
+        };
+      }
+
+      const tick = this.kernel.world.getState().clock.tick;
+      const reply = this.kernel.chat.send(person, text, tick);
+
+      return {
+        output: `Vos → ${person.name}: ${text}\n${person.name}: ${reply}\n`,
+        isError: false,
+      };
+    }
+
+    // chat: lista de conversaciones.
+    const convos = this.kernel.chat.conversations();
+
+    if (convos.length === 0) {
+      return {
+        output:
+          `💬 Sin conversaciones todavía.\n` +
+          `Mirá quién está en línea con 'chat contactos' y escribiles.\n`,
+        isError: false,
+      };
+    }
+
+    const lines = convos
+      .map((c) => {
+        const last = c.messages[c.messages.length - 1];
+        const dot = c.unread > 0 ? "● " : "  ";
+        const preview = last ? last.text.slice(0, 40) : "";
+        return `  ${dot}${c.personName.padEnd(22)}${preview}`;
+      })
+      .join("\n");
+
+    return {
+      output:
+        `💬 Chats (${this.kernel.chat.unreadTotal()} sin leer)\n\n${lines}\n\n` +
+        `Escribir: chat <id o nombre> <mensaje>\n`,
       isError: false,
     };
   }
@@ -2331,6 +2411,11 @@ export class VirtualTerminal {
       "  mail read <id>   Leer un mensaje",
       "  mail accept <id> Aceptar una misión propuesta",
       "  mail reply <id> X Responder",
+      "",
+      "Chat:",
+      "  chat             Tus conversaciones",
+      "  chat contactos   Quién está en línea",
+      "  chat <id> <msg>  Escribirle a un habitante",
       "",
       "Hardware y WiFi:",
       "  neofetch         Muestra tu PC virtual (specs)",
