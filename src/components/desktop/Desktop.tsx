@@ -5,6 +5,7 @@ import { Files } from "../files/Files";
 import { ProcessMonitor } from "../processes/ProcessMonitor";
 import { Settings } from "../settings/Settings";
 import { NetworkManager } from "../network/NetworkManager";
+import Browser from "../browser/Browser";
 import { VirtualKernel } from "../../core/VirtualKernel";
 
 const iconStyle = {
@@ -123,6 +124,17 @@ function Desktop() {
           </div>
           Network
         </button>
+
+        
+        <button
+          onClick={() => openWindow("browser")}
+          style={iconStyle}
+        >
+          <div style={{ fontSize: "28px", marginBottom: "8px" }}>
+            🌍
+          </div>
+          Browser
+        </button>
       </div>
 
       <WindowManager
@@ -132,6 +144,7 @@ function Desktop() {
           processes: <ProcessMonitor kernel={kernel} />,
           settings: <Settings kernel={kernel} />,
           network: <NetworkManager kernel={kernel} />,
+          browser: <Browser kernel={kernel} />,
         }}
       />
     </div>

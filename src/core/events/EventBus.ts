@@ -1,5 +1,6 @@
 export type EventType =
   | "world.tick"
+  | "world.entity.created"
   | "process.created"
   | "process.stopped"
   | "process.killed"

@@ -1,0 +1,189 @@
+import { VirtualAgents } from "../social/VirtualAgents";
+import { generatePeople } from "./VirtualPeople";
+import { WorldRegistry } from "./WorldRegistry";
+import { EventBus } from "../events/EventBus";
+import { VirtualSocial } from "../social/VirtualSocial";
+export type VirtualProfession =
+  | "student"
+  | "developer"
+  | "security-analyst"
+  | "teacher"
+  | "journalist"
+  | "gamer"
+  | "designer"
+  | "merchant"
+  | "technician"
+  | "entrepreneur"
+  | "researcher"
+  | "user";
+
+export interface VirtualPerson {
+  id: string;
+  name: string;
+  age: number;
+  profession: VirtualProfession;
+  interests: string[];
+  technicalLevel: number;
+  activity: number;
+  online: boolean;
+}
+
+export interface WorldEvent {
+  id: string;
+  tick: number;
+  type: "login" | "logout" | "post" | "comment" | "project";
+  actorId: string;
+  description: string;
+}
+
+const PEOPLE: VirtualPerson[] = generatePeople(2000);
+
+export class WorldEngine {
+  private people: Map<string, VirtualPerson>;
+  private events: WorldEvent[];
+  private eventBus: EventBus;
+  private eventCounter: number;
+  private social: VirtualSocial;
+  private agents: VirtualAgents;
+  private registry: WorldRegistry;
+
+  constructor(registry: WorldRegistry, events: EventBus) {
+    this.people = new Map(
+      PEOPLE.map((person) => [person.id, structuredClone(person)]),
+    );
+
+    this.events = [];
+    this.eventCounter = 1;
+
+    const people = this.getPeople();
+
+    this.social = new VirtualSocial(
+      people.map((person) => person.id),
+    );
+
+    this.agents = new VirtualAgents(people);
+    this.registry = registry;
+    this.eventBus = events;
+  }
+
+  getPeople(): VirtualPerson[] {
+    return Array.from(this.people.values()).map((person) =>
+      structuredClone(person),
+    );
+  }
+
+  getOnlinePeople(): VirtualPerson[] {
+    return this.getPeople().filter((person) => person.online);
+  }
+
+  getPerson(id: string): VirtualPerson | undefined {
+    const person = this.people.get(id);
+
+    return person ? structuredClone(person) : undefined;
+  }
+
+  getEvents(): WorldEvent[] {
+    return structuredClone(this.events);
+  }
+
+  setOnline(id: string, online: boolean, tick: number): void {
+    const person = this.people.get(id);
+
+    if (!person || person.online === online) {
+      return;
+    }
+
+    person.online = online;
+
+    this.events.push({
+      id: `event-${this.eventCounter++}`,
+      tick,
+      type: online ? "login" : "logout",
+      actorId: id,
+      description: `${person.name} ${online ? "se conectó" : "se desconectó"} de ÑANDE.`,
+    });
+  }
+
+  addEvent(
+    type: WorldEvent["type"],
+    actorId: string,
+    description: string,
+    tick: number,
+  ): void {
+    if (!this.people.has(actorId)) {
+      return;
+    }
+
+    this.events.push({
+      id: `event-${this.eventCounter++}`,
+      tick,
+      type,
+      actorId,
+      description,
+    });
+  }
+
+  tick(tick: number): void {
+    for (const person of this.people.values()) {
+      const roll = Math.random();
+
+      if (roll < 0.08) {
+        this.setOnline(person.id, !person.online, tick);
+      }
+    }
+
+    if (this.events.length > 100) {
+      this.events = this.events.slice(-100);
+    }
+
+    this.agents.tick(
+      tick,
+      this.getPeople(),
+      this.social,
+    );
+
+    this.social.tick(
+      tick,
+      this.getOnlinePeople().map(
+        (person) => person.id,
+      ),
+    );
+  }
+
+  getSocial(): VirtualSocial {
+    return this.social;
+  }
+
+  getAgents(): VirtualAgents {
+    return this.agents;
+  }
+
+  getRegistry(): WorldRegistry {
+    return this.registry;
+  }
+
+  createEntity(
+    type: Parameters<WorldRegistry["create"]>[0],
+    name: string,
+    description: string,
+    ownerId: string,
+    tick: number,
+    tags: string[] = [],
+    metadata: Record<string, string> = {},
+  ) {
+    const entity = this.registry.create(
+      type,
+      name,
+      description,
+      ownerId,
+      tick,
+      tags,
+      metadata,
+    );
+
+    this.eventBus.emit("world.entity.created", entity);
+
+    return entity;
+  }
+
+}
