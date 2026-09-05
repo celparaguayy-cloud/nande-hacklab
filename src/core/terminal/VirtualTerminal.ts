@@ -839,6 +839,9 @@ export class VirtualTerminal {
         case "buy":
           return this.buyItem(commandArgs);
 
+        case "run":
+          return this.runCreation(commandArgs);
+
         default: {
           // Si no es un builtin, quizas sea una herramienta de seguridad.
           if (this.kernel.tools.find(command)) {
@@ -1051,6 +1054,51 @@ export class VirtualTerminal {
         `🛒 ÑANDE Store — ${this.kernel.store.count()} productos de los habitantes\n\n` +
         `${lines}\n\n` +
         `Comprar: buy <id>. Navegable: https://store.nande\n`,
+      isError: false,
+    };
+  }
+
+  /**
+   * Ejecuta el programa funcional de una creación de la store. Las
+   * creaciones de los habitantes hacen algo de verdad: acá se corren.
+   */
+  private runCreation(args: string[]): { output: string; isError: boolean } {
+    const id = args[0];
+
+    if (!id) {
+      return {
+        output:
+          "uso: run <id> [args]\nMirá qué hay en 'store' y ejecutá una creación.\n",
+        isError: true,
+      };
+    }
+
+    const item = this.kernel.store.get(id);
+
+    if (!item) {
+      return {
+        output: `run: "${id}" no es una creación de la store. Mirá 'store'.\n`,
+        isError: true,
+      };
+    }
+
+    const program = this.kernel.store.programOf(id);
+
+    if (!program) {
+      return {
+        output:
+          `run: "${item.name}" es un ${item.type} sin programa ejecutable.\n` +
+          `(Las herramientas, apps y juegos sí se ejecutan.)\n`,
+        isError: false,
+      };
+    }
+
+    const output = program.run(args.slice(1));
+
+    return {
+      output:
+        `▶ ${item.name} — ${program.label} (por ${item.metadata.ownerName ?? item.ownerId})\n` +
+        `${output}\n`,
       isError: false,
     };
   }
@@ -1859,6 +1907,7 @@ export class VirtualTerminal {
       "  profile          Tu progreso (nivel, XP, dinero)",
       "  missions         Tus misiones",
       "  store            Tienda de creaciones de habitantes",
+      "  run <id>         Ejecuta una creación de la store",
       "  help             Muestra esta ayuda",
       "",
     ].join("\n");
