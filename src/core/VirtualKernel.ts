@@ -14,6 +14,9 @@ import { VirtualSearch } from "./search/VirtualSearch";
 import { VirtualInternet } from "./internet/VirtualInternet";
 import { WorldPublisher } from "./internet/WorldPublisher";
 import { NewsEngine } from "./news/NewsEngine";
+import { SecurityTools } from "./security/SecurityTools";
+import { Academy } from "./academy/Academy";
+import { renderAcademySite, renderToolsSite } from "./academy/academySites";
 import type { WorldEntity } from "./world/WorldRegistry";
 
 /** Milisegundos entre dos avances del mundo. */
@@ -36,6 +39,8 @@ export class VirtualKernel {
   public internet: VirtualInternet;
   public publisher: WorldPublisher;
   public news: NewsEngine;
+  public tools: SecurityTools;
+  public academy: Academy;
 
   private unsubscribePublisher: () => void;
   private tickTimer: ReturnType<typeof setInterval> | null = null;
@@ -63,6 +68,37 @@ export class VirtualKernel {
     );
 
     this.news = new NewsEngine();
+    this.tools = new SecurityTools(this.network, this.dns);
+    this.academy = new Academy();
+
+    // academy.nande y tools.nande: la biblioteca y la ruta de aprendizaje,
+    // navegables como cualquier otro sitio del mundo virtual.
+    this.dns.register("academy.nande", "10.10.0.32");
+    this.dns.register("tools.nande", "10.10.0.38");
+
+    this.internet.registerDynamicSite({
+      hostname: "academy.nande",
+      title: "ÑANDE Academy",
+      description: "Aprendé ciberseguridad de cero a experto.",
+      resolve: (path) => ({
+        path,
+        mimeType: "text/html",
+        content: renderAcademySite(this.academy, this.tools, path),
+      }),
+    });
+
+    this.internet.registerDynamicSite({
+      hostname: "tools.nande",
+      title: "ÑANDE Toolbox",
+      description: "Biblioteca de herramientas de seguridad.",
+      resolve: (path) => {
+        const content = renderToolsSite(this.tools, path);
+
+        return content
+          ? { path, mimeType: "text/html", content }
+          : undefined;
+      },
+    });
 
     // news.nande se arma en el momento: su portada refleja lo ultimo
     // que paso en el mundo, no una pagina escrita de antemano.

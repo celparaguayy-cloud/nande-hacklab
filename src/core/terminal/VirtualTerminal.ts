@@ -806,11 +806,29 @@ export class VirtualTerminal {
         case "ping":
           return this.executePing(commandArgs);
 
-        default:
+        case "tools":
+          return this.listTools(commandArgs);
+
+        case "tool":
+          return this.showTool(commandArgs);
+
+        case "academy":
+          return this.showAcademy(commandArgs);
+
+        case "labs":
+          return this.listLabs();
+
+        default: {
+          // Si no es un builtin, quizas sea una herramienta de seguridad.
+          if (this.kernel.tools.find(command)) {
+            return this.kernel.tools.run(command, commandArgs);
+          }
+
           return {
             output: `Comando no encontrado: ${command}\n`,
             isError: true,
           };
+        }
       }
     } catch (error) {
       return {
@@ -821,6 +839,149 @@ export class VirtualTerminal {
         isError: true,
       };
     }
+  }
+
+  private listTools(args: string[]): {
+    output: string;
+    isError: boolean;
+  } {
+    const filter = args[0];
+    const tools = filter
+      ? this.kernel.tools
+          .all()
+          .filter(
+            (tool) =>
+              tool.category === filter || tool.level === filter,
+          )
+      : this.kernel.tools.all();
+
+    if (tools.length === 0) {
+      return {
+        output: `No hay herramientas para "${filter}".\n`,
+        isError: false,
+      };
+    }
+
+    const lines = tools
+      .map(
+        (tool) =>
+          `  ${tool.runnable ? "▶" : "📖"} ${tool.name.padEnd(16)}${tool.simple}`,
+      )
+      .join("\n");
+
+    return {
+      output:
+        `ÑANDE Toolbox — ${tools.length} herramientas` +
+        (filter ? ` (${filter})` : "") +
+        `\n▶ ejecutable · 📖 ficha de estudio\n\n${lines}\n\n` +
+        `Ficha completa: tool <nombre>. Navegable: https://tools.nande\n`,
+      isError: false,
+    };
+  }
+
+  private showTool(args: string[]): {
+    output: string;
+    isError: boolean;
+  } {
+    const name = args[0];
+
+    if (!name) {
+      return { output: "uso: tool <nombre>\n", isError: true };
+    }
+
+    const tool = this.kernel.tools.find(name);
+
+    if (!tool) {
+      return {
+        output: `tool: "${name}" no está en la biblioteca. Probá 'tools'.\n`,
+        isError: true,
+      };
+    }
+
+    return {
+      output:
+        `${tool.name}  [${tool.level} · ${tool.category}]\n\n` +
+        `Fácil:      ${tool.simple}\n` +
+        `Qué hace:   ${tool.whatItDoes}\n` +
+        `Por qué:    ${tool.whyExists}\n` +
+        `Cuándo:     ${tool.whenToUse}\n` +
+        `Resultado:  ${tool.resultMeaning}\n` +
+        `Detección:  ${tool.howToDetect}\n` +
+        `Defensa:    ${tool.howToDefend}\n\n` +
+        `Ejemplo:    ${tool.usage}\n` +
+        (tool.runnable
+          ? `(ejecutable contra el laboratorio virtual)\n`
+          : `(ficha de estudio, todavía no ejecutable)\n`),
+      isError: false,
+    };
+  }
+
+  private showAcademy(args: string[]): {
+    output: string;
+    isError: boolean;
+  } {
+    const id = args[0];
+
+    if (id) {
+      const course = this.kernel.academy.get(id);
+
+      if (!course) {
+        return {
+          output: `academy: curso "${id}" no existe. Probá 'academy'.\n`,
+          isError: true,
+        };
+      }
+
+      return {
+        output:
+          `${course.title}\n\n${course.simple}\n\n` +
+          `Vas a aprender: ${course.summary}\n` +
+          `Temas: ${course.topics.join(", ")}\n` +
+          (course.tools.length
+            ? `Herramientas: ${course.tools.join(", ")}\n`
+            : "") +
+          (course.labs.length ? `Labs: ${course.labs.join(", ")}\n` : "") +
+          (course.requires.length
+            ? `Antes: ${course.requires.join(", ")}\n`
+            : "Sin requisitos: podés empezar acá.\n") +
+          `\nMás detalle: https://academy.nande/course/${course.id}\n`,
+        isError: false,
+      };
+    }
+
+    const lines = this.kernel.academy
+      .all()
+      .map((course) => `  ${course.title}`)
+      .join("\n");
+
+    return {
+      output:
+        `🎓 ÑANDE Academy — ruta de aprendizaje\n\n${lines}\n\n` +
+        `Detalle de un nivel: academy <id> (ej: academy redes).\n` +
+        `Navegable: https://academy.nande\n`,
+      isError: false,
+    };
+  }
+
+  private listLabs(): {
+    output: string;
+    isError: boolean;
+  } {
+    const labs = this.kernel.tools.labs();
+
+    const lines = labs
+      .map(
+        (lab) =>
+          `  ${lab.ip.padEnd(14)}${lab.hostname.padEnd(18)}[${lab.difficulty}]\n     ${lab.description}`,
+      )
+      .join("\n");
+
+    return {
+      output:
+        `Laboratorios de práctica (máquinas virtuales de ÑANDE)\n\n${lines}\n\n` +
+        `Empezá con: nmap ${labs[0]?.ip ?? "10.10.5.10"}\n`,
+      isError: false,
+    };
   }
 
   private grep(args: string[]): {
@@ -1402,6 +1563,15 @@ export class VirtualTerminal {
       "  uname            Información del kernel",
       "  ps               Procesos virtuales",
       "  clear            Limpia la terminal",
+      "",
+      "Redes y academia:",
+      "  ping <ip>        Ver si una máquina responde",
+      "  nslookup <host>  Resolver un nombre",
+      "  nmap <ip>        Escanear puertos (probá: nmap 10.10.5.20)",
+      "  academy          Ruta de aprendizaje de ciberseguridad",
+      "  tools [cat]      Biblioteca de herramientas",
+      "  tool <nombre>    Ficha de una herramienta (ej: tool nmap)",
+      "  labs             Máquinas de práctica",
       "  help             Muestra esta ayuda",
       "",
     ].join("\n");

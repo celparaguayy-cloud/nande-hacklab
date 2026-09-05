@@ -192,4 +192,29 @@ describe("aislamiento del sandbox", () => {
 
     expect(ofensas).toEqual([]);
   });
+
+  it("las herramientas de seguridad no alcanzan objetivos reales", () => {
+    const kernel = new VirtualKernel();
+
+    // Objetivos reales tipicos: ninguna herramienta ejecutable debe tocarlos.
+    for (const objetivo of ["8.8.8.8", "1.1.1.1", "google.com", "github.com"]) {
+      for (const tool of ["nmap", "ping", "curl", "gobuster"]) {
+        const arg =
+          tool === "curl" ? `http://${objetivo}/` : objetivo;
+
+        const res = kernel.tools.run(tool, [arg]);
+
+        expect(
+          res.output.includes("fuera del sandbox") ||
+            res.output.includes("solo") ||
+            res.isError,
+          `${tool} ${objetivo}`,
+        ).toBe(true);
+      }
+    }
+
+    expect(traps.calls).toEqual([]);
+
+    kernel.dispose();
+  });
 });
