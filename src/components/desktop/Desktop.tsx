@@ -13,6 +13,7 @@ import MailView from "../mail/MailView";
 import ChatView from "../chat/ChatView";
 import NotesView from "../notes/NotesView";
 import GamesView from "../games/GamesView";
+import World2DView from "../world2d/World2DView";
 import { VirtualKernel } from "../../core/VirtualKernel";
 
 const iconStyle = {
@@ -114,6 +115,7 @@ function Desktop() {
       chat: <ChatView kernel={kernel} />,
       notes: <NotesView kernel={kernel} />,
       games: <GamesView kernel={kernel} />,
+      world2d: <World2DView kernel={kernel} onOpenApp={openWindow} />,
     }),
     [kernel],
   );
@@ -317,6 +319,16 @@ function Desktop() {
             🎮
           </div>
           Juegos
+        </button>
+
+        <button
+          onClick={() => openWindow("world2d")}
+          style={iconStyle}
+        >
+          <div style={{ fontSize: "28px", marginBottom: "8px" }}>
+            🌆
+          </div>
+          Mundo 2D
         </button>
       </div>
 
