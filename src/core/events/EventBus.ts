@@ -26,7 +26,9 @@ export type EventType =
   // Mundo social vivo.
   | "community.joined"
   // Economía y mercado.
-  | "economy.tick";
+  | "economy.tick"
+  // Correo virtual.
+  | "mail.received";
 
 export interface VirtualEvent<T = unknown> {
   type: EventType;

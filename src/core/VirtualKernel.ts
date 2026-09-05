@@ -21,6 +21,7 @@ import { Progression } from "./game/Progression";
 import { MissionEngine } from "./game/Missions";
 import { Store } from "./game/Store";
 import { Economy } from "./economy/Economy";
+import { VirtualMail } from "./mail/VirtualMail";
 import { WorldMap } from "./world/WorldMap";
 import { VirtualHardware } from "./hardware/VirtualHardware";
 import { VirtualWiFi } from "./hardware/VirtualWiFi";
@@ -58,6 +59,7 @@ export class VirtualKernel {
   public missions: MissionEngine;
   public store: Store;
   public economy: Economy;
+  public mail: VirtualMail;
   public map: WorldMap;
   public hardware: VirtualHardware;
   public wifi: VirtualWiFi;
@@ -95,6 +97,7 @@ export class VirtualKernel {
     this.missions = new MissionEngine(this.player, this.events);
     this.store = new Store(this.registry);
     this.economy = new Economy(this.events);
+    this.mail = new VirtualMail(this.events);
     this.map = new WorldMap(
       this.registry,
       this.worldEngine.professions() as never,
@@ -288,6 +291,7 @@ export class VirtualKernel {
     this.news.flush();
     this.player.flush();
     this.economy.flush();
+    this.mail.flush();
   }
 
   isRunning(): boolean {
@@ -301,6 +305,7 @@ export class VirtualKernel {
 
     this.worldEngine.tick(worldState.clock.tick, worldState.clock.hour);
     this.economy.tick(worldState.clock.tick);
+    this.mail.tick(worldState.clock.tick, this.worldEngine);
 
     this.events.emit(
       "world.tick",
@@ -333,6 +338,7 @@ export class VirtualKernel {
       xpToNext: this.player.xpToNext(),
       missions: this.missions.progress(),
       economy: this.economy.snapshot(),
+      unreadMail: this.mail.unreadCount(),
       map: this.map.snapshot(
         this.worldEngine.presenceByZone(this.world.getState().clock.hour),
       ),
