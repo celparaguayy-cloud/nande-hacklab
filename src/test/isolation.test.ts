@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { VirtualKernel } from "../core/VirtualKernel";
-import { resetStorage } from "./setup";
+import { resetStorage, seedRandom } from "./setup";
 
 /**
  * Aislamiento del sandbox.
@@ -50,6 +50,7 @@ describe("aislamiento del sandbox", () => {
 
   beforeEach(() => {
     resetStorage();
+    seedRandom();
     traps = installNetworkTraps();
   });
 

@@ -6,7 +6,7 @@ import { VirtualBrowser } from "../browser/VirtualBrowser";
 import { VirtualSearch } from "../search/VirtualSearch";
 import { WorldPublisher, slugify } from "./WorldPublisher";
 import { WorldRegistry } from "../world/WorldRegistry";
-import { resetStorage } from "../../test/setup";
+import { resetStorage, seedRandom } from "../../test/setup";
 
 function buildStack() {
   const dns = new VirtualDNS();
@@ -20,7 +20,10 @@ function buildStack() {
 }
 
 describe("VirtualDNS", () => {
-  beforeEach(() => resetStorage());
+  beforeEach(() => {
+    resetStorage();
+    seedRandom();
+  });
 
   it("resuelve los dominios base de ÑANDE", () => {
     const { dns } = buildStack();
@@ -66,7 +69,10 @@ describe("VirtualDNS", () => {
 });
 
 describe("VirtualNetwork", () => {
-  beforeEach(() => resetStorage());
+  beforeEach(() => {
+    resetStorage();
+    seedRandom();
+  });
 
   it("alcanza toda la subred virtual con eth0 activa", () => {
     const { network } = buildStack();
@@ -95,7 +101,10 @@ describe("VirtualNetwork", () => {
 });
 
 describe("VirtualBrowser", () => {
-  beforeEach(() => resetStorage());
+  beforeEach(() => {
+    resetStorage();
+    seedRandom();
+  });
 
   it("abre los sitios base", () => {
     const { browser } = buildStack();
@@ -150,7 +159,10 @@ describe("VirtualBrowser", () => {
 });
 
 describe("VirtualSearch", () => {
-  beforeEach(() => resetStorage());
+  beforeEach(() => {
+    resetStorage();
+    seedRandom();
+  });
 
   it("encuentra los sitios base", () => {
     const { search } = buildStack();
@@ -178,7 +190,10 @@ describe("VirtualSearch", () => {
 });
 
 describe("WorldPublisher", () => {
-  beforeEach(() => resetStorage());
+  beforeEach(() => {
+    resetStorage();
+    seedRandom();
+  });
 
   it("normaliza nombres a etiquetas de dominio", () => {
     expect(slugify("App Yvoty")).toBe("app-yvoty");

@@ -3,7 +3,7 @@ import { WorldEngine } from "./WorldEngine";
 import { WorldRegistry } from "./WorldRegistry";
 import { EventBus } from "../events/EventBus";
 import type { WorldEntity } from "./WorldRegistry";
-import { resetStorage } from "../../test/setup";
+import { resetStorage, seedRandom } from "../../test/setup";
 
 function buildEngine() {
   const registry = new WorldRegistry();
@@ -40,6 +40,7 @@ describe("WorldEngine", () => {
 
   beforeAll(() => {
     resetStorage();
+    seedRandom();
     sim = run(4000);
   });
 
@@ -166,10 +167,14 @@ describe("WorldEngine", () => {
       .getAgents()
       .getAgentMemories(entity.ownerId);
 
+    // Un agente puede crear varias cosas: se busca la memoria de esta.
     const proyecto = memories.find(
-      (memory) => memory.type === "project",
+      (memory) =>
+        memory.type === "project" &&
+        memory.text.includes(entity.name),
     );
 
-    expect(proyecto?.text).toContain(entity.name);
+    expect(proyecto).toBeDefined();
+    expect(proyecto!.text).toContain(entity.id);
   });
 });

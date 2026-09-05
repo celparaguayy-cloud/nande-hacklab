@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { VirtualKernel } from "../core/VirtualKernel";
 import { WorldRegistry } from "../core/world/WorldRegistry";
-import { resetStorage } from "./setup";
+import { resetStorage, seedRandom } from "./setup";
 
 /**
  * Recorrido completo del mundo.
@@ -13,7 +13,10 @@ import { resetStorage } from "./setup";
  *   busqueda -> navegacion -> persistencia
  */
 describe("recorrido completo del mundo", () => {
-  beforeEach(() => resetStorage());
+  beforeEach(() => {
+    resetStorage();
+    seedRandom();
+  });
 
   it("lo que crea un habitante termina siendo navegable y buscable", () => {
     const kernel = new VirtualKernel();
@@ -121,6 +124,33 @@ describe("recorrido completo del mundo", () => {
     expect(kernel.isRunning()).toBe(false);
 
     kernel.dispose();
+  });
+
+  it("con la misma semilla el mundo se comporta igual", () => {
+    const correr = () => {
+      resetStorage();
+      seedRandom(12345);
+
+      const kernel = new VirtualKernel();
+
+      for (let tick = 1; tick <= 500; tick++) {
+        kernel.tick();
+      }
+
+      const huella = {
+        entidades: kernel.registry.count(),
+        nombres: kernel.registry.recent(5).map((e) => e.name),
+        online: kernel.worldEngine.getOnlineCount(),
+        noticias: kernel.news.count(),
+      };
+
+      kernel.dispose();
+
+      return huella;
+    };
+
+    // Dos corridas con la misma semilla producen el mismo mundo.
+    expect(correr()).toEqual(correr());
   });
 
   it("los contadores del resumen coinciden con el mundo real", () => {

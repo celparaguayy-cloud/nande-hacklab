@@ -38,6 +38,14 @@ export interface WorldEvent {
 
 const PEOPLE: VirtualPerson[] = generatePeople(2000);
 
+/** Como se nombra cada vinculo en los avisos del mundo. */
+const TIPO_VINCULO: Record<string, string> = {
+  friend: "amigos",
+  colleague: "colegas",
+  acquaintance: "conocidos",
+  rival: "rivales",
+};
+
 export class WorldEngine {
   private people: Map<string, VirtualPerson>;
   private events: WorldEvent[];
@@ -71,6 +79,7 @@ export class WorldEngine {
     );
 
     this.registry = registry;
+    this.eventBus = events;
 
     this.agents = new VirtualAgents(
       people,
@@ -85,7 +94,23 @@ export class WorldEngine {
           metadata,
         ),
     );
-    this.eventBus = events;
+
+    // Cuando un vinculo entre habitantes cambia de tipo, el mundo lo anuncia.
+    this.agents.onRelationshipChanged = (relationship, agentId, tick) => {
+      const person = this.people.get(agentId);
+      const other = this.people.get(relationship.toId);
+
+      if (person && other) {
+        this.addEvent(
+          "project",
+          agentId,
+          `${person.name} y ${other.name} ahora son ${TIPO_VINCULO[relationship.type]}.`,
+          tick,
+        );
+      }
+
+      this.eventBus.emit("relationship.changed", relationship);
+    };
   }
 
   getPeople(): VirtualPerson[] {
@@ -116,6 +141,18 @@ export class WorldEngine {
 
   getEvents(): WorldEvent[] {
     return structuredClone(this.events);
+  }
+
+  /** Ultimos hechos del mundo, del mas nuevo al mas viejo. */
+  getRecentEvents(limit: number = 10): WorldEvent[] {
+    const start = Math.max(0, this.events.length - limit);
+    const recent: WorldEvent[] = [];
+
+    for (let index = this.events.length - 1; index >= start; index--) {
+      recent.push(structuredClone(this.events[index]));
+    }
+
+    return recent;
   }
 
   setOnline(id: string, online: boolean, tick: number): void {
@@ -175,6 +212,7 @@ export class WorldEngine {
       tick,
       this.people.values(),
       this.social,
+      this.people,
     );
 
     const onlineIds: string[] = [];

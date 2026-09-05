@@ -10,7 +10,13 @@ export type EventType =
   | "user.created"
   | "network.request"
   | "security.alert"
-  | "mission.progress";
+  | "mission.progress"
+  // Mundo social y emergente. Se agregan solo los que tienen consumidor:
+  // un evento por accion de agente seria ruido de cientos por tick.
+  | "social.post.created"
+  | "social.comment.created"
+  | "relationship.changed"
+  | "world.news.created";
 
 export interface VirtualEvent<T = unknown> {
   type: EventType;

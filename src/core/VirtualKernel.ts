@@ -13,6 +13,7 @@ import { VirtualBrowser } from "./browser/VirtualBrowser";
 import { VirtualSearch } from "./search/VirtualSearch";
 import { VirtualInternet } from "./internet/VirtualInternet";
 import { WorldPublisher } from "./internet/WorldPublisher";
+import { NewsEngine } from "./news/NewsEngine";
 import type { WorldEntity } from "./world/WorldRegistry";
 
 /** Milisegundos entre dos avances del mundo. */
@@ -34,6 +35,7 @@ export class VirtualKernel {
   public search: VirtualSearch;
   public internet: VirtualInternet;
   public publisher: WorldPublisher;
+  public news: NewsEngine;
 
   private unsubscribePublisher: () => void;
   private tickTimer: ReturnType<typeof setInterval> | null = null;
@@ -60,12 +62,65 @@ export class VirtualKernel {
       this.search,
     );
 
-    // Lo que crean los habitantes entra en la Internet virtual:
-    // dominio en el DNS, sitio navegable y entrada en el buscador.
+    this.news = new NewsEngine();
+
+    // news.nande se arma en el momento: su portada refleja lo ultimo
+    // que paso en el mundo, no una pagina escrita de antemano.
+    this.internet.registerDynamicSite({
+      hostname: "news.nande",
+      title: "ÑANDE News",
+      description: "Noticias del mundo virtual de ÑANDE.",
+      resolve: (path) => {
+        if (path === "/") {
+          return {
+            path,
+            mimeType: "text/html",
+            content: this.news.renderFront(),
+          };
+        }
+
+        const match = path.match(/^\/article\/([\w-]+)$/);
+
+        if (match) {
+          const content = this.news.renderArticle(match[1]);
+
+          return content
+            ? { path, mimeType: "text/html", content }
+            : undefined;
+        }
+
+        return undefined;
+      },
+    });
+
+    // Lo que crean los habitantes entra en la Internet virtual y, si es
+    // noticiable, pasa por la redaccion del diario.
     this.unsubscribePublisher = this.events.subscribe<WorldEntity>(
       "world.entity.created",
       (event) => {
-        this.publisher.publish(event.data);
+        const entity = event.data;
+        const hostname = this.publisher.publish(entity);
+
+        const author =
+          entity.metadata.ownerName ??
+          this.worldEngine.getPerson(entity.ownerId)?.name ??
+          entity.ownerId;
+
+        const article = this.news.coverEntity(entity, author, hostname);
+
+        if (article) {
+          this.events.emit("world.news.created", article);
+
+          // La nota tambien se puede encontrar desde el buscador.
+          this.search.index({
+            hostname: `news.nande/article/${article.id}`,
+            title: article.headline,
+            description: article.body,
+            keywords: [article.category, "noticias"],
+            entityId: entity.id,
+            entityType: entity.type,
+          });
+        }
       },
     );
   }
@@ -100,6 +155,7 @@ export class VirtualKernel {
 
     this.world.flush();
     this.registry.flush();
+    this.news.flush();
   }
 
   isRunning(): boolean {
@@ -132,6 +188,13 @@ export class VirtualKernel {
       entityCount: this.registry.count(),
       entityCountsByType: this.registry.countByType(),
       recentEntities: this.registry.recent(recentEntities),
+      recentNews: this.news.latest(6),
+      newsCount: this.news.count(),
+      relationshipCount: this.worldEngine
+        .getAgents()
+        .getRelationships()
+        .count(),
+      recentEvents: this.worldEngine.getRecentEvents(8),
     };
   }
 

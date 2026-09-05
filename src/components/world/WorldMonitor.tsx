@@ -36,6 +36,8 @@ function WorldMonitor({ kernel }: WorldMonitorProps) {
 
   const entities = summary.recentEntities;
   const counts = summary.entityCountsByType;
+  const events = summary.recentEvents;
+  const news = summary.recentNews;
 
   return (
     <div
@@ -103,6 +105,10 @@ function WorldMonitor({ kernel }: WorldMonitorProps) {
         <Stat label="Entidades" value={summary.entityCount} />
 
         <Stat label="Tick" value={summary.clock.tick} />
+
+        <Stat label="Vínculos" value={summary.relationshipCount} />
+
+        <Stat label="Noticias" value={summary.newsCount} />
       </div>
 
       <section>
@@ -222,6 +228,87 @@ function WorldMonitor({ kernel }: WorldMonitorProps) {
           </div>
         )}
       </section>
+
+      <section style={{ marginTop: "24px" }}>
+        <h3 style={{ marginBottom: "12px" }}>
+          Últimas noticias
+        </h3>
+
+        {news.length === 0 ? (
+          <Empty texto="El diario todavía no publicó nada." />
+        ) : (
+          <div style={listStyle}>
+            {news.map((article) => (
+              <div key={article.id} style={cardStyle}>
+                <strong>{article.headline}</strong>
+
+                <div style={metaStyle}>
+                  {article.category} · tick {article.tick}
+                  {article.relatedHostname
+                    ? ` · ${article.relatedHostname}`
+                    : ""}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section style={{ marginTop: "24px" }}>
+        <h3 style={{ marginBottom: "12px" }}>
+          Actividad reciente
+        </h3>
+
+        {events.length === 0 ? (
+          <Empty texto="Todavía no pasó nada en el mundo." />
+        ) : (
+          <div style={listStyle}>
+            {events.map((event) => (
+              <div key={event.id} style={cardStyle}>
+                <div>{event.description}</div>
+
+                <div style={metaStyle}>
+                  {event.type} · tick {event.tick}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+const listStyle = {
+  display: "flex",
+  flexDirection: "column" as const,
+  gap: "8px",
+};
+
+const cardStyle = {
+  padding: "10px 12px",
+  border: "1px solid #26313b",
+  borderRadius: "8px",
+  background: "#111820",
+};
+
+const metaStyle = {
+  marginTop: "4px",
+  color: "#8b98a5",
+  fontSize: "12px",
+};
+
+function Empty({ texto }: { texto: string }) {
+  return (
+    <div
+      style={{
+        padding: "20px",
+        border: "1px solid #26313b",
+        borderRadius: "8px",
+        color: "#8b98a5",
+      }}
+    >
+      {texto}
     </div>
   );
 }

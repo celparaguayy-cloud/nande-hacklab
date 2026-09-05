@@ -1,5 +1,6 @@
 import type { VirtualPerson } from "../world/WorldEngine";
 import { AgentMemory } from "./AgentMemory";
+import { AgentRelationships } from "./AgentRelationships";
 import type {
   WorldEntity,
   WorldEntityType,
@@ -213,6 +214,7 @@ const NAME_ROOTS = [
 export class VirtualAgents {
   private agents: Map<string, VirtualAgentState>;
   private memory: AgentMemory;
+  private relationships: AgentRelationships;
   private createEntity: (
     type: WorldEntityType,
     name: string,
@@ -237,9 +239,16 @@ export class VirtualAgents {
   ) {
     this.agents = new Map();
     this.memory = new AgentMemory();
+    this.relationships = new AgentRelationships();
     this.createEntity = createEntity;
 
     for (const person of people) {
+      // Si todos arrancaran con el cooldown cumplido, el mundo nacería
+      // con una rafaga de creaciones en los primeros ticks. El permiso
+      // inicial se reparte a lo largo de una ventana de cooldown.
+      const offset =
+        this.hashText(person.id) % CREATE_COOLDOWN_TICKS;
+
       this.agents.set(
         person.id,
         {
@@ -249,7 +258,7 @@ export class VirtualAgents {
           goal: GOALS[person.id.length % GOALS.length],
           lastAction: "idle",
           lastTick: 0,
-          lastCreatedTick: -1,
+          lastCreatedTick: offset - CREATE_COOLDOWN_TICKS,
           creationCount: 0,
         },
       );
@@ -272,6 +281,10 @@ export class VirtualAgents {
 
   getMemory(): AgentMemory {
     return this.memory;
+  }
+
+  getRelationships(): AgentRelationships {
+    return this.relationships;
   }
 
   getAgentMemories(
@@ -384,10 +397,18 @@ export class VirtualAgents {
     ];
   }
 
+  /** Aviso opcional cuando un vinculo cambia de tipo. */
+  onRelationshipChanged?: (
+    relationship: ReturnType<AgentRelationships["interact"]>,
+    agentId: string,
+    tick: number,
+  ) => void;
+
   tick(
     tick: number,
     people: Iterable<VirtualPerson>,
     social: VirtualSocial,
+    peopleById?: Map<string, VirtualPerson>,
   ): void {
     for (const person of people) {
       if (!person.online) {
@@ -441,10 +462,7 @@ export class VirtualAgents {
       }
 
       if (action === "create") {
-        const ticksDesdeCreacion =
-          agent.lastCreatedTick < 0
-            ? Number.POSITIVE_INFINITY
-            : tick - agent.lastCreatedTick;
+        const ticksDesdeCreacion = tick - agent.lastCreatedTick;
 
         const puedeCrear =
           ticksDesdeCreacion >= CREATE_COOLDOWN_TICKS &&
@@ -490,10 +508,29 @@ export class VirtualAgents {
       }
 
       if (action === "comment") {
-        const post = social.pickRandomPost();
+        // Se mira mas de un post y se prefiere el de alguien conocido:
+        // asi los vinculos ya formados guian a quien se responde.
+        const candidates = [
+          social.pickRandomPost(),
+          social.pickRandomPost(),
+        ].filter(
+          (candidate): candidate is NonNullable<typeof candidate> =>
+            candidate !== undefined &&
+            candidate.authorId !== person.id,
+        );
+
+        const post = candidates.sort((a, b) => {
+          const trustA =
+            this.relationships.get(person.id, a.authorId)?.trust ?? 0;
+
+          const trustB =
+            this.relationships.get(person.id, b.authorId)?.trust ?? 0;
+
+          return trustB - trustA;
+        })[0];
 
         {
-          if (post && post.authorId !== person.id) {
+          if (post) {
             const comment = social.addComment(
               post.id,
               person.id,
@@ -502,6 +539,16 @@ export class VirtualAgents {
             );
 
             if (comment) {
+              const author = peopleById?.get(post.authorId);
+
+              const link = this.relationships.interact(
+                person.id,
+                post.authorId,
+                tick,
+                2,
+                author?.profession === person.profession,
+              );
+
               this.memory.rememberEvent(
                 person.id,
                 `Comentó una publicación de ${post.authorId}.`,
@@ -515,6 +562,10 @@ export class VirtualAgents {
                 "Escribió una publicación que el agente comentó.",
                 tick,
               );
+
+              if (link.changedFrom) {
+                this.onRelationshipChanged?.(link, person.id, tick);
+              }
             }
           }
         }
