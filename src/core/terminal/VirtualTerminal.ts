@@ -5,6 +5,9 @@ export class VirtualTerminal {
   private currentUser: string;
   private currentDirectory: string;
   private environment: Record<string, string>;
+  /** Lección guiada en curso y en qué paso va. */
+  private activeLesson: string | null = null;
+  private lessonStep = 0;
 
   constructor(kernel: VirtualKernel) {
     this.kernel = kernel;
@@ -35,6 +38,16 @@ export class VirtualTerminal {
 
     if (!commandLine) {
       return "";
+    }
+
+    const first = commandLine.split(/\s+/)[0];
+
+    if (first === "learn") {
+      return this.learnCmd(commandLine.split(/\s+/).slice(1));
+    }
+
+    if (first === "hint") {
+      return this.lessonHint();
     }
 
     // Los pipes se procesan dentro del shell virtual.
@@ -70,7 +83,9 @@ export class VirtualTerminal {
       previousError = result.isError;
     }
 
-    return output;
+    const lessonNote = this.checkLessonProgress(commandLine, output);
+
+    return output + lessonNote;
   }
 
   private hasPipe(input: string): boolean {
@@ -1069,6 +1084,120 @@ export class VirtualTerminal {
    * Ejecuta el programa funcional de una creación de la store. Las
    * creaciones de los habitantes hacen algo de verdad: acá se corren.
    */
+  /** Comandos de la academia guiada: learn, learn <id>, learn stop. */
+  private learnCmd(args: string[]): string {
+    const action = args[0];
+
+    if (!action || action === "list") {
+      const done = this.kernel.player.getState().completedCourses;
+      const lines = this.kernel.lessons
+        .all()
+        .map((l) => {
+          const mark = done.includes(`lesson:${l.id}`) ? "✅" : "▶️";
+          return `  ${mark} ${l.id.padEnd(12)}[${l.level}] ${l.title}`;
+        })
+        .join("\n");
+
+      return (
+        `🎓 Lecciones guiadas — aprendé haciendo\n\n${lines}\n\n` +
+        `Empezá una: learn <id>  (ej: learn l-nmap)\n`
+      );
+    }
+
+    if (action === "stop") {
+      this.activeLesson = null;
+      this.lessonStep = 0;
+      return "Lección abandonada. Podés retomar con learn <id>.\n";
+    }
+
+    const lesson = this.kernel.lessons.get(action);
+
+    if (!lesson) {
+      return `learn: no existe la lección "${action}". Probá 'learn'.\n`;
+    }
+
+    this.activeLesson = lesson.id;
+    this.lessonStep = 0;
+
+    return (
+      `📘 ${lesson.title}  [${lesson.level}]\n\n` +
+      `${lesson.concept}\n\n` +
+      this.renderStep(lesson.id, 0) +
+      `\n(Si te trabás, escribí 'hint'. Para salir, 'learn stop'.)\n`
+    );
+  }
+
+  private renderStep(lessonId: string, index: number): string {
+    const lesson = this.kernel.lessons.get(lessonId)!;
+    const step = lesson.steps[index];
+
+    return (
+      `Paso ${index + 1}/${lesson.steps.length}\n` +
+      `${step.explain}\n\n` +
+      `👉 ${step.task}\n`
+    );
+  }
+
+  private lessonHint(): string {
+    if (!this.activeLesson) {
+      return "No hay ninguna lección activa. Empezá con 'learn <id>'.\n";
+    }
+
+    const lesson = this.kernel.lessons.get(this.activeLesson)!;
+    return `💡 ${lesson.steps[this.lessonStep].hint}\n`;
+  }
+
+  private checkLessonProgress(command: string, output: string): string {
+    if (!this.activeLesson) {
+      return "";
+    }
+
+    const lesson = this.kernel.lessons.get(this.activeLesson)!;
+    const step = lesson.steps[this.lessonStep];
+
+    if (!step.check(command, output)) {
+      return "";
+    }
+
+    let note = `\n✅ ${step.debrief}\n`;
+
+    this.lessonStep += 1;
+
+    if (this.lessonStep < lesson.steps.length) {
+      note += `\n${this.renderStep(lesson.id, this.lessonStep)}`;
+      return note;
+    }
+
+    const tick = this.kernel.world.getState().clock.tick;
+    const key = `lesson:${lesson.id}`;
+
+    if (this.kernel.player.markCourseCompleted(key)) {
+      this.kernel.player.award(lesson.reward.xp, {
+        coins: lesson.reward.coins,
+        tick,
+      });
+      note +=
+        `\n🎉 Lección completada: ${lesson.title}\n` +
+        `Recompensa: +${lesson.reward.xp} XP, +N$${lesson.reward.coins}\n`;
+
+      if (this.kernel.player.unlock(
+        "primera-leccion",
+        "Primer paso",
+        "Completaste tu primera lección guiada.",
+        tick,
+      )) {
+        note += `🏆 Logro: "Primer paso".\n`;
+      }
+    } else {
+      note += `\n🎉 Lección completada: ${lesson.title} (ya la habías hecho).\n`;
+    }
+
+    this.activeLesson = null;
+    this.lessonStep = 0;
+
+    return note;
+  }
+
   /** Gestión del WiFi virtual: scan, connect, disconnect, status. */
   private wifiCmd(args: string[]): { output: string; isError: boolean } {
     const action = args[0] ?? "status";
@@ -1963,6 +2092,8 @@ export class VirtualTerminal {
       "  nslookup <host>  Resolver un nombre",
       "  nmap <ip>        Escanear puertos (probá: nmap 10.10.5.20)",
       "  academy          Ruta de aprendizaje de ciberseguridad",
+      "  learn            Lecciones guiadas (aprendé haciendo)",
+      "  hint             Pista de la lección activa",
       "  tools [cat]      Biblioteca de herramientas",
       "  tool <nombre>    Ficha de una herramienta (ej: tool nmap)",
       "  labs             Máquinas de práctica",

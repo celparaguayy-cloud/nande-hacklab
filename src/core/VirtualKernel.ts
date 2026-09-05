@@ -16,6 +16,7 @@ import { WorldPublisher } from "./internet/WorldPublisher";
 import { NewsEngine } from "./news/NewsEngine";
 import { SecurityTools } from "./security/SecurityTools";
 import { Academy } from "./academy/Academy";
+import { LessonEngine } from "./academy/Lessons";
 import { Progression } from "./game/Progression";
 import { MissionEngine } from "./game/Missions";
 import { Store } from "./game/Store";
@@ -51,6 +52,7 @@ export class VirtualKernel {
   public news: NewsEngine;
   public tools: SecurityTools;
   public academy: Academy;
+  public lessons: LessonEngine;
   public player: Progression;
   public missions: MissionEngine;
   public store: Store;
@@ -86,6 +88,7 @@ export class VirtualKernel {
     this.news = new NewsEngine();
     this.tools = new SecurityTools(this.network, this.dns);
     this.academy = new Academy();
+    this.lessons = new LessonEngine();
     this.player = new Progression(this.events);
     this.missions = new MissionEngine(this.player, this.events);
     this.store = new Store(this.registry);
