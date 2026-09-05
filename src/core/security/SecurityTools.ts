@@ -380,10 +380,18 @@ const RUNNERS: Record<string, Runner> = {
       };
     }
 
+    // Si la ruta apunta a un archivo sensible que la máquina expone, se ve
+    // su contenido: es justo el fallo de datos expuestos (A02) del lab.
+    const leaked = machine.files.find(
+      (f) => f.path.endsWith(path) || path.endsWith(f.path.split("/").pop()!),
+    );
+
     return {
       output:
         `HTTP/1.1 200 OK\nServer: ${server?.version ?? "?"}\n\n` +
-        `<h1>${route.title}</h1>\n<!-- ${machine.hostname}${path} -->\n`,
+        (leaked
+          ? `${leaked.content}\n`
+          : `<h1>${route.title}</h1>\n<!-- ${machine.hostname}${path} -->\n`),
       isError: false,
     };
   },
@@ -913,17 +921,61 @@ const RUNNERS: Record<string, Runner> = {
     };
   },
 
-  commix(args) {
+  commix(args, ctx) {
     const url = args.find((a) => a.startsWith("http")) ?? "";
     const host = url.match(/^https?:\/\/([^/]+)/i)?.[1] ?? "";
     const guard = requireVirtualTarget(host);
     if (guard) return { output: `commix: ${guard}\n`, isError: true };
+
+    const machine = ctx.lab.resolve(host);
+    const cmdi = machine?.vulns.find((v) => v.id.includes("CMDI"));
+
+    if (cmdi) {
+      return {
+        output:
+          `commix: ${host}\n` +
+          `[!] parámetro VULNERABLE a inyección de comandos\n` +
+          `[*] se pudo ejecutar 'id' en el servidor: uid=33(www-data)\n` +
+          `bandera: ${machine!.flag}\n` +
+          `Defensa: nunca pasar entrada del usuario a comandos del sistema.\n`,
+        isError: false,
+        flag: machine!.flag,
+      };
+    }
 
     return {
       output:
         `commix: ${host}\n` +
         `El parámetro no pasa entrada al sistema: no inyectable aquí.\n` +
         `Lección: nunca pases datos del usuario a comandos del sistema.\n`,
+      isError: false,
+    };
+  },
+
+  ssrf(args, ctx) {
+    const url = args.find((a) => a.startsWith("http")) ?? args[0] ?? "";
+    const host = url.replace(/^https?:\/\//i, "").split("/")[0];
+    const guard = requireVirtualTarget(host);
+    if (guard) return { output: `ssrf: ${guard}\n`, isError: true };
+
+    const machine = ctx.lab.resolve(host);
+    const ssrf = machine?.vulns.find((v) => v.id.includes("SSRF"));
+
+    if (ssrf) {
+      return {
+        output:
+          `ssrf-test sobre ${host}\n` +
+          `[!] VULNERABLE a SSRF: el servidor trae URLs que le pedís\n` +
+          `[*] se pudo alcanzar un servicio interno del laboratorio\n` +
+          `bandera: ${machine!.flag}\n` +
+          `Defensa: validar y limitar a dónde puede conectarse el servidor.\n`,
+        isError: false,
+        flag: machine!.flag,
+      };
+    }
+
+    return {
+      output: `ssrf-test: ${host} no parece pedir URLs por vos.\n`,
       isError: false,
     };
   },

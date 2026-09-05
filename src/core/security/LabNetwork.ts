@@ -277,6 +277,74 @@ function buildMachines(): LabMachine[] {
       flag: "NANDE{escalada_por_suid}",
       up: true,
     },
+    {
+      id: "lab-owasp-01",
+      hostname: "owasplab.lab",
+      ip: "10.10.5.50",
+      os: "ÑandeLinux 2.1 (virtual)",
+      difficulty: "intermediate",
+      description:
+        "Una aplicación con varias fallas del OWASP Top 10 para practicarlas una por una.",
+      services: [
+        {
+          port: 80,
+          protocol: "tcp",
+          name: "http",
+          version: "ÑandeHTTPd 1.3 (sim)",
+          banner: "ÑandeHTTPd/1.3",
+        },
+      ],
+      vulns: [
+        {
+          id: "NANDE-WEB-CMDI",
+          title: "Inyección de comandos (A03)",
+          category: "web",
+          severity: "critical",
+          port: 80,
+          hint: "La herramienta de ping de la web pasa tu texto al sistema. Probá con commix.",
+        },
+        {
+          id: "NANDE-WEB-SSRF",
+          title: "SSRF: el servidor pide URLs por vos (A10)",
+          category: "web",
+          severity: "high",
+          port: 80,
+          hint: "El importador de imágenes acepta cualquier URL. Probá con ssrf.",
+        },
+        {
+          id: "NANDE-WEB-MISCONF",
+          title: "Configuración insegura: .git y backup expuestos (A05)",
+          category: "web",
+          severity: "medium",
+          port: 80,
+          hint: "Hay rutas que no deberían estar públicas. Buscalas con gobuster.",
+        },
+        {
+          id: "NANDE-WEB-SECRETS",
+          title: "Datos sensibles expuestos (A02)",
+          category: "web",
+          severity: "high",
+          hint: "Un backup dejó credenciales a la vista. Miralo con curl.",
+        },
+      ],
+      webRoutes: [
+        { path: "/", title: "Inicio" },
+        { path: "/ping", title: "Herramienta de ping" },
+        { path: "/import", title: "Importar imagen por URL" },
+        { path: "/.git/config", hidden: true, title: "Repositorio expuesto" },
+        { path: "/backup.zip", hidden: true, title: "Backup" },
+        { path: "/config.bak", hidden: true, title: "Configuración vieja" },
+      ],
+      files: [
+        {
+          path: "/var/www/config.bak",
+          content:
+            "DB_USER=web DB_PASS=ÑANDE-DEMO-SECRET (ficticio de laboratorio) API_KEY=nande-demo-0000",
+        },
+      ],
+      flag: "NANDE{owasp_top10_labs}",
+      up: true,
+    },
   ];
 }
 
