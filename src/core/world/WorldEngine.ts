@@ -61,8 +61,21 @@ export class WorldEngine {
       people.map((person) => person.id),
     );
 
-    this.agents = new VirtualAgents(people);
     this.registry = registry;
+
+    this.agents = new VirtualAgents(
+      people,
+      (type, name, description, ownerId, tick, tags, metadata) =>
+        this.createEntity(
+          type,
+          name,
+          description,
+          ownerId,
+          tick,
+          tags,
+          metadata,
+        ),
+    );
     this.eventBus = events;
   }
 

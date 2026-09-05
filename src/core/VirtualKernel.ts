@@ -66,6 +66,8 @@ export class VirtualKernel {
       users: this.users,
       processes: this.processes,
       programs: this.programs.all(),
+      worldEntities: this.registry.all(),
+      worldEntityCount: this.registry.count(),
     };
   }
 }
