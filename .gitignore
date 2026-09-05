@@ -30,3 +30,7 @@ dist-ssr
 
 # Backups locales
 src/components/browser/*.backup
+node_modules/
+dist/
+.env
+.DS_Store
