@@ -27,15 +27,25 @@ export interface WorldEntity {
   metadata: Record<string, string>;
 }
 
+/** Tope de entidades vivas: mantiene acotado el peso en localStorage. */
+const MAX_ENTITIES = 1000;
+
+/** Milisegundos mínimos entre dos escrituras a localStorage. */
+const SAVE_INTERVAL_MS = 500;
+
 export class WorldRegistry {
   private entities: Map<string, WorldEntity>;
   private counter: number;
+  private saveTimer: ReturnType<typeof setTimeout> | null;
+  private lastSave: number;
 
   constructor() {
     const saved = this.loadFromStorage();
 
     this.entities = saved?.entities ?? new Map();
     this.counter = saved?.counter ?? 1;
+    this.saveTimer = null;
+    this.lastSave = 0;
   }
 
   private loadFromStorage(): {
@@ -76,7 +86,7 @@ export class WorldRegistry {
     }
   }
 
-  private saveToStorage(): void {
+  private writeToStorage(): void {
     try {
       localStorage.setItem(
         "nande-world-registry",
@@ -88,6 +98,51 @@ export class WorldRegistry {
     } catch {
       // El mundo sigue funcionando aunque el almacenamiento no esté disponible.
     }
+  }
+
+  // Serializar el registro entero en cada cambio congela el mundo cuando
+  // hay muchas entidades, así que las escrituras se agrupan.
+  private scheduleSave(): void {
+    if (this.saveTimer !== null) {
+      return;
+    }
+
+    const elapsed = Date.now() - this.lastSave;
+    const delay = Math.max(0, SAVE_INTERVAL_MS - elapsed);
+
+    this.saveTimer = setTimeout(() => {
+      this.saveTimer = null;
+      this.lastSave = Date.now();
+      this.writeToStorage();
+    }, delay);
+  }
+
+  /** Descarta las entidades más antiguas cuando se pasa del tope. */
+  private pruneOldest(): void {
+    if (this.entities.size <= MAX_ENTITIES) {
+      return;
+    }
+
+    const ordered = Array.from(this.entities.values()).sort(
+      (a, b) => a.createdTick - b.createdTick,
+    );
+
+    const excess = this.entities.size - MAX_ENTITIES;
+
+    for (let index = 0; index < excess; index++) {
+      this.entities.delete(ordered[index].id);
+    }
+  }
+
+  /** Fuerza el guardado pendiente, sin esperar al intervalo. */
+  flush(): void {
+    if (this.saveTimer !== null) {
+      clearTimeout(this.saveTimer);
+      this.saveTimer = null;
+    }
+
+    this.lastSave = Date.now();
+    this.writeToStorage();
   }
 
   create(
@@ -112,7 +167,8 @@ export class WorldRegistry {
     };
 
     this.entities.set(entity.id, entity);
-    this.saveToStorage();
+    this.pruneOldest();
+    this.scheduleSave();
 
     return structuredClone(entity);
   }
@@ -187,7 +243,7 @@ export class WorldRegistry {
     }
 
     entity.updatedTick = tick;
-    this.saveToStorage();
+    this.scheduleSave();
 
     return structuredClone(entity);
   }
@@ -196,7 +252,7 @@ export class WorldRegistry {
     const removed = this.entities.delete(id);
 
     if (removed) {
-      this.saveToStorage();
+      this.scheduleSave();
     }
 
     return removed;
