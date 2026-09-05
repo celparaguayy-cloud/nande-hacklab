@@ -3,7 +3,24 @@ import WindowManager from "../window/WindowManager";
 import Terminal from "../terminal/Terminal";
 import { Files } from "../files/Files";
 import { ProcessMonitor } from "../processes/ProcessMonitor";
+import { Settings } from "../settings/Settings";
+import { NetworkManager } from "../network/NetworkManager";
 import { VirtualKernel } from "../../core/VirtualKernel";
+
+const iconStyle = {
+  width: "90px",
+  height: "90px",
+  background: "rgba(20, 27, 35, 0.9)",
+  border: "1px solid #34414d",
+  borderRadius: "12px",
+  color: "#e6edf3",
+  display: "flex",
+  flexDirection: "column" as const,
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: "13px",
+  cursor: "pointer",
+};
 
 function Desktop() {
   const kernel = useMemo(() => new VirtualKernel(), []);
@@ -54,87 +71,57 @@ function Desktop() {
           padding: "24px",
           display: "flex",
           gap: "14px",
+          flexWrap: "wrap",
         }}
       >
         <button
           onClick={() => openWindow("terminal")}
-          style={{
-            width: "90px",
-            height: "90px",
-            background: "rgba(20, 27, 35, 0.9)",
-            border: "1px solid #34414d",
-            borderRadius: "12px",
-            color: "#e6edf3",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: "13px",
-            cursor: "pointer",
-          }}
+          style={iconStyle}
         >
-          <div
-            style={{
-              fontSize: "28px",
-              marginBottom: "8px",
-            }}
-          >
+          <div style={{ fontSize: "28px", marginBottom: "8px" }}>
             &gt;_
           </div>
-
           Terminal
         </button>
 
         <button
           onClick={() => openWindow("files")}
-          style={{
-            width: "90px",
-            height: "90px",
-            background: "rgba(20, 27, 35, 0.9)",
-            border: "1px solid #34414d",
-            borderRadius: "12px",
-            color: "#e6edf3",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: "13px",
-            cursor: "pointer",
-          }}
+          style={iconStyle}
         >
-          <div
-            style={{
-              fontSize: "28px",
-              marginBottom: "8px",
-            }}
-          >
+          <div style={{ fontSize: "28px", marginBottom: "8px" }}>
             📁
           </div>
-
           Files
         </button>
 
         <button
           onClick={() => openWindow("processes")}
-          style={{
-            width: "90px",
-            height: "90px",
-            background: "rgba(20, 27, 35, 0.9)",
-            border: "1px solid #34414d",
-            borderRadius: "12px",
-            color: "#e6edf3",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: "13px",
-            cursor: "pointer",
-          }}
+          style={iconStyle}
         >
           <div style={{ fontSize: "28px", marginBottom: "8px" }}>
             📊
           </div>
           Processes
+        </button>
+
+        <button
+          onClick={() => openWindow("settings")}
+          style={iconStyle}
+        >
+          <div style={{ fontSize: "28px", marginBottom: "8px" }}>
+            ⚙️
+          </div>
+          Settings
+        </button>
+
+        <button
+          onClick={() => openWindow("network")}
+          style={iconStyle}
+        >
+          <div style={{ fontSize: "28px", marginBottom: "8px" }}>
+            🌐
+          </div>
+          Network
         </button>
       </div>
 
@@ -143,6 +130,8 @@ function Desktop() {
           terminal: <Terminal kernel={kernel} />,
           files: <Files kernel={kernel} />,
           processes: <ProcessMonitor kernel={kernel} />,
+          settings: <Settings kernel={kernel} />,
+          network: <NetworkManager kernel={kernel} />,
         }}
       />
     </div>
