@@ -158,6 +158,122 @@ export const LESSONS: Lesson[] = [
     ],
   },
   {
+    id: "l-owasp-cmdi",
+    title: "OWASP A03 — Inyección de comandos",
+    level: "avanzado",
+    summary: "Hacer que una web ejecute órdenes en su servidor.",
+    concept:
+      "Si una web pasa lo que escribís a un comando del sistema, se le puede colar una orden propia. Es inyección de comandos, parte de A03: Injection del OWASP Top 10.",
+    reward: { xp: 250, coins: 180 },
+    steps: [
+      {
+        explain:
+          "Primero mirá qué corre la máquina. Un escaneo confirma el servidor web del laboratorio OWASP.",
+        task: "Escaneá owasplab: nmap 10.10.5.50",
+        hint: "Escribí: nmap 10.10.5.50",
+        check: (cmd, out) =>
+          usedTool(cmd, "nmap") &&
+          cmd.includes("10.10.5.50") &&
+          out.includes("http"),
+        debrief:
+          "Hay un servidor web. Tiene una 'herramienta de ping' que le pasa tu texto al sistema.",
+      },
+      {
+        explain:
+          "commix prueba si un parámetro llega a un comando del sistema y se puede abusar.",
+        task: "Probá la inyección: commix http://10.10.5.50/ping",
+        hint: "Escribí: commix http://10.10.5.50/ping",
+        check: (cmd, out) =>
+          usedTool(cmd, "commix") &&
+          cmd.includes("10.10.5.50") &&
+          out.includes("VULNERABLE"),
+        debrief:
+          "Se pudo ejecutar un comando en el servidor. Esto pasa cuando la web arma un comando pegando tu texto. Defensa: nunca pasar entrada del usuario a comandos del sistema; usar APIs seguras.",
+      },
+    ],
+  },
+  {
+    id: "l-owasp-ssrf",
+    title: "OWASP A10 — SSRF",
+    level: "avanzado",
+    summary: "Usar el servidor para llegar a donde vos no podés.",
+    concept:
+      "SSRF (A10) es cuando una web trae URLs que le pedís. Si no valida a dónde va, se la puede usar para alcanzar servicios internos.",
+    reward: { xp: 250, coins: 180 },
+    steps: [
+      {
+        explain:
+          "El importador de imágenes de la web acepta una URL para ir a buscarla. Vamos a ver si valida a dónde va.",
+        task: "Probá SSRF: ssrf http://10.10.5.50/import",
+        hint: "Escribí: ssrf http://10.10.5.50/import",
+        check: (cmd, out) =>
+          usedTool(cmd, "ssrf") &&
+          cmd.includes("10.10.5.50") &&
+          out.includes("VULNERABLE"),
+        debrief:
+          "El servidor fue a buscar una URL interna por vos: eso es SSRF. Un atacante lo usa para llegar a servicios que no ve directamente. Defensa: validar y limitar los destinos con lista blanca.",
+      },
+    ],
+  },
+  {
+    id: "l-owasp-misconf",
+    title: "OWASP A05 — Configuración insegura",
+    level: "intermedio",
+    summary: "Encontrar archivos que no deberían estar públicos.",
+    concept:
+      "A05: Security Misconfiguration. A veces quedan expuestos archivos internos (.git, backups) que revelan secretos.",
+    reward: { xp: 200, coins: 150 },
+    steps: [
+      {
+        explain:
+          "gobuster prueba nombres comunes de archivos y carpetas para encontrar los que quedaron expuestos.",
+        task: "Buscá lo expuesto: gobuster 10.10.5.50",
+        hint: "Escribí: gobuster 10.10.5.50",
+        check: (cmd, out) =>
+          usedTool(cmd, "gobuster") &&
+          cmd.includes("10.10.5.50") &&
+          (out.includes(".git") || out.includes("config.bak")),
+        debrief:
+          "Aparecieron .git y un backup: nunca deberían estar en producción. Defensa: no publicar archivos internos y revisar qué queda accesible.",
+      },
+      {
+        explain:
+          "Un archivo de backup viejo puede tener credenciales. curl lo trae para leerlo.",
+        task: "Leé el backup: curl http://10.10.5.50/config.bak",
+        hint: "Escribí: curl http://10.10.5.50/config.bak",
+        check: (cmd, out) =>
+          usedTool(cmd, "curl") &&
+          cmd.includes("config.bak") &&
+          out.includes("DB_PASS"),
+        debrief:
+          "El backup dejó a la vista usuario y contraseña de la base (A02: datos sensibles expuestos). Defensa: no dejar backups accesibles y no guardar secretos en archivos del sitio.",
+      },
+    ],
+  },
+  {
+    id: "l-owasp-auth",
+    title: "OWASP A07 — Fallas de autenticación",
+    level: "intermedio",
+    summary: "Por qué una contraseña débil se rompe sola.",
+    concept:
+      "A07: Identification and Authentication Failures. Si un login no limita los intentos, se prueban miles de contraseñas hasta entrar.",
+    reward: { xp: 180, coins: 140 },
+    steps: [
+      {
+        explain:
+          "hydra prueba muchas contraseñas contra un servicio de login. Contra netlab01, que expone SSH.",
+        task: "Probá fuerza bruta: hydra 10.10.5.20",
+        hint: "Escribí: hydra 10.10.5.20",
+        check: (cmd, out) =>
+          usedTool(cmd, "hydra") &&
+          cmd.includes("10.10.5.20") &&
+          out.toLowerCase().includes("login"),
+        debrief:
+          "Se encontró una credencial débil probando muchas. Sin límite de intentos, la fuerza bruta funciona. Defensa: bloqueo tras varios fallos, segundo factor y contraseñas largas.",
+      },
+    ],
+  },
+  {
     id: "l-blue",
     title: "Del lado del defensor",
     level: "intermedio",

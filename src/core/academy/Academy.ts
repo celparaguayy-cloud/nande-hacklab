@@ -120,6 +120,20 @@ export const COURSES: Course[] = [
     labs: ["lab-web-01", "lab-web-02"],
   },
   {
+    id: "owasp",
+    stage: 5,
+    title: "Nivel 5 — OWASP Top 10 en laboratorio",
+    level: "intermedio",
+    simple:
+      "El OWASP Top 10 es la lista de los fallos web más comunes. Acá los practicás uno por uno en un laboratorio.",
+    summary:
+      "Las fallas web más frecuentes (inyección, control de acceso, SSRF, mala configuración, datos expuestos) con su laboratorio y su defensa.",
+    requires: ["web-security"],
+    topics: ["OWASP Top 10", "injection", "SSRF", "misconfiguration", "datos sensibles", "autenticación"],
+    tools: ["commix", "ssrf", "gobuster", "curl", "sqlmap", "hydra"],
+    labs: ["lab-owasp-01", "lab-web-01", "lab-web-02"],
+  },
+  {
     id: "passwords",
     stage: 6,
     title: "Nivel 6 — Contraseñas y autenticación",

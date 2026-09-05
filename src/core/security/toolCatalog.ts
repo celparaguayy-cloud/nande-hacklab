@@ -1172,7 +1172,29 @@ export const TOOL_CATALOG: ToolDef[] = [
     resultMeaning: "Si es vulnerable, se pueden correr órdenes en el servidor.",
     howToDetect: "Parámetros con caracteres de comando (; | &).",
     howToDefend: "Nunca pasar entrada del usuario a comandos del sistema.",
-    usage: "commix http://10.10.5.30/search",
+    usage: "commix http://10.10.5.50/ping",
+    runnable: true,
+  }),
+  t({
+    id: "ssrf",
+    name: "ssrf",
+    category: "web",
+    level: "avanzado",
+    simple:
+      "Prueba si podés hacer que el servidor pida cosas por vos a lugares que no debería.",
+    whatItDoes:
+      "Detecta SSRF: cuando una web trae URLs que le pedís, incluso internas (labs).",
+    whyExists:
+      "Un servidor que busca cualquier URL puede ser usado para llegar a servicios internos.",
+    whenToUse:
+      "Cuando una web acepta una URL para ir a buscarla (importadores, previews).",
+    resultMeaning:
+      "Si es vulnerable, el servidor alcanza destinos que vos no podrías directamente.",
+    howToDetect:
+      "Peticiones salientes del servidor hacia destinos raros o internos.",
+    howToDefend:
+      "Validar y limitar a dónde puede conectarse el servidor (lista blanca).",
+    usage: "ssrf http://10.10.5.50/import",
     runnable: true,
   }),
   t({
