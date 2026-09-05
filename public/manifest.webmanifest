@@ -1,0 +1,19 @@
+{
+  "name": "ÑANDE Hacklab",
+  "short_name": "ÑANDE",
+  "description": "Aprendé hacking en un mundo virtual encapsulado: sistema operativo, Internet simulada, academia de ciberseguridad, laboratorios y economía.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#05070a",
+  "theme_color": "#0b0f14",
+  "icons": [
+    {
+      "src": "./nande-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
