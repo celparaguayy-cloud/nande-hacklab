@@ -28,7 +28,9 @@ export type EventType =
   // Economía y mercado.
   | "economy.tick"
   // Correo virtual.
-  | "mail.received";
+  | "mail.received"
+  // Chat / red social.
+  | "chat.received";
 
 export interface VirtualEvent<T = unknown> {
   type: EventType;

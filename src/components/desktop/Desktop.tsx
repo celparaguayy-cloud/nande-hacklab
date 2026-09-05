@@ -10,6 +10,7 @@ import WorldMonitor from "../world/WorldMonitor";
 import WorldMapView from "../map/WorldMapView";
 import MarketView from "../market/MarketView";
 import MailView from "../mail/MailView";
+import ChatView from "../chat/ChatView";
 import { VirtualKernel } from "../../core/VirtualKernel";
 
 const iconStyle = {
@@ -98,6 +99,7 @@ function Desktop() {
       map: <WorldMapView kernel={kernel} />,
       market: <MarketView kernel={kernel} />,
       mail: <MailView kernel={kernel} />,
+      chat: <ChatView kernel={kernel} />,
     }),
     [kernel],
   );
@@ -272,6 +274,16 @@ function Desktop() {
             ✉️
           </div>
           Mail
+        </button>
+
+        <button
+          onClick={() => openWindow("chat")}
+          style={iconStyle}
+        >
+          <div style={{ fontSize: "28px", marginBottom: "8px" }}>
+            💬
+          </div>
+          Chat
         </button>
       </div>
 
