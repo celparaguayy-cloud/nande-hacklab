@@ -1,0 +1,12 @@
+{
+  "appId": "cloud.celparaguayy.nandehacklab",
+  "appName": "ÑANDE Hacklab",
+  "webDir": "dist",
+  "backgroundColor": "#05070a",
+  "android": {
+    "allowMixedContent": false
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}
