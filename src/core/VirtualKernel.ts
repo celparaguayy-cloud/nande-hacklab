@@ -19,6 +19,11 @@ import { Academy } from "./academy/Academy";
 import { Progression } from "./game/Progression";
 import { MissionEngine } from "./game/Missions";
 import { Store } from "./game/Store";
+import { WorldMap } from "./world/WorldMap";
+import {
+  renderCommunitiesFront,
+  renderCommunity,
+} from "./social/communitySite";
 import { renderAcademySite, renderToolsSite } from "./academy/academySites";
 import type { WorldEntity } from "./world/WorldRegistry";
 
@@ -47,6 +52,7 @@ export class VirtualKernel {
   public player: Progression;
   public missions: MissionEngine;
   public store: Store;
+  public map: WorldMap;
 
   private unsubscribePublisher: () => void;
   private tickTimer: ReturnType<typeof setInterval> | null = null;
@@ -79,12 +85,50 @@ export class VirtualKernel {
     this.player = new Progression(this.events);
     this.missions = new MissionEngine(this.player, this.events);
     this.store = new Store(this.registry);
+    this.map = new WorldMap(
+      this.registry,
+      this.worldEngine.professions() as never,
+    );
 
     // academy.nande y tools.nande: la biblioteca y la ruta de aprendizaje,
     // navegables como cualquier otro sitio del mundo virtual.
     this.dns.register("academy.nande", "10.10.0.32");
     this.dns.register("tools.nande", "10.10.0.38");
     this.dns.register("store.nande", "10.10.0.39");
+    this.dns.register("community.nande", "10.10.0.40");
+
+    // community.nande: las comunidades vivas, navegables.
+    this.internet.registerDynamicSite({
+      hostname: "community.nande",
+      title: "ÑANDE Comunidades",
+      description: "Comunidades de habitantes del mundo.",
+      resolve: (path) => {
+        const communities = this.worldEngine.getCommunities();
+
+        if (path === "/") {
+          return {
+            path,
+            mimeType: "text/html",
+            content: renderCommunitiesFront(communities.ranking(20)),
+          };
+        }
+
+        const match = path.match(/^\/c\/([\w-]+)$/);
+
+        if (match) {
+          const community = communities.get(match[1]);
+          const content = community
+            ? renderCommunity(community)
+            : undefined;
+
+          return content
+            ? { path, mimeType: "text/html", content }
+            : undefined;
+        }
+
+        return undefined;
+      },
+    });
 
     // store.nande se arma leyendo lo que los habitantes crearon.
     this.internet.registerDynamicSite({
@@ -274,6 +318,9 @@ export class VirtualKernel {
       player: this.player.getState(),
       xpToNext: this.player.xpToNext(),
       missions: this.missions.progress(),
+      map: this.map.snapshot(),
+      communities: this.worldEngine.getCommunities().ranking(8),
+      communityMembers: this.worldEngine.getCommunities().totalMembers(),
     };
   }
 

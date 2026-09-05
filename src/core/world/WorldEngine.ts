@@ -3,6 +3,7 @@ import { generatePeople } from "./VirtualPeople";
 import { WorldRegistry } from "./WorldRegistry";
 import { EventBus } from "../events/EventBus";
 import { VirtualSocial } from "../social/VirtualSocial";
+import { Communities } from "../social/Communities";
 export type VirtualProfession =
   | "student"
   | "developer"
@@ -54,6 +55,7 @@ export class WorldEngine {
   private social: VirtualSocial;
   private agents: VirtualAgents;
   private registry: WorldRegistry;
+  private communities: Communities;
   private onlineCount: number;
 
   constructor(registry: WorldRegistry, events: EventBus) {
@@ -77,6 +79,8 @@ export class WorldEngine {
     this.social = new VirtualSocial(
       people.map((person) => person.id),
     );
+
+    this.communities = new Communities(people, events);
 
     this.registry = registry;
     this.eventBus = events;
@@ -224,10 +228,34 @@ export class WorldEngine {
     }
 
     this.social.tick(tick, onlineIds);
+
+    // Las comunidades crecen con una muestra de habitantes en linea.
+    if (onlineIds.length > 0) {
+      const sample: VirtualPerson[] = [];
+      const step = Math.max(1, Math.floor(onlineIds.length / 50));
+
+      for (let i = 0; i < onlineIds.length; i += step) {
+        const person = this.people.get(onlineIds[i]);
+        if (person) {
+          sample.push(person);
+        }
+      }
+
+      this.communities.tick(tick, sample);
+    }
   }
 
   getSocial(): VirtualSocial {
     return this.social;
+  }
+
+  getCommunities(): Communities {
+    return this.communities;
+  }
+
+  /** Profesiones de todos los habitantes, para el mapa. */
+  professions(): string[] {
+    return Array.from(this.people.values()).map((p) => p.profession);
   }
 
   getAgents(): VirtualAgents {

@@ -7,6 +7,7 @@ import { Settings } from "../settings/Settings";
 import { NetworkManager } from "../network/NetworkManager";
 import Browser from "../browser/Browser";
 import WorldMonitor from "../world/WorldMonitor";
+import WorldMapView from "../map/WorldMapView";
 import { VirtualKernel } from "../../core/VirtualKernel";
 
 const iconStyle = {
@@ -92,6 +93,7 @@ function Desktop() {
       network: <NetworkManager kernel={kernel} />,
       browser: <Browser kernel={kernel} />,
       world: <WorldMonitor kernel={kernel} />,
+      map: <WorldMapView kernel={kernel} />,
     }),
     [kernel],
   );
@@ -236,6 +238,16 @@ function Desktop() {
             🌎
           </div>
           ÑANDE World
+        </button>
+
+        <button
+          onClick={() => openWindow("map")}
+          style={iconStyle}
+        >
+          <div style={{ fontSize: "28px", marginBottom: "8px" }}>
+            🗺️
+          </div>
+          Mapa
         </button>
       </div>
 

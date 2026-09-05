@@ -28,6 +28,7 @@ const WINDOW_TITLES: Record<string, string> = {
   network: "Network Manager",
   browser: "ÑANDE Browser",
   world: "ÑANDE World",
+  map: "ÑANDE Map",
 };
 
 /** Alto de la barra superior del escritorio. */

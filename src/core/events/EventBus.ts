@@ -22,7 +22,9 @@ export type EventType =
   | "skill.levelup"
   | "achievement.unlocked"
   | "mission.completed"
-  | "lab.solved";
+  | "lab.solved"
+  // Mundo social vivo.
+  | "community.joined";
 
 export interface VirtualEvent<T = unknown> {
   type: EventType;
