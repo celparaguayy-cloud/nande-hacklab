@@ -3,13 +3,19 @@ export interface SearchResult {
   title: string;
   description: string;
   keywords: string[];
+  /** Presente cuando el resultado viene de una entidad del mundo. */
+  entityId?: string;
+  entityType?: string;
 }
 
+/** Tope del indice: evita que crezca sin limite con el mundo. */
+const MAX_INDEXED = 2000;
+
 export class VirtualSearch {
-  private index: SearchResult[];
+  private index_: SearchResult[];
 
   constructor() {
-    this.index = [
+    this.index_ = [
       {
         hostname: "www.nande",
         title: "ÑANDE — Inicio",
@@ -61,6 +67,45 @@ export class VirtualSearch {
     ];
   }
 
+  /**
+   * Alta o reemplazo de una entrada. Es la puerta por la que el mundo
+   * hace buscable lo que crean sus habitantes.
+   */
+  index(entry: SearchResult): void {
+    const existing = this.index_.findIndex(
+      (item) => item.hostname === entry.hostname,
+    );
+
+    if (existing >= 0) {
+      this.index_[existing] = structuredClone(entry);
+      return;
+    }
+
+    this.index_.push(structuredClone(entry));
+
+    if (this.index_.length > MAX_INDEXED) {
+      this.index_.splice(0, this.index_.length - MAX_INDEXED);
+    }
+  }
+
+  removeByHostname(hostname: string): boolean {
+    const position = this.index_.findIndex(
+      (item) => item.hostname === hostname,
+    );
+
+    if (position < 0) {
+      return false;
+    }
+
+    this.index_.splice(position, 1);
+
+    return true;
+  }
+
+  count(): number {
+    return this.index_.length;
+  }
+
   search(query: string): SearchResult[] {
     const normalized = query.trim().toLowerCase();
 
@@ -70,7 +115,7 @@ export class VirtualSearch {
 
     const terms = normalized.split(/\s+/);
 
-    return this.index
+    return this.index_
       .map((result) => {
         const searchable = [
           result.hostname,
@@ -98,7 +143,7 @@ export class VirtualSearch {
   }
 
   all(): SearchResult[] {
-    return this.index.map((result) =>
+    return this.index_.map((result) =>
       structuredClone(result),
     );
   }

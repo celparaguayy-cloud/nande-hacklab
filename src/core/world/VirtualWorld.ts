@@ -11,8 +11,13 @@ export interface VirtualWorldState {
   online: boolean;
 }
 
+/** Milisegundos minimos entre dos escrituras del reloj a localStorage. */
+const SAVE_INTERVAL_MS = 2000;
+
 export class VirtualWorld {
   private state: VirtualWorldState;
+  private saveTimer: ReturnType<typeof setTimeout> | null = null;
+  private lastSave = 0;
 
   constructor() {
     const saved = this.loadFromStorage();
@@ -58,7 +63,7 @@ export class VirtualWorld {
     }
   }
 
-  private saveToStorage(): void {
+  private writeToStorage(): void {
     try {
       localStorage.setItem(
         "nande-os-world",
@@ -67,6 +72,33 @@ export class VirtualWorld {
     } catch {
       // El almacenamiento puede estar deshabilitado.
     }
+  }
+
+  // El reloj avanza en cada tick; escribir cada vez es innecesario.
+  private saveToStorage(): void {
+    if (this.saveTimer !== null) {
+      return;
+    }
+
+    const elapsed = Date.now() - this.lastSave;
+    const delay = Math.max(0, SAVE_INTERVAL_MS - elapsed);
+
+    this.saveTimer = setTimeout(() => {
+      this.saveTimer = null;
+      this.lastSave = Date.now();
+      this.writeToStorage();
+    }, delay);
+  }
+
+  /** Fuerza el guardado pendiente sin esperar al intervalo. */
+  flush(): void {
+    if (this.saveTimer !== null) {
+      clearTimeout(this.saveTimer);
+      this.saveTimer = null;
+    }
+
+    this.lastSave = Date.now();
+    this.writeToStorage();
   }
 
   tick(): void {

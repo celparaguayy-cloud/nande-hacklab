@@ -6,34 +6,36 @@ interface WorldMonitorProps {
 }
 
 function WorldMonitor({ kernel }: WorldMonitorProps) {
-  const [snapshot, setSnapshot] = useState(() =>
-    kernel.snapshot(),
-  );
+  // Resumen barato: contadores y ultimas entidades. Antes este componente
+  // clonaba las 2000 personas dos veces por segundo para mostrar dos numeros.
+  const [summary, setSummary] = useState(() => kernel.summary());
 
   useEffect(() => {
-    const update = () => {
-      setSnapshot(kernel.snapshot());
+    const refresh = () => {
+      setSummary(kernel.summary());
     };
 
-    const interval = window.setInterval(update, 1000);
+    refresh();
+
+    // Se observa el mundo por eventos en vez de sondearlo con un intervalo propio.
+    const unsubscribeTick = kernel.events.subscribe(
+      "world.tick",
+      refresh,
+    );
+
+    const unsubscribeEntity = kernel.events.subscribe(
+      "world.entity.created",
+      refresh,
+    );
 
     return () => {
-      window.clearInterval(interval);
+      unsubscribeTick();
+      unsubscribeEntity();
     };
   }, [kernel]);
 
-  const people = kernel.worldEngine.getPeople();
-  const onlinePeople = kernel.worldEngine.getOnlinePeople();
-  const entities = snapshot.worldEntities;
-
-  const counts = entities.reduce<Record<string, number>>(
-    (result, entity) => {
-      result[entity.type] =
-        (result[entity.type] ?? 0) + 1;
-      return result;
-    },
-    {},
-  );
+  const entities = summary.recentEntities;
+  const counts = summary.entityCountsByType;
 
   return (
     <div
@@ -94,25 +96,13 @@ function WorldMonitor({ kernel }: WorldMonitorProps) {
           marginBottom: "20px",
         }}
       >
-        <Stat
-          label="Habitantes"
-          value={people.length}
-        />
+        <Stat label="Habitantes" value={summary.peopleCount} />
 
-        <Stat
-          label="Online"
-          value={onlinePeople.length}
-        />
+        <Stat label="Online" value={summary.onlineCount} />
 
-        <Stat
-          label="Entidades"
-          value={entities.length}
-        />
+        <Stat label="Entidades" value={summary.entityCount} />
 
-        <Stat
-          label="Tick"
-          value={snapshot.world.clock.tick}
-        />
+        <Stat label="Tick" value={summary.clock.tick} />
       </div>
 
       <section>
@@ -186,11 +176,7 @@ function WorldMonitor({ kernel }: WorldMonitorProps) {
               gap: "8px",
             }}
           >
-            {entities
-              .slice()
-              .reverse()
-              .slice(0, 20)
-              .map((entity) => (
+            {entities.map((entity) => (
                 <div
                   key={entity.id}
                   style={{
@@ -232,7 +218,7 @@ function WorldMonitor({ kernel }: WorldMonitorProps) {
                     {entity.id} · {entity.ownerId}
                   </div>
                 </div>
-              ))}
+            ))}
           </div>
         )}
       </section>

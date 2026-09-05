@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import WindowManager from "../window/WindowManager";
 import Terminal from "../terminal/Terminal";
 import { Files } from "../files/Files";
@@ -26,14 +26,55 @@ const iconStyle = {
 
 function Desktop() {
   const kernel = useMemo(() => new VirtualKernel(), []);
+  const [clock, setClock] = useState(
+    () => kernel.world.getState().clock,
+  );
+  const [online, setOnline] = useState(
+    () => kernel.world.getState().online,
+  );
+
+  // Unico loop del mundo: lo arranca el escritorio y lo detiene al salir.
+  useEffect(() => {
+    kernel.start();
+
+    return () => {
+      kernel.stop();
+    };
+  }, [kernel]);
+
+  // La barra observa el mundo por eventos, no con su propio intervalo.
+  useEffect(() => {
+    return kernel.events.subscribe("world.tick", () => {
+      const state = kernel.world.getState();
+
+      setClock(state.clock);
+      setOnline(state.online);
+    });
+  }, [kernel]);
+
+  const formattedTime = `${String(clock.hour).padStart(2, "0")}:${String(
+    clock.minute,
+  ).padStart(2, "0")}`;
+
+  const openerRef = useRef<(id: string) => void>(() => {});
 
   function openWindow(id: string) {
-    const nandeWindow = window as Window & {
-      openNandeWindow?: (id: string) => void;
-    };
-
-    nandeWindow.openNandeWindow?.(id);
+    openerRef.current(id);
   }
+
+  // Se memoiza para no recrear las aplicaciones en cada render.
+  const apps = useMemo(
+    () => ({
+      terminal: <Terminal kernel={kernel} />,
+      files: <Files kernel={kernel} />,
+      processes: <ProcessMonitor kernel={kernel} />,
+      settings: <Settings kernel={kernel} />,
+      network: <NetworkManager kernel={kernel} />,
+      browser: <Browser kernel={kernel} />,
+      world: <WorldMonitor kernel={kernel} />,
+    }),
+    [kernel],
+  );
 
   return (
     <div
@@ -63,8 +104,25 @@ function Desktop() {
       >
         <strong>ÑANDE OS</strong>
 
-        <div>
-          LAB • student • online
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "14px",
+            fontSize: "13px",
+          }}
+        >
+          <span style={{ color: online ? "#7ee2a8" : "#e2857e" }}>
+            ● {online ? "ONLINE" : "OFFLINE"}
+          </span>
+
+          <span style={{ color: "#8b98a5" }}>
+            día {clock.day}
+          </span>
+
+          <span>{formattedTime}</span>
+
+          <span style={{ color: "#8b98a5" }}>student</span>
         </div>
       </div>
 
@@ -148,17 +206,7 @@ function Desktop() {
         </button>
       </div>
 
-      <WindowManager
-        apps={{
-          terminal: <Terminal kernel={kernel} />,
-          files: <Files kernel={kernel} />,
-          processes: <ProcessMonitor kernel={kernel} />,
-          settings: <Settings kernel={kernel} />,
-          network: <NetworkManager kernel={kernel} />,
-          browser: <Browser kernel={kernel} />,
-          world: <WorldMonitor kernel={kernel} />,
-        }}
-      />
+      <WindowManager apps={apps} openerRef={openerRef} />
     </div>
   );
 }

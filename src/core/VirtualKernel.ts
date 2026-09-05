@@ -12,6 +12,11 @@ import { VirtualDNS } from "./dns/VirtualDNS";
 import { VirtualBrowser } from "./browser/VirtualBrowser";
 import { VirtualSearch } from "./search/VirtualSearch";
 import { VirtualInternet } from "./internet/VirtualInternet";
+import { WorldPublisher } from "./internet/WorldPublisher";
+import type { WorldEntity } from "./world/WorldRegistry";
+
+/** Milisegundos entre dos avances del mundo. */
+const TICK_INTERVAL_MS = 1000;
 
 export class VirtualKernel {
   public world: VirtualWorld;
@@ -28,6 +33,10 @@ export class VirtualKernel {
   public browser: VirtualBrowser;
   public search: VirtualSearch;
   public internet: VirtualInternet;
+  public publisher: WorldPublisher;
+
+  private unsubscribePublisher: () => void;
+  private tickTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
     this.world = new VirtualWorld();
@@ -43,7 +52,58 @@ export class VirtualKernel {
     this.dns = new VirtualDNS();
     this.search = new VirtualSearch();
     this.internet = new VirtualInternet();
-    this.browser = new VirtualBrowser(this.dns, this.internet);
+    this.browser = new VirtualBrowser(this.dns, this.internet, this.network);
+
+    this.publisher = new WorldPublisher(
+      this.dns,
+      this.internet,
+      this.search,
+    );
+
+    // Lo que crean los habitantes entra en la Internet virtual:
+    // dominio en el DNS, sitio navegable y entrada en el buscador.
+    this.unsubscribePublisher = this.events.subscribe<WorldEntity>(
+      "world.entity.created",
+      (event) => {
+        this.publisher.publish(event.data);
+      },
+    );
+  }
+
+  /** Libera el loop y las suscripciones del kernel. */
+  dispose(): void {
+    this.stop();
+    this.unsubscribePublisher();
+  }
+
+  /**
+   * Arranca el unico loop de simulacion. Es idempotente: llamarlo dos
+   * veces (StrictMode monta dos veces en desarrollo) no crea un segundo
+   * loop.
+   */
+  start(intervalMs: number = TICK_INTERVAL_MS): void {
+    if (this.tickTimer !== null) {
+      return;
+    }
+
+    this.tickTimer = setInterval(() => {
+      this.tick();
+    }, intervalMs);
+  }
+
+  /** Detiene el loop y baja a disco lo que quede pendiente. */
+  stop(): void {
+    if (this.tickTimer !== null) {
+      clearInterval(this.tickTimer);
+      this.tickTimer = null;
+    }
+
+    this.world.flush();
+    this.registry.flush();
+  }
+
+  isRunning(): boolean {
+    return this.tickTimer !== null;
   }
 
   tick(): void {
@@ -57,6 +117,22 @@ export class VirtualKernel {
       "world.tick",
       worldState,
     );
+  }
+
+  /**
+   * Resumen barato para la UI: contadores y las ultimas entidades, sin
+   * clonar el registro entero en cada refresco.
+   */
+  summary(recentEntities: number = 20) {
+    return {
+      world: this.world.getState(),
+      clock: this.world.getState().clock,
+      peopleCount: this.worldEngine.getPeopleCount(),
+      onlineCount: this.worldEngine.getOnlineCount(),
+      entityCount: this.registry.count(),
+      entityCountsByType: this.registry.countByType(),
+      recentEntities: this.registry.recent(recentEntities),
+    };
   }
 
   snapshot() {

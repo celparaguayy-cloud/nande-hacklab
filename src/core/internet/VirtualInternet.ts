@@ -243,6 +243,15 @@ export class VirtualInternet {
     return resource ? structuredClone(resource) : undefined;
   }
 
+  /** Retira un sitio de la Internet virtual. */
+  removeSite(hostname: string): boolean {
+    return this.sites.delete(hostname.toLowerCase());
+  }
+
+  countSites(): number {
+    return this.sites.size;
+  }
+
   hasSite(hostname: string): boolean {
     return this.sites.has(hostname.toLowerCase());
   }

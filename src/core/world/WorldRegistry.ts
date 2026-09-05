@@ -267,4 +267,28 @@ export class WorldRegistry {
   count(): number {
     return this.entities.size;
   }
+
+  /** Conteo por tipo sin clonar ninguna entidad. */
+  countByType(): Record<string, number> {
+    const counts: Record<string, number> = {};
+
+    for (const entity of this.entities.values()) {
+      counts[entity.type] = (counts[entity.type] ?? 0) + 1;
+    }
+
+    return counts;
+  }
+
+  /** Ultimas entidades creadas, para paneles de actividad. */
+  recent(limit: number = 20): WorldEntity[] {
+    const all = Array.from(this.entities.values());
+    const start = Math.max(0, all.length - limit);
+    const recent: WorldEntity[] = [];
+
+    for (let index = all.length - 1; index >= start; index--) {
+      recent.push(structuredClone(all[index]));
+    }
+
+    return recent;
+  }
 }

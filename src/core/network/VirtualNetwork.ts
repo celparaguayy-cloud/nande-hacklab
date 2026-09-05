@@ -1,3 +1,10 @@
+/**
+ * Unica red de la simulacion: 10.10.0.0/16. Nada fuera de aqui es
+ * alcanzable. 10.10.0.x son los servicios base y 10.10.1.x en adelante
+ * queda para los servidores que levantan los habitantes.
+ */
+const VIRTUAL_SUBNET = "10.10.";
+
 export interface VirtualInterface {
   name: string;
   mac: string;
@@ -107,23 +114,21 @@ export class VirtualNetwork {
     this.saveToStorage();
   }
 
+  /**
+   * Alcance dentro de la red virtual. Antes solo cuatro direcciones
+   * sueltas respondian y cualquier servidor web quedaba inalcanzable.
+   * Ahora responde toda la red virtual mientras eth0 este activa,
+   * y nada fuera de ella: la simulacion no sale de 10.10.0.0/16.
+   */
   isReachable(address: string): boolean {
     if (address === "127.0.0.1") {
-      return true;
+      return this.getInterface("lo")?.up === true;
     }
 
-    if (address === "10.10.0.1") {
-      return this.getInterface("eth0")?.up === true;
+    if (!address.startsWith(VIRTUAL_SUBNET)) {
+      return false;
     }
 
-    if (address === "10.10.0.53") {
-      return this.getInterface("eth0")?.up === true;
-    }
-
-    if (address === "10.10.0.10") {
-      return this.getInterface("eth0")?.up === true;
-    }
-
-    return false;
+    return this.getInterface("eth0")?.up === true;
   }
 }

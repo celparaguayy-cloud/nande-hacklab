@@ -46,6 +46,7 @@ export class WorldEngine {
   private social: VirtualSocial;
   private agents: VirtualAgents;
   private registry: WorldRegistry;
+  private onlineCount: number;
 
   constructor(registry: WorldRegistry, events: EventBus) {
     this.people = new Map(
@@ -54,6 +55,14 @@ export class WorldEngine {
 
     this.events = [];
     this.eventCounter = 1;
+
+    this.onlineCount = 0;
+
+    for (const person of this.people.values()) {
+      if (person.online) {
+        this.onlineCount += 1;
+      }
+    }
 
     const people = this.getPeople();
 
@@ -89,6 +98,16 @@ export class WorldEngine {
     return this.getPeople().filter((person) => person.online);
   }
 
+  /** Contador sin clonar: la UI solo necesita el numero. */
+  getPeopleCount(): number {
+    return this.people.size;
+  }
+
+  /** Contador incremental, actualizado por setOnline(). */
+  getOnlineCount(): number {
+    return this.onlineCount;
+  }
+
   getPerson(id: string): VirtualPerson | undefined {
     const person = this.people.get(id);
 
@@ -107,6 +126,7 @@ export class WorldEngine {
     }
 
     person.online = online;
+    this.onlineCount += online ? 1 : -1;
 
     this.events.push({
       id: `event-${this.eventCounter++}`,
@@ -149,18 +169,23 @@ export class WorldEngine {
       this.events = this.events.slice(-100);
     }
 
+    // Se pasan las referencias internas: clonar 2000 personas por tick
+    // era el mayor costo del motor. Los consumidores solo leen.
     this.agents.tick(
       tick,
-      this.getPeople(),
+      this.people.values(),
       this.social,
     );
 
-    this.social.tick(
-      tick,
-      this.getOnlinePeople().map(
-        (person) => person.id,
-      ),
-    );
+    const onlineIds: string[] = [];
+
+    for (const person of this.people.values()) {
+      if (person.online) {
+        onlineIds.push(person.id);
+      }
+    }
+
+    this.social.tick(tick, onlineIds);
   }
 
   getSocial(): VirtualSocial {

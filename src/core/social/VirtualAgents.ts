@@ -343,20 +343,21 @@ export class VirtualAgents {
       CREATION_PROFILES[person.profession] ??
       CREATION_PROFILES.user;
 
-    // El contador entra en la semilla para que cada creación
-    // del mismo agente reciba un nombre distinto.
-    const seed = this.hashText(
-      `${person.id}:${creationCount}`,
-    );
+    // Hashear `id:contador` no alcanzaba: con 36 combinaciones posibles,
+    // dos creaciones del mismo agente colisionaban por azar. En su lugar
+    // el hash fija solo el punto de partida y el contador avanza de a uno
+    // sobre la grilla prefijo x raiz, asi que las creaciones sucesivas de
+    // un agente caen siempre en combinaciones distintas.
+    const combos = profile.prefixes.length * NAME_ROOTS.length;
+    const start = this.hashText(person.id);
+    const slot = (start + creationCount) % combos;
+
+    const root = NAME_ROOTS[slot % NAME_ROOTS.length];
 
     const prefix =
       profile.prefixes[
-        seed % profile.prefixes.length
-      ];
-
-    const root =
-      NAME_ROOTS[
-        (seed >>> 4) % NAME_ROOTS.length
+        Math.floor(slot / NAME_ROOTS.length) %
+          profile.prefixes.length
       ];
 
     const name = `${prefix} ${root}`;
@@ -385,7 +386,7 @@ export class VirtualAgents {
 
   tick(
     tick: number,
-    people: VirtualPerson[],
+    people: Iterable<VirtualPerson>,
     social: VirtualSocial,
   ): void {
     for (const person of people) {
@@ -489,19 +490,10 @@ export class VirtualAgents {
       }
 
       if (action === "comment") {
-        const posts =
-          social.getPosts();
+        const post = social.pickRandomPost();
 
-        if (posts.length > 0) {
-          const post =
-            posts[
-              Math.floor(
-                Math.random() *
-                  posts.length,
-              )
-            ];
-
-          if (post.authorId !== person.id) {
+        {
+          if (post && post.authorId !== person.id) {
             const comment = social.addComment(
               post.id,
               person.id,
@@ -534,23 +526,12 @@ export class VirtualAgents {
       }
 
       if (action === "chat") {
-        const groups =
-          social.getGroups();
+        const group = social.pickRandomGroupForMember(
+          person.id,
+        );
 
-        if (groups.length > 0) {
-          const group =
-            groups[
-              Math.floor(
-                Math.random() *
-                  groups.length,
-              )
-            ];
-
-          if (
-            group.memberIds.includes(
-              person.id,
-            )
-          ) {
+        {
+          if (group) {
             const message = social.sendMessage(
               group.id,
               person.id,
