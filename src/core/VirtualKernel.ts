@@ -12,6 +12,23 @@ import { VirtualDNS } from "./dns/VirtualDNS";
 import { VirtualBrowser } from "./browser/VirtualBrowser";
 import { VirtualSearch } from "./search/VirtualSearch";
 import { VirtualInternet } from "./internet/VirtualInternet";
+import { WorldPublisher } from "./internet/WorldPublisher";
+import { NewsEngine } from "./news/NewsEngine";
+import { SecurityTools } from "./security/SecurityTools";
+import { Academy } from "./academy/Academy";
+import { Progression } from "./game/Progression";
+import { MissionEngine } from "./game/Missions";
+import { Store } from "./game/Store";
+import { WorldMap } from "./world/WorldMap";
+import {
+  renderCommunitiesFront,
+  renderCommunity,
+} from "./social/communitySite";
+import { renderAcademySite, renderToolsSite } from "./academy/academySites";
+import type { WorldEntity } from "./world/WorldRegistry";
+
+/** Milisegundos entre dos avances del mundo. */
+const TICK_INTERVAL_MS = 1000;
 
 export class VirtualKernel {
   public world: VirtualWorld;
@@ -28,6 +45,17 @@ export class VirtualKernel {
   public browser: VirtualBrowser;
   public search: VirtualSearch;
   public internet: VirtualInternet;
+  public publisher: WorldPublisher;
+  public news: NewsEngine;
+  public tools: SecurityTools;
+  public academy: Academy;
+  public player: Progression;
+  public missions: MissionEngine;
+  public store: Store;
+  public map: WorldMap;
+
+  private unsubscribePublisher: () => void;
+  private tickTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
     this.world = new VirtualWorld();
@@ -43,7 +71,214 @@ export class VirtualKernel {
     this.dns = new VirtualDNS();
     this.search = new VirtualSearch();
     this.internet = new VirtualInternet();
-    this.browser = new VirtualBrowser(this.dns, this.internet);
+    this.browser = new VirtualBrowser(this.dns, this.internet, this.network);
+
+    this.publisher = new WorldPublisher(
+      this.dns,
+      this.internet,
+      this.search,
+    );
+
+    this.news = new NewsEngine();
+    this.tools = new SecurityTools(this.network, this.dns);
+    this.academy = new Academy();
+    this.player = new Progression(this.events);
+    this.missions = new MissionEngine(this.player, this.events);
+    this.store = new Store(this.registry);
+    this.map = new WorldMap(
+      this.registry,
+      this.worldEngine.professions() as never,
+    );
+
+    // academy.nande y tools.nande: la biblioteca y la ruta de aprendizaje,
+    // navegables como cualquier otro sitio del mundo virtual.
+    this.dns.register("academy.nande", "10.10.0.32");
+    this.dns.register("tools.nande", "10.10.0.38");
+    this.dns.register("store.nande", "10.10.0.39");
+    this.dns.register("community.nande", "10.10.0.40");
+
+    // community.nande: las comunidades vivas, navegables.
+    this.internet.registerDynamicSite({
+      hostname: "community.nande",
+      title: "ÑANDE Comunidades",
+      description: "Comunidades de habitantes del mundo.",
+      resolve: (path) => {
+        const communities = this.worldEngine.getCommunities();
+
+        if (path === "/") {
+          return {
+            path,
+            mimeType: "text/html",
+            content: renderCommunitiesFront(communities.ranking(20)),
+          };
+        }
+
+        const match = path.match(/^\/c\/([\w-]+)$/);
+
+        if (match) {
+          const community = communities.get(match[1]);
+          const content = community
+            ? renderCommunity(community)
+            : undefined;
+
+          return content
+            ? { path, mimeType: "text/html", content }
+            : undefined;
+        }
+
+        return undefined;
+      },
+    });
+
+    // store.nande se arma leyendo lo que los habitantes crearon.
+    this.internet.registerDynamicSite({
+      hostname: "store.nande",
+      title: "ÑANDE Store",
+      description: "Herramientas, apps y juegos hechos por los habitantes.",
+      resolve: (path) => {
+        if (path === "/") {
+          return {
+            path,
+            mimeType: "text/html",
+            content: this.store.renderFront(),
+          };
+        }
+
+        const match = path.match(/^\/item\/([\w-]+)$/);
+
+        if (match) {
+          const content = this.store.renderItem(match[1]);
+
+          return content
+            ? { path, mimeType: "text/html", content }
+            : undefined;
+        }
+
+        return undefined;
+      },
+    });
+
+    this.internet.registerDynamicSite({
+      hostname: "academy.nande",
+      title: "ÑANDE Academy",
+      description: "Aprendé ciberseguridad de cero a experto.",
+      resolve: (path) => ({
+        path,
+        mimeType: "text/html",
+        content: renderAcademySite(this.academy, this.tools, path),
+      }),
+    });
+
+    this.internet.registerDynamicSite({
+      hostname: "tools.nande",
+      title: "ÑANDE Toolbox",
+      description: "Biblioteca de herramientas de seguridad.",
+      resolve: (path) => {
+        const content = renderToolsSite(this.tools, path);
+
+        return content
+          ? { path, mimeType: "text/html", content }
+          : undefined;
+      },
+    });
+
+    // news.nande se arma en el momento: su portada refleja lo ultimo
+    // que paso en el mundo, no una pagina escrita de antemano.
+    this.internet.registerDynamicSite({
+      hostname: "news.nande",
+      title: "ÑANDE News",
+      description: "Noticias del mundo virtual de ÑANDE.",
+      resolve: (path) => {
+        if (path === "/") {
+          return {
+            path,
+            mimeType: "text/html",
+            content: this.news.renderFront(),
+          };
+        }
+
+        const match = path.match(/^\/article\/([\w-]+)$/);
+
+        if (match) {
+          const content = this.news.renderArticle(match[1]);
+
+          return content
+            ? { path, mimeType: "text/html", content }
+            : undefined;
+        }
+
+        return undefined;
+      },
+    });
+
+    // Lo que crean los habitantes entra en la Internet virtual y, si es
+    // noticiable, pasa por la redaccion del diario.
+    this.unsubscribePublisher = this.events.subscribe<WorldEntity>(
+      "world.entity.created",
+      (event) => {
+        const entity = event.data;
+        const hostname = this.publisher.publish(entity);
+
+        const author =
+          entity.metadata.ownerName ??
+          this.worldEngine.getPerson(entity.ownerId)?.name ??
+          entity.ownerId;
+
+        const article = this.news.coverEntity(entity, author, hostname);
+
+        if (article) {
+          this.events.emit("world.news.created", article);
+
+          // La nota tambien se puede encontrar desde el buscador.
+          this.search.index({
+            hostname: `news.nande/article/${article.id}`,
+            title: article.headline,
+            description: article.body,
+            keywords: [article.category, "noticias"],
+            entityId: entity.id,
+            entityType: entity.type,
+          });
+        }
+      },
+    );
+  }
+
+  /** Libera el loop y las suscripciones del kernel. */
+  dispose(): void {
+    this.stop();
+    this.unsubscribePublisher();
+  }
+
+  /**
+   * Arranca el unico loop de simulacion. Es idempotente: llamarlo dos
+   * veces (StrictMode monta dos veces en desarrollo) no crea un segundo
+   * loop.
+   */
+  start(intervalMs: number = TICK_INTERVAL_MS): void {
+    if (this.tickTimer !== null) {
+      return;
+    }
+
+    this.tickTimer = setInterval(() => {
+      this.tick();
+    }, intervalMs);
+  }
+
+  /** Detiene el loop y baja a disco lo que quede pendiente. */
+  stop(): void {
+    if (this.tickTimer !== null) {
+      clearInterval(this.tickTimer);
+      this.tickTimer = null;
+    }
+
+    this.world.flush();
+    this.registry.flush();
+    this.news.flush();
+    this.player.flush();
+  }
+
+  isRunning(): boolean {
+    return this.tickTimer !== null;
   }
 
   tick(): void {
@@ -51,12 +286,47 @@ export class VirtualKernel {
 
     const worldState = this.world.getState();
 
-    this.worldEngine.tick(worldState.clock.tick);
+    this.worldEngine.tick(worldState.clock.tick, worldState.clock.hour);
 
     this.events.emit(
       "world.tick",
       worldState,
     );
+  }
+
+  /**
+   * Resumen barato para la UI: contadores y las ultimas entidades, sin
+   * clonar el registro entero en cada refresco.
+   */
+  summary(recentEntities: number = 20) {
+    return {
+      world: this.world.getState(),
+      clock: this.world.getState().clock,
+      peopleCount: this.worldEngine.getPeopleCount(),
+      onlineCount: this.worldEngine.getOnlineCount(),
+      entityCount: this.registry.count(),
+      entityCountsByType: this.registry.countByType(),
+      recentEntities: this.registry.recent(recentEntities),
+      recentNews: this.news.latest(6),
+      newsCount: this.news.count(),
+      relationshipCount: this.worldEngine
+        .getAgents()
+        .getRelationships()
+        .count(),
+      recentEvents: this.worldEngine.getRecentEvents(8),
+      storeCount: this.store.count(),
+      player: this.player.getState(),
+      xpToNext: this.player.xpToNext(),
+      missions: this.missions.progress(),
+      map: this.map.snapshot(
+        this.worldEngine.presenceByZone(this.world.getState().clock.hour),
+      ),
+      communities: this.worldEngine.getCommunities().ranking(8),
+      communityMembers: this.worldEngine.getCommunities().totalMembers(),
+      life: this.worldEngine.lifeBreakdown(
+        this.world.getState().clock.hour,
+      ),
+    };
   }
 
   snapshot() {

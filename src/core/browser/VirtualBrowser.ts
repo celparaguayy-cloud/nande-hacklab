@@ -1,4 +1,5 @@
 import { VirtualDNS } from "../dns/VirtualDNS";
+import { VirtualNetwork } from "../network/VirtualNetwork";
 import {
   VirtualInternet,
   type VirtualResource,
@@ -16,10 +17,16 @@ export interface VirtualPage {
 export class VirtualBrowser {
   private dns: VirtualDNS;
   private internet: VirtualInternet;
+  private network: VirtualNetwork;
 
-  constructor(dns: VirtualDNS, internet: VirtualInternet) {
+  constructor(
+    dns: VirtualDNS,
+    internet: VirtualInternet,
+    network: VirtualNetwork,
+  ) {
     this.dns = dns;
     this.internet = internet;
+    this.network = network;
   }
 
   open(hostname: string, path: string = "/"): VirtualPage {
@@ -29,6 +36,14 @@ export class VirtualBrowser {
 
     if (!address) {
       throw new Error(`DNS: no se encontró ${hostname}`);
+    }
+
+    // La navegacion pasa por la red virtual: si eth0 esta caida, o la
+    // direccion queda fuera de la subred simulada, no hay respuesta.
+    if (!this.network.isReachable(address)) {
+      throw new Error(
+        `Red: ${address} no es alcanzable desde esta máquina`,
+      );
     }
 
     const resource: VirtualResource | undefined =

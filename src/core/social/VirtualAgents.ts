@@ -1,5 +1,6 @@
 import type { VirtualPerson } from "../world/WorldEngine";
 import { AgentMemory } from "./AgentMemory";
+import { AgentRelationships } from "./AgentRelationships";
 import type {
   WorldEntity,
   WorldEntityType,
@@ -32,7 +33,17 @@ export interface VirtualAgentState {
   lastAction: AgentAction;
   lastTick: number;
   lastCreatedTick: number;
+  creationCount: number;
 }
+
+/** Ticks que un agente espera como mínimo entre dos creaciones. */
+const CREATE_COOLDOWN_TICKS = 250;
+
+/** Cantidad máxima de entidades que un mismo agente llega a crear. */
+const MAX_CREATIONS_PER_AGENT = 5;
+
+/** Energía mínima para encarar una creación. */
+const CREATE_MIN_ENERGY = 20;
 
 const GOALS = [
   "aprender algo nuevo",
@@ -103,9 +114,107 @@ const POST_MESSAGES: Record<string, string[]> = {
   ],
 };
 
+interface CreationProfile {
+  type: WorldEntityType;
+  prefixes: string[];
+  purpose: string;
+  tags: string[];
+}
+
+const CREATION_PROFILES: Record<string, CreationProfile> = {
+  developer: {
+    type: "app",
+    prefixes: ["App", "Nodo", "Core"],
+    purpose: "experimentar con nuevas ideas de programación",
+    tags: ["programación", "tecnología"],
+  },
+  designer: {
+    type: "website",
+    prefixes: ["Portal", "Estudio", "Espacio"],
+    purpose: "compartir proyectos creativos",
+    tags: ["diseño", "web"],
+  },
+  gamer: {
+    type: "game",
+    prefixes: ["Juego", "Arena", "Zona"],
+    purpose: "entretener a la comunidad",
+    tags: ["gaming", "entretenimiento"],
+  },
+  teacher: {
+    type: "course",
+    prefixes: ["Curso", "Taller", "Escuela"],
+    purpose: "compartir conocimientos con quien quiera aprender",
+    tags: ["educación", "aprendizaje"],
+  },
+  "security-analyst": {
+    type: "lab",
+    prefixes: ["Lab", "Laboratorio", "Refugio"],
+    purpose: "practicar seguridad en un entorno controlado",
+    tags: ["ciberseguridad", "educación"],
+  },
+  journalist: {
+    type: "website",
+    prefixes: ["Diario", "Portal", "Boletín"],
+    purpose: "publicar investigaciones y noticias del mundo virtual",
+    tags: ["noticias", "investigación"],
+  },
+  entrepreneur: {
+    type: "company",
+    prefixes: ["Empresa", "Grupo", "Cooperativa"],
+    purpose: "desarrollar nuevos proyectos",
+    tags: ["negocios", "emprendimiento"],
+  },
+  researcher: {
+    type: "project",
+    prefixes: ["Proyecto", "Instituto", "Observatorio"],
+    purpose: "investigar y documentar hallazgos",
+    tags: ["ciencia", "investigación"],
+  },
+  merchant: {
+    type: "company",
+    prefixes: ["Tienda", "Mercado", "Feria"],
+    purpose: "ofrecer productos a la comunidad",
+    tags: ["comercio", "negocios"],
+  },
+  technician: {
+    type: "tool",
+    prefixes: ["Herramienta", "Taller", "Central"],
+    purpose: "trabajar con sistemas y redes",
+    tags: ["tecnología", "redes"],
+  },
+  student: {
+    type: "project",
+    prefixes: ["Proyecto", "Cuaderno", "Bitácora"],
+    purpose: "practicar mientras aprende nuevas habilidades",
+    tags: ["aprendizaje", "proyecto"],
+  },
+  user: {
+    type: "community",
+    prefixes: ["Comunidad", "Círculo", "Grupo"],
+    purpose: "reunir gente con intereses parecidos",
+    tags: ["comunidad", "social"],
+  },
+};
+
+const NAME_ROOTS = [
+  "Ñande",
+  "Arandu",
+  "Kuarahy",
+  "Yvoty",
+  "Tape",
+  "Pyahu",
+  "Guasu",
+  "Porã",
+  "Tekove",
+  "Mbarete",
+  "Ára",
+  "Pytu",
+];
+
 export class VirtualAgents {
   private agents: Map<string, VirtualAgentState>;
   private memory: AgentMemory;
+  private relationships: AgentRelationships;
   private createEntity: (
     type: WorldEntityType,
     name: string,
@@ -130,9 +239,16 @@ export class VirtualAgents {
   ) {
     this.agents = new Map();
     this.memory = new AgentMemory();
+    this.relationships = new AgentRelationships();
     this.createEntity = createEntity;
 
     for (const person of people) {
+      // Si todos arrancaran con el cooldown cumplido, el mundo nacería
+      // con una rafaga de creaciones en los primeros ticks. El permiso
+      // inicial se reparte a lo largo de una ventana de cooldown.
+      const offset =
+        this.hashText(person.id) % CREATE_COOLDOWN_TICKS;
+
       this.agents.set(
         person.id,
         {
@@ -142,7 +258,8 @@ export class VirtualAgents {
           goal: GOALS[person.id.length % GOALS.length],
           lastAction: "idle",
           lastTick: 0,
-          lastCreatedTick: -1,
+          lastCreatedTick: offset - CREATE_COOLDOWN_TICKS,
+          creationCount: 0,
         },
       );
     }
@@ -164,6 +281,10 @@ export class VirtualAgents {
 
   getMemory(): AgentMemory {
     return this.memory;
+  }
+
+  getRelationships(): AgentRelationships {
+    return this.relationships;
   }
 
   getAgentMemories(
@@ -211,111 +332,55 @@ export class VirtualAgents {
     return "social";
   }
 
+  /** Hash estable: da variedad de nombres sin depender del azar. */
+  private hashText(text: string): number {
+    let hash = 0;
+
+    for (let index = 0; index < text.length; index++) {
+      hash = (hash * 31 + text.charCodeAt(index)) >>> 0;
+    }
+
+    return hash;
+  }
+
   private chooseCreation(
     person: VirtualPerson,
+    creationCount: number,
   ): {
     type: WorldEntityType;
     name: string;
     description: string;
     tags: string[];
   } {
-    switch (person.profession) {
-      case "developer":
-        return {
-          type: "app",
-          name: `App de ${person.name}`,
-          description: `Una aplicación creada por ${person.name} para experimentar con nuevas ideas.`,
-          tags: ["programación", "tecnología"],
-        };
+    const profile =
+      CREATION_PROFILES[person.profession] ??
+      CREATION_PROFILES.user;
 
-      case "designer":
-        return {
-          type: "website",
-          name: `Diseño de ${person.name}`,
-          description: `Un sitio web creado por ${person.name} para compartir proyectos creativos.`,
-          tags: ["diseño", "web"],
-        };
+    // Hashear `id:contador` no alcanzaba: con 36 combinaciones posibles,
+    // dos creaciones del mismo agente colisionaban por azar. En su lugar
+    // el hash fija solo el punto de partida y el contador avanza de a uno
+    // sobre la grilla prefijo x raiz, asi que las creaciones sucesivas de
+    // un agente caen siempre en combinaciones distintas.
+    const combos = profile.prefixes.length * NAME_ROOTS.length;
+    const start = this.hashText(person.id);
+    const slot = (start + creationCount) % combos;
 
-      case "gamer":
-        return {
-          type: "game",
-          name: `Juego de ${person.name}`,
-          description: `Un juego virtual creado por ${person.name} para la comunidad.`,
-          tags: ["gaming", "entretenimiento"],
-        };
+    const root = NAME_ROOTS[slot % NAME_ROOTS.length];
 
-      case "teacher":
-        return {
-          type: "course",
-          name: `Curso de ${person.name}`,
-          description: `Un curso virtual creado por ${person.name} para compartir conocimientos.`,
-          tags: ["educación", "aprendizaje"],
-        };
+    const prefix =
+      profile.prefixes[
+        Math.floor(slot / NAME_ROOTS.length) %
+          profile.prefixes.length
+      ];
 
-      case "security-analyst":
-        return {
-          type: "lab",
-          name: `Laboratorio de ${person.name}`,
-          description: `Un laboratorio educativo de seguridad creado por ${person.name} dentro de ÑANDE.`,
-          tags: ["ciberseguridad", "educación"],
-        };
+    const name = `${prefix} ${root}`;
 
-      case "journalist":
-        return {
-          type: "website",
-          name: `Noticias de ${person.name}`,
-          description: `Un sitio informativo creado por ${person.name} para publicar investigaciones y noticias virtuales.`,
-          tags: ["noticias", "investigación"],
-        };
-
-      case "entrepreneur":
-        return {
-          type: "company",
-          name: `Empresa de ${person.name}`,
-          description: `Una empresa virtual creada por ${person.name} para desarrollar nuevos proyectos.`,
-          tags: ["negocios", "emprendimiento"],
-        };
-
-      case "researcher":
-        return {
-          type: "project",
-          name: `Investigación de ${person.name}`,
-          description: `Un proyecto de investigación creado por ${person.name}.`,
-          tags: ["ciencia", "investigación"],
-        };
-
-      case "merchant":
-        return {
-          type: "company",
-          name: `Tienda de ${person.name}`,
-          description: `Una tienda virtual creada por ${person.name} para ofrecer productos a la comunidad.`,
-          tags: ["comercio", "negocios"],
-        };
-
-      case "technician":
-        return {
-          type: "tool",
-          name: `Herramienta de ${person.name}`,
-          description: `Una herramienta virtual creada por ${person.name} para trabajar con sistemas y redes.`,
-          tags: ["tecnología", "redes"],
-        };
-
-      case "student":
-        return {
-          type: "project",
-          name: `Proyecto de ${person.name}`,
-          description: `Un proyecto personal creado por ${person.name} mientras aprende nuevas habilidades.`,
-          tags: ["aprendizaje", "proyecto"],
-        };
-
-      default:
-        return {
-          type: "community",
-          name: `Comunidad de ${person.name}`,
-          description: `Una comunidad virtual creada por ${person.name} para compartir intereses.`,
-          tags: ["comunidad", "social"],
-        };
-    }
+    return {
+      type: profile.type,
+      name,
+      description: `${name} es un espacio creado por ${person.name} para ${profile.purpose}.`,
+      tags: profile.tags,
+    };
   }
 
   private generatePost(
@@ -332,10 +397,18 @@ export class VirtualAgents {
     ];
   }
 
+  /** Aviso opcional cuando un vinculo cambia de tipo. */
+  onRelationshipChanged?: (
+    relationship: ReturnType<AgentRelationships["interact"]>,
+    agentId: string,
+    tick: number,
+  ) => void;
+
   tick(
     tick: number,
-    people: VirtualPerson[],
+    people: Iterable<VirtualPerson>,
     social: VirtualSocial,
+    peopleById?: Map<string, VirtualPerson>,
   ): void {
     for (const person of people) {
       if (!person.online) {
@@ -388,53 +461,76 @@ export class VirtualAgents {
         );
       }
 
-      if (
-        action === "create" &&
-        agent.lastCreatedTick !== tick
-      ) {
-        const creation =
-          this.chooseCreation(person);
+      if (action === "create") {
+        const ticksDesdeCreacion = tick - agent.lastCreatedTick;
 
-        const entity = this.createEntity(
-          creation.type,
-          creation.name,
-          creation.description,
-          person.id,
-          tick,
-          creation.tags,
-          {
-            profession: person.profession,
-          },
-        );
+        const puedeCrear =
+          ticksDesdeCreacion >= CREATE_COOLDOWN_TICKS &&
+          agent.creationCount < MAX_CREATIONS_PER_AGENT &&
+          agent.energy >= CREATE_MIN_ENERGY;
 
-        agent.lastCreatedTick = tick;
+        if (puedeCrear) {
+          const creation = this.chooseCreation(
+            person,
+            agent.creationCount,
+          );
 
-        this.memory.rememberProject(
-          person.id,
-          `Creó ${entity.type} "${entity.name}" (${entity.id}).`,
-          tick,
-        );
+          const entity = this.createEntity(
+            creation.type,
+            creation.name,
+            creation.description,
+            person.id,
+            tick,
+            creation.tags,
+            {
+              profession: person.profession,
+              ownerName: person.name,
+            },
+          );
 
-        agent.energy = Math.max(
-          0,
-          agent.energy - 5,
-        );
+          agent.lastCreatedTick = tick;
+          agent.creationCount += 1;
+
+          this.memory.rememberProject(
+            person.id,
+            `Creó ${entity.type} "${entity.name}" (${entity.id}).`,
+            tick,
+          );
+
+          agent.energy = Math.max(
+            0,
+            agent.energy - 5,
+          );
+        } else {
+          // Sin cupo todavía: el agente se queda tranquilo este tick.
+          agent.lastAction = "idle";
+        }
       }
 
       if (action === "comment") {
-        const posts =
-          social.getPosts();
+        // Se mira mas de un post y se prefiere el de alguien conocido:
+        // asi los vinculos ya formados guian a quien se responde.
+        const candidates = [
+          social.pickRandomPost(),
+          social.pickRandomPost(),
+        ].filter(
+          (candidate): candidate is NonNullable<typeof candidate> =>
+            candidate !== undefined &&
+            candidate.authorId !== person.id,
+        );
 
-        if (posts.length > 0) {
-          const post =
-            posts[
-              Math.floor(
-                Math.random() *
-                  posts.length,
-              )
-            ];
+        const post = candidates.sort((a, b) => {
+          const trustA =
+            this.relationships.get(person.id, a.authorId)?.trust ?? 0;
 
-          if (post.authorId !== person.id) {
+          const trustB =
+            this.relationships.get(person.id, b.authorId)?.trust ?? 0;
+
+          return trustB - trustA;
+        })[0];
+
+        {
+          if (post) {
             const comment = social.addComment(
               post.id,
               person.id,
@@ -443,6 +539,16 @@ export class VirtualAgents {
             );
 
             if (comment) {
+              const author = peopleById?.get(post.authorId);
+
+              const link = this.relationships.interact(
+                person.id,
+                post.authorId,
+                tick,
+                2,
+                author?.profession === person.profession,
+              );
+
               this.memory.rememberEvent(
                 person.id,
                 `Comentó una publicación de ${post.authorId}.`,
@@ -456,6 +562,10 @@ export class VirtualAgents {
                 "Escribió una publicación que el agente comentó.",
                 tick,
               );
+
+              if (link.changedFrom) {
+                this.onRelationshipChanged?.(link, person.id, tick);
+              }
             }
           }
         }
@@ -467,23 +577,12 @@ export class VirtualAgents {
       }
 
       if (action === "chat") {
-        const groups =
-          social.getGroups();
+        const group = social.pickRandomGroupForMember(
+          person.id,
+        );
 
-        if (groups.length > 0) {
-          const group =
-            groups[
-              Math.floor(
-                Math.random() *
-                  groups.length,
-              )
-            ];
-
-          if (
-            group.memberIds.includes(
-              person.id,
-            )
-          ) {
+        {
+          if (group) {
             const message = social.sendMessage(
               group.id,
               person.id,

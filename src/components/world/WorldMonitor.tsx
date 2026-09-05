@@ -6,34 +6,39 @@ interface WorldMonitorProps {
 }
 
 function WorldMonitor({ kernel }: WorldMonitorProps) {
-  const [snapshot, setSnapshot] = useState(() =>
-    kernel.snapshot(),
-  );
+  // Resumen barato: contadores y ultimas entidades. Antes este componente
+  // clonaba las 2000 personas dos veces por segundo para mostrar dos numeros.
+  const [summary, setSummary] = useState(() => kernel.summary());
 
   useEffect(() => {
-    const update = () => {
-      setSnapshot(kernel.snapshot());
+    const refresh = () => {
+      setSummary(kernel.summary());
     };
 
-    const interval = window.setInterval(update, 1000);
+    refresh();
+
+    // Se observa el mundo por eventos en vez de sondearlo con un intervalo propio.
+    const unsubscribeTick = kernel.events.subscribe(
+      "world.tick",
+      refresh,
+    );
+
+    const unsubscribeEntity = kernel.events.subscribe(
+      "world.entity.created",
+      refresh,
+    );
 
     return () => {
-      window.clearInterval(interval);
+      unsubscribeTick();
+      unsubscribeEntity();
     };
   }, [kernel]);
 
-  const people = kernel.worldEngine.getPeople();
-  const onlinePeople = kernel.worldEngine.getOnlinePeople();
-  const entities = snapshot.worldEntities;
-
-  const counts = entities.reduce<Record<string, number>>(
-    (result, entity) => {
-      result[entity.type] =
-        (result[entity.type] ?? 0) + 1;
-      return result;
-    },
-    {},
-  );
+  const entities = summary.recentEntities;
+  const counts = summary.entityCountsByType;
+  const events = summary.recentEvents;
+  const news = summary.recentNews;
+  const life = summary.life;
 
   return (
     <div
@@ -94,25 +99,17 @@ function WorldMonitor({ kernel }: WorldMonitorProps) {
           marginBottom: "20px",
         }}
       >
-        <Stat
-          label="Habitantes"
-          value={people.length}
-        />
+        <Stat label="Habitantes" value={summary.peopleCount} />
 
-        <Stat
-          label="Online"
-          value={onlinePeople.length}
-        />
+        <Stat label="Online" value={summary.onlineCount} />
 
-        <Stat
-          label="Entidades"
-          value={entities.length}
-        />
+        <Stat label="Entidades" value={summary.entityCount} />
 
-        <Stat
-          label="Tick"
-          value={snapshot.world.clock.tick}
-        />
+        <Stat label="Tick" value={summary.clock.tick} />
+
+        <Stat label="Vínculos" value={summary.relationshipCount} />
+
+        <Stat label="Noticias" value={summary.newsCount} />
       </div>
 
       <section>
@@ -186,11 +183,7 @@ function WorldMonitor({ kernel }: WorldMonitorProps) {
               gap: "8px",
             }}
           >
-            {entities
-              .slice()
-              .reverse()
-              .slice(0, 20)
-              .map((entity) => (
+            {entities.map((entity) => (
                 <div
                   key={entity.id}
                   style={{
@@ -232,10 +225,132 @@ function WorldMonitor({ kernel }: WorldMonitorProps) {
                     {entity.id} · {entity.ownerId}
                   </div>
                 </div>
-              ))}
+            ))}
           </div>
         )}
       </section>
+
+      <section style={{ marginTop: "24px" }}>
+        <h3 style={{ marginBottom: "12px" }}>
+          El mundo ahora mismo
+        </h3>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns:
+              "repeat(auto-fit, minmax(130px, 1fr))",
+            gap: "10px",
+          }}
+        >
+          {Object.entries(life)
+            .filter(([, n]) => (n as number) > 0)
+            .sort((a, b) => (b[1] as number) - (a[1] as number))
+            .map(([activity, n]) => (
+              <div
+                key={activity}
+                style={{
+                  padding: "12px",
+                  border: "1px solid #26313b",
+                  borderRadius: "8px",
+                  background: "#111820",
+                }}
+              >
+                <div
+                  style={{
+                    color: "#8b98a5",
+                    fontSize: "12px",
+                    marginBottom: "5px",
+                  }}
+                >
+                  {activity}
+                </div>
+                <strong style={{ fontSize: "20px" }}>{n as number}</strong>
+              </div>
+            ))}
+        </div>
+      </section>
+
+      <section style={{ marginTop: "24px" }}>
+        <h3 style={{ marginBottom: "12px" }}>
+          Últimas noticias
+        </h3>
+
+        {news.length === 0 ? (
+          <Empty texto="El diario todavía no publicó nada." />
+        ) : (
+          <div style={listStyle}>
+            {news.map((article) => (
+              <div key={article.id} style={cardStyle}>
+                <strong>{article.headline}</strong>
+
+                <div style={metaStyle}>
+                  {article.category} · tick {article.tick}
+                  {article.relatedHostname
+                    ? ` · ${article.relatedHostname}`
+                    : ""}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section style={{ marginTop: "24px" }}>
+        <h3 style={{ marginBottom: "12px" }}>
+          Actividad reciente
+        </h3>
+
+        {events.length === 0 ? (
+          <Empty texto="Todavía no pasó nada en el mundo." />
+        ) : (
+          <div style={listStyle}>
+            {events.map((event) => (
+              <div key={event.id} style={cardStyle}>
+                <div>{event.description}</div>
+
+                <div style={metaStyle}>
+                  {event.type} · tick {event.tick}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+const listStyle = {
+  display: "flex",
+  flexDirection: "column" as const,
+  gap: "8px",
+};
+
+const cardStyle = {
+  padding: "10px 12px",
+  border: "1px solid #26313b",
+  borderRadius: "8px",
+  background: "#111820",
+};
+
+const metaStyle = {
+  marginTop: "4px",
+  color: "#8b98a5",
+  fontSize: "12px",
+};
+
+function Empty({ texto }: { texto: string }) {
+  return (
+    <div
+      style={{
+        padding: "20px",
+        border: "1px solid #26313b",
+        borderRadius: "8px",
+        color: "#8b98a5",
+      }}
+    >
+      {texto}
     </div>
   );
 }

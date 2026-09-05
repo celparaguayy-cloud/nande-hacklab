@@ -233,6 +233,53 @@ export class VirtualSocial {
       .reverse();
   }
 
+  /**
+   * Un post al azar sin clonar el muro entero.
+   *
+   * getPosts() copia hasta 2000 posts en profundidad; llamarlo una vez
+   * por agente que comenta hacia que el coste del tick creciera con la
+   * cantidad de publicaciones acumuladas.
+   */
+  pickRandomPost(): SocialPost | undefined {
+    if (this.posts.size === 0) {
+      return undefined;
+    }
+
+    const target = Math.floor(Math.random() * this.posts.size);
+    let position = 0;
+
+    for (const post of this.posts.values()) {
+      if (position === target) {
+        return structuredClone(post);
+      }
+
+      position += 1;
+    }
+
+    return undefined;
+  }
+
+  /** Grupo al azar del que la persona sea miembro, sin clonar miembros. */
+  pickRandomGroupForMember(
+    personId: string,
+  ): { id: string; name: string } | undefined {
+    const candidates: Array<{ id: string; name: string }> = [];
+
+    for (const group of this.groups.values()) {
+      if (group.memberIds.includes(personId)) {
+        candidates.push({ id: group.id, name: group.name });
+      }
+    }
+
+    if (candidates.length === 0) {
+      return undefined;
+    }
+
+    return candidates[
+      Math.floor(Math.random() * candidates.length)
+    ];
+  }
+
   getComments(postId: string): SocialComment[] {
     return Array.from(this.comments.values())
       .filter(
@@ -291,7 +338,7 @@ export class VirtualSocial {
 
     // Conversación ocasional en un grupo.
     if (Math.random() < 0.35) {
-      const groups = this.getGroups();
+      const groups = Array.from(this.groups.values());
 
       const group =
         groups[
@@ -301,10 +348,13 @@ export class VirtualSocial {
           )
         ];
 
-      const members =
-        group.memberIds.filter((id) =>
-          onlinePersonIds.includes(id),
-        );
+      // Con ~1000 conectados, includes() sobre un array convertia este
+      // cruce en O(miembros x conectados) en cada tick.
+      const onlineSet = new Set(onlinePersonIds);
+
+      const members = group.memberIds.filter((id) =>
+        onlineSet.has(id),
+      );
 
       if (members.length > 0) {
         const sender =

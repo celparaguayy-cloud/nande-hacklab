@@ -9,17 +9,29 @@ interface BrowserProps {
 
 type BrowserPage = "home" | "search" | "site";
 
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
 export default function Browser({ kernel }: BrowserProps) {
   const [url, setUrl] = useState("https://search.nande");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState<BrowserPage>("home");
   const [title, setTitle] = useState("ÑANDE Browser");
-  const [description, setDescription] = useState(
-    "Una ventana hacia la Internet virtual de ÑANDE HACKLAB."
-  );
   const [results, setResults] = useState<SearchResult[]>([]);
-  const [history, setHistory] = useState<string[]>(["https://search.nande"]);
-  const [historyIndex, setHistoryIndex] = useState(0);
+  // El HTML del sitio se guarda aparte del texto de la pagina de busqueda:
+  // antes ambos compartian el mismo estado con significados distintos.
+  const [siteContent, setSiteContent] = useState("");
+  const [nav, setNav] = useState<{ entries: string[]; index: number }>({
+    entries: ["https://search.nande"],
+    index: 0,
+  });
+
+  const canGoBack = nav.index > 0;
+  const canGoForward = nav.index < nav.entries.length - 1;
 
   const cleanUrl = (target: string) => {
     const normalized = target
@@ -37,18 +49,19 @@ export default function Browser({ kernel }: BrowserProps) {
   };
 
   const recordHistory = (target: string) => {
-    setHistory((current) => {
-      const prefix = current.slice(0, historyIndex + 1);
-      const last = prefix[prefix.length - 1];
+    setNav((current) => {
+      const prefix = current.entries.slice(0, current.index + 1);
 
-      if (last === target) {
+      // Navegar a la pagina actual no agrega entrada ni mueve el indice.
+      if (prefix[prefix.length - 1] === target) {
         return current;
       }
 
-      return [...prefix, target];
+      return {
+        entries: [...prefix, target],
+        index: prefix.length,
+      };
     });
-
-    setHistoryIndex((current) => current + 1);
   };
 
   const renderPage = (hostname: string, path: string, addHistory = true) => {
@@ -66,7 +79,6 @@ export default function Browser({ kernel }: BrowserProps) {
     if (hostname === "search.nande") {
       setPage("search");
       setTitle("ÑANDE Search");
-      setDescription("Buscador de la Internet virtual.");
       return;
     }
 
@@ -75,25 +87,31 @@ export default function Browser({ kernel }: BrowserProps) {
 
       setPage("site");
       setTitle(result.title);
-      setDescription(result.content);
+      setSiteContent(result.content);
       setResults([]);
-    } catch {
-      const virtualSite = kernel.internet.getSite(hostname);
-      const virtualResource = kernel.internet.getResource(hostname, path);
-
-      if (virtualSite && virtualResource) {
-        setPage("site");
-        setTitle(virtualSite.title);
-        setDescription(virtualResource.content);
-        setResults([]);
-        return;
-      }
+    } catch (error) {
+      // Se muestra el motivo real (DNS o red), como haria un navegador.
+      const motivo =
+        error instanceof Error
+          ? error.message
+          : "Error desconocido";
 
       setPage("site");
-      setTitle("Página no encontrada");
-      setDescription(
-        `El recurso virtual "${hostname}${path}" no está disponible en la Internet de ÑANDE.`
-      );
+      setTitle("Sitio no disponible");
+      setSiteContent(`
+        <h1>No se pudo abrir el sitio</h1>
+        <p><code>${escapeHtml(hostname)}${escapeHtml(path)}</code></p>
+
+        <article>
+          <h2>Motivo</h2>
+          <p>${escapeHtml(motivo)}</p>
+        </article>
+
+        <p>
+          Este navegador solo alcanza la Internet virtual de ÑANDE:
+          dominios <code>.nande</code> dentro de la red 10.10.0.0/16.
+        </p>
+      `);
       setResults([]);
     }
   };
@@ -109,28 +127,26 @@ export default function Browser({ kernel }: BrowserProps) {
   };
 
   const goBack = () => {
-    if (historyIndex <= 0) {
+    if (!canGoBack) {
       return;
     }
 
-    const nextIndex = historyIndex - 1;
-    const target = history[nextIndex];
-    const { hostname, path } = cleanUrl(target);
+    const nextIndex = nav.index - 1;
+    const { hostname, path } = cleanUrl(nav.entries[nextIndex]);
 
-    setHistoryIndex(nextIndex);
+    setNav((current) => ({ ...current, index: nextIndex }));
     renderPage(hostname, path, false);
   };
 
   const goForward = () => {
-    if (historyIndex >= history.length - 1) {
+    if (!canGoForward) {
       return;
     }
 
-    const nextIndex = historyIndex + 1;
-    const target = history[nextIndex];
-    const { hostname, path } = cleanUrl(target);
+    const nextIndex = nav.index + 1;
+    const { hostname, path } = cleanUrl(nav.entries[nextIndex]);
 
-    setHistoryIndex(nextIndex);
+    setNav((current) => ({ ...current, index: nextIndex }));
     renderPage(hostname, path, false);
   };
 
@@ -144,11 +160,6 @@ export default function Browser({ kernel }: BrowserProps) {
     setResults(found);
     setPage("search");
     setTitle("ÑANDE Search");
-    setDescription(
-      found.length
-        ? `${found.length} resultado${found.length === 1 ? "" : "s"} encontrados`
-        : "No se encontraron resultados."
-    );
   };
 
   const goHome = () => {
@@ -157,9 +168,6 @@ export default function Browser({ kernel }: BrowserProps) {
     setUrl(target);
     setPage("home");
     setTitle("ÑANDE Browser");
-    setDescription(
-      "Explorá la Internet virtual de ÑANDE HACKLAB."
-    );
     setResults([]);
   };
 
@@ -171,10 +179,10 @@ export default function Browser({ kernel }: BrowserProps) {
             onClick={goBack}
             style={{
               ...navButtonStyle,
-              opacity: historyIndex > 0 ? 1 : 0.4,
+              opacity: canGoBack ? 1 : 0.4,
             }}
             title="Atrás"
-            disabled={historyIndex <= 0}
+            disabled={!canGoBack}
           >
             ←
           </button>
@@ -183,10 +191,10 @@ export default function Browser({ kernel }: BrowserProps) {
             onClick={goForward}
             style={{
               ...navButtonStyle,
-              opacity: historyIndex < history.length - 1 ? 1 : 0.4,
+              opacity: canGoForward ? 1 : 0.4,
             }}
             title="Adelante"
-            disabled={historyIndex >= history.length - 1}
+            disabled={!canGoForward}
           >
             →
           </button>
@@ -396,9 +404,9 @@ export default function Browser({ kernel }: BrowserProps) {
             </div>
 
             <div style={siteBodyStyle}>
-              <h1 style={siteTitleStyle}>{title}</h1>
 
               <div
+                className="nande-site"
                 style={siteContentStyle}
                 onClick={(event) => {
                   const target = event.target as HTMLElement;
@@ -424,7 +432,7 @@ export default function Browser({ kernel }: BrowserProps) {
                     navigate(href);
                   }
                 }}
-                dangerouslySetInnerHTML={{ __html: description }}
+                dangerouslySetInnerHTML={{ __html: siteContent }}
               />
 
               <div style={siteActionsStyle}>
@@ -768,12 +776,6 @@ const siteBodyStyle: CSSProperties = {
   margin: "0 auto",
   padding: 35,
   boxSizing: "border-box",
-};
-
-const siteTitleStyle: CSSProperties = {
-  fontSize: 34,
-  marginTop: 0,
-  color: "#e6edf3",
 };
 
 const siteContentStyle: CSSProperties = {

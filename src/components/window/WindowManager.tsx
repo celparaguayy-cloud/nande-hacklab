@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import type { CSSProperties, ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { CSSProperties, MutableRefObject, ReactNode } from "react";
 
 interface WindowState {
   id: string;
@@ -19,22 +19,76 @@ interface DragState {
   offsetY: number;
 }
 
-interface WindowManagerProps {
-  apps: Record<string, ReactNode>;
+/** Barra de titulo de cada aplicacion del escritorio. */
+const WINDOW_TITLES: Record<string, string> = {
+  terminal: "Terminal — student@nande-os",
+  files: "Files — /home/student",
+  processes: "Process Monitor",
+  settings: "Settings",
+  network: "Network Manager",
+  browser: "ÑANDE Browser",
+  world: "ÑANDE World",
+  map: "ÑANDE Map",
+};
+
+/** Alto de la barra superior del escritorio. */
+const TOP_BAR = 42;
+
+/** Parte de la ventana que siempre debe quedar dentro de la pantalla. */
+const MIN_VISIBLE = 80;
+
+/** Alto de la fila de iconos del escritorio. */
+const ICON_ROW = 138;
+
+/** Geometria inicial adaptada al tamano real de la pantalla. */
+function initialGeometry(offset: number) {
+  const screenWidth =
+    typeof window === "undefined" ? 1024 : window.innerWidth;
+
+  const screenHeight =
+    typeof window === "undefined" ? 768 : window.innerHeight;
+
+  // En telefonos la ventana ocupa casi todo: una de 700px en x=180
+  // quedaba practicamente fuera de una pantalla de 360px.
+  const compact = screenWidth < 760;
+
+  if (compact) {
+    return {
+      x: 8,
+      y: TOP_BAR + 8,
+      width: Math.max(240, screenWidth - 16),
+      height: Math.max(280, screenHeight - TOP_BAR - 16),
+    };
+  }
+
+  // En pantallas grandes las ventanas caen en cascada, por debajo de la
+  // fila de iconos para no taparlos al abrir el escritorio.
+  const step = (offset % 6) * 28;
+  const top = TOP_BAR + ICON_ROW;
+
+  return {
+    x: 140 + step,
+    y: top + step,
+    width: Math.min(700, screenWidth - 80),
+    height: Math.min(450, screenHeight - top - 40),
+  };
 }
 
-function WindowManager({ apps }: WindowManagerProps) {
-  const [windows, setWindows] = useState<WindowState[]>([
+interface WindowManagerProps {
+  apps: Record<string, ReactNode>;
+  /** El escritorio recibe aqui la funcion para abrir ventanas. */
+  openerRef?: MutableRefObject<(id: string) => void>;
+}
+
+function WindowManager({ apps, openerRef }: WindowManagerProps) {
+  const [windows, setWindows] = useState<WindowState[]>(() => [
     {
       id: "terminal",
-      title: "Terminal — student@nande-os",
+      title: WINDOW_TITLES.terminal,
       minimized: false,
       maximized: false,
-      x: 180,
-      y: 90,
-      width: 700,
-      height: 450,
       zIndex: 10,
+      ...initialGeometry(0),
     },
   ]);
 
@@ -87,21 +141,28 @@ function WindowManager({ apps }: WindowManagerProps) {
     if (!drag) return;
 
     setWindows((current) =>
-      current.map((win) =>
-        win.id === drag.id
-          ? {
-              ...win,
-              x: Math.max(
-                0,
-                clientX - drag.offsetX,
-              ),
-              y: Math.max(
-                42,
-                clientY - drag.offsetY,
-              ),
-            }
-          : win,
-      ),
+      current.map((win) => {
+        if (win.id !== drag.id) {
+          return win;
+        }
+
+        // Se deja siempre un borde visible por los cuatro lados para que
+        // una ventana no pueda perderse fuera de la pantalla.
+        const maxX = window.innerWidth - MIN_VISIBLE;
+        const maxY = window.innerHeight - MIN_VISIBLE;
+
+        return {
+          ...win,
+          x: Math.min(
+            maxX,
+            Math.max(MIN_VISIBLE - win.width, clientX - drag.offsetX),
+          ),
+          y: Math.min(
+            maxY,
+            Math.max(TOP_BAR, clientY - drag.offsetY),
+          ),
+        };
+      }),
     );
   }
 
@@ -145,18 +206,10 @@ function WindowManager({ apps }: WindowManagerProps) {
   }
 
   function getWindowTitle(id: string) {
-    if (id === "terminal") {
-      return "Terminal — student@nande-os";
-    }
-
-    if (id === "files") {
-      return "Files — /home/student";
-    }
-
-    return id;
+    return WINDOW_TITLES[id] ?? id;
   }
 
-  function openWindow(id: string) {
+  const openWindow = useCallback((id: string) => {
     if (!apps[id]) {
       return;
     }
@@ -189,27 +242,51 @@ function WindowManager({ apps }: WindowManagerProps) {
           title: getWindowTitle(id),
           minimized: false,
           maximized: false,
-          x: 180,
-          y: 90,
-          width: 700,
-          height: 450,
           zIndex: zIndexRef.current,
+          ...initialGeometry(current.length),
         },
       ];
     });
-  }
+  }, [apps]);
 
+  // El escritorio abre ventanas por esta referencia, no por una funcion
+  // colgada del objeto window global.
   useEffect(() => {
-    const globalWindow = window as Window & {
-      openNandeWindow?: (id: string) => void;
-    };
+    if (openerRef) {
+      openerRef.current = openWindow;
+    }
+  }, [openerRef, openWindow]);
 
-    globalWindow.openNandeWindow = openWindow;
+  // Al rotar el telefono o achicar la ventana, se reencuadra lo que
+  // hubiera quedado fuera de la pantalla.
+  useEffect(() => {
+    function handleResize() {
+      setWindows((current) =>
+        current.map((win) => ({
+          ...win,
+          width: Math.min(win.width, window.innerWidth - 16),
+          height: Math.min(
+            win.height,
+            window.innerHeight - TOP_BAR - 16,
+          ),
+          x: Math.min(
+            Math.max(win.x, MIN_VISIBLE - win.width),
+            window.innerWidth - MIN_VISIBLE,
+          ),
+          y: Math.min(
+            Math.max(win.y, TOP_BAR),
+            window.innerHeight - MIN_VISIBLE,
+          ),
+        })),
+      );
+    }
+
+    window.addEventListener("resize", handleResize);
 
     return () => {
-      delete globalWindow.openNandeWindow;
+      window.removeEventListener("resize", handleResize);
     };
-  }, [apps]);
+  }, []);
 
   useEffect(() => {
     function handlePointerMove(event: PointerEvent) {

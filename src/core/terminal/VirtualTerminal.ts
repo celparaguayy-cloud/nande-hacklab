@@ -806,11 +806,52 @@ export class VirtualTerminal {
         case "ping":
           return this.executePing(commandArgs);
 
-        default:
+        case "tools":
+          return this.listTools(commandArgs);
+
+        case "tool":
+          return this.showTool(commandArgs);
+
+        case "academy":
+          return this.showAcademy(commandArgs);
+
+        case "labs":
+          return this.listLabs();
+
+        case "vecinos":
+          return this.showNeighbors();
+
+        case "profile":
+          return this.showProfile();
+
+        case "skills":
+          return this.showSkills();
+
+        case "missions":
+          return this.showMissions();
+
+        case "mission":
+          return this.showMission(commandArgs);
+
+        case "store":
+          return this.showStore();
+
+        case "buy":
+          return this.buyItem(commandArgs);
+
+        default: {
+          // Si no es un builtin, quizas sea una herramienta de seguridad.
+          if (this.kernel.tools.find(command)) {
+            const result = this.kernel.tools.run(command, commandArgs);
+
+            return this.rewardIfFlag(command, commandArgs, result);
+          }
+
           return {
             output: `Comando no encontrado: ${command}\n`,
             isError: true,
           };
+        }
       }
     } catch (error) {
       return {
@@ -821,6 +862,409 @@ export class VirtualTerminal {
         isError: true,
       };
     }
+  }
+
+  /**
+   * Si una herramienta capturo una bandera, se acredita: laboratorio
+   * resuelto, misiones que avanzan, XP, moneda y posibles logros.
+   */
+  private rewardIfFlag(
+    _command: string,
+    args: string[],
+    result: { output: string; isError: boolean; flag?: string },
+  ): { output: string; isError: boolean } {
+    if (!result.flag) {
+      return { output: result.output, isError: result.isError };
+    }
+
+    // A que laboratorio pertenece la bandera capturada.
+    const target = args.find(
+      (a) => a.startsWith("10.10.") || a.includes(".lab") || a.startsWith("http"),
+    );
+
+    const host = target?.match(/^https?:\/\/([^/]+)/i)?.[1] ?? target ?? "";
+    const machine = this.kernel.tools
+      .labs()
+      .find((m) => m.ip === host || m.hostname === host);
+
+    if (!machine) {
+      return { output: result.output, isError: result.isError };
+    }
+
+    const tick = this.kernel.world.getState().clock.tick;
+    const extra: string[] = [];
+
+    if (this.kernel.player.markLabSolved(machine.id)) {
+      this.kernel.events.emit("lab.solved", { labId: machine.id, tick });
+
+      this.kernel.player.award(machine.services.length * 20 + 60, {
+        skill: "pentesting",
+        coins: 80,
+        tick,
+      });
+
+      extra.push(
+        `\n🏁 Laboratorio ${machine.hostname} resuelto: +XP, +N$80.`,
+      );
+
+      // Primer laboratorio: logro.
+      if (this.kernel.player.unlock(
+        "primer-lab",
+        "Primer laboratorio",
+        "Resolviste tu primera máquina de práctica.",
+        tick,
+      )) {
+        extra.push(`🏆 Logro desbloqueado: "Primer laboratorio".`);
+      }
+
+      const done = this.kernel.missions.onLabSolved(machine.id, tick);
+
+      for (const mission of done) {
+        extra.push(
+          `✅ Misión completada: ${mission.title} (+${mission.reward.xp} XP, +N$${mission.reward.coins}).`,
+        );
+      }
+    } else {
+      extra.push(`\n(Este laboratorio ya estaba resuelto.)`);
+    }
+
+    return {
+      output: result.output + extra.join("\n") + "\n",
+      isError: result.isError,
+    };
+  }
+
+  private showProfile(): { output: string; isError: boolean } {
+    const p = this.kernel.player.getState();
+    const bar = this.progressBar(
+      p.xp,
+      this.kernel.player.xpToNext() + p.xp,
+    );
+
+    return {
+      output:
+        `👤 ${p.name}\n` +
+        `Nivel ${p.level}   ${bar}\n` +
+        `XP: ${p.xp}  (faltan ${this.kernel.player.xpToNext()} para el próximo nivel)\n` +
+        `💰 N$ ${p.wallet}\n` +
+        `🏆 Logros: ${p.achievements.length}\n` +
+        `🏁 Labs resueltos: ${p.solvedLabs.length}\n\n` +
+        `Mirá tus habilidades con 'skills' y tus misiones con 'missions'.\n`,
+      isError: false,
+    };
+  }
+
+  private showSkills(): { output: string; isError: boolean } {
+    const skills = this.kernel.player.getState().skills;
+
+    const lines = Object.entries(skills)
+      .map(([id, xp]) => {
+        const level = Math.floor(Math.sqrt(xp / 50));
+        return `  ${id.padEnd(12)}Lv.${level}  (${xp} XP)`;
+      })
+      .join("\n");
+
+    return {
+      output: `🌳 Habilidades\n\n${lines}\n`,
+      isError: false,
+    };
+  }
+
+  private showMissions(): { output: string; isError: boolean } {
+    const missions = this.kernel.missions.progress();
+
+    const icon = {
+      completada: "✅",
+      disponible: "▶️",
+      bloqueada: "🔒",
+    } as const;
+
+    const lines = missions
+      .map(
+        (m) =>
+          `  ${icon[m.status]} ${m.difficulty} ${m.title.padEnd(28)}` +
+          `${m.reward.xp} XP`,
+      )
+      .join("\n");
+
+    return {
+      output:
+        `🎯 Misiones\n\n${lines}\n\n` +
+        `Detalle: mission <id> — por ejemplo 'mission m-primer-escaneo'.\n`,
+      isError: false,
+    };
+  }
+
+  private showMission(args: string[]): { output: string; isError: boolean } {
+    const id = args[0];
+
+    if (!id) {
+      return { output: "uso: mission <id>\n", isError: true };
+    }
+
+    const mission = this.kernel.missions.get(id);
+
+    if (!mission) {
+      return {
+        output: `mission: "${id}" no existe. Probá 'missions'.\n`,
+        isError: true,
+      };
+    }
+
+    const status = this.kernel.missions.status(id);
+
+    return {
+      output:
+        `${mission.difficulty} ${mission.title}  [${status}]\n\n` +
+        `${mission.brief}\n\n` +
+        `Pista: ${mission.hint}\n` +
+        `Recompensa: ${mission.reward.xp} XP, N$${mission.reward.coins}` +
+        (mission.reward.skill ? ` (habilidad ${mission.reward.skill})` : "") +
+        `\n` +
+        (mission.requires.length
+          ? `Antes: ${mission.requires.join(", ")}\n`
+          : ""),
+      isError: false,
+    };
+  }
+
+  private showStore(): { output: string; isError: boolean } {
+    const items = this.kernel.store.listings().slice(-12).reverse();
+
+    if (items.length === 0) {
+      return {
+        output:
+          `🛒 ÑANDE Store\nTodavía no hay productos. Los habitantes están creando...\n`,
+        isError: false,
+      };
+    }
+
+    const lines = items
+      .map(
+        (item) =>
+          `  N$${String(item.price).padEnd(5)}${item.name.padEnd(22)}[${item.type}]  ${item.id}`,
+      )
+      .join("\n");
+
+    return {
+      output:
+        `🛒 ÑANDE Store — ${this.kernel.store.count()} productos de los habitantes\n\n` +
+        `${lines}\n\n` +
+        `Comprar: buy <id>. Navegable: https://store.nande\n`,
+      isError: false,
+    };
+  }
+
+  private buyItem(args: string[]): { output: string; isError: boolean } {
+    const id = args[0];
+
+    if (!id) {
+      return { output: "uso: buy <id>\n", isError: true };
+    }
+
+    const item = this.kernel.store.get(id);
+
+    if (!item) {
+      return {
+        output: `buy: producto "${id}" no encontrado. Mirá 'store'.\n`,
+        isError: true,
+      };
+    }
+
+    if (!this.kernel.player.spend(item.price)) {
+      return {
+        output:
+          `buy: no te alcanza. Cuesta N$${item.price} y tenés N$${this.kernel.player.wallet}.\n`,
+        isError: true,
+      };
+    }
+
+    return {
+      output:
+        `✅ Compraste "${item.name}" por N$${item.price}.\n` +
+        `Te quedan N$${this.kernel.player.wallet}.\n`,
+      isError: false,
+    };
+  }
+
+  private progressBar(value: number, max: number): string {
+    const ratio = max > 0 ? Math.min(1, value / max) : 0;
+    const filled = Math.round(ratio * 10);
+
+    return "█".repeat(filled) + "░".repeat(10 - filled);
+  }
+
+  private listTools(args: string[]): {
+    output: string;
+    isError: boolean;
+  } {
+    const filter = args[0];
+    const tools = filter
+      ? this.kernel.tools
+          .all()
+          .filter(
+            (tool) =>
+              tool.category === filter || tool.level === filter,
+          )
+      : this.kernel.tools.all();
+
+    if (tools.length === 0) {
+      return {
+        output: `No hay herramientas para "${filter}".\n`,
+        isError: false,
+      };
+    }
+
+    const lines = tools
+      .map(
+        (tool) =>
+          `  ${tool.runnable ? "▶" : "📖"} ${tool.name.padEnd(16)}${tool.simple}`,
+      )
+      .join("\n");
+
+    return {
+      output:
+        `ÑANDE Toolbox — ${tools.length} herramientas` +
+        (filter ? ` (${filter})` : "") +
+        `\n▶ ejecutable · 📖 ficha de estudio\n\n${lines}\n\n` +
+        `Ficha completa: tool <nombre>. Navegable: https://tools.nande\n`,
+      isError: false,
+    };
+  }
+
+  private showTool(args: string[]): {
+    output: string;
+    isError: boolean;
+  } {
+    const name = args[0];
+
+    if (!name) {
+      return { output: "uso: tool <nombre>\n", isError: true };
+    }
+
+    const tool = this.kernel.tools.find(name);
+
+    if (!tool) {
+      return {
+        output: `tool: "${name}" no está en la biblioteca. Probá 'tools'.\n`,
+        isError: true,
+      };
+    }
+
+    return {
+      output:
+        `${tool.name}  [${tool.level} · ${tool.category}]\n\n` +
+        `Fácil:      ${tool.simple}\n` +
+        `Qué hace:   ${tool.whatItDoes}\n` +
+        `Por qué:    ${tool.whyExists}\n` +
+        `Cuándo:     ${tool.whenToUse}\n` +
+        `Resultado:  ${tool.resultMeaning}\n` +
+        `Detección:  ${tool.howToDetect}\n` +
+        `Defensa:    ${tool.howToDefend}\n\n` +
+        `Ejemplo:    ${tool.usage}\n` +
+        (tool.runnable
+          ? `(ejecutable contra el laboratorio virtual)\n`
+          : `(ficha de estudio, todavía no ejecutable)\n`),
+      isError: false,
+    };
+  }
+
+  private showAcademy(args: string[]): {
+    output: string;
+    isError: boolean;
+  } {
+    const id = args[0];
+
+    if (id) {
+      const course = this.kernel.academy.get(id);
+
+      if (!course) {
+        return {
+          output: `academy: curso "${id}" no existe. Probá 'academy'.\n`,
+          isError: true,
+        };
+      }
+
+      return {
+        output:
+          `${course.title}\n\n${course.simple}\n\n` +
+          `Vas a aprender: ${course.summary}\n` +
+          `Temas: ${course.topics.join(", ")}\n` +
+          (course.tools.length
+            ? `Herramientas: ${course.tools.join(", ")}\n`
+            : "") +
+          (course.labs.length ? `Labs: ${course.labs.join(", ")}\n` : "") +
+          (course.requires.length
+            ? `Antes: ${course.requires.join(", ")}\n`
+            : "Sin requisitos: podés empezar acá.\n") +
+          `\nMás detalle: https://academy.nande/course/${course.id}\n`,
+        isError: false,
+      };
+    }
+
+    const lines = this.kernel.academy
+      .all()
+      .map((course) => `  ${course.title}`)
+      .join("\n");
+
+    return {
+      output:
+        `🎓 ÑANDE Academy — ruta de aprendizaje\n\n${lines}\n\n` +
+        `Detalle de un nivel: academy <id> (ej: academy redes).\n` +
+        `Navegable: https://academy.nande\n`,
+      isError: false,
+    };
+  }
+
+  private showNeighbors(): { output: string; isError: boolean } {
+    const hour = this.kernel.world.getState().clock.hour;
+    const engine = this.kernel.worldEngine;
+
+    // Una muestra de habitantes y qué está haciendo cada uno ahora.
+    const people = engine.getOnlinePeople().slice(0, 8);
+
+    const lines = people
+      .map((person) => {
+        const life = engine.getPersonLife(person.id, hour);
+        return `  ${life?.icon ?? "·"} ${person.name.padEnd(22)}${life?.activity ?? "?"} (${person.profession})`;
+      })
+      .join("\n");
+
+    const breakdown = engine.lifeBreakdown(hour);
+    const resumen = Object.entries(breakdown)
+      .filter(([, n]) => n > 0)
+      .sort((a, b) => b[1] - a[1])
+      .map(([act, n]) => `${act}: ${n}`)
+      .join("  ·  ");
+
+    return {
+      output:
+        `🏘️  El mundo a las ${String(hour).padStart(2, "0")}:00\n\n` +
+        `${lines || "  (no hay nadie en línea ahora)"}\n\n` +
+        `El mundo ahora mismo:\n  ${resumen}\n`,
+      isError: false,
+    };
+  }
+
+  private listLabs(): {
+    output: string;
+    isError: boolean;
+  } {
+    const labs = this.kernel.tools.labs();
+
+    const lines = labs
+      .map(
+        (lab) =>
+          `  ${lab.ip.padEnd(14)}${lab.hostname.padEnd(18)}[${lab.difficulty}]\n     ${lab.description}`,
+      )
+      .join("\n");
+
+    return {
+      output:
+        `Laboratorios de práctica (máquinas virtuales de ÑANDE)\n\n${lines}\n\n` +
+        `Empezá con: nmap ${labs[0]?.ip ?? "10.10.5.10"}\n`,
+      isError: false,
+    };
   }
 
   private grep(args: string[]): {
@@ -1402,6 +1846,19 @@ export class VirtualTerminal {
       "  uname            Información del kernel",
       "  ps               Procesos virtuales",
       "  clear            Limpia la terminal",
+      "",
+      "Redes y academia:",
+      "  ping <ip>        Ver si una máquina responde",
+      "  nslookup <host>  Resolver un nombre",
+      "  nmap <ip>        Escanear puertos (probá: nmap 10.10.5.20)",
+      "  academy          Ruta de aprendizaje de ciberseguridad",
+      "  tools [cat]      Biblioteca de herramientas",
+      "  tool <nombre>    Ficha de una herramienta (ej: tool nmap)",
+      "  labs             Máquinas de práctica",
+      "  vecinos          Qué hace la gente del mundo ahora",
+      "  profile          Tu progreso (nivel, XP, dinero)",
+      "  missions         Tus misiones",
+      "  store            Tienda de creaciones de habitantes",
       "  help             Muestra esta ayuda",
       "",
     ].join("\n");

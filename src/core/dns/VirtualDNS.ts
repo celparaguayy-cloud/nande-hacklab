@@ -20,6 +20,7 @@ export class VirtualDNS {
     this.addRecord("git.nande", "10.10.0.34");
     this.addRecord("ctf.nande", "10.10.0.35");
     this.addRecord("shop.nande", "10.10.0.36");
+    this.addRecord("search.nande", "10.10.0.37");
 
     this.addRecord("server01.lab", "10.10.0.20");
   }
@@ -33,6 +34,22 @@ export class VirtualDNS {
         type: "A",
       }
     );
+  }
+
+  /** Alta de dominio en la zona virtual (la usan los habitantes). */
+  register(hostname: string, address: string): DNSRecord {
+    this.addRecord(hostname, address);
+
+    return this.getRecord(hostname)!;
+  }
+
+  /** Baja de dominio. Devuelve si existia. */
+  remove(hostname: string): boolean {
+    return this.records.delete(hostname.toLowerCase());
+  }
+
+  has(hostname: string): boolean {
+    return this.records.has(hostname.toLowerCase());
   }
 
   resolve(hostname: string): string | undefined {
