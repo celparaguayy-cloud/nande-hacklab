@@ -857,6 +857,20 @@ export class VirtualTerminal {
         case "run":
           return this.runCreation(commandArgs);
 
+        case "market":
+        case "bolsa":
+          return this.showMarket();
+
+        case "buy-stock":
+          return this.buyStock(commandArgs);
+
+        case "sell-stock":
+          return this.sellStock(commandArgs);
+
+        case "portfolio":
+        case "cartera":
+          return this.showPortfolio();
+
         case "neofetch":
         case "hw":
           return { output: `${this.kernel.hardware.render()}\n`, isError: false };
@@ -1250,6 +1264,96 @@ export class VirtualTerminal {
       output: current
         ? `📶 Conectado a "${current}" (wlan0 activa).\n`
         : `WiFi desconectado. Escaneá con 'wifi scan'.\n`,
+      isError: false,
+    };
+  }
+
+  /** Estado de la bolsa: índice, dinero movido y precios. */
+  private showMarket(): { output: string; isError: boolean } {
+    const eco = this.kernel.economy.snapshot();
+
+    const rows = eco.stocks
+      .map((s) => {
+        const diff = s.price - s.prevPrice;
+        const arrow = diff > 0 ? "▲" : diff < 0 ? "▼" : "=";
+        return `  ${s.ticker.padEnd(5)}${s.name.padEnd(18)}N$${String(s.price).padStart(5)}  ${arrow}${Math.abs(diff)}`;
+      })
+      .join("\n");
+
+    return {
+      output:
+        `📈 Bolsa de ÑANDE\n` +
+        `Índice: ${eco.index}   ·   Capitalización: N$${eco.marketCap.toLocaleString()}\n` +
+        `💸 Dinero movido en el mundo: N$${eco.moneyMoved.toLocaleString()}\n\n` +
+        `${rows}\n\n` +
+        `Comprar: buy-stock <ticker> <cantidad> · Vender: sell-stock <ticker> <cantidad>\n` +
+        `Tu cartera: portfolio\n`,
+      isError: false,
+    };
+  }
+
+  private buyStock(args: string[]): { output: string; isError: boolean } {
+    const ticker = args[0];
+    const qty = Number(args[1]);
+
+    if (!ticker || !qty) {
+      return { output: "uso: buy-stock <ticker> <cantidad>\n", isError: true };
+    }
+
+    const result = this.kernel.economy.buy(ticker, qty, (amount) =>
+      this.kernel.player.spend(amount),
+    );
+
+    return {
+      output: `${result.message}\n` +
+        (result.ok ? `Saldo: N$${this.kernel.player.wallet}\n` : ""),
+      isError: !result.ok,
+    };
+  }
+
+  private sellStock(args: string[]): { output: string; isError: boolean } {
+    const ticker = args[0];
+    const qty = Number(args[1]);
+
+    if (!ticker || !qty) {
+      return { output: "uso: sell-stock <ticker> <cantidad>\n", isError: true };
+    }
+
+    const result = this.kernel.economy.sell(ticker, qty, (amount) =>
+      this.kernel.player.earn(amount),
+    );
+
+    return {
+      output: `${result.message}\n` +
+        (result.ok ? `Saldo: N$${this.kernel.player.wallet}\n` : ""),
+      isError: !result.ok,
+    };
+  }
+
+  private showPortfolio(): { output: string; isError: boolean } {
+    const eco = this.kernel.economy.snapshot();
+    const entries = Object.entries(eco.portfolio);
+
+    if (entries.length === 0) {
+      return {
+        output:
+          `💼 Tu cartera está vacía.\n` +
+          `Saldo: N$${this.kernel.player.wallet}. Invertí con 'buy-stock <ticker> <cantidad>'.\n`,
+        isError: false,
+      };
+    }
+
+    const rows = entries
+      .map(([ticker, qty]) => {
+        const stock = this.kernel.economy.getStock(ticker)!;
+        return `  ${ticker.padEnd(5)}${String(qty).padStart(6)} acc.  valor N$${(stock.price * qty).toLocaleString()}`;
+      })
+      .join("\n");
+
+    return {
+      output:
+        `💼 Tu cartera\n\n${rows}\n\n` +
+        `Valor total: N$${eco.portfolioValue.toLocaleString()}  ·  Efectivo: N$${this.kernel.player.wallet}\n`,
       isError: false,
     };
   }
@@ -2102,6 +2206,12 @@ export class VirtualTerminal {
       "  missions         Tus misiones",
       "  store            Tienda de creaciones de habitantes",
       "  run <id>         Ejecuta una creación de la store",
+      "",
+      "Economía:",
+      "  market           Bolsa: precios, índice y dinero que se mueve",
+      "  buy-stock T N    Comprar N acciones de T",
+      "  sell-stock T N   Vender N acciones de T",
+      "  portfolio        Tu cartera y saldo",
       "",
       "Hardware y WiFi:",
       "  neofetch         Muestra tu PC virtual (specs)",

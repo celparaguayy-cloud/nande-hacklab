@@ -24,7 +24,9 @@ export type EventType =
   | "mission.completed"
   | "lab.solved"
   // Mundo social vivo.
-  | "community.joined";
+  | "community.joined"
+  // Economía y mercado.
+  | "economy.tick";
 
 export interface VirtualEvent<T = unknown> {
   type: EventType;

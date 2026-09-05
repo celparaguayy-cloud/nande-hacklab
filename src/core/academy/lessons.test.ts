@@ -69,7 +69,7 @@ describe("lección guiada de punta a punta", () => {
 
     const p = kernel.player.getState();
     expect(p.xp).toBe(80);
-    expect(p.wallet).toBe(560);
+    expect(p.wallet).toBe(5060);
     expect(p.completedCourses).toContain("lesson:l-nmap");
     expect(p.achievements.some((a) => a.id === "primera-leccion")).toBe(true);
 

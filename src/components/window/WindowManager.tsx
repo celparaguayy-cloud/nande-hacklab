@@ -29,6 +29,7 @@ const WINDOW_TITLES: Record<string, string> = {
   browser: "ÑANDE Browser",
   world: "ÑANDE World",
   map: "ÑANDE Map",
+  market: "ÑANDE Bolsa",
 };
 
 /** Alto de la barra superior del escritorio. */

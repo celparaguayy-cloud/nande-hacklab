@@ -17,7 +17,7 @@ describe("Progression", () => {
 
     expect(s.level).toBe(1);
     expect(s.xp).toBe(0);
-    expect(s.wallet).toBe(500);
+    expect(s.wallet).toBe(5000);
   });
 
   it("la curva de nivel es creciente y coherente", () => {
@@ -34,7 +34,7 @@ describe("Progression", () => {
     expect(r.leveledUp).toBe(true);
     expect(r.newLevel).toBe(2);
     expect(p.getState().skills.web).toBe(100);
-    expect(p.wallet).toBe(580);
+    expect(p.wallet).toBe(5080);
   });
 
   it("los logros no se duplican", () => {
@@ -49,7 +49,7 @@ describe("Progression", () => {
     const p = new Progression();
 
     expect(p.spend(200)).toBe(true);
-    expect(p.wallet).toBe(300);
+    expect(p.wallet).toBe(4800);
     expect(p.spend(9999)).toBe(false);
   });
 

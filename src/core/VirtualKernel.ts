@@ -20,6 +20,7 @@ import { LessonEngine } from "./academy/Lessons";
 import { Progression } from "./game/Progression";
 import { MissionEngine } from "./game/Missions";
 import { Store } from "./game/Store";
+import { Economy } from "./economy/Economy";
 import { WorldMap } from "./world/WorldMap";
 import { VirtualHardware } from "./hardware/VirtualHardware";
 import { VirtualWiFi } from "./hardware/VirtualWiFi";
@@ -56,6 +57,7 @@ export class VirtualKernel {
   public player: Progression;
   public missions: MissionEngine;
   public store: Store;
+  public economy: Economy;
   public map: WorldMap;
   public hardware: VirtualHardware;
   public wifi: VirtualWiFi;
@@ -92,6 +94,7 @@ export class VirtualKernel {
     this.player = new Progression(this.events);
     this.missions = new MissionEngine(this.player, this.events);
     this.store = new Store(this.registry);
+    this.economy = new Economy(this.events);
     this.map = new WorldMap(
       this.registry,
       this.worldEngine.professions() as never,
@@ -284,6 +287,7 @@ export class VirtualKernel {
     this.registry.flush();
     this.news.flush();
     this.player.flush();
+    this.economy.flush();
   }
 
   isRunning(): boolean {
@@ -296,6 +300,7 @@ export class VirtualKernel {
     const worldState = this.world.getState();
 
     this.worldEngine.tick(worldState.clock.tick, worldState.clock.hour);
+    this.economy.tick(worldState.clock.tick);
 
     this.events.emit(
       "world.tick",
@@ -327,6 +332,7 @@ export class VirtualKernel {
       player: this.player.getState(),
       xpToNext: this.player.xpToNext(),
       missions: this.missions.progress(),
+      economy: this.economy.snapshot(),
       map: this.map.snapshot(
         this.worldEngine.presenceByZone(this.world.getState().clock.hour),
       ),

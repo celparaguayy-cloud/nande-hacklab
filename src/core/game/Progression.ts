@@ -53,7 +53,7 @@ export interface PlayerState {
 const STORAGE_KEY = "nande-player";
 
 /** Moneda inicial del jugador. */
-const STARTING_WALLET = 500;
+const STARTING_WALLET = 5000;
 
 /** XP necesaria para pasar del nivel n al n+1: crece de forma suave. */
 export function xpForLevel(level: number): number {
