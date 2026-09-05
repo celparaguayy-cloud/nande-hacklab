@@ -16,7 +16,13 @@ export type EventType =
   | "social.post.created"
   | "social.comment.created"
   | "relationship.changed"
-  | "world.news.created";
+  | "world.news.created"
+  // Progresión y juego del jugador.
+  | "player.xp"
+  | "skill.levelup"
+  | "achievement.unlocked"
+  | "mission.completed"
+  | "lab.solved";
 
 export interface VirtualEvent<T = unknown> {
   type: EventType;

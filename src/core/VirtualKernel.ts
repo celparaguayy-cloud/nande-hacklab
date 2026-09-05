@@ -16,6 +16,9 @@ import { WorldPublisher } from "./internet/WorldPublisher";
 import { NewsEngine } from "./news/NewsEngine";
 import { SecurityTools } from "./security/SecurityTools";
 import { Academy } from "./academy/Academy";
+import { Progression } from "./game/Progression";
+import { MissionEngine } from "./game/Missions";
+import { Store } from "./game/Store";
 import { renderAcademySite, renderToolsSite } from "./academy/academySites";
 import type { WorldEntity } from "./world/WorldRegistry";
 
@@ -41,6 +44,9 @@ export class VirtualKernel {
   public news: NewsEngine;
   public tools: SecurityTools;
   public academy: Academy;
+  public player: Progression;
+  public missions: MissionEngine;
+  public store: Store;
 
   private unsubscribePublisher: () => void;
   private tickTimer: ReturnType<typeof setInterval> | null = null;
@@ -70,11 +76,43 @@ export class VirtualKernel {
     this.news = new NewsEngine();
     this.tools = new SecurityTools(this.network, this.dns);
     this.academy = new Academy();
+    this.player = new Progression(this.events);
+    this.missions = new MissionEngine(this.player, this.events);
+    this.store = new Store(this.registry);
 
     // academy.nande y tools.nande: la biblioteca y la ruta de aprendizaje,
     // navegables como cualquier otro sitio del mundo virtual.
     this.dns.register("academy.nande", "10.10.0.32");
     this.dns.register("tools.nande", "10.10.0.38");
+    this.dns.register("store.nande", "10.10.0.39");
+
+    // store.nande se arma leyendo lo que los habitantes crearon.
+    this.internet.registerDynamicSite({
+      hostname: "store.nande",
+      title: "ÑANDE Store",
+      description: "Herramientas, apps y juegos hechos por los habitantes.",
+      resolve: (path) => {
+        if (path === "/") {
+          return {
+            path,
+            mimeType: "text/html",
+            content: this.store.renderFront(),
+          };
+        }
+
+        const match = path.match(/^\/item\/([\w-]+)$/);
+
+        if (match) {
+          const content = this.store.renderItem(match[1]);
+
+          return content
+            ? { path, mimeType: "text/html", content }
+            : undefined;
+        }
+
+        return undefined;
+      },
+    });
 
     this.internet.registerDynamicSite({
       hostname: "academy.nande",
@@ -192,6 +230,7 @@ export class VirtualKernel {
     this.world.flush();
     this.registry.flush();
     this.news.flush();
+    this.player.flush();
   }
 
   isRunning(): boolean {
@@ -231,6 +270,10 @@ export class VirtualKernel {
         .getRelationships()
         .count(),
       recentEvents: this.worldEngine.getRecentEvents(8),
+      storeCount: this.store.count(),
+      player: this.player.getState(),
+      xpToNext: this.player.xpToNext(),
+      missions: this.missions.progress(),
     };
   }
 

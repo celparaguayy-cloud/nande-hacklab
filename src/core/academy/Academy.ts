@@ -246,6 +246,48 @@ export const COURSES: Course[] = [
     labs: [],
   },
   {
+    id: "red-team",
+    stage: 10,
+    title: "Equipo — Red Team (ofensiva autorizada)",
+    level: "avanzado",
+    simple:
+      "El Red Team hace de 'atacante bueno': con permiso, intenta entrar para mostrar los agujeros antes que un malo real.",
+    summary:
+      "Emulación de adversarios con autorización: pensar como atacante para fortalecer la defensa. Siempre en laboratorio.",
+    requires: ["pentesting"],
+    topics: ["emulación de adversarios", "autorización", "alcance", "sigilo", "reporte"],
+    tools: ["nmap", "metasploit", "hydra", "linpeas", "crackmapexec"],
+    labs: ["lab-web-01", "lab-net-01", "lab-linux-01"],
+  },
+  {
+    id: "blue-team-track",
+    stage: 10,
+    title: "Equipo — Blue Team (defensa)",
+    level: "avanzado",
+    simple:
+      "El Blue Team cuida la casa: vigila, detecta y responde cuando algo raro pasa.",
+    summary:
+      "Vigilancia, detección y respuesta usando los eventos del propio mundo virtual.",
+    requires: ["blue-team"],
+    topics: ["monitoreo", "detección", "respuesta", "endurecimiento"],
+    tools: ["logview", "siem", "ids", "yara", "clamav"],
+    labs: ["lab-web-01"],
+  },
+  {
+    id: "purple-team",
+    stage: 11,
+    title: "Equipo — Purple Team (ataque + defensa juntos)",
+    level: "experto",
+    simple:
+      "El Purple Team junta a los dos: uno ataca y el otro mira si lo detecta, para mejorar juntos. Rojo + azul = púrpura.",
+    summary:
+      "Ejercicios donde se ataca y se detecta a la vez, para afinar defensas con evidencia real del ataque.",
+    requires: ["red-team", "blue-team-track"],
+    topics: ["colaboración", "detección de técnicas", "mejora continua", "métricas"],
+    tools: ["nmap", "siem", "sqlmap", "ids", "logview"],
+    labs: ["lab-web-01", "lab-web-02"],
+  },
+  {
     id: "advanced",
     stage: 14,
     title: "Nivel 14 — Seguridad avanzada",

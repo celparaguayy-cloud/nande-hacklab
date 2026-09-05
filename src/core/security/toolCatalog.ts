@@ -398,7 +398,7 @@ export const TOOL_CATALOG: ToolDef[] = [
     howToDefend:
       "Actualizar núcleo y plugins, quitar los que no se usan.",
     usage: "wpscan 10.10.5.30",
-    runnable: false,
+    runnable: true,
   }),
   t({
     id: "burpsuite",
@@ -442,7 +442,7 @@ export const TOOL_CATALOG: ToolDef[] = [
     howToDefend:
       "Corregir lo que reporta y repetir hasta quedar limpio.",
     usage: "zap http://10.10.5.30/",
-    runnable: false,
+    runnable: true,
   }),
 
   // ---------------- PASSWORDS ----------------
@@ -488,7 +488,7 @@ export const TOOL_CATALOG: ToolDef[] = [
     howToDefend:
       "Usar hashing lento con sal (bcrypt/argon2) y contraseñas largas.",
     usage: "john hashes.txt",
-    runnable: false,
+    runnable: true,
   }),
   t({
     id: "hashcat",
@@ -510,7 +510,7 @@ export const TOOL_CATALOG: ToolDef[] = [
     howToDefend:
       "Algoritmos resistentes a GPU y sal única por contraseña.",
     usage: "hashcat -m 0 hashes.txt",
-    runnable: false,
+    runnable: true,
   }),
   t({
     id: "hashid",
@@ -636,7 +636,7 @@ export const TOOL_CATALOG: ToolDef[] = [
     howToDetect: "Firmas de exploits conocidas por antivirus e IDS.",
     howToDefend: "Parchear a tiempo: si no hay fallo, no hay exploit.",
     usage: "msf 10.10.5.20",
-    runnable: false,
+    runnable: true,
   }),
   t({
     id: "searchsploit",
@@ -719,7 +719,7 @@ export const TOOL_CATALOG: ToolDef[] = [
     howToDetect: "Offline.",
     howToDefend: "Limpiar metadatos antes de publicar archivos.",
     usage: "exiftool foto.jpg",
-    runnable: false,
+    runnable: true,
   }),
   t({
     id: "binwalk",
@@ -735,7 +735,7 @@ export const TOOL_CATALOG: ToolDef[] = [
     howToDetect: "Offline.",
     howToDefend: "No asumir que un archivo tiene una sola cosa.",
     usage: "binwalk firmware.bin",
-    runnable: false,
+    runnable: true,
   }),
   t({
     id: "volatility",
@@ -801,7 +801,7 @@ export const TOOL_CATALOG: ToolDef[] = [
     howToDetect: "Uso local.",
     howToDefend: "Usar algoritmos actuales y proteger las claves privadas.",
     usage: "openssl s_client news.nande",
-    runnable: false,
+    runnable: true,
   }),
   t({
     id: "cyberchef",
@@ -975,7 +975,7 @@ export const TOOL_CATALOG: ToolDef[] = [
     howToDetect: "Herramienta de detección.",
     howToDefend: "Mantener reglas actualizadas.",
     usage: "yara reglas.yar muestra",
-    runnable: false,
+    runnable: true,
   }),
   t({
     id: "clamav",
@@ -991,7 +991,7 @@ export const TOOL_CATALOG: ToolDef[] = [
     howToDetect: "Herramienta de defensa.",
     howToDefend: "Actualizar firmas y combinar con otras capas.",
     usage: "clamav /home/student",
-    runnable: false,
+    runnable: true,
   }),
 
   // ---------------- ENUMERACIÓN / SISTEMA ----------------
@@ -1009,7 +1009,7 @@ export const TOOL_CATALOG: ToolDef[] = [
     howToDetect: "Muchas consultas de enumeración seguidas.",
     howToDefend: "Restringir acceso anónimo a recursos compartidos.",
     usage: "enum4linux 10.10.5.20",
-    runnable: false,
+    runnable: true,
   }),
   t({
     id: "linpeas",
@@ -1041,7 +1041,7 @@ export const TOOL_CATALOG: ToolDef[] = [
     howToDetect: "Conexiones SMB desde equipos no habituales.",
     howToDefend: "Autenticación fuerte y permisos estrictos en comparticiones.",
     usage: "smbclient 10.10.5.20",
-    runnable: false,
+    runnable: true,
   }),
   t({
     id: "crackmapexec",
@@ -1057,7 +1057,7 @@ export const TOOL_CATALOG: ToolDef[] = [
     howToDetect: "Muchos intentos de login en varios equipos a la vez.",
     howToDefend: "Contraseñas únicas por equipo y segmentación.",
     usage: "cme 10.10.5.0/24 user pass",
-    runnable: false,
+    runnable: true,
   }),
 
   // ---------------- OSINT ----------------
@@ -1141,7 +1141,7 @@ export const TOOL_CATALOG: ToolDef[] = [
     howToDetect: "Conexiones de sondeo TLS.",
     howToDefend: "Desactivar protocolos viejos y cifrados débiles.",
     usage: "sslscan news.nande",
-    runnable: false,
+    runnable: true,
   }),
   t({
     id: "jwt-tool",
@@ -1173,7 +1173,7 @@ export const TOOL_CATALOG: ToolDef[] = [
     howToDetect: "Parámetros con caracteres de comando (; | &).",
     howToDefend: "Nunca pasar entrada del usuario a comandos del sistema.",
     usage: "commix http://10.10.5.30/search",
-    runnable: false,
+    runnable: true,
   }),
   t({
     id: "dalfox",
@@ -1189,7 +1189,7 @@ export const TOOL_CATALOG: ToolDef[] = [
     howToDetect: "Payloads de prueba con etiquetas y scripts.",
     howToDefend: "Escapar toda salida y usar Content-Security-Policy.",
     usage: "dalfox http://10.10.5.30/search",
-    runnable: false,
+    runnable: true,
   }),
 
   // ---------------- WIRELESS (conceptual) ----------------

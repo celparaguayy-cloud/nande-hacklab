@@ -32,6 +32,7 @@ function Desktop() {
   const [online, setOnline] = useState(
     () => kernel.world.getState().online,
   );
+  const [player, setPlayer] = useState(() => kernel.player.getState());
 
   // Unico loop del mundo: lo arranca el escritorio y lo detiene al salir.
   useEffect(() => {
@@ -50,6 +51,25 @@ function Desktop() {
       setClock(state.clock);
       setOnline(state.online);
     });
+  }, [kernel]);
+
+  // El HUD del jugador se refresca cuando gana XP, sube de nivel,
+  // desbloquea un logro o completa una misión.
+  useEffect(() => {
+    const refresh = () => setPlayer(kernel.player.getState());
+
+    const unsubs = [
+      kernel.events.subscribe("player.xp", refresh),
+      kernel.events.subscribe("achievement.unlocked", refresh),
+      kernel.events.subscribe("mission.completed", refresh),
+      kernel.events.subscribe("lab.solved", refresh),
+    ];
+
+    return () => {
+      for (const off of unsubs) {
+        off();
+      }
+    };
   }, [kernel]);
 
   const formattedTime = `${String(clock.hour).padStart(2, "0")}:${String(
@@ -122,7 +142,20 @@ function Desktop() {
 
           <span>{formattedTime}</span>
 
-          <span style={{ color: "#8b98a5" }}>student</span>
+          <span
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              paddingLeft: "12px",
+              borderLeft: "1px solid #26313b",
+            }}
+            title="Tu progreso en ÑANDE"
+          >
+            <span style={{ color: "#ffd479" }}>⭐ Lv.{player.level}</span>
+            <span style={{ color: "#7ee2a8" }}>💰 N$ {player.wallet}</span>
+            <span style={{ color: "#8b98a5" }}>👤 {player.name}</span>
+          </span>
         </div>
       </div>
 

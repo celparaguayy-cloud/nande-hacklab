@@ -825,4 +825,224 @@ const RUNNERS: Record<string, Runner> = {
       isError: false,
     };
   },
+
+  enum4linux(args, ctx) {
+    const target = args[0] ?? "";
+    const guard = requireVirtualTarget(target);
+    if (guard) return { output: `enum4linux: ${guard}\n`, isError: true };
+
+    const machine = ctx.lab.resolve(target);
+    if (!machine) return { output: `enum4linux: objetivo no válido.\n`, isError: false };
+
+    return {
+      output:
+        `enum4linux sobre ${machine.hostname} (${machine.ip})\n` +
+        `[+] Usuarios: student, admin, backup (laboratorio)\n` +
+        `[+] Grupos: users, wheel\n` +
+        `[+] Comparticiones: /pub (lectura anónima)\n` +
+        `Lección: restringí el acceso anónimo a recursos compartidos.\n`,
+      isError: false,
+    };
+  },
+
+  smbclient(args) {
+    const target = args[0] ?? "";
+    const guard = requireVirtualTarget(target);
+    if (guard) return { output: `smbclient: ${guard}\n`, isError: true };
+
+    return {
+      output:
+        `smbclient //${target}/pub (laboratorio)\n` +
+        `  documento.txt\n  respaldo.zip\n  notas.md\n` +
+        `Acceso anónimo permitido: hallazgo de seguridad.\n`,
+      isError: false,
+    };
+  },
+
+  wpscan(args) {
+    const target = args[0] ?? "";
+    const guard = requireVirtualTarget(target);
+    if (guard) return { output: `wpscan: ${guard}\n`, isError: true };
+
+    return {
+      output:
+        `wpscan sobre ${target} (simulación)\n` +
+        `[+] WordPress 5.2 (desactualizado)\n` +
+        `[!] plugin 'contact-form' 1.0 — vulnerable (ficticio)\n` +
+        `[+] usuarios: admin, editor\n` +
+        `Lección: actualizá núcleo y plugins; quitá los que no uses.\n`,
+      isError: false,
+    };
+  },
+
+  zap(args, ctx) {
+    const url = args.find((a) => a.startsWith("http")) ?? "";
+    const host = url.match(/^https?:\/\/([^/]+)/i)?.[1] ?? "";
+    const guard = requireVirtualTarget(host);
+    if (guard) return { output: `zap: ${guard}\n`, isError: true };
+
+    const machine = ctx.lab.resolve(host);
+    const vulns = machine?.vulns ?? [];
+
+    return {
+      output:
+        `ZAP scan de ${host} (laboratorio)\n` +
+        (vulns.length
+          ? vulns.map((v) => `[${v.severity}] ${v.title} — ${v.hint}`).join("\n")
+          : "Sin hallazgos.") +
+        `\n`,
+      isError: false,
+    };
+  },
+
+  dalfox(args, ctx) {
+    const url = args.find((a) => a.startsWith("http")) ?? "";
+    const host = url.match(/^https?:\/\/([^/]+)/i)?.[1] ?? "";
+    const guard = requireVirtualTarget(host);
+    if (guard) return { output: `dalfox: ${guard}\n`, isError: true };
+
+    const machine = ctx.lab.resolve(host);
+    const xss = machine?.vulns.find((v) => v.id.includes("XSS"));
+
+    return {
+      output: xss
+        ? `dalfox: ${host}\n[POC] XSS reflejado en el buscador — ${xss.hint}\n` +
+          `Defensa: escapá la salida y usá Content-Security-Policy.\n`
+        : `dalfox: sin XSS evidente en ${host}\n`,
+      isError: false,
+    };
+  },
+
+  commix(args) {
+    const url = args.find((a) => a.startsWith("http")) ?? "";
+    const host = url.match(/^https?:\/\/([^/]+)/i)?.[1] ?? "";
+    const guard = requireVirtualTarget(host);
+    if (guard) return { output: `commix: ${guard}\n`, isError: true };
+
+    return {
+      output:
+        `commix: ${host}\n` +
+        `El parámetro no pasa entrada al sistema: no inyectable aquí.\n` +
+        `Lección: nunca pases datos del usuario a comandos del sistema.\n`,
+      isError: false,
+    };
+  },
+
+  sslscan(args, ctx) {
+    const target = args[0] ?? "";
+    const ip = ctx.dns.resolve(target) ?? ctx.lab.resolve(target)?.ip;
+    if (!ip) return { output: `sslscan: no se resolvió ${target}\n`, isError: false };
+
+    return {
+      output:
+        `sslscan ${target} (laboratorio)\n` +
+        `  TLS 1.2  aceptado\n  TLS 1.0  aceptado  ⚠ obsoleto\n` +
+        `  Cifrado débil detectado ⚠\n` +
+        `Defensa: desactivá TLS viejo y cifrados débiles.\n`,
+      isError: false,
+    };
+  },
+
+  exiftool(args) {
+    const file = args[0] ?? "";
+    return {
+      output:
+        `exiftool ${file} (metadatos ficticios)\n` +
+        `  Cámara: ÑandePhone 3\n  Fecha: día 1 del mundo\n` +
+        `  Ubicación: (removida)\n` +
+        `Lección: limpiá metadatos antes de publicar archivos.\n`,
+      isError: false,
+    };
+  },
+
+  binwalk(args) {
+    const file = args[0] ?? "firmware.bin";
+    return {
+      output:
+        `binwalk ${file} (laboratorio)\n` +
+        `0x00    cabecera\n0x40    archivo comprimido gzip\n0x120   sistema de archivos embebido\n` +
+        `Hay cosas escondidas adentro. Extraé y seguí investigando.\n`,
+      isError: false,
+    };
+  },
+
+  yara(args) {
+    return {
+      output:
+        `yara ${args.join(" ")} (laboratorio)\n` +
+        `[MATCH] regla 'ejemplo_malware' en la muestra\n` +
+        `Clasificación educativa. Mantené las reglas actualizadas.\n`,
+      isError: false,
+    };
+  },
+
+  clamav(args) {
+    const path = args[0] ?? "/home/student";
+    return {
+      output:
+        `clamav escaneando ${path} (laboratorio)\n` +
+        `  3 archivos revisados, 0 infectados\n` +
+        `Primera línea de defensa: combinala con otras capas.\n`,
+      isError: false,
+    };
+  },
+
+  johntheripper(args) {
+    return {
+      output:
+        `john ${args.join(" ") || "hashes.txt"} (laboratorio)\n` +
+        `hola123      (usuario1)\n123456       (usuario2)\n` +
+        `2 contraseñas rotas: eran débiles.\n` +
+        `Defensa: hashing lento con sal y contraseñas largas.\n`,
+      isError: false,
+    };
+  },
+
+  hashcat(args) {
+    return RUNNERS.johntheripper(args, {} as ToolContext);
+  },
+
+  metasploit(args, ctx) {
+    const target = args[0] ?? "";
+    const guard = requireVirtualTarget(target);
+    if (guard) return { output: `msf: ${guard}\n`, isError: true };
+
+    const machine = ctx.lab.resolve(target);
+    if (!machine) return { output: `msf: objetivo no válido.\n`, isError: false };
+
+    return {
+      output:
+        `msf > exploit contra ${machine.hostname} (laboratorio)\n` +
+        `[*] probando módulo compatible con ${machine.services[0]?.name ?? "servicio"}...\n` +
+        `[+] sesión abierta (simulada) en ${machine.ip}\n` +
+        `Lección: si el servicio está parcheado, el exploit no funciona.\n`,
+      isError: false,
+    };
+  },
+
+  crackmapexec(args, ctx) {
+    const target = args[0] ?? "";
+    const guard = requireVirtualTarget(target.split("/")[0]);
+    if (guard) return { output: `cme: ${guard}\n`, isError: true };
+
+    return {
+      output:
+        `cme sobre ${target} (laboratorio)\n` +
+        ctx.lab.liveHosts().map((ip) => `${ip}  [+] credencial válida (simulada)`).join("\n") +
+        `\nLección: una contraseña reutilizada abre media red.\n`,
+      isError: false,
+    };
+  },
+
+  openssl(args) {
+    const target = args.find((a) => a.includes(".nande")) ?? "news.nande";
+    return {
+      output:
+        `openssl s_client -connect ${target}:443 (laboratorio)\n` +
+        `  Certificado: CN=${target} (emisor ficticio ÑANDE CA)\n` +
+        `  Protocolo: TLS 1.2\n` +
+        `Todo dentro del sandbox.\n`,
+      isError: false,
+    };
+  },
 };
