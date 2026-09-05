@@ -141,8 +141,11 @@ export class VirtualSearch {
     if (/(herramienta.*seguridad|nmap|tool|toolbox)/.test(q)) {
       add("tools.nande", "🧰 ÑANDE Toolbox", "Biblioteca de herramientas de seguridad.");
     }
-    if (/(comunidad|grupo|gente|social)/.test(q)) {
+    if (/(comunidad|social)/.test(q)) {
       add("community.nande", "👥 Comunidades", "Comunidades de habitantes.");
+    }
+    if (/(grupo|hacker|red team|blue team|ctf|colectivo|activista)/.test(q)) {
+      add("groups.nande", "🕶️ Grupos hacker", "Colectivos de hackers éticos.");
     }
 
     return out;

@@ -27,6 +27,8 @@ import { Appearance } from "./desktop/Appearance";
 import { Notes } from "./notes/Notes";
 import { Marketplace } from "./web/Marketplace";
 import { renderGitSite } from "./web/gitSite";
+import { HackerGroups } from "./groups/HackerGroups";
+import { renderGroupsFront, renderGroup } from "./groups/groupsSite";
 import { WorldMap } from "./world/WorldMap";
 import { VirtualHardware } from "./hardware/VirtualHardware";
 import { VirtualWiFi } from "./hardware/VirtualWiFi";
@@ -69,6 +71,7 @@ export class VirtualKernel {
   public appearance: Appearance;
   public notes: Notes;
   public shop: Marketplace;
+  public groups: HackerGroups;
   public map: WorldMap;
   public hardware: VirtualHardware;
   public wifi: VirtualWiFi;
@@ -111,6 +114,7 @@ export class VirtualKernel {
     this.appearance = new Appearance(this.events);
     this.notes = new Notes();
     this.shop = new Marketplace(this.registry);
+    this.groups = new HackerGroups(this.events);
     this.map = new WorldMap(
       this.registry,
       this.worldEngine.professions() as never,
@@ -211,6 +215,51 @@ export class VirtualKernel {
       title: "ÑANDE Git",
       description: "Repositorios y herramientas del mundo virtual.",
       resolve: (path) => renderGitSite(this.registry, path),
+    });
+
+    // groups.nande: colectivos hacker éticos, navegables, con unirse.
+    this.dns.register("groups.nande", "10.10.0.41");
+
+    this.internet.registerDynamicSite({
+      hostname: "groups.nande",
+      title: "Grupos hacker de ÑANDE",
+      description: "Colectivos de hackers éticos.",
+      resolve: (path) => {
+        const html = (content: string) => ({
+          path,
+          mimeType: "text/html",
+          content,
+        });
+
+        if (path === "/") {
+          return html(renderGroupsFront(this.groups));
+        }
+
+        const view = path.match(/^\/g\/([\w-]+)$/);
+        if (view) {
+          const c = renderGroup(this.groups, view[1]);
+          return c ? html(c) : undefined;
+        }
+
+        const join = path.match(/^\/join\/([\w-]+)$/);
+        if (join) {
+          const r = this.groups.join(join[1]);
+          return html(
+            `<h1>${r.ok ? "✅" : "⚠"} ${r.message}</h1>` +
+              `<p><a href="/g/${join[1]}">← Volver al grupo</a> · <a href="/">Grupos</a></p>`,
+          );
+        }
+
+        const leave = path.match(/^\/leave\/([\w-]+)$/);
+        if (leave) {
+          const r = this.groups.leave();
+          return html(
+            `<h1>${r.message}</h1><p><a href="/">← Volver a los grupos</a></p>`,
+          );
+        }
+
+        return undefined;
+      },
     });
 
     this.internet.registerDynamicSite({
@@ -330,6 +379,7 @@ export class VirtualKernel {
     this.registry.flush();
     this.news.flush();
     this.player.flush();
+    this.groups.flush();
     this.economy.flush();
     this.mail.flush();
     this.chat.flush();
@@ -346,6 +396,7 @@ export class VirtualKernel {
 
     this.worldEngine.tick(worldState.clock.tick, worldState.clock.hour);
     this.economy.tick(worldState.clock.tick);
+    this.groups.tick(worldState.clock.tick);
     this.mail.tick(worldState.clock.tick, this.worldEngine);
 
     // De vez en cuando un habitante en línea escribe primero por chat.
@@ -391,6 +442,8 @@ export class VirtualKernel {
       xpToNext: this.player.xpToNext(),
       missions: this.missions.progress(),
       economy: this.economy.snapshot(),
+      groups: this.groups.all(),
+      groupMemberOf: this.groups.memberOf(),
       unreadMail: this.mail.unreadCount(),
       unreadChat: this.chat.unreadTotal(),
       map: this.map.snapshot(

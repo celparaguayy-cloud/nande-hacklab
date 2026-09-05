@@ -32,7 +32,10 @@ export type EventType =
   // Chat / red social.
   | "chat.received"
   // Escritorio.
-  | "appearance.changed";
+  | "appearance.changed"
+  // Grupos hacker.
+  | "group.joined"
+  | "group.op";
 
 export interface VirtualEvent<T = unknown> {
   type: EventType;
