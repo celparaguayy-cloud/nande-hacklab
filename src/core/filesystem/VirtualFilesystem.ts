@@ -15,6 +15,10 @@ export class VirtualFilesystem {
   constructor() {
     this.files = new Map();
 
+    if (this.loadFromStorage()) {
+      return;
+    }
+
     this.createDirectory("/", "root", "root", "755");
 
     this.createDirectory("/bin", "root", "root", "755");
@@ -49,6 +53,47 @@ export class VirtualFilesystem {
     return this.files.has(path);
   }
 
+  private loadFromStorage(): boolean {
+    try {
+      const raw = localStorage.getItem("nande-os-filesystem");
+      if (!raw) return false;
+
+      const entries = JSON.parse(raw) as VirtualFile[];
+
+      if (!Array.isArray(entries)) return false;
+
+      for (const file of entries) {
+        if (
+          typeof file.path !== "string" ||
+          (file.type !== "file" && file.type !== "directory") ||
+          typeof file.content !== "string" ||
+          typeof file.permissions !== "string" ||
+          typeof file.owner !== "string" ||
+          typeof file.group !== "string"
+        ) {
+          return false;
+        }
+
+        this.files.set(file.path, file);
+      }
+
+      return this.files.has("/");
+    } catch {
+      return false;
+    }
+  }
+
+  private saveToStorage(): void {
+    try {
+      localStorage.setItem(
+        "nande-os-filesystem",
+        JSON.stringify(Array.from(this.files.values())),
+      );
+    } catch {
+      // El almacenamiento del navegador puede estar deshabilitado.
+    }
+  }
+
   createDirectory(
     path: string,
     owner = "student",
@@ -71,6 +116,8 @@ export class VirtualFilesystem {
       owner,
       group,
     });
+
+    this.saveToStorage();
   }
 
   createFile(
@@ -96,6 +143,8 @@ export class VirtualFilesystem {
       owner,
       group,
     });
+
+    this.saveToStorage();
   }
 
   readFile(path: string): string {
@@ -116,6 +165,7 @@ export class VirtualFilesystem {
     }
 
     file.content = content;
+    this.saveToStorage();
   }
 
   listDirectory(path: string): VirtualFile[] {
@@ -164,6 +214,7 @@ export class VirtualFilesystem {
     }
 
     this.files.delete(path);
+    this.saveToStorage();
   }
 
   chmod(path: string, permissions: string): void {
@@ -178,6 +229,7 @@ export class VirtualFilesystem {
     }
 
     file.permissions = permissions;
+    this.saveToStorage();
   }
 
   chown(path: string, owner: string, group?: string): void {

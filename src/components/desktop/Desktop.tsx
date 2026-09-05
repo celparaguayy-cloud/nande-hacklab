@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import WindowManager from "../window/WindowManager";
 import Terminal from "../terminal/Terminal";
 import { Files } from "../files/Files";
+import { ProcessMonitor } from "../processes/ProcessMonitor";
 import { VirtualKernel } from "../../core/VirtualKernel";
 
 function Desktop() {
@@ -112,12 +113,36 @@ function Desktop() {
 
           Files
         </button>
+
+        <button
+          onClick={() => openWindow("processes")}
+          style={{
+            width: "90px",
+            height: "90px",
+            background: "rgba(20, 27, 35, 0.9)",
+            border: "1px solid #34414d",
+            borderRadius: "12px",
+            color: "#e6edf3",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: "13px",
+            cursor: "pointer",
+          }}
+        >
+          <div style={{ fontSize: "28px", marginBottom: "8px" }}>
+            📊
+          </div>
+          Processes
+        </button>
       </div>
 
       <WindowManager
         apps={{
           terminal: <Terminal kernel={kernel} />,
           files: <Files kernel={kernel} />,
+          processes: <ProcessMonitor kernel={kernel} />,
         }}
       />
     </div>
