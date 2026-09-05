@@ -673,6 +673,36 @@ export class VirtualTerminal {
       case "wc":
         return this.wc(commandArgs);
 
+      case "nslookup": {
+        const hostname = commandArgs[0];
+
+        if (!hostname) {
+          return {
+            output: "nslookup: falta el nombre del host\n",
+            isError: true,
+          };
+        }
+
+        const address = this.kernel.dns.resolve(hostname);
+
+        if (!address) {
+          return {
+            output:
+              `Servidor DNS virtual: 10.10.0.53\n` +
+              `*** No se encontró ${hostname}\n`,
+            isError: true,
+          };
+        }
+
+        return {
+          output:
+            `Servidor DNS virtual: 10.10.0.53\n` +
+            `Name: ${hostname}\n` +
+            `Address: ${address}\n`,
+          isError: false,
+        };
+      }
+
       case "printf":
         return this.printf(commandArgs);
 

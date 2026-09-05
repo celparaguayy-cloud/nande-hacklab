@@ -6,6 +6,7 @@ import { VirtualProcesses } from "./processes/VirtualProcesses";
 import { EventBus } from "./events/EventBus";
 import { VirtualPrograms } from "./programs/VirtualPrograms";
 import { VirtualNetwork } from "./network/VirtualNetwork";
+import { VirtualDNS } from "./dns/VirtualDNS";
 
 export class VirtualKernel {
   public world: VirtualWorld;
@@ -16,6 +17,7 @@ export class VirtualKernel {
   public programs: VirtualPrograms;
   public events: EventBus;
   public network: VirtualNetwork;
+  public dns: VirtualDNS;
 
   constructor() {
     this.world = new VirtualWorld();
@@ -26,6 +28,7 @@ export class VirtualKernel {
     this.programs = new VirtualPrograms();
     this.events = new EventBus();
     this.network = new VirtualNetwork();
+    this.dns = new VirtualDNS();
   }
 
   tick(): void {
