@@ -32,8 +32,62 @@ export class WorldRegistry {
   private counter: number;
 
   constructor() {
-    this.entities = new Map();
-    this.counter = 1;
+    const saved = this.loadFromStorage();
+
+    this.entities = saved?.entities ?? new Map();
+    this.counter = saved?.counter ?? 1;
+  }
+
+  private loadFromStorage(): {
+    entities: Map<string, WorldEntity>;
+    counter: number;
+  } | null {
+    try {
+      const raw = localStorage.getItem("nande-world-registry");
+
+      if (!raw) {
+        return null;
+      }
+
+      const saved = JSON.parse(raw) as {
+        entities: WorldEntity[];
+        counter: number;
+      };
+
+      if (
+        !saved ||
+        !Array.isArray(saved.entities) ||
+        typeof saved.counter !== "number"
+      ) {
+        return null;
+      }
+
+      return {
+        entities: new Map(
+          saved.entities.map((entity) => [
+            entity.id,
+            entity,
+          ]),
+        ),
+        counter: saved.counter,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  private saveToStorage(): void {
+    try {
+      localStorage.setItem(
+        "nande-world-registry",
+        JSON.stringify({
+          entities: Array.from(this.entities.values()),
+          counter: this.counter,
+        }),
+      );
+    } catch {
+      // El mundo sigue funcionando aunque el almacenamiento no esté disponible.
+    }
   }
 
   create(
@@ -58,6 +112,7 @@ export class WorldRegistry {
     };
 
     this.entities.set(entity.id, entity);
+    this.saveToStorage();
 
     return structuredClone(entity);
   }
@@ -132,12 +187,19 @@ export class WorldRegistry {
     }
 
     entity.updatedTick = tick;
+    this.saveToStorage();
 
     return structuredClone(entity);
   }
 
   remove(id: string): boolean {
-    return this.entities.delete(id);
+    const removed = this.entities.delete(id);
+
+    if (removed) {
+      this.saveToStorage();
+    }
+
+    return removed;
   }
 
   all(): WorldEntity[] {

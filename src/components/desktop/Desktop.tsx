@@ -6,6 +6,7 @@ import { ProcessMonitor } from "../processes/ProcessMonitor";
 import { Settings } from "../settings/Settings";
 import { NetworkManager } from "../network/NetworkManager";
 import Browser from "../browser/Browser";
+import WorldMonitor from "../world/WorldMonitor";
 import { VirtualKernel } from "../../core/VirtualKernel";
 
 const iconStyle = {
@@ -135,6 +136,16 @@ function Desktop() {
           </div>
           Browser
         </button>
+
+        <button
+          onClick={() => openWindow("world")}
+          style={iconStyle}
+        >
+          <div style={{ fontSize: "28px", marginBottom: "8px" }}>
+            🌎
+          </div>
+          ÑANDE World
+        </button>
       </div>
 
       <WindowManager
@@ -145,6 +156,7 @@ function Desktop() {
           settings: <Settings kernel={kernel} />,
           network: <NetworkManager kernel={kernel} />,
           browser: <Browser kernel={kernel} />,
+          world: <WorldMonitor kernel={kernel} />,
         }}
       />
     </div>

@@ -18,23 +18,50 @@ export default function Browser({ kernel }: BrowserProps) {
     "Una ventana hacia la Internet virtual de ÑANDE HACKLAB."
   );
   const [results, setResults] = useState<SearchResult[]>([]);
+  const [history, setHistory] = useState<string[]>(["https://search.nande"]);
+  const [historyIndex, setHistoryIndex] = useState(0);
 
   const cleanUrl = (target: string) => {
-    return target
+    const normalized = target
       .trim()
-      .replace(/^https?:\/\//i, "")
-      .split("/")[0]
-      .toLowerCase();
+      .replace(/^https?:\/\//i, "");
+
+    const [hostPart, ...pathParts] = normalized.split("/");
+
+    const hostname = hostPart.toLowerCase();
+    const path = pathParts.length
+      ? `/${pathParts.join("/")}`
+      : "/";
+
+    return { hostname, path };
   };
 
-  const navigate = (target: string) => {
-    const hostname = cleanUrl(target);
+  const recordHistory = (target: string) => {
+    setHistory((current) => {
+      const prefix = current.slice(0, historyIndex + 1);
+      const last = prefix[prefix.length - 1];
 
-    if (!hostname) {
-      return;
+      if (last === target) {
+        return current;
+      }
+
+      return [...prefix, target];
+    });
+
+    setHistoryIndex((current) => current + 1);
+  };
+
+  const renderPage = (hostname: string, path: string, addHistory = true) => {
+    const fullUrl =
+      path === "/"
+        ? `https://${hostname}`
+        : `https://${hostname}${path}`;
+
+    setUrl(fullUrl);
+
+    if (addHistory) {
+      recordHistory(fullUrl);
     }
-
-    setUrl(`https://${hostname}`);
 
     if (hostname === "search.nande") {
       setPage("search");
@@ -44,7 +71,7 @@ export default function Browser({ kernel }: BrowserProps) {
     }
 
     try {
-      const result = kernel.browser.open(hostname);
+      const result = kernel.browser.open(hostname, path);
 
       setPage("site");
       setTitle(result.title);
@@ -52,7 +79,7 @@ export default function Browser({ kernel }: BrowserProps) {
       setResults([]);
     } catch {
       const virtualSite = kernel.internet.getSite(hostname);
-      const virtualResource = kernel.internet.getResource(hostname, "/");
+      const virtualResource = kernel.internet.getResource(hostname, path);
 
       if (virtualSite && virtualResource) {
         setPage("site");
@@ -65,18 +92,50 @@ export default function Browser({ kernel }: BrowserProps) {
       setPage("site");
       setTitle("Página no encontrada");
       setDescription(
-        `El sitio virtual "${hostname}" no está disponible en la Internet de ÑANDE.`
+        `El recurso virtual "${hostname}${path}" no está disponible en la Internet de ÑANDE.`
       );
       setResults([]);
     }
   };
 
+  const navigate = (target: string) => {
+    const { hostname, path } = cleanUrl(target);
+
+    if (!hostname) {
+      return;
+    }
+
+    renderPage(hostname, path);
+  };
+
+  const goBack = () => {
+    if (historyIndex <= 0) {
+      return;
+    }
+
+    const nextIndex = historyIndex - 1;
+    const target = history[nextIndex];
+    const { hostname, path } = cleanUrl(target);
+
+    setHistoryIndex(nextIndex);
+    renderPage(hostname, path, false);
+  };
+
+  const goForward = () => {
+    if (historyIndex >= history.length - 1) {
+      return;
+    }
+
+    const nextIndex = historyIndex + 1;
+    const target = history[nextIndex];
+    const { hostname, path } = cleanUrl(target);
+
+    setHistoryIndex(nextIndex);
+    renderPage(hostname, path, false);
+  };
+
   const openResult = (result: SearchResult) => {
-    setUrl(`https://${result.hostname}`);
-    setPage("site");
-    setTitle(result.title);
-    setDescription(result.description);
-    setResults([]);
+    navigate(`https://${result.hostname}`);
   };
 
   const search = () => {
@@ -93,7 +152,9 @@ export default function Browser({ kernel }: BrowserProps) {
   };
 
   const goHome = () => {
-    setUrl("https://search.nande");
+    const target = "https://search.nande";
+
+    setUrl(target);
     setPage("home");
     setTitle("ÑANDE Browser");
     setDescription(
@@ -106,6 +167,38 @@ export default function Browser({ kernel }: BrowserProps) {
     <div style={browserStyle}>
       <header style={browserHeaderStyle}>
         <div style={topBarStyle}>
+          <button
+            onClick={goBack}
+            style={{
+              ...navButtonStyle,
+              opacity: historyIndex > 0 ? 1 : 0.4,
+            }}
+            title="Atrás"
+            disabled={historyIndex <= 0}
+          >
+            ←
+          </button>
+
+          <button
+            onClick={goForward}
+            style={{
+              ...navButtonStyle,
+              opacity: historyIndex < history.length - 1 ? 1 : 0.4,
+            }}
+            title="Adelante"
+            disabled={historyIndex >= history.length - 1}
+          >
+            →
+          </button>
+
+          <button
+            onClick={() => renderPage(cleanUrl(url).hostname, cleanUrl(url).path, false)}
+            style={navButtonStyle}
+            title="Recargar"
+          >
+            ⟳
+          </button>
+
           <button onClick={goHome} style={navButtonStyle} title="Inicio">
             🏠
           </button>
@@ -113,7 +206,7 @@ export default function Browser({ kernel }: BrowserProps) {
           <button
             onClick={() => navigate("search.nande")}
             style={navButtonStyle}
-            title="Buscar"
+            title="ÑANDE Search"
           >
             🔍
           </button>
@@ -306,7 +399,31 @@ export default function Browser({ kernel }: BrowserProps) {
               <h1 style={siteTitleStyle}>{title}</h1>
 
               <div
-                style={siteDescriptionStyle}
+                style={siteContentStyle}
+                onClick={(event) => {
+                  const target = event.target as HTMLElement;
+                  const link = target.closest("a");
+
+                  if (!link) {
+                    return;
+                  }
+
+                  event.preventDefault();
+
+                  const href = link.getAttribute("href");
+
+                  if (!href) {
+                    return;
+                  }
+
+                  const current = cleanUrl(url);
+
+                  if (href.startsWith("/")) {
+                    navigate(`https://${current.hostname}${href}`);
+                  } else {
+                    navigate(href);
+                  }
+                }}
                 dangerouslySetInnerHTML={{ __html: description }}
               />
 
@@ -345,51 +462,55 @@ const browserStyle: CSSProperties = {
   minHeight: 400,
   display: "flex",
   flexDirection: "column",
-  background: "#f6f7f9",
-  color: "#111827",
+  background: "#0b0f14",
+  color: "#e6edf3",
   overflow: "hidden",
+  fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
 };
 
 const browserHeaderStyle: CSSProperties = {
-  background: "#e5e7eb",
-  borderBottom: "1px solid #cbd5e1",
+  background: "#0d1218",
+  borderBottom: "1px solid #29303a",
+  boxShadow: "0 2px 14px rgba(0,0,0,0.28)",
 };
 
 const topBarStyle: CSSProperties = {
   display: "flex",
   alignItems: "center",
-  gap: 7,
-  padding: "9px 10px",
+  gap: 6,
+  padding: "9px 10px 7px",
 };
 
 const navButtonStyle: CSSProperties = {
-  width: 36,
-  height: 34,
-  border: "1px solid #cbd5e1",
+  width: 34,
+  height: 32,
+  border: "1px solid #29303a",
   borderRadius: 7,
-  background: "#ffffff",
+  background: "#151a21",
+  color: "#c9d1d9",
   cursor: "pointer",
-  fontSize: 15,
+  fontSize: 16,
 };
 
 const addressBarStyle: CSSProperties = {
   flex: 1,
   minWidth: 0,
-  height: 34,
-  border: "1px solid #94a3b8",
-  borderRadius: 18,
+  height: 32,
+  border: "1px solid #303945",
+  borderRadius: 17,
   padding: "0 14px",
-  color: "#111827",
-  background: "#ffffff",
+  color: "#d7dee7",
+  background: "#080b10",
   outline: "none",
+  fontSize: 13,
 };
 
 const goButtonStyle: CSSProperties = {
-  height: 34,
-  border: "none",
+  height: 32,
+  border: "1px solid #2563eb",
   borderRadius: 7,
-  padding: "0 14px",
-  background: "#2563eb",
+  padding: "0 13px",
+  background: "#1d4ed8",
   color: "#ffffff",
   cursor: "pointer",
   fontWeight: 600,
@@ -397,33 +518,36 @@ const goButtonStyle: CSSProperties = {
 
 const searchBarStyle: CSSProperties = {
   display: "flex",
-  gap: 8,
-  padding: "0 10px 9px",
+  gap: 7,
+  padding: "0 10px 8px",
 };
 
 const searchInputStyle: CSSProperties = {
   flex: 1,
-  height: 34,
-  border: "1px solid #94a3b8",
+  height: 32,
+  border: "1px solid #29303a",
   borderRadius: 7,
   padding: "0 12px",
-  color: "#111827",
-  background: "#ffffff",
+  color: "#d7dee7",
+  background: "#10151c",
+  outline: "none",
 };
 
 const searchActionStyle: CSSProperties = {
-  border: "none",
+  border: "1px solid #29303a",
   borderRadius: 7,
-  padding: "0 18px",
-  background: "#111827",
-  color: "#ffffff",
+  padding: "0 16px",
+  background: "#151a21",
+  color: "#e6edf3",
   cursor: "pointer",
+  fontWeight: 600,
 };
 
 const contentWrapperStyle: CSSProperties = {
   flex: 1,
   minHeight: 0,
   overflow: "auto",
+  background: "#0b0f14",
 };
 
 const homeStyle: CSSProperties = {
@@ -434,29 +558,35 @@ const homeStyle: CSSProperties = {
   justifyContent: "center",
   padding: 30,
   boxSizing: "border-box",
+  background:
+    "radial-gradient(circle at center, #141b24 0%, #0b0f14 50%, #080b10 100%)",
 };
 
 const logoStyle: CSSProperties = {
-  width: 72,
-  height: 72,
+  width: 78,
+  height: 78,
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
   borderRadius: 18,
-  background: "#111827",
-  color: "#ffffff",
-  fontSize: 42,
+  background: "#111820",
+  border: "1px solid #34414d",
+  color: "#e6edf3",
+  fontSize: 44,
   fontWeight: 800,
+  boxShadow: "0 10px 35px rgba(0,0,0,0.35)",
 };
 
 const homeTitleStyle: CSSProperties = {
   margin: "14px 0 4px",
   fontSize: 38,
+  letterSpacing: 2,
+  color: "#e6edf3",
 };
 
 const homeDescriptionStyle: CSSProperties = {
-  margin: "0 0 24px",
-  color: "#6b7280",
+  margin: "0 0 25px",
+  color: "#7f8995",
 };
 
 const homeSearchStyle: CSSProperties = {
@@ -468,19 +598,22 @@ const homeSearchStyle: CSSProperties = {
 const largeSearchInputStyle: CSSProperties = {
   flex: 1,
   height: 46,
-  border: "1px solid #cbd5e1",
+  border: "1px solid #303945",
   borderRadius: 24,
   padding: "0 18px",
   fontSize: 16,
   outline: "none",
+  color: "#e6edf3",
+  background: "#10151c",
+  boxSizing: "border-box",
 };
 
 const largeSearchButtonStyle: CSSProperties = {
   width: 50,
   height: 46,
-  border: "none",
+  border: "1px solid #2563eb",
   borderRadius: 23,
-  background: "#2563eb",
+  background: "#1d4ed8",
   color: "#ffffff",
   cursor: "pointer",
   fontSize: 18,
@@ -495,10 +628,11 @@ const quickLinksStyle: CSSProperties = {
 };
 
 const quickLinkStyle: CSSProperties = {
-  border: "1px solid #d1d5db",
+  border: "1px solid #29303a",
   borderRadius: 18,
   padding: "8px 13px",
-  background: "#ffffff",
+  background: "#151a21",
+  color: "#c9d1d9",
   cursor: "pointer",
 };
 
@@ -519,17 +653,18 @@ const resultsHeaderStyle: CSSProperties = {
 const smallLabelStyle: CSSProperties = {
   fontSize: 11,
   fontWeight: 700,
-  color: "#64748b",
-  letterSpacing: 1,
+  color: "#7f8995",
+  letterSpacing: 1.5,
 };
 
 const pageTitleStyle: CSSProperties = {
   margin: "4px 0 0",
   fontSize: 25,
+  color: "#e6edf3",
 };
 
 const resultCountStyle: CSSProperties = {
-  color: "#64748b",
+  color: "#7f8995",
   fontSize: 13,
 };
 
@@ -540,29 +675,29 @@ const resultsListStyle: CSSProperties = {
 };
 
 const resultCardStyle: CSSProperties = {
-  background: "#ffffff",
-  border: "1px solid #e2e8f0",
+  background: "#10151c",
+  border: "1px solid #29303a",
   borderRadius: 12,
   padding: 18,
   cursor: "pointer",
-  boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+  boxShadow: "0 5px 18px rgba(0,0,0,0.2)",
 };
 
 const resultUrlStyle: CSSProperties = {
   fontSize: 12,
-  color: "#15803d",
+  color: "#58a6ff",
   marginBottom: 6,
 };
 
 const resultTitleStyle: CSSProperties = {
   margin: "0 0 7px",
   fontSize: 20,
-  color: "#1d4ed8",
+  color: "#79b8ff",
 };
 
 const resultDescriptionStyle: CSSProperties = {
   margin: "0 0 12px",
-  color: "#475569",
+  color: "#aab4bf",
   lineHeight: 1.5,
 };
 
@@ -576,17 +711,18 @@ const tagsStyle: CSSProperties = {
 const tagStyle: CSSProperties = {
   padding: "3px 8px",
   borderRadius: 12,
-  background: "#f1f5f9",
-  color: "#475569",
+  background: "#18212b",
+  border: "1px solid #29303a",
+  color: "#8fa0b1",
   fontSize: 11,
 };
 
 const visitButtonStyle: CSSProperties = {
-  border: "1px solid #cbd5e1",
+  border: "1px solid #303945",
   borderRadius: 7,
   padding: "7px 11px",
-  background: "#ffffff",
-  color: "#1d4ed8",
+  background: "#151a21",
+  color: "#79b8ff",
   cursor: "pointer",
   fontWeight: 600,
 };
@@ -594,54 +730,58 @@ const visitButtonStyle: CSSProperties = {
 const emptyStyle: CSSProperties = {
   textAlign: "center",
   padding: 70,
-  color: "#64748b",
+  color: "#7f8995",
 };
 
 const sitePageStyle: CSSProperties = {
   minHeight: "100%",
-  background: "#ffffff",
+  background: "#0b0f14",
 };
 
 const siteTopStyle: CSSProperties = {
   display: "flex",
   gap: 12,
   alignItems: "center",
-  padding: 18,
-  borderBottom: "1px solid #e5e7eb",
-  background: "#f8fafc",
+  padding: "15px 20px",
+  borderBottom: "1px solid #29303a",
+  background: "#10151c",
 };
 
 const siteLockStyle: CSSProperties = {
-  fontSize: 20,
+  fontSize: 18,
 };
 
 const siteAddressStyle: CSSProperties = {
   fontWeight: 700,
+  color: "#d7dee7",
+  fontSize: 13,
 };
 
 const siteStatusStyle: CSSProperties = {
   marginTop: 3,
-  color: "#64748b",
-  fontSize: 12,
+  color: "#657180",
+  fontSize: 11,
 };
 
 const siteBodyStyle: CSSProperties = {
-  maxWidth: 850,
+  maxWidth: 900,
   margin: "0 auto",
   padding: 35,
+  boxSizing: "border-box",
 };
 
 const siteTitleStyle: CSSProperties = {
   fontSize: 34,
   marginTop: 0,
+  color: "#e6edf3",
 };
 
-const siteDescriptionStyle: CSSProperties = {
-  fontSize: 17,
+const siteContentStyle: CSSProperties = {
+  fontSize: 16,
   lineHeight: 1.7,
-  color: "#475569",
-  whiteSpace: "pre-wrap",
+  color: "#b5c0cc",
 };
+
 
 const siteActionsStyle: CSSProperties = {
   display: "flex",
@@ -650,10 +790,11 @@ const siteActionsStyle: CSSProperties = {
 };
 
 const secondaryButtonStyle: CSSProperties = {
-  border: "1px solid #cbd5e1",
-  borderRadius: 7,
+  border: "1px solid #303945",
+  borderRadius: 8,
   padding: "8px 13px",
-  background: "#ffffff",
+  background: "#151a21",
+  color: "#c9d1d9",
   cursor: "pointer",
 };
 
@@ -662,8 +803,8 @@ const footerStyle: CSSProperties = {
   justifyContent: "space-between",
   gap: 10,
   padding: "6px 12px",
-  background: "#e5e7eb",
-  borderTop: "1px solid #cbd5e1",
-  color: "#64748b",
+  background: "#080b10",
+  borderTop: "1px solid #29303a",
+  color: "#657180",
   fontSize: 10,
 };
