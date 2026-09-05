@@ -49,45 +49,173 @@ const PERSONA: Record<string, { hi: string; topic: string }> = {
   user: { hi: "¡Hola! 👋", topic: "la comunidad" },
 };
 
-/** Genera la respuesta de un habitante según su perfil y el mensaje. */
-export function replyFor(person: VirtualPerson, text: string): string {
+/** Hash estable de un texto, para elegir variantes sin azar. */
+function hashText(text: string): number {
+  let h = 0;
+  for (let i = 0; i < text.length; i++) {
+    h = (h * 31 + text.charCodeAt(i)) >>> 0;
+  }
+  return h;
+}
+
+/** Elige una variante de forma estable según el texto (misma frase, misma respuesta). */
+function pick(variants: string[], text: string): string {
+  return variants[hashText(text) % variants.length];
+}
+
+/**
+ * Genera la respuesta de un habitante. Reconoce muchos temas y tiene
+ * varias respuestas por tema, elegidas de forma estable según el mensaje,
+ * así la charla se siente fluida y con carácter, no repetida. `turn` es la
+ * cantidad de mensajes previos, para dar seguimiento.
+ */
+export function replyFor(
+  person: VirtualPerson,
+  text: string,
+  turn: number = 0,
+): string {
   const persona = PERSONA[person.profession] ?? PERSONA.user;
-  const t = text.toLowerCase();
+  const t = text.toLowerCase().trim();
+  const interest = person.interests[hashText(t) % person.interests.length];
 
-  if (/\b(hola|buenas|hey|holi|qué tal|que tal)\b/.test(t)) {
-    return persona.hi;
+  // Saludo (con seguimiento si ya venían hablando).
+  if (/\b(hola|buenas|hey|holi|qué tal|que tal|holaa|ola)\b/.test(t)) {
+    if (turn > 2) {
+      return pick([
+        "¡De nuevo por acá! ¿Qué contás?",
+        "Ey, otra vez 😄 ¿todo bien?",
+        "¡Hola! ¿Seguimos charlando?",
+      ], t);
+    }
+    return pick([persona.hi, "¡Buenas! ¿Cómo va todo?", "¡Hola! ¿Qué andás haciendo?"], t);
   }
-  if (/\b(ayuda|help|no sé|no se|cómo|como)\b/.test(t)) {
-    return `Tranqui, te ayudo. Yo me manejo bien con ${persona.topic}. ¿Qué necesitás?`;
+
+  // Despedida.
+  if (/\b(chau|adios|adiós|nos vemos|hasta luego|me voy|bye)\b/.test(t)) {
+    return pick([
+      "¡Chau! Escribime cuando quieras.",
+      "Nos vemos, ¡éxitos! 👋",
+      "Dale, cuidate. Acá ando si necesitás algo.",
+    ], t);
   }
-  if (/\b(hack|nmap|sqli|exploit|vulnerab|pentest|seguridad)\b/.test(t)) {
-    return person.profession === "security-analyst"
-      ? "¡Ese es mi tema! Acordate: siempre en los labs, nunca en objetivos reales. Probá 'learn' en la terminal."
-      : "Ojo con eso, hacelo solo en los laboratorios de ÑANDE. Si querés, preguntale a alguien de seguridad.";
+
+  // ¿Cómo estás?
+  if (/(cómo estás|como estas|todo bien|qué hacés|que haces|cómo va|como va)/.test(t)) {
+    return pick([
+      `Todo bien, metido con ${interest}. ¿Y vos?`,
+      `Acá andamos, ${persona.topic} como siempre. ¿Vos qué contás?`,
+      `Bien, aprovechando el día. ¿Qué andás haciendo?`,
+    ], t);
   }
-  if (/\b(plata|dinero|bolsa|acciones|invertir|precio)\b/.test(t)) {
-    return "La bolsa se mueve bastante. Yo miro el índice antes de comprar. ¿Ya viste 'market'?";
+
+  // ¿Quién sos? / tu nombre / tu trabajo.
+  if (/(quién sos|quien sos|tu nombre|cómo te llamás|a qué te dedicás|qué hacés de|trabajás de|trabajas de)/.test(t)) {
+    return `Soy ${person.name}, ${person.profession}. Me gusta ${interest} y ${persona.topic}.`;
   }
-  if (/\b(gracias|genial|buenísimo|copado|joya)\b/.test(t)) {
-    return "¡De nada! Cualquier cosa me escribís. 😊";
+
+  // Intereses / hobbies.
+  if (/(hobby|hobbies|gusta|interés|interes|te copa|pasatiempo|tiempo libre)/.test(t)) {
+    return pick([
+      `Me copa ${interest}, y también ${persona.topic}. ¿A vos?`,
+      `En mi tiempo libre ando con ${interest}. ¿Compartimos gustos?`,
+    ], t);
   }
-  if (/\b(misión|mision|trabajo|encargo|tarea)\b/.test(t)) {
-    return "Mirá tu correo, a veces mandamos encargos por ahí. Escribí 'mail' en la terminal.";
+
+  // Ayuda / no sé.
+  if (/\b(ayuda|help|no sé|no se|no entiendo|estoy perdido|me perdí)\b/.test(t)) {
+    return pick([
+      `Tranqui, te ayudo. Yo me manejo bien con ${persona.topic}. ¿Qué necesitás?`,
+      `Nada, para eso estamos. Contame qué te traba y vemos.`,
+      `Dale, sin drama. ¿Con qué te doy una mano?`,
+    ], t);
   }
+
+  // Hacking / seguridad.
+  if (/\b(hack|hackear|nmap|sqli|exploit|vulnerab|pentest|seguridad|ctf)\b/.test(t)) {
+    if (person.profession === "security-analyst") {
+      return pick([
+        "¡Ese es mi tema! Siempre en los labs, nunca en objetivos reales. Probá 'learn' en la terminal.",
+        "Buenísimo que te interese. Arrancá por 'learn l-nmap', paso a paso.",
+        "El truco es entender antes de tocar. En ÑANDE está todo aislado, dale tranquilo.",
+      ], t);
+    }
+    return pick([
+      "Ojo con eso: solo en los laboratorios de ÑANDE. Preguntale a alguien de seguridad.",
+      "No es lo mío, pero sé que acá se practica en labs. Buscá 'academy'.",
+    ], t);
+  }
+
+  // Plata / economía / bolsa.
+  if (/\b(plata|dinero|bolsa|acciones|invertir|precio|guita|mercado|comprar acciones)\b/.test(t)) {
+    return pick([
+      "La bolsa viene en alza, pero con altibajos. Yo miro el índice antes de comprar. ¿Viste 'market'?",
+      "El mercado crece de fondo. No pongas todo en una sola acción, ¿eh?",
+      "Si querés invertir, arrancá de a poco. La app Bolsa te muestra todo.",
+    ], t);
+  }
+
+  // Compras / tienda.
+  if (/\b(comprar|tienda|shop|producto|ferretería|ferreteria|necesito comprar)\b/.test(t)) {
+    return pick([
+      "Para comprar, abrí el Browser y buscá lo que querés. shop.nande tiene de todo.",
+      "En la tienda hay categorías: electrónica, ferretería, cursos... buscá y comprás con N$.",
+    ], t);
+  }
+
+  // Misión / trabajo / encargo.
+  if (/\b(misión|mision|trabajo|encargo|tarea|laburo|changa)\b/.test(t)) {
+    return pick([
+      "Mirá tu correo, a veces mandamos encargos por ahí. Escribí 'mail'.",
+      "Si buscás misiones, revisá el mail o escribí 'missions' en la terminal.",
+    ], t);
+  }
+
+  // Agradecimiento.
+  if (/\b(gracias|genial|buenísimo|buenisimo|copado|joya|de diez|crack|grande)\b/.test(t)) {
+    return pick([
+      "¡De nada! Cualquier cosa me escribís. 😊",
+      "¡Para eso estamos! Éxitos.",
+      "Un gusto. Acá ando si necesitás otra cosa.",
+    ], t);
+  }
+
+  // Acuerdo.
+  if (/\b(sí|si|dale|obvio|claro|exacto|tal cual|de una)\b/.test(t) && t.length < 15) {
+    return pick([
+      "¡Eso! Me gusta cómo pensás.",
+      "Tal cual. Estamos en la misma.",
+      "Dale, sigamos por ahí entonces.",
+    ], t);
+  }
+
+  // Chiste / risa.
+  if (/\b(jaja|jeje|lol|jajaja|xd|risa|chiste)\b/.test(t)) {
+    return pick([
+      "Jaja, sos un fenómeno 😄",
+      "Jeje, me hiciste reír. ¿Seguimos?",
+      "Jaja, bien ahí. Contame más.",
+    ], t);
+  }
+
+  // Pregunta abierta (termina en ?).
   if (/\?$/.test(text.trim())) {
-    return `Buena pregunta. Desde lo mío (${persona.topic}) te diría que lo pruebes y me contás.`;
+    return pick([
+      `Buena pregunta. Desde lo mío (${persona.topic}) te diría que lo pruebes y me contás.`,
+      `Mmm, depende. Yo con ${interest} aprendí que conviene probar y ver.`,
+      `No sé todo, pero preguntale también a alguien que sepa de eso. Yo te tiro mi opinión igual.`,
+    ], t);
   }
 
-  // Respuesta genérica con sabor a la profesión.
+  // Genérica, con seguimiento y sabor a la profesión.
   const generic = [
-    `Interesante. Yo ando metido en ${persona.topic} últimamente.`,
-    "Ja, te entiendo. ¿Y en qué más andás?",
-    "Buenísimo. Escribime cuando quieras, che.",
-    `Dale. Si te copa ${persona.topic}, hacemos algo juntos.`,
+    `Interesante. Yo ando metido en ${interest} últimamente. ¿Y vos?`,
+    "Ja, te entiendo. Contame más, me copa charlar.",
+    `Buenísimo. Si te interesa ${persona.topic}, hacemos algo juntos.`,
+    `Dale. ¿Y cómo venís con lo tuyo?`,
+    `Mirá vos. Yo de eso poco, pero de ${interest} te hablo todo el día.`,
   ];
-
-  // Elección estable por longitud del texto (no azar), para que se sienta consistente.
-  return generic[text.length % generic.length];
+  // El seguimiento entra en la elección para que no repita seguido.
+  return generic[(hashText(t) + turn) % generic.length];
 }
 
 interface ChatState {
@@ -208,7 +336,8 @@ export class Chat {
 
     convo.messages.push({ from: "me", text, tick });
 
-    const reply = replyFor(person, text);
+    // El turno (mensajes previos) da seguimiento a la respuesta.
+    const reply = replyFor(person, text, convo.messages.length);
     convo.messages.push({ from: "them", text: reply, tick });
 
     this.trim(convo);
