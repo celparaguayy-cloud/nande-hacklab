@@ -1,4 +1,6 @@
 import type { WorldRegistry, WorldEntity } from "../world/WorldRegistry";
+import { programLabel, programFor } from "./CreationPrograms";
+import type { CreationProgram } from "./CreationPrograms";
 
 function escapeHtml(text: string): string {
   return text
@@ -71,6 +73,13 @@ export class Store {
     return this.listings().length;
   }
 
+  /** Programa funcional de una creación, si lo tiene. */
+  programOf(id: string): CreationProgram | undefined {
+    const entity = this.registry.get(id);
+
+    return entity ? programFor(entity) : undefined;
+  }
+
   /** Portada de la tienda. */
   renderFront(): string {
     const items = this.listings().slice(-24).reverse();
@@ -91,6 +100,11 @@ export class Store {
             <p>
               ${escapeHtml(item.type)} · N$ ${item.price}
               · por ${escapeHtml(item.metadata.ownerName ?? item.ownerId)}
+              ${
+                programLabel(item)
+                  ? `· <strong>${escapeHtml(programLabel(item)!)}</strong>`
+                  : ""
+              }
               · <a href="/item/${item.id}">ver</a>
             </p>
           </article>
@@ -128,6 +142,13 @@ export class Store {
         }
       </article>
 
+      ${
+        programLabel(item)
+          ? `<article><h2>Qué hace</h2><p>Es un programa funcional: <strong>${escapeHtml(
+              programLabel(item)!,
+            )}</strong>.</p><p>Ejecutalo desde la Terminal: <code>run ${item.id}</code></p></article>`
+          : ""
+      }
       <p>Para comprarlo desde la Terminal: <code>buy ${item.id}</code></p>
       <p><a href="/">← Volver a la tienda</a></p>
     `;
