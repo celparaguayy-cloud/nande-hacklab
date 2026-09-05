@@ -871,6 +871,9 @@ export class VirtualTerminal {
         case "cartera":
           return this.showPortfolio();
 
+        case "mail":
+          return this.mailCmd(commandArgs);
+
         case "neofetch":
         case "hw":
           return { output: `${this.kernel.hardware.render()}\n`, isError: false };
@@ -1264,6 +1267,116 @@ export class VirtualTerminal {
       output: current
         ? `📶 Conectado a "${current}" (wlan0 activa).\n`
         : `WiFi desconectado. Escaneá con 'wifi scan'.\n`,
+      isError: false,
+    };
+  }
+
+  /** Correo virtual: inbox, leer un mensaje, aceptar misión, responder. */
+  private mailCmd(args: string[]): { output: string; isError: boolean } {
+    const action = args[0];
+
+    // mail read <id>
+    if (action === "read") {
+      const id = args[1];
+      const msg = this.kernel.mail.get(id);
+
+      if (!msg) {
+        return { output: `mail: no existe "${id}". Mirá 'mail'.\n`, isError: true };
+      }
+
+      this.kernel.mail.markRead(msg.id);
+
+      let out =
+        `De: ${msg.fromName} <${msg.fromAddress}>\n` +
+        `Asunto: ${msg.subject}\n\n${msg.body}\n`;
+
+      if (msg.missionId) {
+        const mission = this.kernel.missions.get(msg.missionId);
+        out +=
+          `\n📋 Este correo propone una misión: ${mission?.title ?? msg.missionId}\n` +
+          `Aceptala con: mail accept ${msg.id}\n`;
+      }
+
+      return { output: out, isError: false };
+    }
+
+    // mail accept <id>
+    if (action === "accept") {
+      const id = args[1];
+      const msg = this.kernel.mail.get(id);
+
+      if (!msg || !msg.missionId) {
+        return {
+          output: `mail: ese correo no propone una misión.\n`,
+          isError: true,
+        };
+      }
+
+      const mission = this.kernel.missions.get(msg.missionId);
+
+      if (!mission) {
+        return { output: `mail: la misión ya no existe.\n`, isError: true };
+      }
+
+      const status = this.kernel.missions.status(msg.missionId);
+
+      return {
+        output:
+          `✅ Misión aceptada: ${mission.title} [${status}]\n\n` +
+          `${mission.brief}\n\nPista: ${mission.hint}\n` +
+          `Recompensa: ${mission.reward.xp} XP, N$${mission.reward.coins}\n`,
+        isError: false,
+      };
+    }
+
+    // mail reply <id> <texto>
+    if (action === "reply") {
+      const id = args[1];
+      const msg = this.kernel.mail.get(id);
+      const text = args.slice(2).join(" ");
+
+      if (!msg) {
+        return { output: `mail: no existe "${id}".\n`, isError: true };
+      }
+      if (!text) {
+        return { output: `uso: mail reply <id> <texto>\n`, isError: true };
+      }
+
+      const tick = this.kernel.world.getState().clock.tick;
+      this.kernel.mail.sendReply(msg.fromName, text, tick);
+
+      return {
+        output: `📨 Respuesta enviada a ${msg.fromName}.\n`,
+        isError: false,
+      };
+    }
+
+    // mail (bandeja)
+    const inbox = this.kernel.mail.inbox();
+
+    if (inbox.length === 0) {
+      return {
+        output:
+          `📭 Bandeja vacía. Los habitantes te van a escribir con el tiempo.\n`,
+        isError: false,
+      };
+    }
+
+    const lines = inbox
+      .slice(0, 15)
+      .map((m) => {
+        const dot = m.read ? "  " : "● ";
+        const tag = m.missionId ? " 📋" : "";
+        return `  ${dot}${m.id.padEnd(9)}${m.fromName.padEnd(22)}${m.subject}${tag}`;
+      })
+      .join("\n");
+
+    return {
+      output:
+        `📬 Bandeja de entrada (${this.kernel.mail.unreadCount()} sin leer)\n\n` +
+        `${lines}\n\n` +
+        `Leer: mail read <id> · Responder: mail reply <id> <texto>\n` +
+        `📋 = propone una misión (aceptala con mail accept <id>)\n`,
       isError: false,
     };
   }
@@ -2212,6 +2325,12 @@ export class VirtualTerminal {
       "  buy-stock T N    Comprar N acciones de T",
       "  sell-stock T N   Vender N acciones de T",
       "  portfolio        Tu cartera y saldo",
+      "",
+      "Correo:",
+      "  mail             Bandeja de entrada",
+      "  mail read <id>   Leer un mensaje",
+      "  mail accept <id> Aceptar una misión propuesta",
+      "  mail reply <id> X Responder",
       "",
       "Hardware y WiFi:",
       "  neofetch         Muestra tu PC virtual (specs)",

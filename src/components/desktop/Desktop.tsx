@@ -9,6 +9,7 @@ import Browser from "../browser/Browser";
 import WorldMonitor from "../world/WorldMonitor";
 import WorldMapView from "../map/WorldMapView";
 import MarketView from "../market/MarketView";
+import MailView from "../mail/MailView";
 import { VirtualKernel } from "../../core/VirtualKernel";
 
 const iconStyle = {
@@ -96,6 +97,7 @@ function Desktop() {
       world: <WorldMonitor kernel={kernel} />,
       map: <WorldMapView kernel={kernel} />,
       market: <MarketView kernel={kernel} />,
+      mail: <MailView kernel={kernel} />,
     }),
     [kernel],
   );
@@ -260,6 +262,16 @@ function Desktop() {
             📈
           </div>
           Bolsa
+        </button>
+
+        <button
+          onClick={() => openWindow("mail")}
+          style={iconStyle}
+        >
+          <div style={{ fontSize: "28px", marginBottom: "8px" }}>
+            ✉️
+          </div>
+          Mail
         </button>
       </div>
 
