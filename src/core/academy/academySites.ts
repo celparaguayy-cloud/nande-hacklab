@@ -1,6 +1,7 @@
 import type { Academy } from "./Academy";
 import type { SecurityTools } from "../security/SecurityTools";
 import type { ToolDef } from "../security/toolCatalog";
+import { LESSONS } from "./Lessons";
 
 function escapeHtml(text: string): string {
   return text
@@ -48,12 +49,29 @@ export function renderAcademySite(
     )
     .join("");
 
+  const lessons = LESSONS.map(
+    (l) => `
+      <article>
+        <h2>📘 ${escapeHtml(l.title)} <small>[${escapeHtml(l.level)}]</small></h2>
+        <p>${escapeHtml(l.summary)}</p>
+        <p>Practicala en la Terminal: <code>learn ${l.id}</code></p>
+      </article>
+    `,
+  ).join("");
+
   return `
     <h1>🎓 ÑANDE Academy</h1>
     <p>De no saber qué es una terminal a resolver laboratorios avanzados.
     Todo dentro del mundo virtual, explicado paso a paso.</p>
     <p>La ruta tiene ${academy.count()} niveles y ${tools.count()} herramientas.
     Empezá por el Nivel 0 y seguí el orden.</p>
+
+    <h2>🧪 Lecciones guiadas — aprendé haciendo</h2>
+    <p>Cada lección te lleva paso a paso usando herramientas reales contra
+    un laboratorio. El sistema verifica que lo hiciste y te explica por qué.</p>
+    ${lessons}
+
+    <h2>📚 Ruta de cursos</h2>
     ${items}
   `;
 }
