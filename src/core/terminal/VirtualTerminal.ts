@@ -439,6 +439,114 @@ export class VirtualTerminal {
     return "/" + result.join("/");
   }
 
+  private executeIp(args: string[]): {
+    output: string;
+    isError: boolean;
+  } {
+    const subcommand = args[0] ?? "addr";
+    const interfaces = this.kernel.network.listInterfaces();
+
+    if (subcommand === "addr" || subcommand === "a") {
+      const output = interfaces
+        .map((iface, index) => {
+          const state = iface.up ? "UP" : "DOWN";
+
+          return [
+            `${index + 1}: ${iface.name}: <${state}>`,
+            `    inet ${iface.ip}`,
+            `    netmask ${iface.netmask}`,
+            `    ether ${iface.mac}`,
+          ].join("\n");
+        })
+        .join("\n");
+
+      return {
+        output: `${output}\n`,
+        isError: false,
+      };
+    }
+
+    if (subcommand === "route" || subcommand === "r") {
+      const eth0 = this.kernel.network.getInterface("eth0");
+
+      if (!eth0 || !eth0.up) {
+        return {
+          output: "No hay rutas activas.\n",
+          isError: false,
+        };
+      }
+
+      return {
+        output:
+          `default via ${eth0.gateway} dev ${eth0.name}\n` +
+          `10.10.0.0/24 dev ${eth0.name} src ${eth0.ip}\n`,
+        isError: false,
+      };
+    }
+
+    return {
+      output: `ip: operación no soportada: ${subcommand}\n`,
+      isError: true,
+    };
+  }
+
+  private executeIfconfig(): {
+    output: string;
+    isError: boolean;
+  } {
+    const output = this.kernel.network
+      .listInterfaces()
+      .map((iface) => {
+        const state = iface.up ? "UP" : "DOWN";
+
+        return [
+          `${iface.name}: flags=<${state}>`,
+          `        inet ${iface.ip} netmask ${iface.netmask}`,
+          `        ether ${iface.mac}`,
+        ].join("\n");
+      })
+      .join("\n\n");
+
+    return {
+      output: `${output}\n`,
+      isError: false,
+    };
+  }
+
+  private executePing(args: string[]): {
+    output: string;
+    isError: boolean;
+  } {
+    const target = args[0];
+
+    if (!target) {
+      return {
+        output: "ping: falta la dirección de destino\n",
+        isError: true,
+      };
+    }
+
+    if (!this.kernel.network.isReachable(target)) {
+      return {
+        output:
+          `PING ${target}\n` +
+          "Host de laboratorio no alcanzable.\n",
+        isError: true,
+      };
+    }
+
+    return {
+      output:
+        `PING ${target}\n` +
+        `64 bytes from ${target}: virtual_seq=1 ttl=64 time=1 ms\n` +
+        `64 bytes from ${target}: virtual_seq=2 ttl=64 time=1 ms\n` +
+        `64 bytes from ${target}: virtual_seq=3 ttl=64 time=1 ms\n` +
+        `--- ${target} ping statistics ---\n` +
+        "3 packets transmitted, 3 received, 0% packet loss\n",
+      isError: false,
+    };
+  }
+
   private executeSingle(input: string): {
     output: string;
     isError: boolean;
@@ -658,6 +766,15 @@ export class VirtualTerminal {
             output: this.help(),
             isError: false,
           };
+
+        case "ip":
+          return this.executeIp(commandArgs);
+
+        case "ifconfig":
+          return this.executeIfconfig();
+
+        case "ping":
+          return this.executePing(commandArgs);
 
         default:
           return {

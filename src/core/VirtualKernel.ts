@@ -5,6 +5,7 @@ import { VirtualUsers } from "./users/VirtualUsers";
 import { VirtualProcesses } from "./processes/VirtualProcesses";
 import { EventBus } from "./events/EventBus";
 import { VirtualPrograms } from "./programs/VirtualPrograms";
+import { VirtualNetwork } from "./network/VirtualNetwork";
 
 export class VirtualKernel {
   public world: VirtualWorld;
@@ -14,6 +15,7 @@ export class VirtualKernel {
   public processes: VirtualProcesses;
   public programs: VirtualPrograms;
   public events: EventBus;
+  public network: VirtualNetwork;
 
   constructor() {
     this.world = new VirtualWorld();
@@ -23,6 +25,7 @@ export class VirtualKernel {
     this.processes = new VirtualProcesses();
     this.programs = new VirtualPrograms();
     this.events = new EventBus();
+    this.network = new VirtualNetwork();
   }
 
   tick(): void {
