@@ -877,6 +877,10 @@ export class VirtualTerminal {
         case "chat":
           return this.chatCmd(commandArgs);
 
+        case "groups":
+        case "grupos":
+          return this.groupsCmd(commandArgs);
+
         case "neofetch":
         case "hw":
           return { output: `${this.kernel.hardware.render()}\n`, isError: false };
@@ -1270,6 +1274,36 @@ export class VirtualTerminal {
       output: current
         ? `📶 Conectado a "${current}" (wlan0 activa).\n`
         : `WiFi desconectado. Escaneá con 'wifi scan'.\n`,
+      isError: false,
+    };
+  }
+
+  /** Grupos hacker: listar, unirse, salir. */
+  private groupsCmd(args: string[]): { output: string; isError: boolean } {
+    if (args[0] === "join" && args[1]) {
+      const r = this.kernel.groups.join(args[1]);
+      return { output: `${r.ok ? "✅" : "⚠"} ${r.message}\n`, isError: !r.ok };
+    }
+
+    if (args[0] === "leave") {
+      const r = this.kernel.groups.leave();
+      return { output: `${r.message}\n`, isError: !r.ok };
+    }
+
+    const memberOf = this.kernel.groups.memberOf();
+    const lines = this.kernel.groups
+      .all()
+      .map((g) => {
+        const mine = g.id === memberOf ? " ✅" : "";
+        const rec = g.recruiting ? "" : " (cerrado)";
+        return `  ${g.tag} ${g.id.padEnd(14)}${g.name}${mine}${rec}\n     ${g.members} miembros · rep ${g.reputation}`;
+      })
+      .join("\n");
+
+    return {
+      output:
+        `🕶️ Grupos hacker (éticos, dentro del sandbox)\n\n${lines}\n\n` +
+        `Unirse: groups join <id> · Salir: groups leave · Web: https://groups.nande\n`,
       isError: false,
     };
   }
@@ -2416,6 +2450,7 @@ export class VirtualTerminal {
       "  chat             Tus conversaciones",
       "  chat contactos   Quién está en línea",
       "  chat <id> <msg>  Escribirle a un habitante",
+      "  groups           Grupos hacker éticos (unirse/salir)",
       "",
       "Hardware y WiFi:",
       "  neofetch         Muestra tu PC virtual (specs)",
