@@ -74,7 +74,10 @@ function WorldMapView({ kernel }: WorldMapViewProps) {
             <div style={{ fontSize: 30 }}>{zone.icon}</div>
             <div style={{ fontWeight: 600, marginTop: 4 }}>{zone.name}</div>
             <div style={cellMetaStyle}>
-              👤 {zone.residents} · 📍 {zone.places}
+              🏠 {zone.residents} · 📍 {zone.places}
+            </div>
+            <div style={{ ...cellMetaStyle, color: "#7ee2a8" }}>
+              ● {zone.present} ahora
             </div>
           </button>
         ))}

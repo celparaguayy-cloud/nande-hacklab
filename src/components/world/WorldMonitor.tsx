@@ -38,6 +38,7 @@ function WorldMonitor({ kernel }: WorldMonitorProps) {
   const counts = summary.entityCountsByType;
   const events = summary.recentEvents;
   const news = summary.recentNews;
+  const life = summary.life;
 
   return (
     <div
@@ -227,6 +228,47 @@ function WorldMonitor({ kernel }: WorldMonitorProps) {
             ))}
           </div>
         )}
+      </section>
+
+      <section style={{ marginTop: "24px" }}>
+        <h3 style={{ marginBottom: "12px" }}>
+          El mundo ahora mismo
+        </h3>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns:
+              "repeat(auto-fit, minmax(130px, 1fr))",
+            gap: "10px",
+          }}
+        >
+          {Object.entries(life)
+            .filter(([, n]) => (n as number) > 0)
+            .sort((a, b) => (b[1] as number) - (a[1] as number))
+            .map(([activity, n]) => (
+              <div
+                key={activity}
+                style={{
+                  padding: "12px",
+                  border: "1px solid #26313b",
+                  borderRadius: "8px",
+                  background: "#111820",
+                }}
+              >
+                <div
+                  style={{
+                    color: "#8b98a5",
+                    fontSize: "12px",
+                    marginBottom: "5px",
+                  }}
+                >
+                  {activity}
+                </div>
+                <strong style={{ fontSize: "20px" }}>{n as number}</strong>
+              </div>
+            ))}
+        </div>
       </section>
 
       <section style={{ marginTop: "24px" }}>

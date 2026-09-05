@@ -286,7 +286,7 @@ export class VirtualKernel {
 
     const worldState = this.world.getState();
 
-    this.worldEngine.tick(worldState.clock.tick);
+    this.worldEngine.tick(worldState.clock.tick, worldState.clock.hour);
 
     this.events.emit(
       "world.tick",
@@ -318,9 +318,14 @@ export class VirtualKernel {
       player: this.player.getState(),
       xpToNext: this.player.xpToNext(),
       missions: this.missions.progress(),
-      map: this.map.snapshot(),
+      map: this.map.snapshot(
+        this.worldEngine.presenceByZone(this.world.getState().clock.hour),
+      ),
       communities: this.worldEngine.getCommunities().ranking(8),
       communityMembers: this.worldEngine.getCommunities().totalMembers(),
+      life: this.worldEngine.lifeBreakdown(
+        this.world.getState().clock.hour,
+      ),
     };
   }
 

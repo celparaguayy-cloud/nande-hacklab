@@ -818,6 +818,9 @@ export class VirtualTerminal {
         case "labs":
           return this.listLabs();
 
+        case "vecinos":
+          return this.showNeighbors();
+
         case "profile":
           return this.showProfile();
 
@@ -1209,6 +1212,36 @@ export class VirtualTerminal {
         `🎓 ÑANDE Academy — ruta de aprendizaje\n\n${lines}\n\n` +
         `Detalle de un nivel: academy <id> (ej: academy redes).\n` +
         `Navegable: https://academy.nande\n`,
+      isError: false,
+    };
+  }
+
+  private showNeighbors(): { output: string; isError: boolean } {
+    const hour = this.kernel.world.getState().clock.hour;
+    const engine = this.kernel.worldEngine;
+
+    // Una muestra de habitantes y qué está haciendo cada uno ahora.
+    const people = engine.getOnlinePeople().slice(0, 8);
+
+    const lines = people
+      .map((person) => {
+        const life = engine.getPersonLife(person.id, hour);
+        return `  ${life?.icon ?? "·"} ${person.name.padEnd(22)}${life?.activity ?? "?"} (${person.profession})`;
+      })
+      .join("\n");
+
+    const breakdown = engine.lifeBreakdown(hour);
+    const resumen = Object.entries(breakdown)
+      .filter(([, n]) => n > 0)
+      .sort((a, b) => b[1] - a[1])
+      .map(([act, n]) => `${act}: ${n}`)
+      .join("  ·  ");
+
+    return {
+      output:
+        `🏘️  El mundo a las ${String(hour).padStart(2, "0")}:00\n\n` +
+        `${lines || "  (no hay nadie en línea ahora)"}\n\n` +
+        `El mundo ahora mismo:\n  ${resumen}\n`,
       isError: false,
     };
   }
@@ -1822,6 +1855,10 @@ export class VirtualTerminal {
       "  tools [cat]      Biblioteca de herramientas",
       "  tool <nombre>    Ficha de una herramienta (ej: tool nmap)",
       "  labs             Máquinas de práctica",
+      "  vecinos          Qué hace la gente del mundo ahora",
+      "  profile          Tu progreso (nivel, XP, dinero)",
+      "  missions         Tus misiones",
+      "  store            Tienda de creaciones de habitantes",
       "  help             Muestra esta ayuda",
       "",
     ].join("\n");

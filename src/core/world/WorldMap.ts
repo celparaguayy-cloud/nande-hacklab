@@ -32,6 +32,8 @@ export interface MapPlace {
 export interface ZoneSnapshot extends MapZone {
   residents: number;
   places: number;
+  /** Gente presente ahora en la zona según su rutina diaria. */
+  present: number;
 }
 
 /** Las nueve zonas del mundo (spec §22). */
@@ -225,14 +227,18 @@ export class WorldMap {
     return counts;
   }
 
-  /** Snapshot barato del mapa completo para la UI. */
-  snapshot(): ZoneSnapshot[] {
+  /**
+   * Snapshot barato del mapa completo para la UI. Recibe cuánta gente hay
+   * ahora en cada zona (rutina diaria); si no se pasa, queda en cero.
+   */
+  snapshot(presence: Record<string, number> = {}): ZoneSnapshot[] {
     const places = this.placesCount();
 
     return ZONES.map((zone) => ({
       ...zone,
       residents: this.residentsByZone.get(zone.id) ?? 0,
       places: places.get(zone.id) ?? 0,
+      present: presence[zone.id] ?? 0,
     }));
   }
 }
