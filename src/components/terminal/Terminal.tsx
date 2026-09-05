@@ -1,4 +1,5 @@
 import {
+  useMemo,
   useRef,
   useState,
   type KeyboardEvent,
@@ -7,10 +8,15 @@ import {
 import { VirtualKernel } from "../../core/VirtualKernel";
 import { VirtualTerminal } from "../../core/terminal/VirtualTerminal";
 
-const kernel = new VirtualKernel();
-const terminal = new VirtualTerminal(kernel);
+interface TerminalProps {
+  kernel: VirtualKernel;
+}
 
-export default function Terminal() {
+export default function Terminal({ kernel }: TerminalProps) {
+  const terminal = useMemo(
+    () => new VirtualTerminal(kernel),
+    [kernel],
+  );
   const [lines, setLines] = useState<string[]>([
     "ÑANDE OS Terminal",
     "Escribe 'help' para ver los comandos disponibles.",
