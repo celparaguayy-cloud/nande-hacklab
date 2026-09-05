@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { WiFiNetwork } from "../../core/hardware/VirtualWiFi";
 import { VirtualKernel } from "../../core/VirtualKernel";
 
 interface NetworkManagerProps {
@@ -11,6 +12,35 @@ export function NetworkManager({
   const [online, setOnline] = useState(
     kernel.world.getState().online,
   );
+  const [connected, setConnected] = useState(
+    () => kernel.wifi.current(),
+  );
+  const [feedback, setFeedback] = useState("");
+  const networks: WiFiNetwork[] = kernel.wifi.scan();
+
+  const connectTo = (net: WiFiNetwork) => {
+    // Para redes protegidas se pide la contraseña ficticia de laboratorio.
+    let password: string | undefined;
+
+    if (net.security !== "abierta") {
+      password =
+        window.prompt(`Contraseña de "${net.ssid}"`) ?? undefined;
+
+      if (password === undefined) {
+        return;
+      }
+    }
+
+    const result = kernel.wifi.connect(net.ssid, password);
+    setFeedback(result.message);
+    setConnected(kernel.wifi.current());
+  };
+
+  const disconnectWifi = () => {
+    const result = kernel.wifi.disconnect();
+    setFeedback(result.message);
+    setConnected(kernel.wifi.current());
+  };
 
   const toggleNetwork = () => {
     const next = !online;
@@ -106,9 +136,80 @@ export function NetworkManager({
           value="No utilizada"
         />
       </section>
+
+      <section style={sectionStyle}>
+        <h3 style={titleStyle}>📶 WiFi virtual</h3>
+
+        {feedback && (
+          <div
+            style={{
+              marginBottom: 10,
+              padding: "6px 10px",
+              borderRadius: 6,
+              background: "#12202a",
+              color: "#7ee2a8",
+              fontSize: 13,
+            }}
+          >
+            {feedback}
+          </div>
+        )}
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {networks.map((net) => {
+            const isHere = net.ssid === connected;
+
+            return (
+              <div
+                key={net.ssid}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "8px 10px",
+                  border: "1px solid #29303a",
+                  borderRadius: 8,
+                  background: isHere ? "#12251c" : "#101820",
+                }}
+              >
+                <div>
+                  <div>
+                    {net.security === "abierta" ? "" : "🔒 "}
+                    {net.ssid}
+                    {isHere ? "  ✓" : ""}
+                  </div>
+                  <div style={{ fontSize: 12, color: "#7f8995" }}>
+                    {net.security} · señal {net.signal}%
+                  </div>
+                </div>
+
+                {isHere ? (
+                  <button onClick={disconnectWifi} style={wifiBtnStyle}>
+                    Desconectar
+                  </button>
+                ) : (
+                  <button onClick={() => connectTo(net)} style={wifiBtnStyle}>
+                    Conectar
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </section>
     </div>
   );
 }
+
+const wifiBtnStyle = {
+  padding: "6px 12px",
+  border: "1px solid #34414d",
+  borderRadius: 6,
+  background: "#1b2430",
+  color: "#e8edf2",
+  cursor: "pointer",
+  fontSize: 13,
+};
 
 function InfoRow({
   label,

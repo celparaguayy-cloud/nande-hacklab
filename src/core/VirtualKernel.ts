@@ -20,6 +20,8 @@ import { Progression } from "./game/Progression";
 import { MissionEngine } from "./game/Missions";
 import { Store } from "./game/Store";
 import { WorldMap } from "./world/WorldMap";
+import { VirtualHardware } from "./hardware/VirtualHardware";
+import { VirtualWiFi } from "./hardware/VirtualWiFi";
 import {
   renderCommunitiesFront,
   renderCommunity,
@@ -53,6 +55,8 @@ export class VirtualKernel {
   public missions: MissionEngine;
   public store: Store;
   public map: WorldMap;
+  public hardware: VirtualHardware;
+  public wifi: VirtualWiFi;
 
   private unsubscribePublisher: () => void;
   private tickTimer: ReturnType<typeof setInterval> | null = null;
@@ -89,6 +93,8 @@ export class VirtualKernel {
       this.registry,
       this.worldEngine.professions() as never,
     );
+    this.hardware = new VirtualHardware();
+    this.wifi = new VirtualWiFi(this.network);
 
     // academy.nande y tools.nande: la biblioteca y la ruta de aprendizaje,
     // navegables como cualquier otro sitio del mundo virtual.
