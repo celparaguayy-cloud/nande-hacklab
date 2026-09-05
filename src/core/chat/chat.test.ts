@@ -20,7 +20,24 @@ describe("respuestas del chat", () => {
   });
 
   it("preguntar por plata lleva a la bolsa", () => {
-    expect(replyFor(dev, "cuánta plata tenés?").toLowerCase()).toContain("market");
+    // Cualquier variante habla de la bolsa/mercado/índice.
+    expect(replyFor(dev, "cuánta plata tenés?").toLowerCase()).toMatch(
+      /market|bolsa|mercado|índice|indice|invertir/,
+    );
+  });
+
+  it("reconoce muchos temas distintos", () => {
+    expect(replyFor(dev, "quién sos?").toLowerCase()).toContain("developer");
+    expect(replyFor(dev, "qué hobbies tenés?").toLowerCase()).toMatch(/copa|libre|gust/);
+    expect(replyFor(dev, "chau nos vemos").toLowerCase()).toMatch(/chau|vemos|cuidate/);
+    expect(replyFor(dev, "jaja sos un genio").toLowerCase()).toMatch(/jaja|jeje|reír/);
+    expect(replyFor(dev, "gracias!").toLowerCase()).toMatch(/nada|gusto|éxitos/);
+  });
+
+  it("el saludo cambia si ya venían charlando (seguimiento)", () => {
+    const primera = replyFor(dev, "hola", 0);
+    const tarde = replyFor(dev, "hola", 6);
+    expect(primera).not.toBe(tarde);
   });
 
   it("la respuesta es estable para el mismo mensaje", () => {

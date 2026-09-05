@@ -39,7 +39,10 @@ const SEED_STOCKS: Array<Omit<Stock, "prevPrice">> = [
 ];
 
 const PRICE_INTERVAL = 5;
-const VOLATILITY = 0.06;
+const VOLATILITY = 0.05;
+
+/** Sesgo alcista: la economía crece de fondo, con altibajos. */
+const GROWTH_BIAS = 0.0015;
 
 interface EconomyState {
   stocks: Stock[];
@@ -152,7 +155,10 @@ export class Economy {
 
     for (const stock of this.state.stocks) {
       stock.prevPrice = stock.price;
-      const change = (Math.random() * 2 - 1) * VOLATILITY;
+      // Ruido (sube y baja) + sesgo de crecimiento: a la larga el mercado
+      // tiende a subir, como una economía que crece, pero con altibajos.
+      const noise = (Math.random() * 2 - 1) * VOLATILITY;
+      const change = noise + GROWTH_BIAS;
       stock.price = Math.max(1, Math.round(stock.price * (1 + change)));
 
       this.state.moneyMoved +=

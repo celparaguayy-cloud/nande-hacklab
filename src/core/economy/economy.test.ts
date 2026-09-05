@@ -34,6 +34,16 @@ describe("Economy", () => {
     expect(changed).toBe(true);
   });
 
+  it("la economía crece a largo plazo, con altibajos", () => {
+    const eco = new Economy();
+    const i0 = eco.snapshot().index;
+    for (let t = 1; t <= 3000; t++) eco.tick(t);
+    // Tendencia claramente alcista pero no hiperinflacionaria.
+    const i1 = eco.snapshot().index;
+    expect(i1).toBeGreaterThan(i0);
+    expect(i1).toBeLessThan(i0 * 100);
+  });
+
   it("ningún precio baja de 1", () => {
     const eco = new Economy();
     for (let t = 1; t <= 500; t++) eco.tick(t);
