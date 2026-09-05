@@ -32,6 +32,8 @@ const WINDOW_TITLES: Record<string, string> = {
   market: "ÑANDE Bolsa",
   mail: "ÑANDE Mail",
   chat: "ÑANDE Chat",
+  notes: "Notas",
+  games: "ÑANDE Juegos",
 };
 
 /** Alto de la barra superior del escritorio. */

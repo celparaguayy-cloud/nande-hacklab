@@ -30,7 +30,9 @@ export type EventType =
   // Correo virtual.
   | "mail.received"
   // Chat / red social.
-  | "chat.received";
+  | "chat.received"
+  // Escritorio.
+  | "appearance.changed";
 
 export interface VirtualEvent<T = unknown> {
   type: EventType;

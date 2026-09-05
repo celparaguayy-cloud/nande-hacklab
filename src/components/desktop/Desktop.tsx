@@ -11,6 +11,8 @@ import WorldMapView from "../map/WorldMapView";
 import MarketView from "../market/MarketView";
 import MailView from "../mail/MailView";
 import ChatView from "../chat/ChatView";
+import NotesView from "../notes/NotesView";
+import GamesView from "../games/GamesView";
 import { VirtualKernel } from "../../core/VirtualKernel";
 
 const iconStyle = {
@@ -37,6 +39,16 @@ function Desktop() {
     () => kernel.world.getState().online,
   );
   const [player, setPlayer] = useState(() => kernel.player.getState());
+  const [wallpaper, setWallpaper] = useState(() =>
+    kernel.appearance.wallpaperCss(),
+  );
+
+  // El fondo se actualiza cuando cambia la apariencia en Configuración.
+  useEffect(() => {
+    return kernel.events.subscribe("appearance.changed", () => {
+      setWallpaper(kernel.appearance.wallpaperCss());
+    });
+  }, [kernel]);
 
   // Unico loop del mundo: lo arranca el escritorio y lo detiene al salir.
   useEffect(() => {
@@ -100,6 +112,8 @@ function Desktop() {
       market: <MarketView kernel={kernel} />,
       mail: <MailView kernel={kernel} />,
       chat: <ChatView kernel={kernel} />,
+      notes: <NotesView kernel={kernel} />,
+      games: <GamesView kernel={kernel} />,
     }),
     [kernel],
   );
@@ -109,8 +123,7 @@ function Desktop() {
       style={{
         width: "100vw",
         height: "100vh",
-        background:
-          "radial-gradient(circle at top right, #17212b 0%, #080b10 55%, #05070a 100%)",
+        background: wallpaper,
         color: "#e6edf3",
         fontFamily: "system-ui, sans-serif",
         overflow: "hidden",
@@ -284,6 +297,26 @@ function Desktop() {
             💬
           </div>
           Chat
+        </button>
+
+        <button
+          onClick={() => openWindow("notes")}
+          style={iconStyle}
+        >
+          <div style={{ fontSize: "28px", marginBottom: "8px" }}>
+            📝
+          </div>
+          Notas
+        </button>
+
+        <button
+          onClick={() => openWindow("games")}
+          style={iconStyle}
+        >
+          <div style={{ fontSize: "28px", marginBottom: "8px" }}>
+            🎮
+          </div>
+          Juegos
         </button>
       </div>
 

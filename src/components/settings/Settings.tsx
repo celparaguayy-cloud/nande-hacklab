@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { VirtualKernel } from "../../core/VirtualKernel";
+import { WALLPAPERS, ACCENTS } from "../../core/desktop/Appearance";
 
 interface SettingsProps {
   kernel: VirtualKernel;
@@ -10,6 +11,19 @@ export function Settings({ kernel }: SettingsProps) {
     kernel.os.getState().hostname,
   );
   const [message, setMessage] = useState("");
+  const [appearance, setAppearance] = useState(() =>
+    kernel.appearance.getState(),
+  );
+
+  const chooseWallpaper = (id: string) => {
+    kernel.appearance.setWallpaper(id);
+    setAppearance(kernel.appearance.getState());
+  };
+
+  const chooseAccent = (color: string) => {
+    kernel.appearance.setAccent(color);
+    setAppearance(kernel.appearance.getState());
+  };
 
   const os = kernel.os.getState();
   const world = kernel.world.getState();
@@ -111,6 +125,57 @@ export function Settings({ kernel }: SettingsProps) {
             world.clock.minute,
           ).padStart(2, "0")}`}
         />
+      </section>
+
+      <section style={sectionStyle}>
+        <h3 style={titleStyle}>🎨 Apariencia</h3>
+
+        <div style={{ marginBottom: 8, color: "#7f8995", fontSize: 13 }}>
+          Fondo del escritorio
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
+          {WALLPAPERS.map((wp) => (
+            <button
+              key={wp.id}
+              onClick={() => chooseWallpaper(wp.id)}
+              title={wp.name}
+              style={{
+                width: 64,
+                height: 42,
+                borderRadius: 8,
+                cursor: "pointer",
+                background: wp.css,
+                border:
+                  appearance.wallpaperId === wp.id
+                    ? "2px solid #7cc4ff"
+                    : "1px solid #34414d",
+              }}
+            />
+          ))}
+        </div>
+
+        <div style={{ marginBottom: 8, color: "#7f8995", fontSize: 13 }}>
+          Color de acento
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          {ACCENTS.map((color) => (
+            <button
+              key={color}
+              onClick={() => chooseAccent(color)}
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: "50%",
+                cursor: "pointer",
+                background: color,
+                border:
+                  appearance.accent === color
+                    ? "3px solid #e8edf2"
+                    : "1px solid #34414d",
+              }}
+            />
+          ))}
+        </div>
       </section>
     </div>
   );
