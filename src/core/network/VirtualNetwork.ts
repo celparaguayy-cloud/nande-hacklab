@@ -45,6 +45,15 @@ export class VirtualNetwork {
           dns: "10.10.0.53",
           up: true,
         },
+        {
+          name: "wlan0",
+          mac: "02:00:00:00:00:20",
+          ip: "10.10.0.11",
+          netmask: "255.255.255.0",
+          gateway: "10.10.0.1",
+          dns: "10.10.0.53",
+          up: false,
+        },
       ],
     };
 
@@ -107,11 +116,34 @@ export class VirtualNetwork {
     );
 
     if (!iface) {
+      // Compatibilidad con estados guardados que no tenían wlan0.
+      if (name === "wlan0") {
+        this.state.interfaces.push({
+          name: "wlan0",
+          mac: "02:00:00:00:00:20",
+          ip: "10.10.0.11",
+          netmask: "255.255.255.0",
+          gateway: "10.10.0.1",
+          dns: "10.10.0.53",
+          up,
+        });
+        this.saveToStorage();
+        return;
+      }
+
       throw new Error(`Interfaz no encontrada: ${name}`);
     }
 
     iface.up = up;
     this.saveToStorage();
+  }
+
+  /** Si hay conectividad a la red virtual por cable o wifi. */
+  private hasUplink(): boolean {
+    return (
+      this.getInterface("eth0")?.up === true ||
+      this.getInterface("wlan0")?.up === true
+    );
   }
 
   /**
@@ -129,6 +161,7 @@ export class VirtualNetwork {
       return false;
     }
 
-    return this.getInterface("eth0")?.up === true;
+    // Alcanzable si hay salida por cable o por wifi.
+    return this.hasUplink();
   }
 }

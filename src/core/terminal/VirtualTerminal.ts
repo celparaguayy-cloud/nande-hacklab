@@ -842,6 +842,13 @@ export class VirtualTerminal {
         case "run":
           return this.runCreation(commandArgs);
 
+        case "neofetch":
+        case "hw":
+          return { output: `${this.kernel.hardware.render()}\n`, isError: false };
+
+        case "wifi":
+          return this.wifiCmd(commandArgs);
+
         default: {
           // Si no es un builtin, quizas sea una herramienta de seguridad.
           if (this.kernel.tools.find(command)) {
@@ -1062,6 +1069,62 @@ export class VirtualTerminal {
    * Ejecuta el programa funcional de una creación de la store. Las
    * creaciones de los habitantes hacen algo de verdad: acá se corren.
    */
+  /** Gestión del WiFi virtual: scan, connect, disconnect, status. */
+  private wifiCmd(args: string[]): { output: string; isError: boolean } {
+    const action = args[0] ?? "status";
+
+    if (action === "scan" || action === "list") {
+      const nets = this.kernel.wifi.scan();
+      const current = this.kernel.wifi.current();
+
+      const lines = nets
+        .map((n) => {
+          const bars = "▂▄▆█".slice(
+            0,
+            Math.max(1, Math.ceil(n.signal / 25)),
+          );
+          const lock = n.security === "abierta" ? "  " : "🔒";
+          const here = n.ssid === current ? " (conectado)" : "";
+          return `  ${lock} ${bars.padEnd(4)} ${String(n.signal).padStart(3)}%  ${n.ssid}${here}\n     ${n.about}`;
+        })
+        .join("\n");
+
+      return {
+        output: `Redes WiFi a la vista:\n\n${lines}\n\nConectar: wifi connect <SSID> [contraseña]\n`,
+        isError: false,
+      };
+    }
+
+    if (action === "connect") {
+      const ssid = args[1];
+
+      if (!ssid) {
+        return { output: "uso: wifi connect <SSID> [contraseña]\n", isError: true };
+      }
+
+      const result = this.kernel.wifi.connect(ssid, args[2]);
+
+      return {
+        output: `${result.ok ? "📶" : "⚠"} ${result.message}\n`,
+        isError: !result.ok,
+      };
+    }
+
+    if (action === "disconnect") {
+      const result = this.kernel.wifi.disconnect();
+      return { output: `${result.message}\n`, isError: !result.ok };
+    }
+
+    const current = this.kernel.wifi.current();
+
+    return {
+      output: current
+        ? `📶 Conectado a "${current}" (wlan0 activa).\n`
+        : `WiFi desconectado. Escaneá con 'wifi scan'.\n`,
+      isError: false,
+    };
+  }
+
   private runCreation(args: string[]): { output: string; isError: boolean } {
     const id = args[0];
 
@@ -1908,6 +1971,12 @@ export class VirtualTerminal {
       "  missions         Tus misiones",
       "  store            Tienda de creaciones de habitantes",
       "  run <id>         Ejecuta una creación de la store",
+      "",
+      "Hardware y WiFi:",
+      "  neofetch         Muestra tu PC virtual (specs)",
+      "  wifi scan        Redes WiFi virtuales a la vista",
+      "  wifi connect X   Conectarse a una red",
+      "  wifi status      Estado de la conexión",
       "  help             Muestra esta ayuda",
       "",
     ].join("\n");
