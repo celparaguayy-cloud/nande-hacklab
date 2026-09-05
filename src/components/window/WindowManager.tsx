@@ -20,10 +20,10 @@ interface DragState {
 }
 
 interface WindowManagerProps {
-  children: ReactNode;
+  apps: Record<string, ReactNode>;
 }
 
-function WindowManager({ children }: WindowManagerProps) {
+function WindowManager({ apps }: WindowManagerProps) {
   const [windows, setWindows] = useState<WindowState[]>([
     {
       id: "terminal",
@@ -144,7 +144,23 @@ function WindowManager({ children }: WindowManagerProps) {
     );
   }
 
+  function getWindowTitle(id: string) {
+    if (id === "terminal") {
+      return "Terminal — student@nande-os";
+    }
+
+    if (id === "files") {
+      return "Files — /home/student";
+    }
+
+    return id;
+  }
+
   function openWindow(id: string) {
+    if (!apps[id]) {
+      return;
+    }
+
     setWindows((current) => {
       const existing = current.find(
         (win) => win.id === id,
@@ -170,7 +186,7 @@ function WindowManager({ children }: WindowManagerProps) {
         ...current,
         {
           id,
-          title: "Terminal — student@nande-os",
+          title: getWindowTitle(id),
           minimized: false,
           maximized: false,
           x: 180,
@@ -193,7 +209,7 @@ function WindowManager({ children }: WindowManagerProps) {
     return () => {
       delete globalWindow.openNandeWindow;
     };
-  }, []);
+  }, [apps]);
 
   useEffect(() => {
     function handlePointerMove(event: PointerEvent) {
@@ -376,9 +392,7 @@ function WindowManager({ children }: WindowManagerProps) {
                 height: "calc(100% - 44px)",
               }}
             >
-              {win.id === "terminal"
-                ? children
-                : null}
+              {apps[win.id] ?? null}
             </div>
           </div>
         );
