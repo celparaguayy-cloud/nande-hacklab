@@ -8,6 +8,7 @@ import { NetworkManager } from "../network/NetworkManager";
 import Browser from "../browser/Browser";
 import WorldMonitor from "../world/WorldMonitor";
 import WorldMapView from "../map/WorldMapView";
+import MarketView from "../market/MarketView";
 import { VirtualKernel } from "../../core/VirtualKernel";
 
 const iconStyle = {
@@ -94,6 +95,7 @@ function Desktop() {
       browser: <Browser kernel={kernel} />,
       world: <WorldMonitor kernel={kernel} />,
       map: <WorldMapView kernel={kernel} />,
+      market: <MarketView kernel={kernel} />,
     }),
     [kernel],
   );
@@ -248,6 +250,16 @@ function Desktop() {
             🗺️
           </div>
           Mapa
+        </button>
+
+        <button
+          onClick={() => openWindow("market")}
+          style={iconStyle}
+        >
+          <div style={{ fontSize: "28px", marginBottom: "8px" }}>
+            📈
+          </div>
+          Bolsa
         </button>
       </div>
 
