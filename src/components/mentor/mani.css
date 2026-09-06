@@ -1,0 +1,71 @@
+.mani {
+  position: fixed;
+  right: 12px;
+  bottom: calc(var(--nd-dock) + 18px);
+  z-index: 600;
+  width: min(340px, calc(100vw - 24px));
+  background: var(--nd-panel-solid);
+  border: 2px solid var(--nd-accent);
+  box-shadow: var(--nd-shadow-lg);
+  font-size: 13px;
+  animation: nd-pop 0.18s ease-out;
+}
+.mani__head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 10px;
+  background: var(--nd-accent);
+  color: #06121a;
+}
+.mani__who { font-weight: 700; }
+.mani__head-actions { display: flex; gap: 4px; }
+.mani__x {
+  border: none; background: rgba(0,0,0,0.15); color: #06121a;
+  width: 24px; height: 24px; cursor: pointer; font-size: 12px;
+}
+.mani__body { padding: 12px; }
+.mani__text { line-height: 1.55; color: var(--nd-text); }
+.mani__cmd {
+  margin: 10px 0;
+  display: flex; align-items: center; gap: 8px;
+  background: #0f1319; border: 1px solid var(--nd-border);
+  padding: 8px 10px;
+}
+.mani__cmd code {
+  flex: 1; min-width: 0;
+  color: #ffd479; font-family: var(--nd-mono); font-size: 12px;
+  word-break: break-all;
+}
+.mani__run {
+  flex-shrink: 0;
+  border: 1px solid var(--nd-accent); background: var(--nd-accent-soft);
+  color: var(--nd-accent); font: inherit; font-size: 12px;
+  padding: 4px 10px; cursor: pointer; font-weight: 700;
+}
+.mani__actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.mani__btn {
+  flex: 1; min-width: 130px;
+  border: 2px solid var(--nd-border-strong);
+  background: var(--nd-surface-3); color: var(--nd-text);
+  font: inherit; font-size: 12px; padding: 8px; cursor: pointer;
+}
+.mani__btn:hover { background: var(--nd-accent-soft); border-color: var(--nd-accent-line); }
+.mani__btn--ghost { flex: 0 0 auto; min-width: 0; }
+
+.mani-nub {
+  position: fixed;
+  right: 14px;
+  bottom: calc(var(--nd-dock) + 18px);
+  z-index: 600;
+  width: 52px; height: 52px;
+  border-radius: 999px;
+  border: 2px solid var(--nd-accent);
+  background: var(--nd-panel-solid);
+  font-size: 24px; cursor: pointer;
+  box-shadow: var(--nd-shadow-md);
+  animation: mani-bounce 2.6s ease-in-out infinite;
+}
+.mani-nub--muted { opacity: 0.6; animation: none; }
+@keyframes mani-bounce {
+  0%, 92%, 100% { transform: translateY(0); }
+  96% { transform: translateY(-5px); }
+}

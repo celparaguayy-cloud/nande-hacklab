@@ -23,6 +23,7 @@ import { LessonEngine } from "./academy/Lessons";
 import { Progression } from "./game/Progression";
 import { Notoriety } from "./game/Notoriety";
 import { Campaign } from "./campaign/Campaign";
+import { Mentor } from "./mentor/Mentor";
 import { Consequences } from "./world/Consequences";
 import { MissionEngine } from "./game/Missions";
 import { Store } from "./game/Store";
@@ -72,6 +73,7 @@ export class VirtualKernel {
   public player: Progression;
   public notoriety: Notoriety;
   public campaign: Campaign;
+  public mentor: Mentor;
   public consequences: Consequences;
   public missions: MissionEngine;
   public store: Store;
@@ -154,6 +156,7 @@ export class VirtualKernel {
     this.economy = new Economy(this.events);
     this.notoriety = new Notoriety(this.events);
     this.campaign = new Campaign(this.events);
+    this.mentor = new Mentor(this.events, this.campaign);
     this.consequences = new Consequences({
       economy: this.economy,
       news: this.news,
@@ -582,6 +585,16 @@ export class VirtualKernel {
     for (const signal of signals) {
       const r = this.captureSignal(signal);
 
+      // La Mani aprende: si el jugador capturó algo, cuenta para su
+      // maestría del tema (y quizá la Mani se gradúe de él).
+      const topic = mentorTopicForSignal(signal);
+      if (topic) {
+        const g = this.mentor.noteSolved(topic);
+        if (g.graduated) {
+          notes.push(`🥜 La Mani: "${topic.toUpperCase()} ya lo dominás. Te suelto en esto — seguís solo."`);
+        }
+      }
+
       if (r.reacted && r.headline) {
         notes.push(`📰 El mundo reacciona: "${r.headline}"`);
       }
@@ -641,6 +654,7 @@ export class VirtualKernel {
       livelihoods: this.worldEngine.livelihoodStats(),
       notoriety: this.notoriety.getState(),
       campaign: this.campaign.getState(),
+      mentor: this.mentor.getState(),
     };
   }
 
@@ -655,4 +669,18 @@ export class VirtualKernel {
       worldEntityCount: this.registry.count(),
     };
   }
+}
+
+/** Mapea una señal capturada al tema de aprendizaje de la Mani. */
+function mentorTopicForSignal(signal: string): import("./mentor/Mentor").Topic | null {
+  const f = signal.toLowerCase();
+  if (f.includes("login_bypass")) return "sqli";
+  if (f.startsWith("m8arete") || f.includes("union")) return "union";
+  if (f.startsWith("crack:")) return "crack";
+  if (f.includes("jwt")) return "jwt";
+  if (f.includes("idor")) return "idor";
+  if (f.includes("cmd_injection")) return "cmdi";
+  if (f.includes("path_traversal")) return "traversal";
+  if (f.includes("xss")) return "xss";
+  return null;
 }

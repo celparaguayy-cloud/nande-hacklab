@@ -17,6 +17,7 @@ import World2DView from "../world2d/World2DView";
 import LearnView from "../learn/LearnView";
 import MissionControl from "../mission/MissionControl";
 import Boot from "../boot/Boot";
+import Mani from "../mentor/Mani";
 import { VirtualKernel } from "../../core/VirtualKernel";
 import { weatherFor } from "../../core/world/Weather";
 import { APPS, CATEGORIES, type AppCategory } from "./apps";
@@ -485,6 +486,15 @@ function Desktop() {
           </button>
         </div>
       </div>
+      {booted && (
+        <Mani
+          kernel={kernel}
+          onRunCommand={(cmd) => {
+            openWindow("terminal");
+            setTimeout(() => kernel.queueCommand(cmd), 250);
+          }}
+        />
+      )}
     </div>
     </>
   );
