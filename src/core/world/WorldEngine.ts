@@ -280,6 +280,16 @@ export class WorldEngine {
     return this.livelihoods.get(id);
   }
 
+  /** Plata disponible de una persona (para el panel de un sitio hackeado). */
+  wealthOf(id: string): number {
+    return this.livelihoods.wealthOf(id);
+  }
+
+  /** Roba plata de la cuenta de una persona. Devuelve lo que se pudo sacar. */
+  robWealth(id: string, amount?: number): number {
+    return this.livelihoods.withdraw(id, amount);
+  }
+
   getSocial(): VirtualSocial {
     return this.social;
   }

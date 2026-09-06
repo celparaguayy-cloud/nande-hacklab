@@ -26,6 +26,19 @@ import {
  * real, sin nada guionado.
  */
 
+/**
+ * Puente entre el sitio hackeado y la economía real del mundo. El panel lo
+ * usa para mostrar el saldo verdadero del dueño y para transferirlo a la
+ * billetera del jugador cuando roba. Lo provee el kernel; en pruebas que
+ * construyen el sitio a mano puede faltar (cae a un saldo simulado).
+ */
+export interface SiteBank {
+  /** Plata disponible del dueño, en guaraníes. */
+  balanceOf(ownerId: string): number;
+  /** Vacía la cuenta del dueño hacia el jugador. Devuelve lo robado y si lo detectaron. */
+  rob(ownerId: string, siteName: string): { taken: number; busted: boolean };
+}
+
 function seedOf(text: string): number {
   let h = 2166136261;
   for (let i = 0; i < text.length; i += 1) {
@@ -58,6 +71,9 @@ export class GeneratedSite implements WebApp {
   private ownerUser: string;
   private ownerPass: string;
   private sessionToken: string;
+  private bank?: SiteBank;
+  /** Ya se robó la cuenta: la plata ya no está. */
+  private robbedInfo?: { taken: number };
   readonly flag: string;
 
   constructor(
@@ -65,11 +81,13 @@ export class GeneratedSite implements WebApp {
     entity: WorldEntity,
     owner: OwnerProfile,
     day: () => number,
+    bank?: SiteBank,
   ) {
     this.hostname = hostname;
     this.entity = entity;
     this.owner = owner;
     this.day = day;
+    this.bank = bank;
     this.title = entity.name;
     this.description = entity.description;
 
@@ -106,6 +124,9 @@ export class GeneratedSite implements WebApp {
     }
     if (req.path === "/panel") {
       return this.panel(req);
+    }
+    if (req.path === "/robar") {
+      return this.rob(req);
     }
     if (req.path === "/salir") {
       return { ...redirect("/login"), setCookies: { sesion: "" } };
@@ -193,10 +214,30 @@ Su contraseña sale de crackear el hash que expone el buscador con un
       );
     }
 
-    const saldo = 50000 + (seedOf(this.entity.id + "saldo") % 9_950_000);
+    // Saldo REAL del dueño (su riqueza en la economía del mundo). Sin banco
+    // conectado (algunas pruebas), cae a un número simulado estable.
+    const saldo = this.bank
+      ? this.bank.balanceOf(this.entity.ownerId)
+      : 50000 + (seedOf(this.entity.id + "saldo") % 9_950_000);
     const ci = this.digits("ci", 7);
     const tel = this.digits("tel", 9);
     const otraClave = weakPasswordFor(this.owner.name + " respaldo");
+
+    // Zona de la billetera: o ya la vaciaste, o hay un botón para robar.
+    let walletZone: string;
+    if (this.robbedInfo) {
+      walletZone = `
+    <p class="panel-big">₲ ${saldo.toLocaleString("es-PY")}</p>
+    <p class="panel-robbed">Ya transferiste ₲ ${this.robbedInfo.taken.toLocaleString("es-PY")}
+       a tu billetera.</p>`;
+    } else {
+      walletZone = `
+    <p class="panel-big">₲ ${saldo.toLocaleString("es-PY")}</p>
+    <p>Cuenta a nombre de ${escapeHtml(this.owner.name)}.</p>
+    <form method="POST" action="/robar" class="panel-rob">
+      <button type="submit">Transferir todo a mi cuenta →</button>
+    </form>`;
+    }
 
     const body = `
 <p class="lab-notice lab-notice--ok">Sesión iniciada como
@@ -204,9 +245,7 @@ Su contraseña sale de crackear el hash que expone el buscador con un
   del dueño.</p>
 <div class="panel-grid">
   <div class="panel-card">
-    <h3>Billetera</h3>
-    <p class="panel-big">₲ ${saldo.toLocaleString("es-PY")}</p>
-    <p>Cuenta a nombre de ${escapeHtml(this.owner.name)}.</p>
+    <h3>Billetera</h3>${walletZone}
   </div>
   <div class="panel-card">
     <h3>Datos personales</h3>
@@ -225,11 +264,27 @@ Su contraseña sale de crackear el hash que expone el buscador con un
   </div>
 </div>
 <p class="lab-hint">Reusar contraseñas es oro para vos: probá
-<code>${escapeHtml(otraClave)}</code> en otras cuentas de esta persona.</p>
+<code>${escapeHtml(otraClave)}</code> en otras cuentas de esta persona.
+Y robar deja rastro: te sube el calor y sale en las noticias.</p>
 <p class="site-foot"><a href="/salir">Cerrar sesión</a> ·
   <a href="/">Volver al sitio</a></p>`;
 
     return html(this.wrap(body), { debug: { note: this.flag } });
+  }
+
+  /** Transferir la plata del dueño a la billetera del jugador. */
+  private rob(req: HttpRequest): HttpResponse {
+    if (req.cookies.sesion !== this.sessionToken) {
+      return { ...redirect("/login"), status: 302 };
+    }
+    if (req.method !== "POST") {
+      return redirect("/panel");
+    }
+    if (!this.robbedInfo && this.bank) {
+      const { taken } = this.bank.rob(this.entity.ownerId, this.entity.name);
+      this.robbedInfo = { taken };
+    }
+    return redirect("/panel");
   }
 
   private search(req: HttpRequest): HttpResponse {

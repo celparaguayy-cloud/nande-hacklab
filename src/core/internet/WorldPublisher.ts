@@ -1,6 +1,6 @@
 import type { WorldEntity } from "../world/WorldRegistry";
 import { renderLivingSite, type OwnerProfile } from "./LivingSite";
-import { GeneratedSite } from "../http/apps/generated";
+import { GeneratedSite, type SiteBank } from "../http/apps/generated";
 import type { WebServer } from "../http/WebServer";
 import type { VirtualDNS } from "../dns/VirtualDNS";
 import type { VirtualInternet } from "./VirtualInternet";
@@ -47,6 +47,8 @@ export class WorldPublisher {
   private ownerProfile: (ownerId: string, metadata: Record<string, string>) => OwnerProfile;
   /** Servidor web: donde se registran los sitios como apps hackeables. */
   private webServer?: WebServer;
+  /** Puente con la economía: saldo real del dueño y robo hacia el jugador. */
+  private bank?: SiteBank;
 
   constructor(
     dns: VirtualDNS,
@@ -56,6 +58,7 @@ export class WorldPublisher {
       currentDay?: () => number;
       ownerProfile?: (ownerId: string, metadata: Record<string, string>) => OwnerProfile;
       webServer?: WebServer;
+      bank?: SiteBank;
     } = {},
   ) {
     this.dns = dns;
@@ -72,6 +75,7 @@ export class WorldPublisher {
         interests: [],
       }));
     this.webServer = options.webServer;
+    this.bank = options.bank;
   }
 
   /** Dominio libre derivado del nombre de la entidad. */
@@ -145,7 +149,7 @@ export class WorldPublisher {
     if (this.webServer) {
       const owner = this.ownerProfile(entity.ownerId, entity.metadata);
       this.webServer.register(
-        new GeneratedSite(hostname, entity, owner, this.currentDay),
+        new GeneratedSite(hostname, entity, owner, this.currentDay, this.bank),
       );
     }
 

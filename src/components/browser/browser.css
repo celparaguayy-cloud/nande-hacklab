@@ -295,3 +295,10 @@
   background: rgba(74,222,128,0.14); color: #7ee787;
   font-family: var(--nd-mono, monospace); font-size: 12px; border-radius: 4px;
 }
+.nande-site .panel-rob { margin: 8px 0 0; }
+.nande-site .panel-rob button {
+  padding: 8px 14px; border: none; cursor: pointer;
+  background: var(--nd-danger, #dc2626); color: #fff;
+  font: inherit; font-weight: 700; border-radius: var(--nd-r-sm);
+}
+.nande-site .panel-robbed { margin: 6px 0 0; color: #ff9b7b; font-weight: 700; }

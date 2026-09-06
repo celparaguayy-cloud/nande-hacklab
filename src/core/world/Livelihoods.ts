@@ -123,6 +123,26 @@ export class Livelihoods {
     return this.state.get(id);
   }
 
+  /** Plata disponible de una persona, redondeada (para robar o mostrar). */
+  wealthOf(id: string): number {
+    return Math.round(this.state.get(id)?.wealth ?? 0);
+  }
+
+  /**
+   * Retira dinero de la cuenta de una persona (un robo). Devuelve cuánto se
+   * pudo sacar de verdad —nunca más de lo que tenía—. Es plata que sale de
+   * la economía del NPC y entra a la billetera del jugador: circula.
+   */
+  withdraw(id: string, amount?: number): number {
+    const life = this.state.get(id);
+    if (!life) return 0;
+
+    const take = amount == null ? life.wealth : Math.min(Math.max(0, amount), life.wealth);
+    life.wealth = Math.max(0, life.wealth - take);
+
+    return Math.round(take);
+  }
+
   /**
    * Avanza un lote de habitantes un paso de vida económica.
    *

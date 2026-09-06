@@ -146,6 +146,31 @@ export class VirtualKernel {
           };
         },
         webServer: this.web,
+        // Puente con la economía real: el panel de un sitio hackeado muestra
+        // el saldo verdadero del dueño y puede transferirlo al jugador. Los
+        // métodos son closures: se ejecutan al robar, cuando player/notoriety
+        // ya existen (aunque el publisher se arme antes que ellos).
+        bank: {
+          balanceOf: (ownerId) => this.worldEngine.wealthOf(ownerId),
+          rob: (ownerId, siteName) => {
+            const tick = this.world.getState().clock.tick;
+            const taken = this.worldEngine.robWealth(ownerId);
+            // La plata sale del NPC y entra a la billetera del jugador: circula.
+            this.player.award(50, { coins: taken, tick });
+            // Robar deja rastro: notoriedad, calor y una noticia.
+            this.notoriety.addNotoriety(20);
+            const { busted } = this.notoriety.addHeat(30);
+            this.news.headline(
+              `Vaciaron una cuenta en ${siteName}`,
+              `Una transferencia no autorizada dejó la cuenta en cero. ` +
+                `El caso escaló y el Blue Team ya investiga.`,
+              "Seguridad",
+              tick,
+            );
+            this.events.emit("world.news.created", { signal: `robo:${siteName}` });
+            return { taken, busted };
+          },
+        },
       },
     );
 
