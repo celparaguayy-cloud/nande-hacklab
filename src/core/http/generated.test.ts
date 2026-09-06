@@ -46,6 +46,53 @@ describe("sitios de NPC hackeables", () => {
     expect(cracked).toMatch(/Contraseña:/);
   });
 
+  it("toma de cuenta: crackeás la clave y entrás al panel privado del dueño", () => {
+    resetStorage(); seedRandom();
+    const k = new VirtualKernel();
+    const t = new VirtualTerminal(k);
+    const host = "arandu-software.nande";
+
+    // El login revela quién es el admin (usuario), no la clave.
+    const loginPage = k.browser.request("GET", host, "/login");
+    const user = loginPage.response.body.match(
+      /usuario admin es\s*<code>([^<]+)<\/code>/,
+    )?.[1];
+    expect(user).toBeTruthy();
+
+    // Sacar el hash del admin con UNION y crackearlo.
+    const inj = "%' UNION SELECT id, usuario, password FROM usuarios WHERE rol='admin' -- ";
+    const res = k.browser.request("GET", host, `/buscar?q=${encodeURIComponent(inj)}`);
+    const hash = res.response.body.match(/[0-9a-f]{32}/)?.[0];
+    expect(hash).toBeTruthy();
+    const password = t.execute(`crack ${hash}`).match(/Contraseña:\s*([^\s\\]+)/)?.[1];
+    expect(password).toBeTruthy();
+
+    // Con clave incorrecta: no entra.
+    const bad = k.browser.request("POST", host, "/login", {
+      usuario: user!,
+      password: "nope",
+    });
+    expect(bad.response.body).not.toContain("Billetera");
+
+    // Con la clave crackeada: entra al panel privado (sigue la redirección).
+    const ok = k.browser.request("POST", host, "/login", {
+      usuario: user!,
+      password: password!,
+    });
+    expect(ok.finalPath).toBe("/panel");
+    expect(ok.response.body).toContain("Billetera");
+    expect(ok.response.body).toMatch(/ND\{acceso:[^}]+\}/);
+  });
+
+  it("el panel privado exige sesión: sin cookie válida, 401", () => {
+    resetStorage(); seedRandom();
+    const k = new VirtualKernel();
+    const host = "yvyra-scanner.nande";
+    const res = k.browser.request("GET", host, "/panel");
+    expect(res.response.status).toBe(401);
+    expect(res.response.body).not.toContain("Billetera");
+  });
+
   it("sacar la bandera de secretos da notoriedad (comprometés al usuario)", () => {
     resetStorage(); seedRandom();
     const k = new VirtualKernel();

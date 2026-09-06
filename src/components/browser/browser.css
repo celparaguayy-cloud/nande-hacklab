@@ -256,3 +256,42 @@
   background: var(--nd-accent); color: #06121a;
   font: inherit; font-weight: 700; cursor: pointer;
 }
+.nande-site .site-owner { margin: 8px 0 0; font-size: 12px; }
+
+/* Login del propietario y panel privado (la meta del ataque) */
+.nande-site .site-login {
+  display: flex; flex-direction: column; gap: 10px;
+  max-width: 320px; margin: 14px 0;
+}
+.nande-site .site-login label {
+  display: flex; flex-direction: column; gap: 4px;
+  font-size: 12px; color: var(--nd-text-dim);
+}
+.nande-site .site-login input {
+  padding: 8px 10px;
+  border: 1px solid var(--nd-border-strong);
+  background: rgba(0,0,0,0.25); color: var(--nd-text);
+  font: inherit; font-size: 13px;
+}
+.nande-site .site-login button {
+  align-self: flex-start;
+  padding: 8px 18px; border: none;
+  background: var(--nd-accent); color: #06121a;
+  font: inherit; font-weight: 700; cursor: pointer;
+}
+.nande-site .panel-grid {
+  display: grid; gap: 12px; margin: 14px 0;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+.nande-site .panel-card {
+  padding: 12px 14px; border: 1px solid var(--nd-border);
+  border-radius: var(--nd-r-sm); background: rgba(255,255,255,0.03);
+}
+.nande-site .panel-card h3 { margin: 0 0 8px; font-size: 13px; }
+.nande-site .panel-card ul { margin: 0; padding-left: 16px; font-size: 12.5px; }
+.nande-site .panel-big { margin: 4px 0; font-size: 22px; font-weight: 800; color: var(--nd-accent); }
+.nande-site .panel-flag {
+  margin: 8px 0 0; padding: 6px 8px;
+  background: rgba(74,222,128,0.14); color: #7ee787;
+  font-family: var(--nd-mono, monospace); font-size: 12px; border-radius: 4px;
+}
