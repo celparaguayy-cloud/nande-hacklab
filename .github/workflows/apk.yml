@@ -1,0 +1,54 @@
+name: Compilar APK de ÑANDE Hacklab
+
+# Manual: se corre desde la pestaña Actions → "Compilar APK…" → Run workflow.
+# Está aislado del despliegue a Pages, así que nunca lo rompe.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Configurar Android SDK
+        uses: android-actions/setup-android@v3
+
+      - run: npm ci
+
+      - name: Compilar la web
+        run: npm run build
+
+      # Capacitor: instala el runtime, agrega la plataforma Android y
+      # sincroniza la web compilada dentro del proyecto nativo.
+      - name: Preparar proyecto Android (Capacitor)
+        run: |
+          npm install --no-save @capacitor/core @capacitor/cli @capacitor/android
+          npx cap add android
+          npx cap sync android
+
+      - name: Compilar APK de depuración
+        run: |
+          cd android
+          chmod +x ./gradlew
+          ./gradlew assembleDebug
+
+      - name: Publicar el APK como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: nande-hacklab-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error

@@ -5,7 +5,21 @@ Este archivo deja todo listo; solo falta correr los comandos en una
 computadora que tenga **Node**, **Java (JDK 17)** y el **Android SDK**
 (se instalan con Android Studio).
 
-## 0. Probar YA sin APK (recomendado para la demo)
+## 0a. Bajar el APK ya compilado (lo más fácil, sin instalar nada)
+
+No necesitás computadora con Android SDK: GitHub lo compila por vos.
+
+1. Entrá al repo en GitHub → pestaña **Actions**.
+2. Elegí el flujo **"Compilar APK de ÑANDE Hacklab"** → botón **Run workflow**.
+3. Cuando termine (unos minutos), abrí esa corrida y bajá el artefacto
+   **`nande-hacklab-apk`**. Adentro está `app-debug.apk`.
+4. Pasalo al teléfono e instalalo (permití "instalar apps de orígenes
+   desconocidos").
+
+Es un APK de depuración (sin firma de tienda), perfecto para probar y
+compartir con alguien de confianza.
+
+## 0b. Probar YA sin APK (recomendado para la demo)
 
 No hace falta APK para probar. La app es una **PWA instalable**:
 
