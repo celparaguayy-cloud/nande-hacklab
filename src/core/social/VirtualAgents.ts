@@ -119,6 +119,12 @@ interface CreationProfile {
   prefixes: string[];
   purpose: string;
   tags: string[];
+  /**
+   * Marcas propias, de una sola pieza, para que el mundo no suene todo
+   * igual ni todo en guaraní: "Gulu", "Banco Justicia", "Vortex"… conviven
+   * con los nombres de dos palabras (prefijo + raíz).
+   */
+  brands?: string[];
 }
 
 const CREATION_PROFILES: Record<string, CreationProfile> = {
@@ -127,60 +133,70 @@ const CREATION_PROFILES: Record<string, CreationProfile> = {
     prefixes: ["App", "Nodo", "Core"],
     purpose: "experimentar con nuevas ideas de programación",
     tags: ["programación", "tecnología"],
+    brands: ["Gulu", "Vortex", "Bytebox", "Nixel", "Zappy", "Codeá"],
   },
   designer: {
     type: "website",
     prefixes: ["Portal", "Estudio", "Espacio"],
     purpose: "compartir proyectos creativos",
     tags: ["diseño", "web"],
+    brands: ["Pixelar", "Lumina", "Trazo", "Kromá"],
   },
   gamer: {
     type: "game",
     prefixes: ["Juego", "Arena", "Zona"],
     purpose: "entretener a la comunidad",
     tags: ["gaming", "entretenimiento"],
+    brands: ["Vortex Games", "Pixel Arena", "NitroPlay"],
   },
   teacher: {
     type: "course",
     prefixes: ["Curso", "Taller", "Escuela"],
     purpose: "compartir conocimientos con quien quiera aprender",
     tags: ["educación", "aprendizaje"],
+    brands: ["Academia Lumen", "Aprendé+", "Sabité"],
   },
   "security-analyst": {
     type: "lab",
     prefixes: ["Lab", "Laboratorio", "Refugio"],
     purpose: "practicar seguridad en un entorno controlado",
     tags: ["ciberseguridad", "educación"],
+    brands: ["BlackVault", "RedShield", "Zero Trust Lab"],
   },
   journalist: {
     type: "website",
     prefixes: ["Diario", "Portal", "Boletín"],
     purpose: "publicar investigaciones y noticias del mundo virtual",
     tags: ["noticias", "investigación"],
+    brands: ["Portal Justicia", "La Voz Digital", "NotiNova"],
   },
   entrepreneur: {
     type: "company",
     prefixes: ["Empresa", "Grupo", "Cooperativa"],
     purpose: "desarrollar nuevos proyectos",
     tags: ["negocios", "emprendimiento"],
+    brands: ["Banco Justicia", "Grupo Vortex", "Nova Corp", "Fintar", "Kamba S.A."],
   },
   researcher: {
     type: "project",
     prefixes: ["Proyecto", "Instituto", "Observatorio"],
     purpose: "investigar y documentar hallazgos",
     tags: ["ciencia", "investigación"],
+    brands: ["Instituto Lumen", "Quantia", "Observatorio Orbe"],
   },
   merchant: {
     type: "company",
     prefixes: ["Tienda", "Mercado", "Feria"],
     purpose: "ofrecer productos a la comunidad",
     tags: ["comercio", "negocios"],
+    brands: ["Mercadín", "Comprá", "Bazar Orbe", "Tiendita Nova"],
   },
   technician: {
     type: "tool",
     prefixes: ["Herramienta", "Taller", "Central"],
     purpose: "trabajar con sistemas y redes",
     tags: ["tecnología", "redes"],
+    brands: ["Redix", "NetCentral", "Cablera"],
   },
   student: {
     type: "project",
@@ -193,6 +209,7 @@ const CREATION_PROFILES: Record<string, CreationProfile> = {
     prefixes: ["Comunidad", "Círculo", "Grupo"],
     purpose: "reunir gente con intereses parecidos",
     tags: ["comunidad", "social"],
+    brands: ["Sento", "Órbita", "Punto de Encuentro"],
   },
 };
 
@@ -356,24 +373,31 @@ export class VirtualAgents {
       CREATION_PROFILES[person.profession] ??
       CREATION_PROFILES.user;
 
-    // Hashear `id:contador` no alcanzaba: con 36 combinaciones posibles,
-    // dos creaciones del mismo agente colisionaban por azar. En su lugar
-    // el hash fija solo el punto de partida y el contador avanza de a uno
-    // sobre la grilla prefijo x raiz, asi que las creaciones sucesivas de
-    // un agente caen siempre en combinaciones distintas.
-    const combos = profile.prefixes.length * NAME_ROOTS.length;
+    // Hashear `id:contador` no alcanzaba: con pocas combinaciones, dos
+    // creaciones del mismo agente colisionaban por azar. En su lugar el
+    // hash fija solo el punto de partida y el contador avanza de a uno
+    // sobre una lista que junta las marcas propias (de una pieza) y la
+    // grilla prefijo x raiz, asi que las creaciones sucesivas de un agente
+    // caen siempre en nombres distintos y con estilos variados.
+    const brands = profile.brands ?? [];
+    const twoWord = profile.prefixes.length * NAME_ROOTS.length;
+    const total = brands.length + twoWord;
     const start = this.hashText(person.id);
-    const slot = (start + creationCount) % combos;
+    const slot = (start + creationCount) % total;
 
-    const root = NAME_ROOTS[slot % NAME_ROOTS.length];
-
-    const prefix =
-      profile.prefixes[
-        Math.floor(slot / NAME_ROOTS.length) %
-          profile.prefixes.length
-      ];
-
-    const name = `${prefix} ${root}`;
+    let name: string;
+    if (slot < brands.length) {
+      // Marca propia: "Gulu", "Banco Justicia", "Vortex"…
+      name = brands[slot];
+    } else {
+      const s = slot - brands.length;
+      const root = NAME_ROOTS[s % NAME_ROOTS.length];
+      const prefix =
+        profile.prefixes[
+          Math.floor(s / NAME_ROOTS.length) % profile.prefixes.length
+        ];
+      name = `${prefix} ${root}`;
+    }
 
     return {
       type: profile.type,

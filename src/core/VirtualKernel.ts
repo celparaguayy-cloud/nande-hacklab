@@ -438,15 +438,18 @@ export class VirtualKernel {
     }[] = [
       { type: "repository", name: "Yvyra Scanner", desc: "Escáner de puertos ligero, escrito en la comunidad.", ageDays: 40, tags: ["redes", "seguridad"] },
       { type: "company", name: "Arandu Software", desc: "Estudio de software a medida para el mundo de ÑANDE.", ageDays: 60, tags: ["negocios", "tecnología"] },
+      { type: "app", name: "Gulu", desc: "El buscador más usado del mundo virtual. Todo empieza acá.", ageDays: 90, tags: ["tecnología", "buscador"] },
+      { type: "company", name: "Banco Justicia", desc: "Banca digital para todos. Tu plata, siempre a mano.", ageDays: 80, tags: ["finanzas", "negocios"] },
       { type: "website", name: "Bitácora de Kamba", desc: "Un blog sobre aprender a programar desde cero.", ageDays: 35, tags: ["educación"] },
-      { type: "app", name: "Ñe'ẽ Chat", desc: "App de mensajería con cifrado punta a punta.", ageDays: 25, tags: ["tecnología"] },
+      { type: "app", name: "Vortex Chat", desc: "App de mensajería con cifrado punta a punta.", ageDays: 25, tags: ["tecnología"] },
       { type: "community", name: "Foro Tapé", desc: "La comunidad de redes y sysadmin del mundo.", ageDays: 50, tags: ["redes"] },
-      { type: "game", name: "Mymba Runner", desc: "Un juego de plataformas hecho por un vecino.", ageDays: 18, tags: ["videojuegos"] },
+      { type: "game", name: "Vortex Games", desc: "Estudio indie de juegos de plataformas y arcade.", ageDays: 18, tags: ["videojuegos"] },
       { type: "company", name: "Pytã Security", desc: "Consultora de ciberseguridad y pentesting.", ageDays: 70, tags: ["seguridad"] },
+      { type: "company", name: "Nova Corp", desc: "Holding de tecnología: nube, datos y logística.", ageDays: 65, tags: ["negocios", "tecnología"] },
       { type: "repository", name: "guata-cli", desc: "Herramienta de línea de comandos para automatizar tareas.", ageDays: 30, tags: ["Git", "tecnología"] },
       { type: "website", name: "Cocina Ñande", desc: "Recetas paraguayas explicadas paso a paso.", ageDays: 45, tags: ["cultura"] },
-      { type: "channel", name: "Canal Guaraní Tech", desc: "Tutoriales de tecnología en guaraní y español.", ageDays: 22, tags: ["educación", "video"] },
-      { type: "organization", name: "Yvoty Media", desc: "Medio digital independiente del mundo.", ageDays: 55, tags: ["medios"] },
+      { type: "channel", name: "Pixelar", desc: "Estudio de diseño y tutoriales visuales.", ageDays: 22, tags: ["diseño", "video"] },
+      { type: "organization", name: "Portal Justicia", desc: "Medio digital independiente que investiga al poder.", ageDays: 55, tags: ["medios", "noticias"] },
       { type: "repository", name: "sql-lab", desc: "Colección de retos de inyección SQL para practicar.", ageDays: 15, tags: ["seguridad", "SQL"] },
     ];
 
