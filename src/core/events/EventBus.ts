@@ -35,7 +35,9 @@ export type EventType =
   | "appearance.changed"
   // Grupos hacker.
   | "group.joined"
-  | "group.op";
+  | "group.op"
+  // La app de aprendizaje pide correr un comando en la terminal.
+  | "terminal.run";
 
 export interface VirtualEvent<T = unknown> {
   type: EventType;

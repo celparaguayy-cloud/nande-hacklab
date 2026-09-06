@@ -55,6 +55,31 @@ const STORAGE_KEY = "nande-player";
 /** Moneda inicial del jugador. */
 const STARTING_WALLET = 5000;
 
+/** Rangos del jugador según su nivel (como una escalera). */
+export interface Rank {
+  name: string;
+  icon: string;
+  minLevel: number;
+}
+
+export const RANKS: Rank[] = [
+  { name: "Novato", icon: "👟", minLevel: 1 },
+  { name: "Aprendiz", icon: "📚", minLevel: 3 },
+  { name: "Auditor", icon: "🖥️", minLevel: 6 },
+  { name: "Hacker", icon: "🥷", minLevel: 11 },
+  { name: "Élite", icon: "⭐", minLevel: 21 },
+  { name: "Leyenda", icon: "🏆", minLevel: 35 },
+];
+
+/** Rango que corresponde a un nivel. */
+export function rankForLevel(level: number): Rank {
+  let rank = RANKS[0];
+  for (const r of RANKS) {
+    if (level >= r.minLevel) rank = r;
+  }
+  return rank;
+}
+
 /** XP necesaria para pasar del nivel n al n+1: crece de forma suave. */
 export function xpForLevel(level: number): number {
   return 100 * level * level;

@@ -35,6 +35,7 @@ const WINDOW_TITLES: Record<string, string> = {
   notes: "Notas",
   games: "ÑANDE Juegos",
   world2d: "ÑANDE World 2D",
+  learn: "ÑANDE Learn — aprendé hacking",
 };
 
 /** Alto de la barra superior del escritorio. */
