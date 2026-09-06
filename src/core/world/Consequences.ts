@@ -143,6 +143,31 @@ export class Consequences {
     }
     this.processed.add(signal);
 
+    // Banderas de acceso a sitios de habitantes: ND{acceso:<sitio>}. No
+    // están en la tabla fija, pero comprometer a alguien igual tiene
+    // consecuencias — sube tu notoriedad y tu calor, y el mundo se entera.
+    const accessMatch = signal.match(/^ND\{acceso:([^}]+)\}$/);
+    if (accessMatch) {
+      const site = accessMatch[1];
+      this.notoriety.addNotoriety(12);
+      this.notoriety.adjustReputation("colectivo", 4);
+      const { busted } = this.notoriety.addHeat(14);
+      const article = this.news.headline(
+        `Intrusión reportada en ${site}.nande`,
+        `Un usuario denunció acceso no autorizado a su sitio. La brecha ya circula.`,
+        "Seguridad",
+        tick,
+      );
+      this.events.emit("world.news.created", { signal });
+      return {
+        reacted: true,
+        busted,
+        headline: article.headline,
+        chapterCompleted: progress.chapterCompleted?.title,
+        campaignCompleted: progress.campaignCompleted,
+      };
+    }
+
     const reaction = REACTIONS[signal];
 
     if (!reaction) {

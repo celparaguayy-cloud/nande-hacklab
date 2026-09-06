@@ -143,6 +143,7 @@ export class VirtualKernel {
             interests: person?.interests ?? [],
           };
         },
+        webServer: this.web,
       },
     );
 
@@ -674,7 +675,7 @@ export class VirtualKernel {
 /** Mapea una señal capturada al tema de aprendizaje de la Mani. */
 function mentorTopicForSignal(signal: string): import("./mentor/Mentor").Topic | null {
   const f = signal.toLowerCase();
-  if (f.includes("login_bypass")) return "sqli";
+  if (f.includes("acceso:") || f.includes("login_bypass")) return "sqli";
   if (f.startsWith("m8arete") || f.includes("union")) return "union";
   if (f.startsWith("crack:")) return "crack";
   if (f.includes("jwt")) return "jwt";

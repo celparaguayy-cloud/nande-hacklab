@@ -1,5 +1,7 @@
 import type { WorldEntity } from "../world/WorldRegistry";
 import { renderLivingSite, type OwnerProfile } from "./LivingSite";
+import { GeneratedSite } from "../http/apps/generated";
+import type { WebServer } from "../http/WebServer";
 import type { VirtualDNS } from "../dns/VirtualDNS";
 import type { VirtualInternet } from "./VirtualInternet";
 import type { VirtualSearch } from "../search/VirtualSearch";
@@ -43,6 +45,8 @@ export class WorldPublisher {
   private currentDay: () => number;
   /** Perfil del dueño, para dar contexto al sitio. */
   private ownerProfile: (ownerId: string, metadata: Record<string, string>) => OwnerProfile;
+  /** Servidor web: donde se registran los sitios como apps hackeables. */
+  private webServer?: WebServer;
 
   constructor(
     dns: VirtualDNS,
@@ -51,6 +55,7 @@ export class WorldPublisher {
     options: {
       currentDay?: () => number;
       ownerProfile?: (ownerId: string, metadata: Record<string, string>) => OwnerProfile;
+      webServer?: WebServer;
     } = {},
   ) {
     this.dns = dns;
@@ -66,6 +71,7 @@ export class WorldPublisher {
         profession: metadata.ownerProfession ?? "vecino",
         interests: [],
       }));
+    this.webServer = options.webServer;
   }
 
   /** Dominio libre derivado del nombre de la entidad. */
@@ -102,6 +108,7 @@ export class WorldPublisher {
         this.dns.remove(oldest);
         this.internet.removeSite(oldest);
         this.search.removeByHostname(oldest);
+        this.webServer?.unregister(oldest);
       }
     }
   }
@@ -130,6 +137,17 @@ export class WorldPublisher {
         return { path, mimeType: "text/html", content: page.html };
       },
     });
+
+    // Además de navegable, el sitio es HACKEABLE: se registra como app web
+    // con una vulnerabilidad real (buscador inyectable) sobre la cuenta del
+    // dueño. El navegador prefiere el WebServer, así que la misma URL sirve
+    // el contenido vivo y acepta el ataque.
+    if (this.webServer) {
+      const owner = this.ownerProfile(entity.ownerId, entity.metadata);
+      this.webServer.register(
+        new GeneratedSite(hostname, entity, owner, this.currentDay),
+      );
+    }
 
     this.search.index({
       hostname,
