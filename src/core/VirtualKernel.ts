@@ -72,6 +72,8 @@ export class VirtualKernel {
   public notes: Notes;
   public shop: Marketplace;
   public groups: HackerGroups;
+  /** Comando que otra app (ej. ÑANDE Learn) quiere que corra la terminal. */
+  public pendingCommand: string | null = null;
   public map: WorldMap;
   public hardware: VirtualHardware;
   public wifi: VirtualWiFi;
@@ -345,6 +347,12 @@ export class VirtualKernel {
         }
       },
     );
+  }
+
+  /** Pide a la terminal que ejecute un comando (la abre quien llame). */
+  queueCommand(command: string): void {
+    this.pendingCommand = command;
+    this.events.emit("terminal.run", { command });
   }
 
   /** Libera el loop y las suscripciones del kernel. */

@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -48,8 +49,10 @@ export default function Terminal({ kernel }: TerminalProps) {
   }
 
   function executeCommand() {
-    const command = input.trim();
+    runCommand(input.trim());
+  }
 
+  function runCommand(command: string) {
     if (!command) {
       return;
     }
@@ -100,6 +103,25 @@ export default function Terminal({ kernel }: TerminalProps) {
       inputRef.current?.focus();
     }, 0);
   }
+
+  // La app de aprendizaje puede pedir que la terminal ejecute algo
+  // (por ejemplo, arrancar una lección). Se consume al abrir y por evento.
+  useEffect(() => {
+    if (kernel.pendingCommand) {
+      const cmd = kernel.pendingCommand;
+      kernel.pendingCommand = null;
+      runCommand(cmd);
+    }
+
+    return kernel.events.subscribe<{ command: string }>(
+      "terminal.run",
+      (event) => {
+        kernel.pendingCommand = null;
+        runCommand(event.data.command);
+      },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kernel]);
 
   function handleKeyDown(
     event: KeyboardEvent<HTMLInputElement>,
