@@ -130,6 +130,29 @@ export class Economy {
     return s ? { ...s } : undefined;
   }
 
+  /**
+   * Sacude el precio de una acción por un factor (ej. -0.35 = cae 35%).
+   * Es la vía por la que un hack del jugador impacta la bolsa: filtrás la
+   * brecha de un banco y su acción se desploma.
+   */
+  shock(ticker: string, factor: number): boolean {
+    const stock = this.state.stocks.find(
+      (st) => st.ticker.toLowerCase() === ticker.toLowerCase(),
+    );
+    if (!stock) return false;
+
+    stock.prevPrice = stock.price;
+    stock.price = Math.max(1, Math.round(stock.price * (1 + factor)));
+    this.save();
+
+    this.events?.emit("economy.tick", {
+      index: this.index(),
+      moneyMoved: this.state.moneyMoved,
+    });
+
+    return true;
+  }
+
   portfolioValue(): number {
     let value = 0;
     for (const [ticker, qty] of Object.entries(this.state.portfolio)) {

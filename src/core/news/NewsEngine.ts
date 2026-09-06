@@ -174,6 +174,38 @@ export class NewsEngine {
     return article;
   }
 
+  /**
+   * Publica un titular arbitrario (no ligado a una entidad).
+   * Lo usa el motor de consecuencias: un hack del jugador que sale en el
+   * diario del mundo.
+   */
+  headline(
+    headline: string,
+    body: string,
+    category: string,
+    tick: number,
+    relatedHostname?: string,
+  ): NewsArticle {
+    const article: NewsArticle = {
+      id: `news-${this.counter++}`,
+      headline,
+      body,
+      category,
+      tick,
+      relatedHostname,
+    };
+
+    this.articles.push(article);
+
+    if (this.articles.length > MAX_ARTICLES) {
+      this.articles.splice(0, this.articles.length - MAX_ARTICLES);
+    }
+
+    this.save();
+
+    return article;
+  }
+
   /** Notas mas recientes primero. */
   latest(limit: number = 10): NewsArticle[] {
     const start = Math.max(0, this.articles.length - limit);

@@ -53,6 +53,16 @@ export const APPS: AppMeta[] = [
     dock: true,
   },
   {
+    id: "mission",
+    name: "Misión",
+    title: "Centro de Mando — Operación Génesis",
+    summary: "Tu campaña, tus stats y las reacciones del mundo",
+    category: "Mundo",
+    from: "#fca5a5",
+    to: "#b91c1c",
+    dock: true,
+  },
+  {
     id: "learn",
     name: "Learn",
     title: "ÑANDE Learn — aprendé hacking",

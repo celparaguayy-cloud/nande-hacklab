@@ -1,4 +1,6 @@
 import { VirtualKernel } from "../VirtualKernel";
+import { crack, WORDLIST } from "../crypto/cracker";
+import { decodeJwt, signJwt, verifyJwt, crackJwtSecret } from "../crypto/jwt";
 
 export class VirtualTerminal {
   private kernel: VirtualKernel;
@@ -889,6 +891,12 @@ export class VirtualTerminal {
         case "publish":
           return this.publicarCmd(commandArgs);
 
+        case "crack":
+          return this.crackCmd(commandArgs);
+
+        case "jwt":
+          return this.jwtCmd(commandArgs);
+
         case "curl":
           return this.curlCmd(commandArgs);
 
@@ -1306,6 +1314,143 @@ export class VirtualTerminal {
   }
 
 
+  /**
+   * crack: crackea un hash de contraseña de verdad (MD5/SHA-256).
+   *   crack <hash>              prueba el diccionario
+   *   crack <hash> salt=<sal>   con sal conocida
+   */
+  private crackCmd(args: string[]): { output: string; isError: boolean } {
+    const hash = args.find((a) => /^[0-9a-f]{32,64}$/i.test(a));
+
+    if (!hash) {
+      return {
+        output:
+          "Uso: crack <hash-md5-o-sha256> [salt=<sal>]\\n" +
+          "Ej: crack 5f4dcc3b5aa765d61d8327deb882cf99\\n",
+        isError: true,
+      };
+    }
+
+    const saltArg = args.find((a) => a.startsWith("salt="));
+    const salt = saltArg ? saltArg.slice(5) : undefined;
+
+    const r = crack(hash, { salt });
+
+    if (!r.found) {
+      const extra = r.salted
+        ? "El hash parece tener sal: sin la sal correcta el diccionario no alcanza."
+        : "No estaba en el diccionario. Probá otra lista o un ataque más largo.";
+      return {
+        output:
+          `crack: ${r.algo.toUpperCase()} · ${r.attempts} intentos\\n` +
+          `No se pudo romper. ${extra}\\n`,
+        isError: false,
+      };
+    }
+
+    const tick = this.kernel.world.getState().clock.tick;
+    this.kernel.player.award(120, { skill: "pentesting", coins: 80, tick });
+
+    // Señal de campaña: "CRACK:<contraseña>".
+    const notes = this.kernel.scanForSignals(`CRACK:${r.password}`);
+    const suffix = notes.length ? "\\n" + notes.join("\\n") + "\\n" : "";
+
+    return {
+      output:
+        `crack: ${r.algo.toUpperCase()} roto en ${r.attempts} intentos\\n` +
+        `✓ Contraseña: ${r.password}\\n` +
+        `Lección: un hash sin sal es una contraseña con un disfraz barato.\\n` +
+        `+120 XP, +N$80.\\n` +
+        suffix,
+      isError: false,
+    };
+  }
+
+  /**
+   * jwt: inspecciona, crackea y forja JSON Web Tokens (HS256).
+   *   jwt decode <token>
+   *   jwt crack  <token>            adivina la clave por diccionario
+   *   jwt forge  <clave> rol=admin  firma un token nuevo
+   */
+  private jwtCmd(args: string[]): { output: string; isError: boolean } {
+    const sub = (args[0] ?? "").toLowerCase();
+
+    if (sub === "decode") {
+      const parts = decodeJwt(args[1] ?? "");
+      if (!parts) return { output: "jwt: token inválido.\\n", isError: true };
+      return {
+        output:
+          `Header:  ${JSON.stringify(parts.header)}\\n` +
+          `Payload: ${JSON.stringify(parts.payload)}\\n` +
+          `Firma:   ${parts.signature}\\n`,
+        isError: false,
+      };
+    }
+
+    if (sub === "crack") {
+      const token = args[1] ?? "";
+      const secret = crackJwtSecret(token, WORDLIST);
+      if (!secret) {
+        return {
+          output: "jwt: no se pudo adivinar la clave con el diccionario.\\n",
+          isError: false,
+        };
+      }
+      return {
+        output:
+          `✓ Clave HS256 encontrada: ${secret}\\n` +
+          `Ahora forjá un token: jwt forge ${secret} rol=admin usuario=admin\\n`,
+        isError: false,
+      };
+    }
+
+    if (sub === "forge") {
+      const secret = args[1];
+      if (!secret) {
+        return { output: "Uso: jwt forge <clave> clave=valor ...\\n", isError: true };
+      }
+      const payload: Record<string, unknown> = {};
+      for (const a of args.slice(2)) {
+        const eq = a.indexOf("=");
+        if (eq > 0) payload[a.slice(0, eq)] = a.slice(eq + 1);
+      }
+      if (Object.keys(payload).length === 0) payload.rol = "admin";
+
+      const token = signJwt(payload, secret);
+      const esAdmin = payload.rol === "admin" && verifyJwt(token, secret);
+
+      const notes = esAdmin
+        ? this.kernel.scanForSignals("ND{jwt_forged_admin}")
+        : [];
+      const suffix = notes.length ? "\\n" + notes.join("\\n") + "\\n" : "";
+
+      const tick = this.kernel.world.getState().clock.tick;
+      if (esAdmin) this.kernel.player.award(150, { skill: "pentesting", coins: 100, tick });
+
+      return {
+        output:
+          `Token forjado:\\n${token}\\n` +
+          (esAdmin
+            ? `✓ Es un token de admin válido. ¡El servidor te creería!\\n+150 XP, +N$100.\\n`
+            : `(Payload sin rol=admin; agregá rol=admin para el golpe.)\\n`) +
+          suffix,
+        isError: false,
+      };
+    }
+
+    // Ejemplo listo para practicar.
+    const demo = signJwt({ usuario: "rocio", rol: "cliente" }, "nande");
+    return {
+      output:
+        "jwt <decode|crack|forge>\\n" +
+        "Token de práctica (clave débil, cracker lo rompe):\\n" +
+        demo + "\\n" +
+        "Probá: jwt crack " + demo.slice(0, 24) + "...\\n",
+      isError: false,
+    };
+  }
+
+
   private curlCmd(args: string[]): { output: string; isError: boolean } {
     let method: "GET" | "POST" = "GET";
     let data = "";
@@ -1389,18 +1534,12 @@ export class VirtualTerminal {
         .trim();
       parts.push("", text);
 
-      const flag = text.match(/ND\{[^}]+\}/)?.[0];
-      const result = { output: parts.join("\n") + "\n", isError: false };
+      // Consecuencias en el mundo: banderas y señales de campaña detectadas
+      // en la respuesta disparan economía, diario, notoriedad y campaña.
+      const notes = this.kernel.scanForSignals(text);
+      const suffix = notes.length ? "\n" + notes.join("\n") + "\n" : "";
 
-      if (flag) {
-        return this.rewardIfFlag("curl", [flag], {
-          output: result.output,
-          isError: false,
-          flag,
-        });
-      }
-
-      return result;
+      return { output: parts.join("\n") + "\n" + suffix, isError: false };
     } catch (error) {
       return {
         output: `curl: ${error instanceof Error ? error.message : "error"}\n`,
@@ -2638,6 +2777,12 @@ export class VirtualTerminal {
       "  chat contactos   Quién está en línea",
       "  chat <id> <msg>  Escribirle a un habitante",
       "  groups           Grupos hacker éticos (unirse/salir)",
+      "",
+      "Hacking web y cripto:",
+      "  curl <url>       Petición HTTP a las webs del mundo (SQLi, etc.)",
+      "  crack <hash>     Crackea un hash MD5/SHA-256 de verdad",
+      "  jwt <sub>        Inspecciona/crackea/forja tokens JWT",
+      "  publicar <t> <n> Publicá tu propio sitio en la Internet virtual",
       "",
       "Hardware y WiFi:",
       "  neofetch         Muestra tu PC virtual (specs)",

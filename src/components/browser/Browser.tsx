@@ -68,6 +68,7 @@ export default function Browser({ kernel }: BrowserProps) {
   const [showTools, setShowTools] = useState(false);
   const [trace, setTrace] = useState<Trace | null>(null);
   const [error, setError] = useState("");
+  const [toast, setToast] = useState("");
 
   const [history, setHistory] = useState<HistoryEntry[]>([{ url: HOME }]);
   const [cursor, setCursor] = useState(0);
@@ -203,6 +204,11 @@ export default function Browser({ kernel }: BrowserProps) {
       note: response.debug?.note,
     });
 
+    // Consecuencias: si en la respuesta hay una bandera o señal de campaña,
+    // el mundo reacciona (economía, diario, notoriedad) y avanza la historia.
+    const notes = kernel.scanForSignals(response.body);
+    if (notes.length) setToast(notes.join("\n"));
+
     if (record) pushHistory(full);
   }
 
@@ -240,6 +246,13 @@ export default function Browser({ kernel }: BrowserProps) {
     setAddress(hostname);
     setTrace(null);
   }
+
+  // El aviso de consecuencias se desvanece solo.
+  useEffect(() => {
+    if (!toast) return;
+    const id = setTimeout(() => setToast(""), 6000);
+    return () => clearTimeout(id);
+  }, [toast]);
 
   // Primera carga: la página de inicio.
   useEffect(() => {
@@ -383,6 +396,14 @@ export default function Browser({ kernel }: BrowserProps) {
 
         {showTools && <DevTools trace={trace} />}
       </div>
+
+      {toast && (
+        <div className="br__toast" onClick={() => setToast("")}>
+          {toast.split("\n").map((line, i) => (
+            <div key={i}>{line}</div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

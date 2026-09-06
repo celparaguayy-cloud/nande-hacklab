@@ -311,4 +311,13 @@ export class Progression {
   completedCourses(): string[] {
     return [...this.state.completedCourses];
   }
+
+  /** Cambia el alias del agente (creación de personaje). */
+  rename(name: string): void {
+    const clean = name.trim().slice(0, 20);
+    if (clean) {
+      this.state.name = clean;
+      this.save();
+    }
+  }
 }

@@ -21,6 +21,9 @@ import { SecurityTools } from "./security/SecurityTools";
 import { Academy } from "./academy/Academy";
 import { LessonEngine } from "./academy/Lessons";
 import { Progression } from "./game/Progression";
+import { Notoriety } from "./game/Notoriety";
+import { Campaign } from "./campaign/Campaign";
+import { Consequences } from "./world/Consequences";
 import { MissionEngine } from "./game/Missions";
 import { Store } from "./game/Store";
 import { Economy } from "./economy/Economy";
@@ -67,6 +70,9 @@ export class VirtualKernel {
   public academy: Academy;
   public lessons: LessonEngine;
   public player: Progression;
+  public notoriety: Notoriety;
+  public campaign: Campaign;
+  public consequences: Consequences;
   public missions: MissionEngine;
   public store: Store;
   public economy: Economy;
@@ -131,6 +137,15 @@ export class VirtualKernel {
     this.missions = new MissionEngine(this.player, this.events);
     this.store = new Store(this.registry);
     this.economy = new Economy(this.events);
+    this.notoriety = new Notoriety(this.events);
+    this.campaign = new Campaign(this.events);
+    this.consequences = new Consequences({
+      economy: this.economy,
+      news: this.news,
+      notoriety: this.notoriety,
+      campaign: this.campaign,
+      events: this.events,
+    });
     this.mail = new VirtualMail(this.events);
     this.chat = new Chat(this.events);
     this.appearance = new Appearance(this.events);
@@ -435,6 +450,9 @@ export class VirtualKernel {
       this.worldEngine.sectorStrength(),
     );
     this.groups.tick(worldState.clock.tick);
+    // El calor baja solo con el tiempo: si dejás de hacer ruido, el rastro
+    // se enfría y el Blue Team pierde el hilo.
+    this.notoriety.tickCool();
     this.mail.tick(worldState.clock.tick, this.worldEngine);
 
     // De vez en cuando un habitante en línea escribe primero por chat.
@@ -453,6 +471,60 @@ export class VirtualKernel {
       "world.tick",
       worldState,
     );
+  }
+
+  /**
+   * Captura una señal del juego (una bandera ND{...}, una contraseña
+   * crackeada, un token forjado) y propaga sus consecuencias por el mundo:
+   * economía, diario, notoriedad, calor y avance de la campaña. Es el
+   * único punto por donde entra "algo que el jugador logró".
+   */
+  captureSignal(signal: string) {
+    const tick = this.world.getState().clock.tick;
+    return this.consequences.capture(signal, tick);
+  }
+
+  /**
+   * Escanea un texto (la respuesta de una web, la salida de un comando) en
+   * busca de banderas ND{...} y de señales de campaña conocidas, y las
+   * captura. Devuelve las líneas de aviso que la UI debe mostrar.
+   */
+  scanForSignals(text: string): string[] {
+    const notes: string[] = [];
+    const signals = new Set<string>();
+
+    for (const m of text.matchAll(/ND\{[^}]+\}/g)) signals.add(m[0]);
+
+    // Señales de campaña que no son banderas ND{...} (ej. una contraseña
+    // extraída que la historia espera).
+    for (const chapter of this.campaign.chapters()) {
+      for (const obj of chapter.objectives) {
+        if (!obj.flag.startsWith("ND{") && text.includes(obj.flag)) {
+          signals.add(obj.flag);
+        }
+      }
+    }
+
+    for (const signal of signals) {
+      const r = this.captureSignal(signal);
+
+      if (r.reacted && r.headline) {
+        notes.push(`📰 El mundo reacciona: "${r.headline}"`);
+      }
+      if (r.chapterCompleted) {
+        notes.push(`🎯 Capítulo completado: ${r.chapterCompleted}`);
+      }
+      if (r.campaignCompleted) {
+        notes.push(`🏆 ¡Completaste Operación Génesis! Sos un operador.`);
+      }
+      if (r.busted) {
+        notes.push(
+          `🚨 ¡El Blue Team te detectó! Tuviste que replegarte. Bajá el calor.`,
+        );
+      }
+    }
+
+    return notes;
   }
 
   /**
@@ -493,6 +565,8 @@ export class VirtualKernel {
         this.world.getState().clock.hour,
       ),
       livelihoods: this.worldEngine.livelihoodStats(),
+      notoriety: this.notoriety.getState(),
+      campaign: this.campaign.getState(),
     };
   }
 

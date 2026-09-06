@@ -15,6 +15,8 @@ import NotesView from "../notes/NotesView";
 import GamesView from "../games/GamesView";
 import World2DView from "../world2d/World2DView";
 import LearnView from "../learn/LearnView";
+import MissionControl from "../mission/MissionControl";
+import Boot from "../boot/Boot";
 import { VirtualKernel } from "../../core/VirtualKernel";
 import { weatherFor } from "../../core/world/Weather";
 import { APPS, CATEGORIES, type AppCategory } from "./apps";
@@ -95,6 +97,14 @@ function Desktop() {
   const [clock, setClock] = useState(() => kernel.world.getState().clock);
   const [online, setOnline] = useState(() => kernel.world.getState().online);
   const [player, setPlayer] = useState(() => kernel.player.getState());
+  const [noto, setNoto] = useState(() => kernel.notoriety.getState());
+  const [booted, setBooted] = useState(() => {
+    try {
+      return localStorage.getItem("nande-booted") === "1";
+    } catch {
+      return false;
+    }
+  });
   const [appearance, setAppearance] = useState(() =>
     kernel.appearance.getState(),
   );
@@ -136,12 +146,18 @@ function Desktop() {
   // El HUD del jugador se refresca cuando gana XP, sube de nivel,
   // desbloquea un logro o completa una misión.
   useEffect(() => {
-    const refresh = () => setPlayer(kernel.player.getState());
+    const refresh = () => {
+      setPlayer(kernel.player.getState());
+      setNoto(kernel.notoriety.getState());
+    };
 
     const unsubs = [
       kernel.events.subscribe("player.xp", refresh),
       kernel.events.subscribe("achievement.unlocked", refresh),
       kernel.events.subscribe("mission.completed", refresh),
+      kernel.events.subscribe("mission.progress", refresh),
+      kernel.events.subscribe("security.alert", refresh),
+      kernel.events.subscribe("world.tick", refresh),
       kernel.events.subscribe("lab.solved", refresh),
     ];
 
@@ -184,6 +200,19 @@ function Desktop() {
 
   const openerRef = useRef<(id: string) => void>(() => {});
 
+  function finishBoot(alias: string) {
+    kernel.player.rename(alias);
+    setPlayer(kernel.player.getState());
+    try {
+      localStorage.setItem("nande-booted", "1");
+    } catch {
+      // Se puede jugar sin persistir.
+    }
+    setBooted(true);
+    // Abre el Centro de Mando con la primera misión.
+    setTimeout(() => openerRef.current("mission"), 200);
+  }
+
   function openWindow(id: string) {
     openerRef.current(id);
     setLauncherOpen(false);
@@ -208,6 +237,7 @@ function Desktop() {
       games: <GamesView kernel={kernel} />,
       world2d: <World2DView kernel={kernel} onOpenApp={openWindow} />,
       learn: <LearnView kernel={kernel} onOpenApp={openWindow} />,
+      mission: <MissionControl kernel={kernel} onOpenApp={openWindow} />,
     }),
     [kernel],
   );
@@ -218,6 +248,8 @@ function Desktop() {
 
   const weather = weatherFor(clock);
   const dayName = DAY_NAMES[clock.day % 7];
+  const heatColor =
+    noto.heat > 70 ? "var(--nd-danger)" : noto.heat > 35 ? "var(--nd-warn)" : "var(--nd-text-dim)";
 
   // Filtro del lanzador: la búsqueda gana sobre la categoría elegida,
   // igual que en el menú de Plasma.
@@ -238,6 +270,8 @@ function Desktop() {
   const dockApps = APPS.filter((app) => app.dock);
 
   return (
+    <>
+    {!booted && <Boot onReady={finishBoot} />}
     <div
       className="nd-root nd-desktop"
       style={
@@ -295,6 +329,22 @@ function Desktop() {
           </span>
 
           <span className="nd-tray-sep nd-only-wide" />
+
+          <button
+            className="nd-tray-item nd-tray-item--btn"
+            onClick={() => openWindow("mission")}
+            title="Calor: cuánto te persigue el Blue Team"
+          >
+            <span style={{ color: heatColor }}>🔥 {Math.round(noto.heat)}</span>
+          </button>
+
+          <button
+            className="nd-tray-item nd-tray-item--btn nd-only-wide"
+            onClick={() => openWindow("mission")}
+            title="Tu notoriedad como hacker"
+          >
+            <span style={{ color: "var(--nd-accent)" }}>★ {noto.notoriety}</span>
+          </button>
 
           <span className="nd-tray-item" title="Tu nivel">
             <span style={{ color: "var(--nd-warn)" }}>Lv.{player.level}</span>
@@ -436,6 +486,7 @@ function Desktop() {
         </div>
       </div>
     </div>
+    </>
   );
 }
 

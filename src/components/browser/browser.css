@@ -203,3 +203,22 @@
   justify-content: center;
   flex-wrap: wrap;
 }
+
+.br__toast {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  z-index: 50;
+  max-width: min(560px, 92%);
+  padding: 12px 16px;
+  background: var(--nd-panel-solid);
+  border: 2px solid var(--nd-accent);
+  box-shadow: var(--nd-shadow-md);
+  color: var(--nd-text);
+  font-size: 13px;
+  line-height: 1.5;
+  cursor: pointer;
+  animation: nd-pop 0.18s ease-out;
+}
+.br__toast > div { margin: 2px 0; }
