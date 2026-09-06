@@ -19,10 +19,13 @@ jobs:
           node-version: 22
           cache: npm
 
+      # Capacitor 7 compila el módulo de Android contra Java 21, así que el
+      # JDK que compila también tiene que ser 21 (con 17 falla:
+      # "invalid source release: 21").
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 17
+          java-version: 21
 
       - name: Configurar Android SDK
         uses: android-actions/setup-android@v3
