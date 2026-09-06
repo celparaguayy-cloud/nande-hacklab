@@ -273,6 +273,49 @@ function WorldMonitor({ kernel }: WorldMonitorProps) {
 
       <section style={{ marginTop: "24px" }}>
         <h3 style={{ marginBottom: "12px" }}>
+          Economía viva
+        </h3>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+            gap: "10px",
+            marginBottom: "12px",
+          }}
+        >
+          <LiveStat
+            label="Riqueza total"
+            value={`N$ ${formatBig(summary.livelihoods.totalWealth)}`}
+          />
+          <LiveStat
+            label="Habilidad media"
+            value={`${summary.livelihoods.averageSkill}/100`}
+          />
+          <LiveStat
+            label="Ascensos"
+            value={String(summary.livelihoods.promotions)}
+          />
+          <LiveStat
+            label="Empresas fundadas"
+            value={String(summary.livelihoods.ventures)}
+          />
+        </div>
+
+        <div style={listStyle}>
+          {summary.livelihoods.richest.map((r) => (
+            <div key={r.name} style={cardStyle}>
+              <strong>{r.name}</strong>
+              <div style={metaStyle}>
+                {r.jobTitle} · N$ {formatBig(r.wealth)}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section style={{ marginTop: "24px" }}>
+        <h3 style={{ marginBottom: "12px" }}>
           Últimas noticias
         </h3>
 
@@ -389,3 +432,29 @@ function Stat({
 }
 
 export default WorldMonitor;
+
+/** Formatea números grandes: 1234567 -> "1.2M". */
+function formatBig(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
+  return String(n);
+}
+
+function LiveStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div
+      style={{
+        padding: "12px",
+        border: "1px solid #26313b",
+        borderRadius: "8px",
+        background: "#111820",
+      }}
+    >
+      <div style={{ color: "#8b98a5", fontSize: "12px", marginBottom: "5px" }}>
+        {label}
+      </div>
+      <strong style={{ fontSize: "18px" }}>{value}</strong>
+    </div>
+  );
+}
+

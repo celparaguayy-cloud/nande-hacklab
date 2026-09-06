@@ -5,6 +5,8 @@ import { EventBus } from "../events/EventBus";
 import { VirtualSocial } from "../social/VirtualSocial";
 import { Communities } from "../social/Communities";
 import { lifeAt, isAwake } from "./DailyLife";
+import { Livelihoods } from "./Livelihoods";
+import type { LivelihoodStats } from "./Livelihoods";
 import type { LifeState, LifeActivity } from "./DailyLife";
 export type VirtualProfession =
   | "student"
@@ -58,7 +60,9 @@ export class WorldEngine {
   private agents: VirtualAgents;
   private registry: WorldRegistry;
   private communities: Communities;
+  private livelihoods: Livelihoods;
   private onlineCount: number;
+  private lastDay = 1;
 
   constructor(registry: WorldRegistry, events: EventBus) {
     this.people = new Map(
@@ -83,6 +87,7 @@ export class WorldEngine {
     );
 
     this.communities = new Communities(people, events);
+    this.livelihoods = new Livelihoods(this.people.values());
 
     this.registry = registry;
     this.eventBus = events;
@@ -252,6 +257,27 @@ export class WorldEngine {
 
       this.communities.tick(tick, sample);
     }
+
+    // Vida económica de los habitantes: progresan, cobran y ascienden.
+    const day = Math.floor(tick / 1440) + 1;
+    const dayChanged = day !== this.lastDay;
+    this.lastDay = day;
+    this.livelihoods.tick(dayChanged, (id) => this.people.get(id)?.name ?? id);
+  }
+
+  /** Fuerza de cada sector económico, para que la bolsa tenga fundamentos. */
+  sectorStrength(): Record<string, number> {
+    return this.livelihoods.sectorStrength();
+  }
+
+  /** Resumen de la vida económica del mundo. */
+  livelihoodStats(): LivelihoodStats {
+    return this.livelihoods.stats((id) => this.people.get(id)?.name ?? id);
+  }
+
+  /** Medio de vida de una persona. */
+  livelihoodOf(id: string) {
+    return this.livelihoods.get(id);
   }
 
   getSocial(): VirtualSocial {

@@ -92,22 +92,102 @@ export class WorldPublisher {
           .join("")}</ul>`
       : "";
 
+    // El cuerpo del sitio cambia según lo que la persona creó, para que un
+    // repositorio no se lea igual que una tienda o un blog: cada quien
+    // publica lo que su oficio necesita.
+    const body = this.bodyForType(entity, owner);
+
     return `
       <h1>${escapeHtml(entity.name)}</h1>
       <p>${escapeHtml(entity.description)}</p>
 
+      ${body}
+      ${tags}
+
       <article>
         <h2>Ficha</h2>
-        <p>Tipo: ${escapeHtml(entity.type)}</p>
-        <p>Creado por: ${escapeHtml(owner)}</p>
-        <p>Publicado en el tick ${entity.createdTick}</p>
-        <p>Dominio: ${escapeHtml(hostname)}</p>
+        <p>Tipo: ${escapeHtml(entity.type)} · por ${escapeHtml(owner)}</p>
+        <p>Dominio: ${escapeHtml(hostname)} · tick ${entity.createdTick}</p>
       </article>
-
-      ${tags}
 
       <p><a href="https://www.nande">← Volver al portal de ÑANDE</a></p>
     `;
+  }
+
+  /** Contenido propio del tipo de entidad. */
+  private bodyForType(entity: WorldEntity, owner: string): string {
+    const name = escapeHtml(entity.name);
+    const seed = entity.id.length + entity.name.length;
+
+    switch (entity.type) {
+      case "repository":
+      case "tool":
+      case "app":
+      case "project":
+        return `
+      <article>
+        <h2>Repositorio</h2>
+        <p>Últimos commits:</p>
+        <ul>
+          <li>feat: primera versión de ${name}</li>
+          <li>fix: corrección de un borde molesto</li>
+          <li>docs: README y ejemplos de uso</li>
+        </ul>
+        <p><code>git clone https://${escapeHtml(slugify(entity.name))}.nande/${escapeHtml(slugify(entity.name))}.git</code></p>
+      </article>`;
+
+      case "company":
+      case "organization":
+        return `
+      <article>
+        <h2>Sobre nosotros</h2>
+        <p>${name} es un emprendimiento de ${escapeHtml(owner)}. Buscamos
+        resolver problemas reales del mundo de ÑANDE.</p>
+        <p>Equipo: ${2 + (seed % 12)} personas · Fundada en el día ${1 + (seed % 40)}.</p>
+      </article>`;
+
+      case "website":
+      case "channel":
+        return `
+      <article>
+        <h2>Publicaciones</h2>
+        <p><strong>Empezar en esto no es tan difícil</strong> — ${escapeHtml(owner)}</p>
+        <p>Notas, ideas y aprendizajes sobre ${name}. Nueva entrada cada semana.</p>
+      </article>`;
+
+      case "game":
+      case "video":
+        return `
+      <article>
+        <h2>Jugar / Ver</h2>
+        <p>${name} — ${1 + (seed % 900)} reproducciones.</p>
+        <p>▶ Una producción de ${escapeHtml(owner)}.</p>
+      </article>`;
+
+      case "course":
+      case "lab":
+        return `
+      <article>
+        <h2>Contenido del curso</h2>
+        <ol>
+          <li>Introducción a ${name}</li>
+          <li>Práctica guiada</li>
+          <li>Desafío final</li>
+        </ol>
+      </article>`;
+
+      case "community":
+      case "forum":
+        return `
+      <article>
+        <h2>Comunidad</h2>
+        <p>${16 + (seed % 400)} miembros conversando sobre ${name}.</p>
+        <p>Último tema: “¿Por dónde arranco?”</p>
+      </article>`;
+
+      default:
+        return "";
+    }
   }
 
   /** Retira el sitio mas antiguo cuando se pasa del tope. */

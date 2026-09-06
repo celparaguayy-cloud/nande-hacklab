@@ -885,6 +885,10 @@ export class VirtualTerminal {
         case "hw":
           return { output: `${this.kernel.hardware.render()}\n`, isError: false };
 
+        case "publicar":
+        case "publish":
+          return this.publicarCmd(commandArgs);
+
         case "curl":
           return this.curlCmd(commandArgs);
 
@@ -1234,6 +1238,74 @@ export class VirtualTerminal {
    *   curl -X POST http://banco.nande/login -d "usuario=admin'--&password=x"
    * Golpea el mismo servidor y la misma base de datos que el navegador.
    */
+  /**
+   * publicar: el jugador crea y publica su propio sitio en la Internet
+   * virtual. Antes solo los habitantes podían crear cosas; ahora vos
+   * también dejás tu marca en el mundo.
+   *
+   * Uso:  publicar <tipo> <nombre...>
+   *   tipos: web, app, tool, repo, blog, juego
+   */
+  private publicarCmd(args: string[]): { output: string; isError: boolean } {
+    const tipos: Record<string, string> = {
+      web: "website",
+      website: "website",
+      app: "app",
+      tool: "tool",
+      herramienta: "tool",
+      repo: "repository",
+      repositorio: "repository",
+      blog: "website",
+      juego: "game",
+      game: "game",
+    };
+
+    const tipo = tipos[(args[0] ?? "").toLowerCase()];
+    const nombre = args.slice(1).join(" ").trim();
+
+    if (!tipo || !nombre) {
+      return {
+        output:
+          "Uso: publicar <tipo> <nombre>\n" +
+          "  tipos: web, app, tool, repo, blog, juego\n" +
+          "  ej: publicar web Mi Rincón\n",
+        isError: true,
+      };
+    }
+
+    const player = this.kernel.player.getState();
+    const tick = this.kernel.world.getState().clock.tick;
+
+    const entity = this.kernel.worldEngine.createEntity(
+      tipo as never,
+      nombre,
+      `Publicado por ${player.name}, estudiante de ÑANDE.`,
+      "player",
+      tick,
+      ["jugador"],
+      { ownerName: player.name },
+    );
+
+    // El evento de creación ya publicó el sitio; su dominio es el último
+    // que registró el publicador.
+    const published = this.kernel.publisher.listPublished();
+    const hostname = published[published.length - 1] ?? "tu-sitio.nande";
+    void entity;
+
+    // Pequeña recompensa por crear algo en el mundo.
+    this.kernel.player.award(40, { coins: 20, tick });
+
+    return {
+      output:
+        `✓ Publicaste "${nombre}" en la Internet virtual.\n` +
+        `Tu sitio: https://${hostname}\n` +
+        `Abrilo en el Navegador (escribí ${hostname} en la barra).\n` +
+        `+40 XP, +N$20 por crear algo en el mundo.\n`,
+      isError: false,
+    };
+  }
+
+
   private curlCmd(args: string[]): { output: string; isError: boolean } {
     let method: "GET" | "POST" = "GET";
     let data = "";

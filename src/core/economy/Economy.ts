@@ -150,15 +150,23 @@ export class Economy {
     };
   }
 
-  tick(tick: number): void {
+  tick(tick: number, fundamentals: Record<string, number> = {}): void {
     if (tick % PRICE_INTERVAL !== 0) return;
 
     for (const stock of this.state.stocks) {
       stock.prevPrice = stock.price;
-      // Ruido (sube y baja) + sesgo de crecimiento: a la larga el mercado
-      // tiende a subir, como una economía que crece, pero con altibajos.
+
+      // El precio se mueve por tres cosas: ruido de corto plazo, el sesgo
+      // de crecimiento del mundo, y —lo nuevo— los fundamentos del sector:
+      // si la gente de esa industria mejora su habilidad y prospera, la
+      // acción sube; si el sector se debilita, baja. Así la bolsa refleja
+      // la economía real de los habitantes, no solo azar.
+      const strength = fundamentals[stock.ticker];
+      const fundamental =
+        strength === undefined ? 0 : (strength - 0.5) * 0.02;
+
       const noise = (Math.random() * 2 - 1) * VOLATILITY;
-      const change = noise + GROWTH_BIAS;
+      const change = noise + GROWTH_BIAS + fundamental;
       stock.price = Math.max(1, Math.round(stock.price * (1 + change)));
 
       this.state.moneyMoved +=

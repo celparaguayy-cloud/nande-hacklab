@@ -430,7 +430,10 @@ export class VirtualKernel {
     const worldState = this.world.getState();
 
     this.worldEngine.tick(worldState.clock.tick, worldState.clock.hour);
-    this.economy.tick(worldState.clock.tick);
+    this.economy.tick(
+      worldState.clock.tick,
+      this.worldEngine.sectorStrength(),
+    );
     this.groups.tick(worldState.clock.tick);
     this.mail.tick(worldState.clock.tick, this.worldEngine);
 
@@ -489,6 +492,7 @@ export class VirtualKernel {
       life: this.worldEngine.lifeBreakdown(
         this.world.getState().clock.hour,
       ),
+      livelihoods: this.worldEngine.livelihoodStats(),
     };
   }
 
