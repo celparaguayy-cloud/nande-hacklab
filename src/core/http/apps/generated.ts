@@ -1,6 +1,6 @@
 import { Database, SqlError } from "../../db/Database";
 import { md5 } from "../../crypto/hash";
-import { WORDLIST } from "../../crypto/cracker";
+import { WORDLIST, weakPasswordFor } from "../../crypto/cracker";
 import { renderLivingSite, type OwnerProfile } from "../../internet/LivingSite";
 import type { WorldEntity } from "../../world/WorldRegistry";
 import {
@@ -24,11 +24,6 @@ import {
  * Es la cadena "hackeás el sitio → sacás al usuario" sobre el motor SQL
  * real, sin nada guionado.
  */
-
-/** Contraseña débil del dueño, elegida del diccionario para que `crack` la rompa. */
-function ownerPassword(seed: number): string {
-  return WORDLIST[seed % WORDLIST.length];
-}
 
 function seedOf(text: string): number {
   let h = 2166136261;
@@ -78,7 +73,7 @@ export class GeneratedSite implements WebApp {
 
     const seed = seedOf(entity.id);
     this.ownerUser = slug(owner.name).replace(/-/g, "") || "admin";
-    this.ownerPass = ownerPassword(seed);
+    this.ownerPass = weakPasswordFor(owner.name);
     this.flag = `ND{acceso:${slug(entity.name)}}`;
 
     // Base del sitio: la cuenta del dueño (con su contraseña hasheada en

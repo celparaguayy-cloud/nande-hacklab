@@ -84,3 +84,19 @@ export function crack(
 
   return { found: false, algo, attempts, salted: !!salt };
 }
+
+/**
+ * Contraseña débil "de una persona", derivada de su nombre. La usan tanto
+ * el sitio del habitante (la cuenta del dueño) como la red social (cuando
+ * el NPC la filtra sin querer). Así, si la encontrás husmeando su feed,
+ * esa misma clave te abre su sitio: ingeniería social que funciona de
+ * verdad. Sale del diccionario para que también sea crackeable.
+ */
+export function weakPasswordFor(name: string): string {
+  let h = 2166136261;
+  for (let i = 0; i < name.length; i += 1) {
+    h ^= name.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return WORDLIST[(h >>> 0) % WORDLIST.length];
+}

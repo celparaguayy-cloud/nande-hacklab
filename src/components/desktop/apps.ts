@@ -103,6 +103,16 @@ export const APPS: AppMeta[] = [
     dock: true,
   },
   {
+    id: "pulso",
+    name: "Pulso",
+    title: "Pulso — la red social de ÑANDE",
+    summary: "El feed del mundo · husmeá para hacer OSINT",
+    category: "Internet",
+    from: "#f0abfc",
+    to: "#c026d3",
+    dock: true,
+  },
+  {
     id: "chat",
     name: "Chat",
     title: "ÑANDE Chat",

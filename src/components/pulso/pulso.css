@@ -1,0 +1,69 @@
+.pulso {
+  width: 100%; height: 100%;
+  display: flex; flex-direction: column;
+  background: var(--nd-surface); color: var(--nd-text); font-size: 13px;
+}
+.pulso__tabs {
+  flex-shrink: 0; display: flex; align-items: center; gap: 4px;
+  padding: 8px 10px; border-bottom: 1px solid var(--nd-border);
+  background: var(--nd-surface-2);
+}
+.pulso__tabs button {
+  border: none; background: transparent; color: var(--nd-text-dim);
+  font: inherit; font-size: 12.5px; padding: 6px 12px; cursor: pointer;
+}
+.pulso__tabs button[data-on="true"] { color: var(--nd-accent); box-shadow: inset 0 -2px 0 var(--nd-accent); }
+.pulso__tabs button:disabled { opacity: 0.4; cursor: default; }
+.pulso__me { margin-left: auto; color: var(--nd-text-faint); font-size: 12px; }
+
+.pulso__list { flex: 1; min-height: 0; overflow-y: auto; }
+.pulso__post { padding: 12px 14px; border-bottom: 1px solid var(--nd-border); }
+.pulso__post--leak { background: rgba(251,191,36,0.06); }
+.pulso__post-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.pulso__author { border: none; background: none; color: var(--nd-text); font: inherit; cursor: pointer; padding: 0; text-align: left; }
+.pulso__author span { color: var(--nd-text-faint); font-size: 12px; }
+.pulso__ago { color: var(--nd-text-faint); font-size: 11.5px; flex-shrink: 0; }
+.pulso__text { margin: 6px 0; line-height: 1.5; }
+.pulso__meta { display: flex; gap: 14px; align-items: center; font-size: 11.5px; color: var(--nd-text-dim); flex-wrap: wrap; }
+.pulso__leak { color: var(--nd-warn); }
+.pulso__leak code, .pulso__osint code { background: #0f1319; color: #ffd479; padding: 1px 5px; border-radius: 3px; font-family: var(--nd-mono); }
+
+.pulso__search { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+.pulso__input {
+  margin: 10px; padding: 9px 12px;
+  border: 1px solid var(--nd-border-strong); background: rgba(0,0,0,0.25);
+  color: var(--nd-text); font: inherit; font-size: 13px;
+}
+.pulso__row {
+  display: block; width: 100%; text-align: left;
+  padding: 11px 14px; border: none; border-bottom: 1px solid var(--nd-border);
+  background: transparent; color: var(--nd-text); font: inherit; cursor: pointer;
+}
+.pulso__row:hover { background: var(--nd-accent-soft); }
+.pulso__row span { color: var(--nd-text-faint); font-size: 12px; }
+.pulso__row-bio { display: block; margin-top: 3px; color: var(--nd-text-dim); }
+.pulso__empty { padding: 20px; text-align: center; color: var(--nd-text-faint); }
+
+.pulso__profile { flex: 1; min-height: 0; overflow-y: auto; }
+.pulso__profile-head {
+  display: flex; justify-content: space-between; gap: 12px;
+  padding: 16px 14px; border-bottom: 1px solid var(--nd-border);
+}
+.pulso__profile-name { font-size: 17px; font-weight: 700; }
+.pulso__profile-handle { color: var(--nd-text-faint); font-size: 12.5px; }
+.pulso__profile-bio { margin-top: 6px; color: var(--nd-text-dim); }
+.pulso__profile-followers { margin-top: 4px; font-size: 12px; color: var(--nd-text-dim); }
+.pulso__follow {
+  flex-shrink: 0; align-self: flex-start;
+  padding: 7px 16px; border: 2px solid var(--nd-accent);
+  background: var(--nd-accent); color: #06121a; font: inherit; font-weight: 700; cursor: pointer;
+}
+.pulso__follow.on { background: transparent; color: var(--nd-accent); }
+.pulso__osint {
+  margin: 12px 14px; padding: 12px;
+  border: 2px solid var(--nd-warn); background: rgba(251,191,36,0.08);
+}
+.pulso__osint strong { display: block; margin-bottom: 8px; }
+.pulso__osint ul { margin: 0; padding-left: 18px; }
+.pulso__osint li { margin: 5px 0; }
+.pulso__osint-tip { color: var(--nd-ok); font-size: 12px; }

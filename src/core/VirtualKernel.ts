@@ -24,6 +24,7 @@ import { Progression } from "./game/Progression";
 import { Notoriety } from "./game/Notoriety";
 import { Campaign } from "./campaign/Campaign";
 import { Mentor } from "./mentor/Mentor";
+import { Pulso } from "./social/Pulso";
 import { Consequences } from "./world/Consequences";
 import { MissionEngine } from "./game/Missions";
 import { Store } from "./game/Store";
@@ -74,6 +75,7 @@ export class VirtualKernel {
   public notoriety: Notoriety;
   public campaign: Campaign;
   public mentor: Mentor;
+  public pulso: Pulso;
   public consequences: Consequences;
   public missions: MissionEngine;
   public store: Store;
@@ -158,6 +160,10 @@ export class VirtualKernel {
     this.notoriety = new Notoriety(this.events);
     this.campaign = new Campaign(this.events);
     this.mentor = new Mentor(this.events, this.campaign);
+    this.pulso = new Pulso(
+      () => this.worldEngine.getPeople(),
+      () => Math.floor(this.world.getState().clock.tick / 1440) + 1,
+    );
     this.consequences = new Consequences({
       economy: this.economy,
       news: this.news,

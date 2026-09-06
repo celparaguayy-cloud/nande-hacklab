@@ -16,6 +16,7 @@ import GamesView from "../games/GamesView";
 import World2DView from "../world2d/World2DView";
 import LearnView from "../learn/LearnView";
 import MissionControl from "../mission/MissionControl";
+import PulsoView from "../pulso/PulsoView";
 import Boot from "../boot/Boot";
 import Mani from "../mentor/Mani";
 import { VirtualKernel } from "../../core/VirtualKernel";
@@ -234,6 +235,7 @@ function Desktop() {
       market: <MarketView kernel={kernel} />,
       mail: <MailView kernel={kernel} />,
       chat: <ChatView kernel={kernel} />,
+      pulso: <PulsoView kernel={kernel} />,
       notes: <NotesView kernel={kernel} />,
       games: <GamesView kernel={kernel} />,
       world2d: <World2DView kernel={kernel} onOpenApp={openWindow} />,

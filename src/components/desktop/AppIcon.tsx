@@ -12,6 +12,11 @@ import { APP_BY_ID } from "./apps";
 
 /** Glifo de cada app, dibujado sobre un lienzo de 48x48. */
 const GLYPHS: Record<string, ReactElement> = {
+  pulso: (
+    <g fill="none" stroke="#fff" strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M13 24h5l3-7 5 14 3-7h5" />
+    </g>
+  ),
   mission: (
     <g fill="none" stroke="#fff" strokeWidth={2.4}>
       <circle cx={24} cy={24} r={10} />
