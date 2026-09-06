@@ -28,8 +28,11 @@ dist-ssr
 .env.*
 !.env.example
 
-# Backups locales
-src/components/browser/*.backup
+# Copias de trabajo: para eso está el historial de git, no el repo.
+*.backup
+*.before-*
+*.full-backup
+backups/
 node_modules/
 dist/
 .env

@@ -1,32 +1,104 @@
-# React + TypeScript + Vite
+# ÑANDE Hacklab
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Un mundo virtual encapsulado donde se aprende hacking ético.
 
-Currently, two official plugins are available:
+ÑANDE simula un escritorio Linux completo —terminal, archivos, navegador,
+correo, chat— dentro de un mundo con 2000 habitantes que trabajan, crean
+cosas y salen a la calle según la hora del día. Las lecciones y las
+misiones se resuelven usando ese mundo: escaneás máquinas que existen sólo
+en la simulación, leés correos de personajes que te piden ayuda y ganás
+nivel resolviendo problemas reales de seguridad.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+**Todo pasa dentro del navegador.** No hay servidor, no hay cuenta, no hay
+salida a Internet.
 
-## React Compiler
+👉 **[Probalo acá](https://celparaguayy-cloud.github.io/nande-hacklab/)**
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Por qué es seguro
 
-## Expanding the Oxlint configuration
+Enseñar seguridad ofensiva con herramientas reales es un problema. ÑANDE lo
+resuelve simulando todo: `nmap`, `sqlmap` e `hydra` existen como comandos,
+pero operan sobre una red inventada que vive en memoria.
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+Esa garantía no es una promesa del README: está codificada como prueba.
+[`src/test/isolation.test.ts`](src/test/isolation.test.ts) intercepta
+`fetch`, `XMLHttpRequest`, `WebSocket` y `EventSource`, y verifica que el
+mundo pueda arrancar, avanzar, publicar sitios y navegarlos sin usar
+ninguna de esas salidas. Si alguien introduce una llamada de red, el test
+falla.
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+## Qué hay adentro
+
+| Aplicación | Qué hace |
+|---|---|
+| **Terminal** | Shell con tuberías, encadenado de comandos, variables y casi 60 comandos |
+| **ÑANDE Learn** | Lecciones guiadas paso a paso, con validación de cada comando |
+| **Navegador** | Internet virtual navegable: sitios, buscador, foros, repositorios |
+| **Correo / Chat** | Los habitantes te escriben, te proponen misiones y te responden |
+| **Mapa** | Plano de las nueve zonas del mundo, con quién anda por cada una |
+| **Mundo 2D** | Los habitantes caminando entre zonas según su rutina del día |
+| **Bolsa** | Economía con precios que se mueven solos |
+| **Archivos, Procesos, Red, Notas, Juegos** | El resto del escritorio |
+
+El contenido educativo cubre inyección SQL, escaneo de puertos, fuerza
+bruta, análisis de logs y varias categorías del OWASP Top 10, siempre con
+la defensa explicada junto al ataque.
+
+## Cómo correrlo
+
+Hace falta Node 22 o más nuevo.
+
+```bash
+npm install
+npm run dev        # servidor de desarrollo en http://localhost:5173
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Otros comandos:
+
+```bash
+npm test           # toda la suite de pruebas
+npm run typecheck  # tsc
+npm run lint       # oxlint
+npm run build      # build de producción a dist/
+```
+
+## Cómo está armado
+
+```
+src/
+  core/         La simulación. No importa React en ningún lado.
+    VirtualKernel.ts    Compone todos los subsistemas
+    terminal/           El shell y sus comandos
+    world/              Habitantes, rutinas, zonas, clima
+    security/           Herramientas y laboratorios simulados
+    academy/            Lecciones y validación
+    internet/           Sitios, DNS, buscador
+  components/   La interfaz. Consume el core, nunca al revés.
+  styles/       theme.css: los tokens de diseño del escritorio
+```
+
+La separación es estricta y se puede verificar:
+
+```bash
+grep -r "from \"react\"" src/core | wc -l   # 0
+```
+
+Toda la comunicación entre el core y la interfaz pasa por un `EventBus`, y
+el estado del mundo persiste en `localStorage`.
+
+## Empaquetar como APK
+
+El proyecto es una PWA instalable y está configurado con Capacitor para
+salir como aplicación Android. Los pasos están en
+[`BUILD-APK.md`](BUILD-APK.md).
+
+## Publicación
+
+Cada push a `main` construye el proyecto y lo publica en GitHub Pages
+mediante [`.github/workflows`](.github/workflows).
+
+## Licencia y uso
+
+Material educativo. Las técnicas que se enseñan acá se practican sobre el
+mundo simulado; aplicarlas contra sistemas ajenos sin autorización expresa
+es un delito en Paraguay y en casi todos lados.

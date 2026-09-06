@@ -13,38 +13,64 @@ interface TerminalProps {
   kernel: VirtualKernel;
 }
 
+/** Cabecera que ve el usuario al abrir o limpiar la terminal. */
+const BANNER = [
+  "ÑANDE OS Terminal",
+  "Escribe 'help' para ver los comandos disponibles.",
+  "",
+];
+
+/** Una línea ya impresa, con el tono con el que se dibuja. */
+interface Line {
+  text: string;
+  kind: "out" | "cmd" | "err" | "ok" | "muted";
+}
+
+/** Marcas típicas de error en la salida de los comandos. */
+const ERROR_HINTS = [
+  "command not found",
+  "no such file",
+  "not found",
+  "permission denied",
+  "no existe",
+  "no se encontró",
+  "error:",
+  "falló",
+  "denegado",
+];
+
+/** Marcas de éxito: sirven para pintar de verde los aciertos. */
+const OK_HINTS = ["✓", "correcto", "completada", "desbloquea", "conseguiste"];
+
+function classify(text: string): Line["kind"] {
+  const lower = text.toLowerCase();
+
+  if (ERROR_HINTS.some((hint) => lower.includes(hint))) return "err";
+  if (OK_HINTS.some((hint) => lower.includes(hint))) return "ok";
+
+  return "out";
+}
+
 export default function Terminal({ kernel }: TerminalProps) {
-  const terminal = useMemo(
-    () => new VirtualTerminal(kernel),
-    [kernel],
+  const terminal = useMemo(() => new VirtualTerminal(kernel), [kernel]);
+
+  const [lines, setLines] = useState<Line[]>(() =>
+    BANNER.map((text) => ({ text, kind: "muted" as const })),
   );
-  const [lines, setLines] = useState<string[]>([
-    "ÑANDE OS Terminal",
-    "Escribe 'help' para ver los comandos disponibles.",
-    "",
-  ]);
 
   const [input, setInput] = useState("");
+  const [history, setHistory] = useState<string[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
 
-  const [history, setHistory] = useState<string[]>(
-    [],
-  );
+  const inputRef = useRef<HTMLInputElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  const [historyIndex, setHistoryIndex] =
-    useState(-1);
+  const directory = terminal.getCurrentDirectory();
 
-  const inputRef =
-    useRef<HTMLInputElement>(null);
+  const displayDirectory =
+    directory === "/home/student" ? "~" : directory;
 
   function getPrompt(): string {
-    const directory =
-      terminal.getCurrentDirectory();
-
-    const displayDirectory =
-      directory === "/home/student"
-        ? "~"
-        : directory;
-
     return `student@nande-os:${displayDirectory}$`;
   }
 
@@ -65,21 +91,14 @@ export default function Terminal({ kernel }: TerminalProps) {
     const output = terminal.execute(command);
 
     setHistory((previous) => [
-      ...previous.filter(
-        (item) => item !== command,
-      ),
+      ...previous.filter((item) => item !== command),
       command,
     ]);
 
     setHistoryIndex(-1);
 
     if (output === "\x1b[CLEAR") {
-      setLines([
-        "ÑANDE OS Terminal",
-        "Escribe 'help' para ver los comandos disponibles.",
-        "",
-      ]);
-
+      setLines(BANNER.map((text) => ({ text, kind: "muted" as const })));
       setInput("");
 
       setTimeout(() => {
@@ -91,9 +110,11 @@ export default function Terminal({ kernel }: TerminalProps) {
 
     setLines((previous) => [
       ...previous,
-      `${promptBefore} ${command}`,
+      { text: `${promptBefore} ${command}`, kind: "cmd" as const },
       ...(output
-        ? output.split("\n")
+        ? output
+            .split("\n")
+            .map((text) => ({ text, kind: classify(text) }))
         : []),
     ]);
 
@@ -123,9 +144,17 @@ export default function Terminal({ kernel }: TerminalProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kernel]);
 
-  function handleKeyDown(
-    event: KeyboardEvent<HTMLInputElement>,
-  ) {
+  // La salida nueva queda siempre a la vista: antes había que scrollear a
+  // mano después de cada comando largo.
+  useEffect(() => {
+    const scroll = scrollRef.current;
+
+    if (scroll) {
+      scroll.scrollTop = scroll.scrollHeight;
+    }
+  }, [lines]);
+
+  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key === "Enter") {
       event.preventDefault();
       executeCommand();
@@ -142,10 +171,7 @@ export default function Terminal({ kernel }: TerminalProps) {
       const nextIndex =
         historyIndex === -1
           ? history.length - 1
-          : Math.max(
-              0,
-              historyIndex - 1,
-            );
+          : Math.max(0, historyIndex - 1);
 
       setHistoryIndex(nextIndex);
       setInput(history[nextIndex] ?? "");
@@ -164,13 +190,9 @@ export default function Terminal({ kernel }: TerminalProps) {
         return;
       }
 
-      const nextIndex =
-        historyIndex + 1;
+      const nextIndex = historyIndex + 1;
 
-      if (
-        nextIndex >=
-        history.length
-      ) {
+      if (nextIndex >= history.length) {
         setHistoryIndex(-1);
         setInput("");
         return;
@@ -184,43 +206,29 @@ export default function Terminal({ kernel }: TerminalProps) {
   }
 
   return (
-    <div
-      style={{
-        width: "100%",
-        height: "100%",
-        background: "#0b0f14",
-        color: "#d7f9e9",
-        fontFamily: "monospace",
-        padding: "16px",
-        boxSizing: "border-box",
-        overflow: "auto",
-      }}
-      onClick={() =>
-        inputRef.current?.focus()
-      }
-    >
-      {lines.map((line, index) => (
-        <div
-          key={index}
-          style={{
-            whiteSpace: "pre-wrap",
-          }}
-        >
-          {line}
-        </div>
-      ))}
+    <div className="nd-term" onClick={() => inputRef.current?.focus()}>
+      <div className="nd-term__scroll" ref={scrollRef}>
+        {lines.map((line, index) => (
+          <div
+            key={index}
+            className={`nd-term__line nd-term__line--${line.kind}`}
+          >
+            {line.text}
+          </div>
+        ))}
+      </div>
 
-      <div
-        style={{
-          display: "flex",
-        }}
-      >
-        <span>
-          {getPrompt()}&nbsp;
+      <div className="nd-term__inputrow">
+        <span className="nd-term__prompt">
+          <span className="nd-term__prompt-user">student@nande-os</span>
+          <span className="nd-term__prompt-sign">:</span>
+          <span className="nd-term__prompt-path">{displayDirectory}</span>
+          <span className="nd-term__prompt-sign">$</span>
         </span>
 
         <input
           ref={inputRef}
+          className="nd-term__input"
           value={input}
           onChange={(event) => {
             setInput(event.target.value);
@@ -229,16 +237,9 @@ export default function Terminal({ kernel }: TerminalProps) {
           onKeyDown={handleKeyDown}
           autoFocus
           spellCheck={false}
-          style={{
-            flex: 1,
-            minWidth: 0,
-            background: "transparent",
-            border: "none",
-            outline: "none",
-            color: "inherit",
-            fontFamily: "inherit",
-            fontSize: "inherit",
-          }}
+          autoCapitalize="off"
+          autoCorrect="off"
+          aria-label="Entrada de la terminal"
         />
       </div>
     </div>

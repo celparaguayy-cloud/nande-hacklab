@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { CSSProperties, MutableRefObject, ReactNode } from "react";
+import type { MutableRefObject, ReactNode } from "react";
+import { appTitle } from "../desktop/apps";
+import { AppIcon } from "../desktop/AppIcon";
 
 interface WindowState {
   id: string;
@@ -19,33 +21,21 @@ interface DragState {
   offsetY: number;
 }
 
-/** Barra de titulo de cada aplicacion del escritorio. */
-const WINDOW_TITLES: Record<string, string> = {
-  terminal: "Terminal — student@nande-os",
-  files: "Files — /home/student",
-  processes: "Process Monitor",
-  settings: "Settings",
-  network: "Network Manager",
-  browser: "ÑANDE Browser",
-  world: "ÑANDE World",
-  map: "ÑANDE Map",
-  market: "ÑANDE Bolsa",
-  mail: "ÑANDE Mail",
-  chat: "ÑANDE Chat",
-  notes: "Notas",
-  games: "ÑANDE Juegos",
-  world2d: "ÑANDE World 2D",
-  learn: "ÑANDE Learn — aprendé hacking",
-};
+/** Alto de la barra superior del escritorio (coincide con --nd-topbar). */
+const TOP_BAR = 40;
 
-/** Alto de la barra superior del escritorio. */
-const TOP_BAR = 42;
+/** Alto reservado abajo para que el dock no quede tapado. */
+const DOCK_ZONE = 78;
 
 /** Parte de la ventana que siempre debe quedar dentro de la pantalla. */
 const MIN_VISIBLE = 80;
 
-/** Alto de la fila de iconos del escritorio. */
-const ICON_ROW = 138;
+/** Por debajo de este ancho el escritorio se comporta como un teléfono. */
+const COMPACT_WIDTH = 760;
+
+function isCompact(): boolean {
+  return typeof window !== "undefined" && window.innerWidth < COMPACT_WIDTH;
+}
 
 /** Geometria inicial adaptada al tamano real de la pantalla. */
 function initialGeometry(offset: number) {
@@ -57,27 +47,26 @@ function initialGeometry(offset: number) {
 
   // En telefonos la ventana ocupa casi todo: una de 700px en x=180
   // quedaba practicamente fuera de una pantalla de 360px.
-  const compact = screenWidth < 760;
-
-  if (compact) {
+  if (screenWidth < COMPACT_WIDTH) {
     return {
       x: 8,
       y: TOP_BAR + 8,
       width: Math.max(240, screenWidth - 16),
-      height: Math.max(280, screenHeight - TOP_BAR - 16),
+      height: Math.max(280, screenHeight - TOP_BAR - DOCK_ZONE - 8),
     };
   }
 
-  // En pantallas grandes las ventanas caen en cascada, por debajo de la
-  // fila de iconos para no taparlos al abrir el escritorio.
-  const step = (offset % 6) * 28;
-  const top = TOP_BAR + ICON_ROW;
+  // En pantallas grandes las ventanas caen en cascada, centradas y sin
+  // pisar el dock.
+  const width = Math.min(880, screenWidth - 160);
+  const height = Math.min(560, screenHeight - TOP_BAR - DOCK_ZONE - 40);
+  const step = (offset % 6) * 30;
 
   return {
-    x: 140 + step,
-    y: top + step,
-    width: Math.min(700, screenWidth - 80),
-    height: Math.min(450, screenHeight - top - 40),
+    x: Math.max(20, Math.round((screenWidth - width) / 2) - 90 + step),
+    y: TOP_BAR + 28 + step,
+    width,
+    height,
   };
 }
 
@@ -85,22 +74,34 @@ interface WindowManagerProps {
   apps: Record<string, ReactNode>;
   /** El escritorio recibe aqui la funcion para abrir ventanas. */
   openerRef?: MutableRefObject<(id: string) => void>;
+  /** Avisa al dock qué apps están abiertas, para marcar el punto. */
+  onOpenWindowsChange?: (ids: string[]) => void;
 }
 
-function WindowManager({ apps, openerRef }: WindowManagerProps) {
-  const [windows, setWindows] = useState<WindowState[]>(() => [
-    {
-      id: "terminal",
-      title: WINDOW_TITLES.terminal,
-      minimized: false,
-      maximized: false,
-      zIndex: 10,
-      ...initialGeometry(0),
-    },
-  ]);
+function WindowManager({
+  apps,
+  openerRef,
+  onOpenWindowsChange,
+}: WindowManagerProps) {
+  // Arranca sin ventanas: lo primero que ve el usuario es el escritorio.
+  // Antes se abría la terminal sola y en un teléfono tapaba todo, así que
+  // nunca se llegaba a ver que existían las demás aplicaciones.
+  const [windows, setWindows] = useState<WindowState[]>([]);
 
   const dragRef = useRef<DragState | null>(null);
   const zIndexRef = useRef(20);
+
+  // La ventana enfocada es la de z-index más alto que esté visible.
+  const focusedId = windows
+    .filter((win) => !win.minimized)
+    .reduce<WindowState | null>(
+      (top, win) => (!top || win.zIndex > top.zIndex ? win : top),
+      null,
+    )?.id;
+
+  useEffect(() => {
+    onOpenWindowsChange?.(windows.map((win) => win.id));
+  }, [windows, onOpenWindowsChange]);
 
   function bringToFront(id: string) {
     zIndexRef.current += 1;
@@ -117,14 +118,8 @@ function WindowManager({ apps, openerRef }: WindowManagerProps) {
     );
   }
 
-  function beginDrag(
-    id: string,
-    clientX: number,
-    clientY: number,
-  ) {
-    const currentWindow = windows.find(
-      (win) => win.id === id,
-    );
+  function beginDrag(id: string, clientX: number, clientY: number) {
+    const currentWindow = windows.find((win) => win.id === id);
 
     if (!currentWindow || currentWindow.maximized) {
       return;
@@ -139,10 +134,7 @@ function WindowManager({ apps, openerRef }: WindowManagerProps) {
     bringToFront(id);
   }
 
-  function moveDrag(
-    clientX: number,
-    clientY: number,
-  ) {
+  function moveDrag(clientX: number, clientY: number) {
     const drag = dragRef.current;
 
     if (!drag) return;
@@ -164,10 +156,7 @@ function WindowManager({ apps, openerRef }: WindowManagerProps) {
             maxX,
             Math.max(MIN_VISIBLE - win.width, clientX - drag.offsetX),
           ),
-          y: Math.min(
-            maxY,
-            Math.max(TOP_BAR, clientY - drag.offsetY),
-          ),
+          y: Math.min(maxY, Math.max(TOP_BAR, clientY - drag.offsetY)),
         };
       }),
     );
@@ -180,12 +169,7 @@ function WindowManager({ apps, openerRef }: WindowManagerProps) {
   function minimizeWindow(id: string) {
     setWindows((current) =>
       current.map((win) =>
-        win.id === id
-          ? {
-              ...win,
-              minimized: true,
-            }
-          : win,
+        win.id === id ? { ...win, minimized: true } : win,
       ),
     );
   }
@@ -207,13 +191,7 @@ function WindowManager({ apps, openerRef }: WindowManagerProps) {
   function closeWindow(id: string) {
     endDrag();
 
-    setWindows((current) =>
-      current.filter((win) => win.id !== id),
-    );
-  }
-
-  function getWindowTitle(id: string) {
-    return WINDOW_TITLES[id] ?? id;
+    setWindows((current) => current.filter((win) => win.id !== id));
   }
 
   const openWindow = useCallback((id: string) => {
@@ -222,9 +200,7 @@ function WindowManager({ apps, openerRef }: WindowManagerProps) {
     }
 
     setWindows((current) => {
-      const existing = current.find(
-        (win) => win.id === id,
-      );
+      const existing = current.find((win) => win.id === id);
 
       if (existing) {
         zIndexRef.current += 1;
@@ -246,9 +222,11 @@ function WindowManager({ apps, openerRef }: WindowManagerProps) {
         ...current,
         {
           id,
-          title: getWindowTitle(id),
+          title: appTitle(id),
           minimized: false,
-          maximized: false,
+          // En el teléfono una ventana flotante no tiene sentido: se abre
+          // maximizada, como una app de celular.
+          maximized: isCompact(),
           zIndex: zIndexRef.current,
           ...initialGeometry(current.length),
         },
@@ -299,46 +277,21 @@ function WindowManager({ apps, openerRef }: WindowManagerProps) {
     function handlePointerMove(event: PointerEvent) {
       if (!dragRef.current) return;
 
-      moveDrag(
-        event.clientX,
-        event.clientY,
-      );
+      moveDrag(event.clientX, event.clientY);
     }
 
     function handlePointerUp() {
       endDrag();
     }
 
-    window.addEventListener(
-      "pointermove",
-      handlePointerMove,
-    );
-
-    window.addEventListener(
-      "pointerup",
-      handlePointerUp,
-    );
-
-    window.addEventListener(
-      "pointercancel",
-      handlePointerUp,
-    );
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerUp);
 
     return () => {
-      window.removeEventListener(
-        "pointermove",
-        handlePointerMove,
-      );
-
-      window.removeEventListener(
-        "pointerup",
-        handlePointerUp,
-      );
-
-      window.removeEventListener(
-        "pointercancel",
-        handlePointerUp,
-      );
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerUp);
     };
   }, []);
 
@@ -347,10 +300,12 @@ function WindowManager({ apps, openerRef }: WindowManagerProps) {
       {windows.map((win) => {
         const position = win.maximized
           ? {
-              top: "42px",
+              top: `${TOP_BAR}px`,
               left: "0",
               width: "100vw",
-              height: "calc(100vh - 42px)",
+              // Se descuenta el dock: maximizada no significa taparlo.
+              height: `calc(100dvh - ${TOP_BAR + DOCK_ZONE}px)`,
+              borderRadius: 0,
             }
           : {
               top: `${win.y}px`,
@@ -362,138 +317,92 @@ function WindowManager({ apps, openerRef }: WindowManagerProps) {
         return (
           <div
             key={win.id}
-            onPointerDown={() =>
-              bringToFront(win.id)
-            }
+            className="nd-window"
+            data-focused={focusedId === win.id}
+            onPointerDown={() => bringToFront(win.id)}
             style={{
-              position: "absolute",
               ...position,
-              display: win.minimized
-                ? "none"
-                : "block",
-              background: "#0b0f14",
-              border: "1px solid #34414d",
-              borderRadius: "10px",
-              overflow: "hidden",
-              boxShadow:
-                "0 20px 60px rgba(0,0,0,0.45)",
+              display: win.minimized ? "none" : "flex",
               zIndex: win.zIndex,
             }}
           >
             <div
+              className="nd-titlebar"
+              onDoubleClick={() => maximizeWindow(win.id)}
               onPointerDown={(event) => {
-                const target =
-                  event.target as HTMLElement;
+                const target = event.target as HTMLElement;
 
-                if (
-                  target.closest("button")
-                ) {
+                if (target.closest("button")) {
                   return;
                 }
 
                 event.preventDefault();
 
-                beginDrag(
-                  win.id,
-                  event.clientX,
-                  event.clientY,
-                );
+                beginDrag(win.id, event.clientX, event.clientY);
               }}
-              style={{
-                height: "44px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "0 10px",
-                boxSizing: "border-box",
-                background: "#111820",
-                borderBottom:
-                  "1px solid #26313b",
-                color: "#e6edf3",
-                fontSize: "13px",
-                cursor: win.maximized
-                  ? "default"
-                  : "grab",
-                touchAction: "none",
-                userSelect: "none",
-              }}
+              style={{ cursor: win.maximized ? "default" : "grab" }}
             >
-              <span
-                style={{
-                  pointerEvents: "none",
-                }}
+              <AppIcon id={win.id} size={17} />
+
+              <span className="nd-titlebar__title">{win.title}</span>
+
+              <button
+                className="nd-win-btn"
+                title="Minimizar"
+                aria-label="Minimizar"
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={() => minimizeWindow(win.id)}
               >
-                {win.title}
-              </span>
+                <svg width="10" height="10" viewBox="0 0 10 10">
+                  <rect y="4.4" width="10" height="1.4" rx="0.7" fill="currentColor" />
+                </svg>
+              </button>
 
-              <div
-                style={{
-                  display: "flex",
-                  gap: "6px",
-                }}
+              <button
+                className="nd-win-btn"
+                title={win.maximized ? "Restaurar" : "Maximizar"}
+                aria-label={win.maximized ? "Restaurar" : "Maximizar"}
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={() => maximizeWindow(win.id)}
               >
-                <button
-                  onPointerDown={(event) =>
-                    event.stopPropagation()
-                  }
-                  onClick={() =>
-                    minimizeWindow(win.id)
-                  }
-                  style={buttonStyle}
-                >
-                  −
-                </button>
+                <svg width="10" height="10" viewBox="0 0 10 10">
+                  <rect
+                    x="0.7"
+                    y="0.7"
+                    width="8.6"
+                    height="8.6"
+                    rx="1.4"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.4"
+                  />
+                </svg>
+              </button>
 
-                <button
-                  onPointerDown={(event) =>
-                    event.stopPropagation()
-                  }
-                  onClick={() =>
-                    maximizeWindow(win.id)
-                  }
-                  style={buttonStyle}
-                >
-                  □
-                </button>
-
-                <button
-                  onPointerDown={(event) =>
-                    event.stopPropagation()
-                  }
-                  onClick={() =>
-                    closeWindow(win.id)
-                  }
-                  style={buttonStyle}
-                >
-                  ×
-                </button>
-              </div>
+              <button
+                className="nd-win-btn nd-win-btn--close"
+                title="Cerrar"
+                aria-label="Cerrar"
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={() => closeWindow(win.id)}
+              >
+                <svg width="10" height="10" viewBox="0 0 10 10">
+                  <path
+                    d="M1 1l8 8M9 1l-8 8"
+                    stroke="currentColor"
+                    strokeWidth="1.4"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </button>
             </div>
 
-            <div
-              style={{
-                width: "100%",
-                height: "calc(100% - 44px)",
-              }}
-            >
-              {apps[win.id] ?? null}
-            </div>
+            <div className="nd-window__body">{apps[win.id] ?? null}</div>
           </div>
         );
       })}
     </>
   );
 }
-
-const buttonStyle: CSSProperties = {
-  width: "30px",
-  height: "28px",
-  border: "1px solid #34414d",
-  borderRadius: "5px",
-  background: "#18212b",
-  color: "#d7f9e9",
-  cursor: "pointer",
-  fontSize: "16px",
-};
 
 export default WindowManager;

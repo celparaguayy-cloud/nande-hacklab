@@ -12,6 +12,7 @@ import {
   avatarAt,
 } from "../../core/world/PixelWorld";
 import type { Avatar } from "../../core/world/PixelWorld";
+import { AppIcon } from "../desktop/AppIcon";
 
 interface World2DViewProps {
   kernel: VirtualKernel;
@@ -110,13 +111,15 @@ function World2DView({ kernel, onOpenApp }: World2DViewProps) {
         ctx.strokeStyle = "rgba(0,0,0,0.35)";
         ctx.strokeRect(z.col * CELL * scale, z.row * CELL * scale, CELL * scale, CELL * scale);
 
+        // El rótulo va debajo del icono con aire suficiente: con la
+        // separación anterior el nombre se dibujaba encima del dibujo.
         const c = zoneCenter(z.id);
-        ctx.font = `${Math.round(14 * scale)}px system-ui`;
         ctx.textAlign = "center";
-        ctx.fillStyle = "rgba(255,255,255,0.55)";
-        ctx.fillText(`${z.icon}`, c.x * scale, (z.row * CELL + 20) * scale);
-        ctx.font = `${Math.round(7 * scale)}px system-ui`;
-        ctx.fillText(z.name, c.x * scale, (z.row * CELL + 30) * scale);
+        ctx.fillStyle = "rgba(255,255,255,0.6)";
+        ctx.font = `${Math.round(13 * scale)}px system-ui`;
+        ctx.fillText(`${z.icon}`, c.x * scale, (z.row * CELL + 19) * scale);
+        ctx.font = `600 ${Math.round(7 * scale)}px system-ui`;
+        ctx.fillText(z.name, c.x * scale, (z.row * CELL + 31) * scale);
       }
 
       // Avatares (figuritas pixeladas).
@@ -154,11 +157,17 @@ function World2DView({ kernel, onOpenApp }: World2DViewProps) {
 
   return (
     <div style={container}>
-      <div style={header}>
-        <h2 style={{ margin: 0 }}>🌆 ÑANDE World 2D</h2>
-        <span style={{ color: "#8b98a5", fontSize: 12 }}>
-          Movete con WASD o flechas · tocá a alguien para verlo
+      <div className="nd-app-head" style={header}>
+        <span className="nd-app-head__icon">
+          <AppIcon id="world2d" size={30} />
         </span>
+
+        <div className="nd-app-head__text">
+          <h2>ÑANDE World 2D</h2>
+          <span className="nd-app-head__sub">
+            Movete con WASD o flechas · tocá a alguien para verlo
+          </span>
+        </div>
       </div>
 
       <canvas
@@ -205,45 +214,54 @@ function drawAvatar(
 const container: CSSProperties = {
   width: "100%",
   height: "100%",
-  overflow: "auto",
+  // Sin scroll: el lienzo se adapta al alto de la ventana. Antes el mundo
+  // medía 600px fijos y quedaba cortado por abajo en cualquier ventana
+  // más baja que eso.
+  overflow: "hidden",
   boxSizing: "border-box",
   padding: 12,
-  background: "#0b0f14",
-  color: "#e6edf3",
-  fontFamily: "system-ui, sans-serif",
+  background: "var(--nd-surface)",
+  color: "var(--nd-text)",
   display: "flex",
   flexDirection: "column",
   alignItems: "center",
+  gap: 10,
 };
 const header: CSSProperties = {
   width: "100%",
-  marginBottom: 10,
+  marginBottom: 0,
 };
 const canvasStyle: CSSProperties = {
-  width: "min(100%, 600px)",
+  flex: "1 1 auto",
+  minHeight: 0,
+  width: "auto",
+  maxWidth: "100%",
   aspectRatio: "1 / 1",
   imageRendering: "pixelated",
-  border: "1px solid #26313b",
-  borderRadius: 8,
+  border: "1px solid var(--nd-border)",
+  borderRadius: "var(--nd-r-md)",
   cursor: "crosshair",
   background: "#05070a",
 };
 const tooltip: CSSProperties = {
-  marginTop: 10,
-  padding: "8px 12px",
-  border: "1px solid #26313b",
-  borderRadius: 8,
-  background: "#111820",
+  flexShrink: 0,
+  padding: "7px 12px",
+  border: "1px solid var(--nd-border)",
+  borderRadius: "var(--nd-r-md)",
+  background: "var(--nd-surface-2)",
   display: "flex",
   alignItems: "center",
   gap: 10,
+  fontSize: 13,
 };
 const chatBtn: CSSProperties = {
   padding: "4px 10px",
-  border: "1px solid #2f5a3f",
-  borderRadius: 6,
-  background: "#16311f",
-  color: "#7ee2a8",
+  border: "1px solid var(--nd-accent-line)",
+  borderRadius: "var(--nd-r-sm)",
+  background: "var(--nd-accent-soft)",
+  color: "var(--nd-accent)",
+  font: "inherit",
+  fontSize: 12.5,
   cursor: "pointer",
 };
 

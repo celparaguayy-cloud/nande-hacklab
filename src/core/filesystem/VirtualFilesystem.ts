@@ -47,6 +47,67 @@ export class VirtualFilesystem {
       "root",
       "644",
     );
+
+    this.seedHome();
+  }
+
+  /**
+   * Contenido inicial del home.
+   *
+   * El primer comando que escribe cualquiera es `ls`, y hasta ahora el
+   * home estaba vacío: la respuesta era una línea en blanco y no había
+   * nada que abrir ni leer. Estos archivos dan el primer hilo del que
+   * tirar.
+   */
+  private seedHome(): void {
+    this.createDirectory("/home/student/documentos", "student", "users", "755");
+
+    this.createFile(
+      "/home/student/bienvenida.txt",
+      [
+        "Bienvenido a ÑANDE OS.",
+        "",
+        "Este es tu equipo dentro del mundo virtual. Todo lo que hagas acá",
+        "queda acá: no hay salida a la Internet real.",
+        "",
+        "Para arrancar:",
+        "  learn          abre la primera lección guiada",
+        "  help           lista todos los comandos",
+        "  cat documentos/primeros-pasos.md",
+        "",
+        "Suerte.",
+      ].join("\n"),
+      "student",
+      "users",
+      "644",
+    );
+
+    this.createFile(
+      "/home/student/documentos/primeros-pasos.md",
+      [
+        "# Primeros pasos en ÑANDE",
+        "",
+        "## Moverte",
+        "  pwd            dónde estás parado",
+        "  ls             qué hay acá",
+        "  cd <carpeta>   entrar a una carpeta",
+        "  cat <archivo>  leer un archivo",
+        "",
+        "## Mirar la red",
+        "  ifconfig       tus interfaces",
+        "  nmap <ip>      qué puertos tiene una máquina",
+        "",
+        "## Tu progreso",
+        "  profile        tu nivel y tus habilidades",
+        "  missions       qué tenés pendiente",
+        "",
+        "Todo lo que practiques acá es sobre máquinas simuladas.",
+        "Hacer lo mismo contra un sistema ajeno sin permiso es delito.",
+      ].join("\n"),
+      "student",
+      "users",
+      "644",
+    );
   }
 
   exists(path: string): boolean {
