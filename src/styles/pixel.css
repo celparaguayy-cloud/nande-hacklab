@@ -1,0 +1,185 @@
+/* ==================================================================
+   Capa de estética PIXEL ART
+   ------------------------------------------------------------------
+   ÑANDE es un juego, así que se ve como uno: bordes duros, sombras sin
+   desenfoque (como los sprites viejos), esquinas cuadradas y una fuente
+   de píxeles en toda la "carcasa" (paneles, títulos, botones, HUD). El
+   texto largo —lecciones, páginas web, terminal— usa una fuente de
+   píxeles más alta y legible para no cansar la vista.
+
+   Las fuentes se cargan de Google Fonts con respaldo: si no están, todo
+   cae a monoespaciada y el juego se sigue viendo y usando igual.
+   ================================================================== */
+
+:root {
+  --nd-display: "Press Start 2P", "VT323", ui-monospace, monospace;
+  --nd-pixel: "VT323", ui-monospace, "Cascadia Code", Consolas, monospace;
+
+  /* Bordes y sombras de aspecto retro. */
+  --nd-r-sm: 0px;
+  --nd-r-md: 0px;
+  --nd-r-lg: 0px;
+  --nd-r-xl: 0px;
+  --nd-shadow-sm: 2px 2px 0 rgba(0, 0, 0, 0.5);
+  --nd-shadow-md: 4px 4px 0 rgba(0, 0, 0, 0.55);
+  --nd-shadow-lg: 6px 6px 0 rgba(0, 0, 0, 0.6);
+}
+
+/* La app usa la tipografía de píxeles alta y legible como base. */
+.nd-root {
+  font-family: var(--nd-pixel);
+  font-size: 16px;
+  letter-spacing: 0.3px;
+}
+
+/* Nitidez de píxel en todo lo que sea imagen/SVG/canvas. */
+.nd-root img,
+.nd-root svg,
+.nd-root canvas {
+  image-rendering: pixelated;
+}
+
+/* Imágenes con degradados finos (el fondo) mejor suavizadas. */
+.nd-wallpaper {
+  image-rendering: auto;
+}
+
+/* --- La "carcasa" en fuente de bloques --- */
+.nd-topbar,
+.nd-dock,
+.nd-panel-btn,
+.nd-tray-item,
+.nd-cat,
+.nd-app-tile__label,
+.nd-titlebar__title,
+.nd-win-btn,
+.nd-widget-date,
+.nd-widget-weather__label,
+.br__bar,
+.br-tile__tag {
+  font-family: var(--nd-display);
+}
+
+/* Press Start 2P es ancho: se achica donde se usa. */
+.nd-topbar,
+.nd-tray-item,
+.nd-panel-btn {
+  font-size: 9px;
+  letter-spacing: 0;
+}
+
+.nd-titlebar__title {
+  font-size: 9px;
+}
+
+.nd-app-tile__label {
+  font-size: 8px;
+  line-height: 1.5;
+}
+
+.nd-cat {
+  font-size: 9px;
+}
+
+.nd-widget-date {
+  font-size: 10px;
+  letter-spacing: 2px;
+}
+
+/* Títulos y encabezados de las apps, en bloques. */
+.nd-root h1,
+.nd-root h2,
+.nd-root h3,
+.br-home__title,
+.lab-header strong {
+  font-family: var(--nd-display);
+  letter-spacing: 0;
+}
+
+.nd-root h2 { font-size: 13px; line-height: 1.5; }
+.nd-root h3 { font-size: 11px; line-height: 1.5; }
+.br-home__title { font-size: 20px; line-height: 1.4; }
+
+/* El reloj gigante, con números de píxel. */
+.nd-widget-clock {
+  font-family: var(--nd-display);
+  font-weight: 400;
+  font-size: clamp(46px, 9vw, 120px);
+  text-shadow: 4px 4px 0 rgba(0, 0, 0, 0.5);
+}
+
+/* --- Bordes duros y gruesos en toda la carcasa --- */
+.nd-window,
+.nd-launcher,
+.nd-dock,
+.nd-card,
+.nd-btn,
+.br-tile,
+.br__result,
+.lab-card,
+.nd-app-tile:hover {
+  border-width: 2px;
+  border-style: solid;
+}
+
+.nd-window {
+  border-color: var(--nd-border-strong);
+  box-shadow: var(--nd-shadow-lg);
+}
+
+.nd-window[data-focused="true"] {
+  border-color: var(--nd-accent);
+}
+
+.nd-dock,
+.nd-launcher {
+  border-color: var(--nd-border-strong);
+}
+
+/* Botones con "profundidad" de píxel: se hunden al apretar. */
+.nd-btn,
+.lab-body button,
+.br__nav {
+  border: 2px solid var(--nd-border-strong);
+  box-shadow: var(--nd-shadow-sm);
+  transition: none;
+}
+
+.nd-btn:active,
+.lab-body button:active,
+.br__nav:active {
+  transform: translate(2px, 2px);
+  box-shadow: none;
+}
+
+/* Iconos del dock: cuadrados, con marco. */
+.nd-dock-btn:hover {
+  transform: translateY(-2px);
+  background: transparent;
+}
+
+.nd-dock-btn svg rect:first-of-type,
+.nd-app-tile svg rect:first-of-type {
+  rx: 3;
+}
+
+/* La terminal, pura fuente de píxel. */
+.nd-term,
+.nd-term__input {
+  font-family: var(--nd-pixel);
+  font-size: 17px;
+  line-height: 1.35;
+}
+
+/* Barras de progreso y chips con escalones, sin bordes redondeados. */
+.nd-dock-btn[data-open="true"]::after {
+  border-radius: 0;
+  width: 5px;
+  height: 5px;
+}
+
+/* Foco de teclado bien visible, estilo consola. */
+.nd-root :focus-visible {
+  outline: 2px solid var(--nd-accent);
+  outline-offset: 2px;
+}

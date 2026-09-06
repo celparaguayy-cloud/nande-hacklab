@@ -21,6 +21,7 @@ import { APPS, CATEGORIES, type AppCategory } from "./apps";
 import { AppIcon } from "./AppIcon";
 import Wallpaper from "./Wallpaper";
 import "../../styles/theme.css";
+import "../../styles/pixel.css";
 
 /** Nombre de los días y meses del mundo, para el widget del reloj. */
 const DAY_NAMES = [
