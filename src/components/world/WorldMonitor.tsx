@@ -300,6 +300,10 @@ function WorldMonitor({ kernel }: WorldMonitorProps) {
             label="Empresas fundadas"
             value={String(summary.livelihoods.ventures)}
           />
+          <LiveStat
+            label="Plata en cajas"
+            value={`N$ ${formatBig(summary.livelihoods.businessTreasury)}`}
+          />
         </div>
 
         <div style={listStyle}>
@@ -312,6 +316,25 @@ function WorldMonitor({ kernel }: WorldMonitorProps) {
             </div>
           ))}
         </div>
+
+        {summary.livelihoods.topBusinesses.length > 0 ? (
+          <>
+            <h3 style={{ margin: "20px 0 10px" }}>
+              Empresas con más caja
+              <span style={{ ...metaStyle, marginLeft: "8px" }}>
+                blancos jugosos: hackeá su sitio y vaciales la caja
+              </span>
+            </h3>
+            <div style={listStyle}>
+              {summary.livelihoods.topBusinesses.map((b) => (
+                <div key={b.name} style={cardStyle}>
+                  <strong>{b.name}</strong>
+                  <div style={metaStyle}>Caja · N$ {formatBig(b.treasury)}</div>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : null}
       </section>
 
       <section style={{ marginTop: "24px" }}>

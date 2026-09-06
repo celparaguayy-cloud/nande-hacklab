@@ -290,6 +290,11 @@ export class WorldEngine {
     return this.livelihoods.withdraw(id, amount);
   }
 
+  /** Da de alta (o capitaliza) una empresa de un dueño, con caja inicial. */
+  registerBusiness(ownerId: string, name: string, capital = 0): void {
+    this.livelihoods.registerBusiness(ownerId, name, capital);
+  }
+
   getSocial(): VirtualSocial {
     return this.social;
   }

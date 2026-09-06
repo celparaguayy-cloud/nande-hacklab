@@ -81,6 +81,19 @@ export interface LivelihoodStats {
   ventures: number;
   /** Los habitantes con más plata, para el ranking. */
   richest: { name: string; wealth: number; jobTitle: string }[];
+  /** Plata en las cajas de las empresas (dinero circulando en negocios). */
+  businessTreasury: number;
+  /** Cuántas empresas con caja hay en el mundo. */
+  businessCount: number;
+  /** Las empresas con más caja (blancos jugosos para hackear). */
+  topBusinesses: { name: string; treasury: number }[];
+}
+
+/** Una empresa del mundo: su caja crece con las compras y paga a su dueño. */
+interface Business {
+  name: string;
+  /** Dinero en caja (guaraníes). */
+  treasury: number;
 }
 
 const TITLES = ["Junior", "Semi Senior", "Senior", "Líder", "Referente"];
@@ -96,6 +109,10 @@ export class Livelihoods {
   private state = new Map<string, Livelihood>();
   private order: string[] = [];
   private cursor = 0;
+  /** Empresas del mundo, por id del dueño. Su caja circula plata de verdad. */
+  private businesses = new Map<string, Business>();
+  /** Índice de dueños con empresa, para elegir a quién le compra cada quien. */
+  private businessKeys: string[] = [];
 
   constructor(people: Iterable<VirtualPerson>) {
     for (const person of people) {
@@ -123,24 +140,64 @@ export class Livelihoods {
     return this.state.get(id);
   }
 
-  /** Plata disponible de una persona, redondeada (para robar o mostrar). */
-  wealthOf(id: string): number {
-    return Math.round(this.state.get(id)?.wealth ?? 0);
+  /**
+   * Registra (o capitaliza) una empresa de un dueño. La caja arranca con el
+   * capital dado y desde ahí crece con las compras de la gente. Volver a
+   * llamar con el mismo dueño suma capital, no duplica la empresa.
+   */
+  registerBusiness(ownerId: string, name: string, capital = 0): void {
+    const existing = this.businesses.get(ownerId);
+    if (existing) {
+      existing.treasury += Math.max(0, capital);
+      return;
+    }
+    this.businesses.set(ownerId, { name, treasury: Math.max(0, capital) });
+    this.businessKeys.push(ownerId);
+  }
+
+  /** Caja de la empresa de un dueño (0 si no tiene). */
+  businessTreasuryOf(ownerId: string): number {
+    return Math.round(this.businesses.get(ownerId)?.treasury ?? 0);
   }
 
   /**
-   * Retira dinero de la cuenta de una persona (un robo). Devuelve cuánto se
-   * pudo sacar de verdad —nunca más de lo que tenía—. Es plata que sale de
-   * la economía del NPC y entra a la billetera del jugador: circula.
+   * Plata disponible de una persona para robar o mostrar: su bolsillo MÁS la
+   * caja de su empresa si la tiene. Por eso hackear a un dueño de empresa
+   * (un banco, una corporación) paga mucho más que a un vecino cualquiera.
+   */
+  wealthOf(id: string): number {
+    const personal = this.state.get(id)?.wealth ?? 0;
+    const business = this.businesses.get(id)?.treasury ?? 0;
+    return Math.round(personal + business);
+  }
+
+  /**
+   * Retira dinero de una persona (un robo): primero de su bolsillo, después
+   * de la caja de su empresa. Devuelve cuánto se pudo sacar de verdad. Es
+   * plata que sale de la economía del NPC y entra a la del jugador: circula.
    */
   withdraw(id: string, amount?: number): number {
     const life = this.state.get(id);
-    if (!life) return 0;
+    const biz = this.businesses.get(id);
 
-    const take = amount == null ? life.wealth : Math.min(Math.max(0, amount), life.wealth);
-    life.wealth = Math.max(0, life.wealth - take);
+    const available = (life?.wealth ?? 0) + (biz?.treasury ?? 0);
+    if (available <= 0) return 0;
 
-    return Math.round(take);
+    const take = amount == null ? available : Math.min(Math.max(0, amount), available);
+    let remaining = take;
+
+    if (life) {
+      const fromWallet = Math.min(remaining, life.wealth);
+      life.wealth -= fromWallet;
+      remaining -= fromWallet;
+    }
+    if (biz && remaining > 0) {
+      const fromTreasury = Math.min(remaining, biz.treasury);
+      biz.treasury -= fromTreasury;
+      remaining -= fromTreasury;
+    }
+
+    return Math.round(take - remaining);
   }
 
   /**
@@ -171,6 +228,32 @@ export class Livelihoods {
           BASE_INCOME[life.profession] * (0.6 + life.skill / 100);
         const costOfLiving = 120 + life.wealth * 0.002;
         life.wealth = Math.max(0, life.wealth + income - costOfLiving);
+
+        // Circulación real: la plata se mueve entre la gente y las empresas.
+        if (this.businessKeys.length > 0) {
+          // 1) El habitante le compra a alguna empresa: su plata pasa a la
+          //    caja de ese negocio (transferencia, no se crea ni destruye).
+          const purchase = Math.min(life.wealth * 0.03, 250);
+          if (purchase > 1) {
+            const pick =
+              this.businessKeys[(this.cursor + n) % this.businessKeys.length];
+            const target = this.businesses.get(pick);
+            // Nadie le compra a su propia empresa en este paso.
+            if (target && pick !== id) {
+              life.wealth -= purchase;
+              target.treasury += purchase;
+            }
+          }
+
+          // 2) Si este habitante es dueño de una empresa, la empresa le paga
+          //    un dividendo desde su caja: la plata vuelve a la gente.
+          const own = this.businesses.get(id);
+          if (own && own.treasury > 500) {
+            const dividend = own.treasury * 0.25;
+            own.treasury -= dividend;
+            life.wealth += dividend;
+          }
+        }
       }
 
       // Ascenso: habilidad alta y algo de plata ahorrada.
@@ -190,7 +273,10 @@ export class Livelihoods {
         Math.random() < 0.01
       ) {
         life.venture = `${nameOf(id).split(" ")[0]} & Co`;
-        life.wealth -= 8000; // capital inicial
+        // El capital inicial no se evapora: pasa a la caja de la nueva
+        // empresa, que desde ya empieza a circular plata en el mundo.
+        life.wealth -= 8000;
+        this.registerBusiness(id, life.venture, 8000);
       }
     }
   }
@@ -245,12 +331,23 @@ export class Livelihoods {
           : `${life.jobTitle} · ${life.profession}`,
       }));
 
+    let businessTreasury = 0;
+    for (const biz of this.businesses.values()) businessTreasury += biz.treasury;
+
+    const topBusinesses = [...this.businesses.values()]
+      .sort((a, b) => b.treasury - a.treasury)
+      .slice(0, 6)
+      .map((biz) => ({ name: biz.name, treasury: Math.round(biz.treasury) }));
+
     return {
       totalWealth: Math.round(totalWealth),
       averageSkill: Math.round((totalSkill / count) * 10) / 10,
       promotions,
       ventures,
       richest,
+      businessTreasury: Math.round(businessTreasury),
+      businessCount: this.businesses.size,
+      topBusinesses,
     };
   }
 }

@@ -41,6 +41,31 @@ describe("medios de vida", () => {
     expect(l.get("1")!.skill).toBeGreaterThan(antes);
   });
 
+  it("la plata circula: las compras llenan la caja de las empresas", () => {
+    const gente = Array.from({ length: 30 }, (_, i) => persona(`p${i}`, "developer"));
+    const l = new Livelihoods(gente);
+    // Una empresa cuyo dueño no está entre los compradores.
+    l.registerBusiness("empresa-x", "Vortex", 0);
+    expect(l.businessTreasuryOf("empresa-x")).toBe(0);
+
+    for (let i = 0; i < 20; i += 1) l.tick(true, (id) => id);
+
+    // La gente le compró: la caja creció (plata que salió de sus bolsillos).
+    expect(l.businessTreasuryOf("empresa-x")).toBeGreaterThan(0);
+    expect(l.stats((id) => id).businessCount).toBe(1);
+  });
+
+  it("robar a un dueño de empresa vacía bolsillo Y caja", () => {
+    const l = new Livelihoods([persona("jefe", "entrepreneur")]);
+    l.registerBusiness("jefe", "Banco Justicia", 1_000_000);
+    const total = l.wealthOf("jefe");
+    expect(total).toBeGreaterThan(1_000_000); // caja + bolsillo
+
+    const robado = l.withdraw("jefe"); // sin monto: se lleva todo
+    expect(robado).toBe(total);
+    expect(l.wealthOf("jefe")).toBe(0);
+  });
+
   it("produce fuerza por sector para la bolsa", () => {
     const l = new Livelihoods([
       persona("1", "developer"),

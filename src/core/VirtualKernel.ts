@@ -500,6 +500,19 @@ export class VirtualKernel {
       };
 
       this.publisher.publish(entity);
+
+      // Las empresas y organizaciones arrancan con una caja: son negocios
+      // que ya facturan. Por eso hackear "Banco Justicia" o "Nova Corp" paga
+      // muchísimo más que a un vecino — te llevás la caja, no un bolsillo.
+      if (item.type === "company" || item.type === "organization") {
+        let cap = 300_000;
+        for (let c = 0; c < item.name.length; c += 1) {
+          cap = (cap + item.name.charCodeAt(c) * 9973) % 2_500_000;
+        }
+        cap += 400_000;
+        if (/banco/i.test(item.name)) cap += 3_000_000; // los bancos, más caja
+        this.worldEngine.registerBusiness(owner.id, item.name, cap);
+      }
     });
   }
 
