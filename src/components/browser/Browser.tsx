@@ -26,6 +26,26 @@ interface Trace {
 
 const HOME = "nande.home";
 
+/**
+ * Sitios que el navegador siempre conoce, para que una búsqueda por nombre
+ * ("banco", "academia", "grupos") devuelva un resultado clicable aunque el
+ * buscador del mundo todavía no los tenga indexados.
+ */
+const KNOWN_SITES: SearchResult[] = [
+  { hostname: "banco.nande", title: "Banco Mbarete", description: "Home banking · laboratorio de inyección SQL", keywords: ["banco", "sqli", "login"] },
+  { hostname: "blog.yvoty.nande", title: "Yvoty Blog", description: "Blog de noticias · laboratorio de XSS reflejado", keywords: ["blog", "xss", "noticias"] },
+  { hostname: "fotos.arandu.nande", title: "Fotos Arandú", description: "Álbumes de fotos · laboratorio de IDOR", keywords: ["fotos", "idor", "album"] },
+  { hostname: "docs.tape.nande", title: "Archivos Tapé", description: "Visor de documentos · laboratorio de path traversal", keywords: ["archivos", "traversal", "docs"] },
+  { hostname: "tools.pyta.nande", title: "Herramientas Pytã", description: "Utilidad de red · laboratorio de inyección de comandos", keywords: ["herramientas", "comandos", "ping"] },
+  { hostname: "www.nande", title: "Portal ÑANDE", description: "Portal principal de la Internet virtual", keywords: ["portal", "inicio"] },
+  { hostname: "news.nande", title: "Noticias ÑANDE", description: "El diario del mundo virtual", keywords: ["noticias", "diario"] },
+  { hostname: "git.nande", title: "Repositorios", description: "Código de los habitantes", keywords: ["git", "repositorios", "codigo"] },
+  { hostname: "academy.nande", title: "Academia", description: "La biblioteca y la ruta de aprendizaje", keywords: ["academia", "aprender", "cursos"] },
+  { hostname: "store.nande", title: "Tienda ÑANDE", description: "Compras del mundo virtual", keywords: ["tienda", "compras", "store"] },
+  { hostname: "groups.nande", title: "Grupos hacker", description: "Colectivos éticos a los que unirse", keywords: ["grupos", "groups", "comunidad"] },
+  { hostname: "community.nande", title: "Comunidades", description: "Las comunidades vivas del mundo", keywords: ["comunidad", "foro"] },
+];
+
 function splitUrl(target: string): { hostname: string; path: string } {
   const normalized = target.trim().replace(/^https?:\/\//i, "");
   const slash = normalized.indexOf("/");
@@ -101,7 +121,7 @@ export default function Browser({ kernel }: BrowserProps) {
       return;
     }
 
-    // Búsqueda: "buscar: términos" o el host de búsqueda.
+    // Búsqueda explícita: "buscar: términos".
     const searchMatch = target.match(/^(?:buscar:|search:)\s*(.+)$/i);
     if (searchMatch) {
       runSearch(searchMatch[1], record);
@@ -109,6 +129,20 @@ export default function Browser({ kernel }: BrowserProps) {
     }
 
     const { hostname, path } = splitUrl(target);
+
+    // Barra de direcciones inteligente, como un navegador real: si lo que
+    // se escribió no parece una dirección (no tiene punto y no es un host
+    // conocido), se busca en vez de dar un error de DNS. Antes escribir
+    // "academia" o "grupos" fallaba con "no se encontró"; ahora busca.
+    const pareceHost =
+      hostname.includes(".") ||
+      kernel.browser.isWebApp(hostname) ||
+      kernel.dns.resolve(hostname) !== undefined;
+
+    if (!pareceHost) {
+      runSearch(target.trim(), record);
+      return;
+    }
 
     // Aplicación web dinámica → petición HTTP real.
     if (kernel.browser.isWebApp(hostname)) {
@@ -174,7 +208,24 @@ export default function Browser({ kernel }: BrowserProps) {
 
   function runSearch(q: string, record: boolean) {
     const found = kernel.search.search(q);
-    setResults(found);
+    const term = q.trim().toLowerCase();
+
+    // Además del buscador del mundo, se ofrecen los sitios y laboratorios
+    // conocidos que coincidan con lo escrito, para que buscar "banco" o
+    // "academia" siempre dé un resultado clicable.
+    const known = KNOWN_SITES.filter(
+      (s) =>
+        s.hostname.toLowerCase().includes(term) ||
+        s.title.toLowerCase().includes(term) ||
+        s.description.toLowerCase().includes(term),
+    );
+
+    const merged = [...known];
+    for (const r of found) {
+      if (!merged.some((m) => m.hostname === r.hostname)) merged.push(r);
+    }
+
+    setResults(merged);
     setBodyHtml("");
     setAddress(`buscar: ${q}`);
     setTrace(null);
@@ -278,7 +329,7 @@ export default function Browser({ kernel }: BrowserProps) {
             value={address}
             spellCheck={false}
             onChange={(e) => setAddress(e.target.value)}
-            placeholder="host.nande  ·  o escribí para buscar"
+            placeholder="Escribí una dirección (banco.nande) o palabras para buscar"
           />
         </form>
 
@@ -300,7 +351,21 @@ export default function Browser({ kernel }: BrowserProps) {
             <div className="br__error">
               <strong>No se pudo cargar el sitio</strong>
               <p>{error}</p>
-              <button className="nd-btn" onClick={() => load(HOME)}>Volver al inicio</button>
+              <p className="br__error-tip">
+                En la barra escribí una dirección (por ejemplo{" "}
+                <code>banco.nande</code>) o simplemente palabras para buscar.
+                Comandos como <code>publicar</code> o <code>grupos</code> van
+                en la <strong>Terminal</strong>, no acá.
+              </p>
+              <div className="br__error-actions">
+                <button className="nd-btn" onClick={() => load(HOME)}>Ir al inicio</button>
+                <button
+                  className="nd-btn"
+                  onClick={() => runSearch(error.replace(/^.*?no se encontró\s*/i, ""), true)}
+                >
+                  Buscar en su lugar
+                </button>
+              </div>
             </div>
           ) : results ? (
             <SearchResults results={results} onOpen={(host) => load(host)} />

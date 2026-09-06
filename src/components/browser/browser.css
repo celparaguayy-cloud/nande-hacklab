@@ -182,3 +182,24 @@
 .lab-card { padding: 14px; border: 1px solid var(--nd-border); border-radius: var(--nd-r-md); background: var(--nd-surface-2); margin: 10px 0; }
 .lab-reflect { padding: 10px 12px; margin: 12px 0; border: 1px dashed var(--nd-border-strong); border-radius: var(--nd-r-sm); }
 .lab-footer { margin-top: 20px; padding-top: 10px; border-top: 1px solid var(--nd-border); font-size: 11px; color: var(--nd-text-faint); }
+
+.br__error-tip {
+  max-width: 46ch;
+  margin: 0 auto 16px;
+  font-family: inherit !important;
+  font-size: 12.5px !important;
+  color: var(--nd-text-dim);
+  line-height: 1.6;
+}
+.br__error-tip code {
+  background: var(--nd-surface-2);
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: var(--nd-accent);
+}
+.br__error-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
