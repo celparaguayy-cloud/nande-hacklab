@@ -127,6 +127,21 @@ export class VirtualKernel {
       this.dns,
       this.internet,
       this.search,
+      {
+        // El día actual del mundo: hace que los sitios de los habitantes
+        // crezcan con el tiempo (más posts, commits, versiones).
+        currentDay: () =>
+          Math.floor(this.world.getState().clock.tick / 1440) + 1,
+        // Perfil real del dueño, para dar contexto al sitio.
+        ownerProfile: (ownerId, metadata) => {
+          const person = this.worldEngine.getPerson(ownerId);
+          return {
+            name: person?.name ?? metadata.ownerName ?? ownerId,
+            profession: person?.profession ?? "vecino",
+            interests: person?.interests ?? [],
+          };
+        },
+      },
     );
 
     this.news = new NewsEngine();
@@ -389,6 +404,65 @@ export class VirtualKernel {
         }
       },
     );
+
+    this.seedInitialSites();
+  }
+
+  /**
+   * Siembra un puñado de sitios de habitantes YA establecidos, para que la
+   * Internet virtual esté viva desde el primer segundo. Sin esto habría que
+   * esperar a que los agentes crearan sus sitios (cientos de ticks). Se
+   * "retrofechan" para que tengan antigüedad y, por tanto, contenido rico
+   * (varias entradas de blog, muchos commits, versiones).
+   */
+  private seedInitialSites(): void {
+    const people = this.worldEngine.getPeople();
+    if (people.length === 0) return;
+
+    const plan: {
+      type: WorldEntity["type"];
+      name: string;
+      desc: string;
+      ageDays: number;
+      tags: string[];
+    }[] = [
+      { type: "repository", name: "Yvyra Scanner", desc: "Escáner de puertos ligero, escrito en la comunidad.", ageDays: 40, tags: ["redes", "seguridad"] },
+      { type: "company", name: "Arandu Software", desc: "Estudio de software a medida para el mundo de ÑANDE.", ageDays: 60, tags: ["negocios", "tecnología"] },
+      { type: "website", name: "Bitácora de Kamba", desc: "Un blog sobre aprender a programar desde cero.", ageDays: 35, tags: ["educación"] },
+      { type: "app", name: "Ñe'ẽ Chat", desc: "App de mensajería con cifrado punta a punta.", ageDays: 25, tags: ["tecnología"] },
+      { type: "community", name: "Foro Tapé", desc: "La comunidad de redes y sysadmin del mundo.", ageDays: 50, tags: ["redes"] },
+      { type: "game", name: "Mymba Runner", desc: "Un juego de plataformas hecho por un vecino.", ageDays: 18, tags: ["videojuegos"] },
+      { type: "company", name: "Pytã Security", desc: "Consultora de ciberseguridad y pentesting.", ageDays: 70, tags: ["seguridad"] },
+      { type: "repository", name: "guata-cli", desc: "Herramienta de línea de comandos para automatizar tareas.", ageDays: 30, tags: ["Git", "tecnología"] },
+      { type: "website", name: "Cocina Ñande", desc: "Recetas paraguayas explicadas paso a paso.", ageDays: 45, tags: ["cultura"] },
+      { type: "channel", name: "Canal Guaraní Tech", desc: "Tutoriales de tecnología en guaraní y español.", ageDays: 22, tags: ["educación", "video"] },
+      { type: "organization", name: "Yvoty Media", desc: "Medio digital independiente del mundo.", ageDays: 55, tags: ["medios"] },
+      { type: "repository", name: "sql-lab", desc: "Colección de retos de inyección SQL para practicar.", ageDays: 15, tags: ["seguridad", "SQL"] },
+    ];
+
+    plan.forEach((item, i) => {
+      const owner = people[(i * 37) % people.length];
+      // Tick de creación retrofechado, para que el sitio tenga antigüedad.
+      const createdTick = -item.ageDays * 1440;
+
+      // Se publica una entidad literal, SIN meterla en el WorldRegistry ni
+      // emitir eventos: así la web queda viva desde el arranque, pero el
+      // mundo sigue arrancando "vacío" (sin noticias ni entidades de
+      // agente) hasta que los habitantes empiezan a crear cosas.
+      const entity: WorldEntity = {
+        id: `seed-${i}`,
+        type: item.type,
+        name: item.name,
+        description: item.desc,
+        ownerId: owner.id,
+        createdTick,
+        updatedTick: createdTick,
+        tags: item.tags,
+        metadata: { ownerName: owner.name, profession: owner.profession },
+      };
+
+      this.publisher.publish(entity);
+    });
   }
 
   /** Pide a la terminal que ejecute un comando (la abre quien llame). */

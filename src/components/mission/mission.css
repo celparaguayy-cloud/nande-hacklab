@@ -70,3 +70,20 @@
   background: var(--nd-surface-3); color: var(--nd-accent);
   font-size: 10.5px; font-weight: 700;
 }
+
+.mc__ranking { display: flex; flex-direction: column; gap: 4px; }
+.mc__rank {
+  display: flex; align-items: center; gap: 9px;
+  padding: 6px 8px; font-size: 12.5px;
+  border: 1px solid transparent;
+}
+.mc__rank[data-me="true"] {
+  background: var(--nd-accent-soft);
+  border-color: var(--nd-accent-line);
+}
+.mc__rank-pos { color: var(--nd-text-faint); width: 26px; flex-shrink: 0; font-weight: 700; }
+.mc__rank-alias { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mc__rank[data-me="true"] .mc__rank-alias { font-weight: 700; color: var(--nd-accent); }
+.mc__rank-faction { color: var(--nd-text-faint); }
+.mc__rank-move { color: var(--nd-text-dim); }
+.mc__rank-noto { flex-shrink: 0; color: var(--nd-warn); font-weight: 700; }

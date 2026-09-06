@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { VirtualKernel } from "../../core/VirtualKernel";
 import { HEAT_BUST } from "../../core/game/Notoriety";
+import { leaderboard } from "../../core/game/RivalHackers";
 import "./mission.css";
 
 interface Props {
@@ -48,6 +49,10 @@ export default function MissionControl({ kernel, onOpenApp }: Props) {
   const chapters = kernel.campaign.chapters();
 
   const heatPct = Math.min(100, (noto.heat / HEAT_BUST) * 100);
+
+  const day = Math.floor(kernel.world.getState().clock.tick / 1440) + 1;
+  const ranking = leaderboard(player.name, noto.notoriety, day);
+  const myRank = ranking.findIndex((r) => r.isPlayer) + 1;
 
   return (
     <div className="mc">
@@ -161,6 +166,29 @@ export default function MissionControl({ kernel, onOpenApp }: Props) {
               }
             >
               {c.number}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Ranking de hackers: competís con los bots del mundo */}
+      <div className="mc__card">
+        <div className="mc__row">
+          <strong>Ranking de hackers</strong>
+          <span className="mc__dim">sos #{myRank} de {ranking.length}</span>
+        </div>
+        <div className="mc__ranking">
+          {ranking.slice(0, 9).map((r, i) => (
+            <div key={r.alias + i} className="mc__rank" data-me={r.isPlayer}>
+              <span className="mc__rank-pos">#{i + 1}</span>
+              <span className="mc__rank-alias">
+                {r.alias}
+                <span className="mc__rank-faction"> · {r.faction}</span>
+                {r.lastMove && (
+                  <span className="mc__rank-move"> — {r.lastMove}</span>
+                )}
+              </span>
+              <span className="mc__rank-noto">★ {r.notoriety}</span>
             </div>
           ))}
         </div>

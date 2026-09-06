@@ -222,3 +222,20 @@
   animation: nd-pop 0.18s ease-out;
 }
 .br__toast > div { margin: 2px 0; }
+
+/* Sitios vivos de los habitantes (multipágina) */
+.nande-site .site-nav {
+  display: flex; flex-wrap: wrap; gap: 4px 10px;
+  padding: 8px 0 12px; margin-bottom: 14px;
+  border-bottom: 1px solid var(--nd-border);
+  font-size: 12.5px;
+}
+.nande-site .site-nav a { color: var(--nd-info); }
+.nande-site .site-nav a.active { color: var(--nd-accent); font-weight: 700; }
+.nande-site .lead { font-size: 14px; color: var(--nd-text); margin-bottom: 14px; }
+.nande-site .post-date { font-size: 11px; color: var(--nd-text-faint); text-transform: uppercase; letter-spacing: 0.04em; }
+.nande-site .commit-list { list-style: none; padding: 0; }
+.nande-site .commit-list li { padding: 3px 0; border-bottom: 1px solid var(--nd-border); }
+.nande-site .commit-list code { background: none; color: #a5d6ff; padding: 0; }
+.nande-site .tag { font-size: 10.5px; padding: 1px 6px; background: var(--nd-surface-3); color: var(--nd-warn); margin-left: 6px; }
+.nande-site .site-foot { margin-top: 20px; padding-top: 10px; border-top: 1px solid var(--nd-border); font-size: 12px; }
