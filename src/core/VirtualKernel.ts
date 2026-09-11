@@ -634,6 +634,9 @@ export class VirtualKernel {
    */
   captureSignal(signal: string) {
     const tick = this.world.getState().clock.tick;
+    // Registro de competencia: toda bandera ND{...} capturada queda en el
+    // historial del jugador (trofeos y certificaciones).
+    if (signal.startsWith("ND{")) this.player.recordFlag(signal);
     return this.consequences.capture(signal, tick);
   }
 

@@ -48,6 +48,8 @@ export interface PlayerState {
   solvedLabs: string[];
   /** Ids de cursos completados. */
   completedCourses: string[];
+  /** Banderas ND{...} capturadas: el registro de competencia demostrada. */
+  capturedFlags: string[];
 }
 
 const STORAGE_KEY = "nande-player";
@@ -124,6 +126,7 @@ export class Progression {
       wallet: STARTING_WALLET,
       achievements: [],
       solvedLabs: [],
+      capturedFlags: [],
       completedCourses: [],
     };
   }
@@ -148,6 +151,7 @@ export class Progression {
         skills: { ...emptySkills(), ...saved.skills },
         achievements: saved.achievements ?? [],
         solvedLabs: saved.solvedLabs ?? [],
+        capturedFlags: saved.capturedFlags ?? [],
         completedCourses: saved.completedCourses ?? [],
       };
     } catch {
@@ -279,6 +283,22 @@ export class Progression {
 
   get wallet(): number {
     return this.state.wallet;
+  }
+
+  /**
+   * Registra una bandera capturada (competencia demostrada). Devuelve si era
+   * nueva. Es la base de los trofeos y las certificaciones.
+   */
+  recordFlag(flag: string): boolean {
+    if (!flag || this.state.capturedFlags.includes(flag)) return false;
+    this.state.capturedFlags.push(flag);
+    this.save();
+    return true;
+  }
+
+  /** Todas las banderas capturadas, del historial del jugador. */
+  capturedFlags(): string[] {
+    return [...this.state.capturedFlags];
   }
 
   /** Marca un laboratorio como resuelto. Devuelve si era nuevo. */

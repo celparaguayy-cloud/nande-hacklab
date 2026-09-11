@@ -941,6 +941,9 @@ export class VirtualTerminal {
       return { output: result.output, isError: result.isError };
     }
 
+    // Toda bandera capturada por una herramienta queda en el historial.
+    if (result.flag.startsWith("ND{")) this.kernel.player.recordFlag(result.flag);
+
     // A que laboratorio pertenece la bandera capturada.
     const target = args.find(
       (a) => a.startsWith("10.10.") || a.includes(".lab") || a.startsWith("http"),

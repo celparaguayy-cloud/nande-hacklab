@@ -3,13 +3,14 @@ import type { CSSProperties } from "react";
 import type { VirtualKernel } from "../../core/VirtualKernel";
 import { RANKS, rankForLevel } from "../../core/game/Progression";
 import { DEFENSES } from "../../core/academy/Defenses";
+import { certificationsFor, flagLabel } from "../../core/game/Certifications";
 
 interface LearnViewProps {
   kernel: VirtualKernel;
   onOpenApp?: (id: string) => void;
 }
 
-type Tab = "inicio" | "rutas" | "lecciones" | "defensa" | "perfil";
+type Tab = "inicio" | "rutas" | "lecciones" | "defensa" | "trofeos" | "perfil";
 
 /**
  * ÑANDE Learn: la app para aprender hacking, ordenada de lo básico a lo
@@ -34,6 +35,8 @@ function LearnView({ kernel, onOpenApp }: LearnViewProps) {
   const lessons = kernel.lessons.all();
   const rank = rankForLevel(player.level);
   const done = new Set(player.completedCourses);
+  const flags = kernel.player.capturedFlags();
+  const certs = certificationsFor(flags);
 
   // Practicar una lección: abre la terminal y la arranca.
   const startLesson = (id: string) => {
@@ -212,12 +215,56 @@ function LearnView({ kernel, onOpenApp }: LearnViewProps) {
         </>
       )}
 
+      {tab === "trofeos" && (
+        <>
+          <h3 style={sectionTitle}>Certificaciones · por competencia demostrada</h3>
+          <div style={{ display: "grid", gap: 10 }}>
+            {certs.map((c) => (
+              <div key={c.cert.id} style={{ ...card, opacity: c.earned ? 1 : 0.7 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <strong>{c.cert.icon} {c.cert.name}</strong>
+                  <span style={{ color: c.earned ? "#6ee787" : accent, fontSize: 13 }}>
+                    {c.earned ? "✓ obtenida" : `${c.have}/${c.need}`}
+                  </span>
+                </div>
+                <div style={{ fontSize: 12.5, opacity: 0.8, margin: "4px 0 8px" }}>{c.cert.description}</div>
+                <Progress value={Math.min(c.have, c.need)} max={c.need} />
+              </div>
+            ))}
+          </div>
+
+          <h3 style={sectionTitle}>Sala de trofeos · lo que ya dominás</h3>
+          {flags.length === 0 ? (
+            <div style={{ ...card, color: "#8b98a5" }}>
+              Todavía sin banderas. Cada técnica que captures aparece acá con su defensa.
+            </div>
+          ) : (
+            <div style={{ display: "grid", gap: 8 }}>
+              {flags.map((f) => {
+                const info = flagLabel(f);
+                return (
+                  <div key={f} style={card}>
+                    <strong>🏁 {info.tecnica}</strong>
+                    {info.defensa ? (
+                      <div style={{ fontSize: 12.5, opacity: 0.85, marginTop: 3 }}>
+                        🛡️ {info.defensa}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+
       <div style={tabBar}>
         {([
           ["inicio", "🏠", "Inicio"],
           ["rutas", "🚩", "Rutas"],
           ["lecciones", "🖥️", "Lecciones"],
           ["defensa", "🛡️", "Defensa"],
+          ["trofeos", "🏆", "Trofeos"],
           ["perfil", "👤", "Perfil"],
         ] as [Tab, string, string][]).map(([id, icon, label]) => (
           <button
