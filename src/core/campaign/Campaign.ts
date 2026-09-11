@@ -109,6 +109,84 @@ export const CHAPTERS: Chapter[] = [
     debrief:
       "Control total de la API. Con esto el colectivo puede exponer a Mbarete ante todo ÑANDE. Sos oficialmente un operador.",
   },
+  {
+    id: "c5",
+    number: 5,
+    title: "El Golpe · Puente al interior",
+    briefing:
+      "Kuña de nuevo. Mbarete mueve la plata sucia por una red interna que no se ve desde afuera " +
+      "(10.10.9.x). Pero ya tenemos una máquina tomada con pata en las dos redes. Pivoteá por ella " +
+      "y alcanzá el panel interno.",
+    objectives: [
+      {
+        id: "c5-o1",
+        text: "Llegá a la red interna 10.10.9.x pivoteando",
+        flag: "ND{pivot_interno}",
+        hint: "En la Terminal: proxychains 10.10.9.10",
+      },
+    ],
+    reward: { xp: 500, coins: 350, notoriety: 25 },
+    debrief:
+      "Estás adentro de la red interna. Ahora hay que escuchar qué se dice ahí.",
+  },
+  {
+    id: "c6",
+    number: 6,
+    title: "El Golpe · Escuchar el cable",
+    briefing:
+      "En ese segmento hay un servicio viejo que manda credenciales sin cifrar. Poné a escuchar la red " +
+      "y capturá el usuario y la contraseña que pasan en texto plano.",
+    objectives: [
+      {
+        id: "c6-o1",
+        text: "Capturá credenciales en claro con un sniffer",
+        flag: "ND{sniff_credenciales}",
+        hint: "En la Terminal: tcpdump 10.10.5.20  (una máquina con servicio sin cifrar)",
+      },
+    ],
+    reward: { xp: 550, coins: 400, notoriety: 20 },
+    debrief:
+      "Credenciales en la mano. Con eso vamos por las llaves de su nube.",
+  },
+  {
+    id: "c7",
+    number: 7,
+    title: "El Golpe · La llave de la nube",
+    briefing:
+      "Su previsualizador de enlaces trae URLs desde el servidor. Hacelo pedir la metadata interna de la " +
+      "nube y robá las credenciales de administrador que solo el server puede ver (SSRF).",
+    objectives: [
+      {
+        id: "c7-o1",
+        text: "Robá las credenciales de la nube por SSRF",
+        flag: "ND{ssrf_metadata_robada}",
+        hint: "En preview.vortex.nande, previsualizá  http://169.254.169.254/latest/meta-data/",
+      },
+    ],
+    reward: { xp: 600, coins: 450, notoriety: 30 },
+    debrief:
+      "Tenés las llaves del reino. Solo falta lo que vinimos a hacer: el golpe.",
+  },
+  {
+    id: "c8",
+    number: 8,
+    title: "El Golpe · Vaciar la caja",
+    briefing:
+      "El final. Tomá la cuenta de Banco Justicia: conseguí la clave del dueño (husmeando en Pulso o con " +
+      "SQLi + crack), entrá a su panel privado y transferí la caja a tu billetera. Que ÑANDE se entere.",
+    objectives: [
+      {
+        id: "c8-o1",
+        text: "Tomá la cuenta de banco-justicia.nande y vaciá la caja",
+        flag: "ND{acceso:banco-justicia}",
+        hint: "En banco-justicia.nande: SQLi en /buscar o buscá su clave en Pulso, crackeala, login y entrá al panel; después Transferir.",
+      },
+    ],
+    reward: { xp: 800, coins: 700, notoriety: 50 },
+    debrief:
+      "El golpe salió. La caja de Mbarete/Banco Justicia quedó en cero y todo ÑANDE habla de vos. " +
+      "Sos leyenda del colectivo Año'ῖ. Fin de Operación Génesis.",
+  },
 ];
 
 export interface CampaignState {

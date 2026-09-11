@@ -36,6 +36,11 @@ export type Topic =
   | "cmdi"
   | "traversal"
   | "navegar"
+  | "pivot"
+  | "sniff"
+  | "ssrf"
+  | "heist"
+  | "forense"
   | "general";
 
 /** Veces que hay que resolver algo solo para que la Mani te suelte ese tema. */
@@ -79,6 +84,11 @@ function topicOf(objective: Objective): Topic {
   if (f.includes("cmd") || f.includes("cat flag")) return "cmdi";
   if (f.includes("traversal") || f.includes("../")) return "traversal";
   if (f.includes("xss")) return "xss";
+  if (f.includes("pivot") || f.includes("proxychains") || f.includes("interno")) return "pivot";
+  if (f.includes("sniff") || f.includes("tcpdump") || f.includes("arp")) return "sniff";
+  if (f.includes("ssrf") || f.includes("metadata") || f.includes("169.254")) return "ssrf";
+  if (f.includes("acceso:") || f.includes("robar") || f.includes("caja") || f.includes("golpe")) return "heist";
+  if (f.includes("forense") || f.includes("logs") || f.includes("siem")) return "forense";
   return "general";
 }
 
@@ -259,6 +269,11 @@ export class Mentor {
       traversal: "El visor abre archivos de una carpeta. ¿Cómo saldrías de esa carpeta?",
       xss: "Lo que escribís se muestra tal cual, sin filtrar. ¿Qué pasaría con una etiqueta <script>?",
       navegar: "Escribí un host en la barra del Navegador, o palabras para buscar.",
+      pivot: "Esa red interna no se ve directo. ¿Y si pasás por una máquina que ya tomaste?",
+      sniff: "Si el tráfico no está cifrado, se puede escuchar. ¿Con qué herramienta grabás lo que pasa por la red?",
+      ssrf: "El servidor busca la URL por vos. ¿A qué lugar interno podría llegar él que vos no?",
+      heist: "Ya sabés entrar. Ahora conseguí la clave del dueño, iniciá sesión y vaciá la caja.",
+      forense: "Del lado defensor: los logs guardan el rastro. Buscá el patrón raro y de qué IP vino.",
       general: "Mirá bien el objetivo y probá. Equivocarte también enseña.",
     };
 

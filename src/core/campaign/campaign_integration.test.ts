@@ -42,7 +42,7 @@ describe("Operación Génesis: campaña con consecuencias", () => {
     expect(k.campaign.getState().current).toBe(3);
   });
 
-  it("forjar un JWT de admin completa la campaña", () => {
+  it("forjar un JWT de admin completa el capítulo 4 (pero la campaña sigue)", () => {
     resetStorage(); seedRandom();
     const k = new VirtualKernel();
     const t = new VirtualTerminal(k);
@@ -52,8 +52,27 @@ describe("Operación Génesis: campaña con consecuencias", () => {
     k.captureSignal("CRACK:girasol");
     expect(k.campaign.getState().current).toBe(3);
 
-    const out = t.execute("jwt forge nande rol=admin usuario=admin");
-    expect(out).toMatch(/Operaci[oó]n G[eé]nesis/i);
+    t.execute("jwt forge nande rol=admin usuario=admin");
+    // El capítulo 4 se cierra y la campaña avanza al arco "El Golpe".
+    expect(k.campaign.getState().current).toBe(4);
+    expect(k.campaign.getState().finished).toBe(false);
+  });
+
+  it("el arco 'El Golpe' cierra Operación Génesis", () => {
+    resetStorage(); seedRandom();
+    const k = new VirtualKernel();
+    for (const sig of [
+      "ND{sqli_login_bypass}",
+      "M8arete-2024!",
+      "CRACK:girasol",
+      "ND{jwt_forged_admin}",
+      "ND{pivot_interno}",
+      "ND{sniff_credenciales}",
+      "ND{ssrf_metadata_robada}",
+    ]) k.captureSignal(sig);
+    expect(k.campaign.getState().finished).toBe(false);
+    const r = k.captureSignal("ND{acceso:banco-justicia}");
     expect(k.campaign.getState().finished).toBe(true);
+    expect(r.campaignCompleted).toBe(true);
   });
 });
