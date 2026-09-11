@@ -157,6 +157,7 @@ export const FLAG_INFO: Record<string, { tecnica: string; defensa: string }> = {
   "ND{soc_triage}": { tecnica: "Triage de alertas (SOC)", defensa: "(defensa) separar el incidente real." },
   "ND{siem_correlacion}": { tecnica: "Correlación en SIEM", defensa: "(defensa) juntar los eventos del atacante." },
   "ND{dfir_timeline}": { tecnica: "Timeline DFIR", defensa: "(defensa) reconstruir el kill chain." },
+  "ND{blackbox_aprobado}": { tecnica: "Examen final ÑANDE Blackbox", defensa: "Investigación completa: recon → evidencia → informe." },
 };
 
 /** Deriva un nombre para una bandera dinámica (ej. toma de cuenta). */

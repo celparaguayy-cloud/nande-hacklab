@@ -17,6 +17,7 @@ import { SsrfApp, JwtNoneApp, RedirectApp } from "./http/apps/labs2";
 import { CsrfApp, LfiApp, UploadApp, DeserializeApp } from "./http/apps/labs3";
 import { SstiApp, XxeApp, NoSqlApp, RaceApp } from "./http/apps/labs4";
 import { ForensicsApp } from "./http/apps/blueteam";
+import { NandeBlackbox } from "./http/apps/blackbox";
 import { VirtualSearch } from "./search/VirtualSearch";
 import { VirtualInternet } from "./internet/VirtualInternet";
 import { WorldPublisher } from "./internet/WorldPublisher";
@@ -118,6 +119,7 @@ export class VirtualKernel {
     this.web.register(new NoSqlApp());
     this.web.register(new RaceApp());
     this.web.register(new ForensicsApp());
+    this.web.register(new NandeBlackbox());
   }
 
   constructor() {
@@ -250,6 +252,7 @@ export class VirtualKernel {
     this.dns.register("login.redix.nande", "10.10.7.24");
     this.dns.register("cupones.gulu.nande", "10.10.7.25");
     this.dns.register("soc.nande", "10.10.7.26");
+    this.dns.register("blackbox.nande", "10.10.7.27");
 
     // community.nande: las comunidades vivas, navegables.
     this.internet.registerDynamicSite({
