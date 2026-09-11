@@ -161,6 +161,9 @@ export const FLAG_INFO: Record<string, { tecnica: string; defensa: string }> = {
   "ND{reversing_clave_hardcodeada}": { tecnica: "Reversing: clave hardcodeada", defensa: "Ningún secreto en el binario; validar en el server." },
   "ND{malware_iocs}": { tecnica: "Análisis de malware (IOCs)", defensa: "Sandbox + EDR + bloqueo por IOC + backups." },
   "ND{ti_atribucion}": { tecnica: "Threat Intel: atribución por IOC", defensa: "Correlacionar IOCs de alta confianza; no actuar por rumores." },
+  "ND{cloud_bucket_publico}": { tecnica: "Bucket de nube público", defensa: "Buckets privados por defecto; nada de secretos ahí." },
+  "ND{iam_permisivo}": { tecnica: "IAM demasiado permisivo", defensa: "Mínimo privilegio; nunca Action:* Resource:*." },
+  "ND{contenedor_inseguro}": { tecnica: "Contenedor mal configurado", defensa: "Sin --privileged ni docker.sock; secretos por gestor." },
 };
 
 /** Deriva un nombre para una bandera dinámica (ej. toma de cuenta). */

@@ -442,6 +442,54 @@ export const DEFENSES: Defense[] = [
     principle:
       "No ejecutes lo no confiable; analizá en sandbox, bloqueá por IOC y tené backups.",
   },
+  {
+    id: "d-cloud-bucket",
+    attack: "Bucket de nube público",
+    icon: "🪣",
+    standard: "OWASP A05 / cloud",
+    risk: "Un bucket abierto expone backups, datos y hasta .env con secretos a Internet.",
+    vulnerable:
+      "bucket.acl = \"public-read\"; // cualquiera lo lista y lo lee",
+    fixed:
+      "bucket.acl = \"private\"; // privado por defecto\n" +
+      "// + Block Public Access a nivel cuenta + nada de secretos en el bucket",
+    why:
+      "El error no es un exploit: es configuración. Buckets privados por defecto, un bloqueo de acceso público a nivel cuenta, y los secretos en un gestor (no en archivos subidos).",
+    principle:
+      "Almacenamiento privado por defecto; secretos fuera del bucket.",
+  },
+  {
+    id: "d-iam",
+    attack: "IAM demasiado permisivo",
+    icon: "🗝️",
+    standard: "OWASP A01 / cloud",
+    risk: "Un rol con *:* deja a cualquiera que lo asuma administrar toda la cuenta.",
+    vulnerable:
+      "{ \"Action\": \"*\", \"Resource\": \"*\" } // permiso total",
+    fixed:
+      "{ \"Action\": [\"s3:GetObject\"], \"Resource\": \"arn:...:reportes/*\" }\n" +
+      "// permisos justos para la tarea (mínimo privilegio)",
+    why:
+      "Cada identidad recibe solo los permisos que necesita para su tarea, sobre los recursos que necesita. Así, comprometer un rol no entrega la cuenta entera. Revisá y recortá permisos periódicamente.",
+    principle:
+      "Mínimo privilegio: permisos justos, por recurso. Nunca comodines *:*.",
+  },
+  {
+    id: "d-container",
+    attack: "Contenedor mal configurado",
+    icon: "📦",
+    standard: "OWASP A05 / cloud",
+    risk: "Privilegiado + docker.sock = fuga al host; secretos en env = robo fácil.",
+    vulnerable:
+      "docker run --privileged -v /var/run/docker.sock:/var/run/docker.sock ...",
+    fixed:
+      "// sin --privileged, sin montar docker.sock\n" +
+      "// usuario no-root, capabilities mínimas, secretos por gestor (no en ENV)",
+    why:
+      "Un contenedor privilegiado o con el socket de Docker montado puede controlar el host. Corré como usuario no-root, con capacidades mínimas, sin acceso al demonio de Docker, y los secretos inyectados por un gestor, no en variables de entorno.",
+    principle:
+      "Contenedores sin privilegios ni docker.sock; usuario no-root; secretos gestionados.",
+  },
 ];
 
 /** Busca una defensa por su id. */
