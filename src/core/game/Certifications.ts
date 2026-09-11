@@ -164,6 +164,9 @@ export const FLAG_INFO: Record<string, { tecnica: string; defensa: string }> = {
   "ND{cloud_bucket_publico}": { tecnica: "Bucket de nube público", defensa: "Buckets privados por defecto; nada de secretos ahí." },
   "ND{iam_permisivo}": { tecnica: "IAM demasiado permisivo", defensa: "Mínimo privilegio; nunca Action:* Resource:*." },
   "ND{contenedor_inseguro}": { tecnica: "Contenedor mal configurado", defensa: "Sin --privileged ni docker.sock; secretos por gestor." },
+  "ND{devsecops_secreto_filtrado}": { tecnica: "Secreto filtrado en git", defensa: "Gestor de secretos + escaneo pre-commit; rotar y purgar." },
+  "ND{dependencia_vulnerable}": { tecnica: "Dependencia vulnerable en CI", defensa: "SCA en el pipeline que bloquea el despliegue." },
+  "ND{prompt_injection}": { tecnica: "Prompt injection en un agente", defensa: "Sin secretos en el prompt; el texto del usuario no decide permisos." },
 };
 
 /** Deriva un nombre para una bandera dinámica (ej. toma de cuenta). */

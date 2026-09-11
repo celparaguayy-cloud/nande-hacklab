@@ -20,6 +20,8 @@ import { ForensicsApp } from "./http/apps/blueteam";
 import { NandeBlackbox } from "./http/apps/blackbox";
 import { ThreatIntel } from "./http/apps/threatintel";
 import { NimbusCloud } from "./http/apps/cloud";
+import { CicdLab } from "./http/apps/cicd";
+import { AiSecLab } from "./http/apps/aisec";
 import { VirtualSearch } from "./search/VirtualSearch";
 import { VirtualInternet } from "./internet/VirtualInternet";
 import { WorldPublisher } from "./internet/WorldPublisher";
@@ -124,6 +126,8 @@ export class VirtualKernel {
     this.web.register(new NandeBlackbox());
     this.web.register(new ThreatIntel());
     this.web.register(new NimbusCloud());
+    this.web.register(new CicdLab());
+    this.web.register(new AiSecLab());
   }
 
   constructor() {
@@ -259,6 +263,8 @@ export class VirtualKernel {
     this.dns.register("blackbox.nande", "10.10.7.27");
     this.dns.register("ti.nande", "10.10.7.28");
     this.dns.register("cloud.nande", "10.10.7.29");
+    this.dns.register("ci.nande", "10.10.7.30");
+    this.dns.register("agente.nande", "10.10.7.31");
 
     // community.nande: las comunidades vivas, navegables.
     this.internet.registerDynamicSite({

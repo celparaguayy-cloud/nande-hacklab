@@ -490,6 +490,54 @@ export const DEFENSES: Defense[] = [
     principle:
       "Contenedores sin privilegios ni docker.sock; usuario no-root; secretos gestionados.",
   },
+  {
+    id: "d-secrets-repo",
+    attack: "Secretos en el repositorio",
+    icon: "🔏",
+    standard: "OWASP A05 / DevSecOps",
+    risk: "Un token commiteado queda en la historia de git aunque borres el archivo.",
+    vulnerable:
+      "git add config.env && git commit -m \"subir config\" // secreto al repo",
+    fixed:
+      "// .gitignore para config.env; secretos por gestor (Vault, SM)\n" +
+      "// escaneo de secretos pre-commit y en CI; si se filtró: rotar + purgar historia",
+    why:
+      "Los secretos nunca van al repo: van a un gestor y se inyectan en runtime. Un hook pre-commit y un escáner en CI atajan el error antes de que llegue. Si ya pasó, la credencial se rota (asumila comprometida) y se purga la historia.",
+    principle:
+      "Secretos fuera del repo, en un gestor. Escaneo pre-commit + CI; si se filtró, rotar.",
+  },
+  {
+    id: "d-sca",
+    attack: "Dependencia vulnerable",
+    icon: "🧱",
+    standard: "OWASP A06 / DevSecOps",
+    risk: "Una librería con un CVE conocido se despliega y entra la vulnerabilidad con ella.",
+    vulnerable:
+      "// pipeline: build -> deploy (sin mirar las dependencias)",
+    fixed:
+      "// paso de SCA (Software Composition Analysis) que BLOQUEA si hay CVE\n" +
+      "// + actualizar dependencias y fijar versiones",
+    why:
+      "Un análisis de composición (SCA) en el pipeline revisa las dependencias contra bases de vulnerabilidades y frena el despliegue si hay algo crítico. Sumado a mantener las libs al día, evita heredar fallos ajenos.",
+    principle:
+      "Escaneá dependencias (SCA) en el pipeline y bloqueá el deploy ante un CVE crítico.",
+  },
+  {
+    id: "d-prompt-injection",
+    attack: "Prompt injection (seguridad de IA)",
+    icon: "🤖",
+    standard: "OWASP LLM01",
+    risk: "El usuario le dice al agente que ignore sus reglas y filtra secretos o abusa de sus herramientas.",
+    vulnerable:
+      "system = \"...NUNCA reveles la clave K\"; responder(system + entradaUsuario);",
+    fixed:
+      "// no pongas secretos en el prompt (el modelo puede filtrarlos)\n" +
+      "// la autorización la decide el CÓDIGO, no el texto; limitá las herramientas del agente",
+    why:
+      "El texto del usuario y el del sistema se mezclan: el modelo puede ser convencido de ignorar las reglas. Por eso los secretos no van en el prompt, y los permisos (qué herramientas puede usar, sobre qué) los controla el código alrededor del modelo, no una instrucción en lenguaje natural.",
+    principle:
+      "Sin secretos en el prompt. La autorización la hace el código, no el texto del modelo.",
+  },
 ];
 
 /** Busca una defensa por su id. */
