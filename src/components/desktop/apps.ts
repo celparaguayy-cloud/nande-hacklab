@@ -113,6 +113,16 @@ export const APPS: AppMeta[] = [
     dock: true,
   },
   {
+    id: "team",
+    name: "Equipo",
+    title: "ÑANDE Equipo — tus especialistas",
+    summary: "Consultá a Cipher, Trace, Byte, Nova, Root y Echo",
+    category: "Educación",
+    from: "#6ee7b7",
+    to: "#0d9488",
+    dock: true,
+  },
+  {
     id: "chat",
     name: "Chat",
     title: "ÑANDE Chat",
