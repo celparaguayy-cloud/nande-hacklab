@@ -281,6 +281,71 @@ export const DEFENSES: Defense[] = [
     principle:
       "Redirigí solo a destinos de una lista propia. Nunca a una URL que venga del usuario.",
   },
+  {
+    id: "d-ssti",
+    attack: "SSTI (Server-Side Template Injection)",
+    icon: "🧩",
+    standard: "OWASP A03: Injection",
+    risk: "Meter {{7*7}} y que devuelva 49 significa que ejecutan código en el server.",
+    vulnerable:
+      "render('Hola ' + nombre + '!'); // el nombre entra a la plantilla",
+    fixed:
+      "render('Hola {{ nombre }}!', { nombre }); // datos por contexto, no en el template",
+    why:
+      "El input del usuario va como DATO que la plantilla interpola, nunca como parte del codigo de la plantilla. Asi {{7*7}} se muestra tal cual en vez de evaluarse. Usa auto-escape y no construyas plantillas concatenando input.",
+    principle:
+      "Nunca metas input del usuario en el CODIGO de la plantilla. Pasalo como variable de contexto.",
+  },
+  {
+    id: "d-xxe",
+    attack: "XXE (XML External Entity)",
+    icon: "📰",
+    standard: "OWASP A05: Security Misconfiguration",
+    risk: "Un XML con entidades externas hace que el server lea sus propios archivos.",
+    vulnerable:
+      "parseXML(body); // parser con entidades externas habilitadas",
+    fixed:
+      "parseXML(body, {\n" +
+      "  resolveExternalEntities: false, // desactivar entidades\n" +
+      "  dtd: false                       // y el DOCTYPE\n" +
+      "});",
+    why:
+      "El fallo es que el parser resuelve <!ENTITY ... SYSTEM 'file://'>. Se desactivan las entidades externas y la carga de DTD (o se usa un formato como JSON que no las tiene). La mayoria de las librerias traen esa opcion; hay que apagarla explicitamente.",
+    principle:
+      "Desactiva entidades externas y DTD en el parser XML. Mejor aun: usa JSON.",
+  },
+  {
+    id: "d-nosql",
+    attack: "Inyeccion NoSQL",
+    icon: "🍃",
+    standard: "OWASP A03: Injection",
+    risk: "Un operador $ne:null en el login matchea cualquier usuario y entra.",
+    vulnerable:
+      "db.users.findOne({ usuario, password }); // password puede ser un objeto",
+    fixed:
+      "if (typeof password !== 'string') return http400();\n" +
+      "db.users.findOne({ usuario, password }); // forzar tipos string",
+    why:
+      "El problema es aceptar un OBJETO donde esperabas un string: {$ne:null} se convierte en un operador de consulta. Se valida que cada campo sea del tipo esperado (string), y no se pasan objetos crudos del usuario a la query.",
+    principle:
+      "Valida el TIPO de cada campo antes de la consulta. No pases objetos del usuario al motor.",
+  },
+  {
+    id: "d-race",
+    attack: "Condicion de carrera (TOCTOU)",
+    icon: "⏱️",
+    standard: "OWASP A04: Insecure Design",
+    risk: "Peticiones simultaneas explotan la ventana entre chequear y usar (canjear de mas).",
+    vulnerable:
+      "if (cupon.usos > 0) { hacer(); cupon.usos--; } // check y act separados",
+    fixed:
+      "const r = db.update({ id, usos: { $gt: 0 } }, { $inc: { usos: -1 } });\n" +
+      "if (r.modified === 0) return sinSaldo(); // operacion atomica: solo uno gana",
+    why:
+      "Se hace el chequeo y el descuento en UNA sola operacion atomica (un update condicional en la base, o un lock/transaccion). Asi dos peticiones no pueden ver ambas el cupon disponible: solo una gana.",
+    principle:
+      "Chequear-y-usar debe ser atomico: update condicional, transaccion o lock. Nunca en dos pasos.",
+  },
 ];
 
 /** Busca una defensa por su id. */

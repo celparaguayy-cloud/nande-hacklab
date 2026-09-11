@@ -79,6 +79,46 @@ const REACTIONS: Record<string, Reaction> = {
     notoriety: 12,
     heat: 18,
   },
+  "ND{ssti_contexto_expuesto}": {
+    stock: { ticker: "ÑND", factor: -0.11 },
+    headline: {
+      title: "SSTI en Codeá: la plantilla ejecutaba código del usuario",
+      body: "Un generador de saludos evaluaba lo que el usuario metía entre llaves, exponiendo el servidor.",
+      category: "Seguridad",
+    },
+    notoriety: 16,
+    heat: 20,
+    faction: { name: "colectivo", amount: 10 },
+  },
+  "ND{xxe_archivo_leido}": {
+    headline: {
+      title: "XXE en Nova: el importador leía archivos del servidor",
+      body: "El parser de XML resolvía entidades externas y filtraba archivos internos.",
+      category: "Seguridad",
+    },
+    notoriety: 14,
+    heat: 18,
+  },
+  "ND{nosql_auth_bypass}": {
+    stock: { ticker: "ÑND", factor: -0.14 },
+    headline: {
+      title: "Inyección NoSQL en Redix: entraban sin contraseña",
+      body: "Un operador de Mongo en el login bastaba para autenticarse como administrador.",
+      category: "Seguridad",
+    },
+    notoriety: 18,
+    heat: 22,
+    faction: { name: "colectivo", amount: 12 },
+  },
+  "ND{race_condition_toctou}": {
+    headline: {
+      title: "Condición de carrera en Gulu Cupones: se canjeaban de más",
+      body: "Peticiones simultáneas explotaban la ventana entre chequear y descontar el cupón.",
+      category: "Seguridad",
+    },
+    notoriety: 12,
+    heat: 14,
+  },
   "ND{csrf_transferencia}": {
     stock: { ticker: "MBA", factor: -0.1 },
     headline: {

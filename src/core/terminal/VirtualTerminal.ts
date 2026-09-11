@@ -1493,7 +1493,9 @@ export class VirtualTerminal {
           `Apps web: banco.nande, blog.yvoty.nande, fotos.arandu.nande, ` +
           `docs.tape.nande, tools.pyta.nande, preview.vortex.nande, ` +
           `api.vortex.nande, link.gulu.nande, m.banco-justicia.nande, ` +
-          `portal.nova.nande, files.bytebox.nande, cuenta.redix.nande.\n`,
+          `portal.nova.nande, files.bytebox.nande, cuenta.redix.nande, ` +
+          `saludos.codea.nande, import.nova.nande, login.redix.nande, ` +
+          `cupones.gulu.nande.\n`,
         isError: true,
       };
     }
