@@ -167,6 +167,7 @@ export const FLAG_INFO: Record<string, { tecnica: string; defensa: string }> = {
   "ND{devsecops_secreto_filtrado}": { tecnica: "Secreto filtrado en git", defensa: "Gestor de secretos + escaneo pre-commit; rotar y purgar." },
   "ND{dependencia_vulnerable}": { tecnica: "Dependencia vulnerable en CI", defensa: "SCA en el pipeline que bloquea el despliegue." },
   "ND{prompt_injection}": { tecnica: "Prompt injection en un agente", defensa: "Sin secretos en el prompt; el texto del usuario no decide permisos." },
+  "ND{purple_team}": { tecnica: "Ejercicio Purple Team", defensa: "Ataque + defensa: qué pasó, cómo se detecta, qué falló, cómo mejora." },
 };
 
 /** Deriva un nombre para una bandera dinámica (ej. toma de cuenta). */

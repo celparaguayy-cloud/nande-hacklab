@@ -22,6 +22,7 @@ import { ThreatIntel } from "./http/apps/threatintel";
 import { NimbusCloud } from "./http/apps/cloud";
 import { CicdLab } from "./http/apps/cicd";
 import { AiSecLab } from "./http/apps/aisec";
+import { PurpleTeam } from "./http/apps/purple";
 import { VirtualSearch } from "./search/VirtualSearch";
 import { VirtualInternet } from "./internet/VirtualInternet";
 import { WorldPublisher } from "./internet/WorldPublisher";
@@ -128,6 +129,7 @@ export class VirtualKernel {
     this.web.register(new NimbusCloud());
     this.web.register(new CicdLab());
     this.web.register(new AiSecLab());
+    this.web.register(new PurpleTeam());
   }
 
   constructor() {
@@ -265,6 +267,7 @@ export class VirtualKernel {
     this.dns.register("cloud.nande", "10.10.7.29");
     this.dns.register("ci.nande", "10.10.7.30");
     this.dns.register("agente.nande", "10.10.7.31");
+    this.dns.register("purple.nande", "10.10.7.32");
 
     // community.nande: las comunidades vivas, navegables.
     this.internet.registerDynamicSite({
