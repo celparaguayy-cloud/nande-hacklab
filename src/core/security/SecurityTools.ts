@@ -583,6 +583,66 @@ const RUNNERS: Record<string, Runner> = {
     };
   },
 
+  radare2(args) {
+    const bin = (args[0] ?? "").trim().toLowerCase();
+    if (!bin) {
+      return { output: "radare2: falta el binario. Probá: radare2 licencia.bin\n", isError: false };
+    }
+    // Binario ficticio con una clave hardcodeada (mala práctica clásica).
+    if (bin === "licencia.bin" || bin === "licencia") {
+      return {
+        output:
+          "radare2 licencia.bin  [análisis estático]\n" +
+          "[0x004011a0] sym.main:\n" +
+          "  ; compara la clave ingresada con una cadena fija\n" +
+          '  lea rsi, str.NANDE_2024_PRO   ; "NANDE-2024-PRO"\n' +
+          "  call sym.strcmp ; test eax, eax -> jz valido\n" +
+          "Clave hardcodeada encontrada: NANDE-2024-PRO\n" +
+          "Bandera: ND{reversing_clave_hardcodeada}\n" +
+          "Lección: un secreto en el binario NO es secreto; validar en el servidor.\n",
+        isError: false,
+        flag: "ND{reversing_clave_hardcodeada}",
+      };
+    }
+    return {
+      output:
+        `radare2 ${bin}  [análisis estático]\n` +
+        "Funciones: main, init, cleanup. Sin secretos obvios en las cadenas.\n" +
+        "Probá con otro binario del lab (ej: licencia.bin).\n",
+      isError: false,
+    };
+  },
+
+  cuckoo(args) {
+    const muestra = (args[0] ?? "").trim().toLowerCase();
+    if (!muestra) {
+      return { output: "cuckoo: falta la muestra. Probá: cuckoo factura.exe\n", isError: false };
+    }
+    // Muestra ficticia y NO operativa: solo describe comportamiento simulado.
+    if (muestra === "factura.exe" || muestra === "factura") {
+      return {
+        output:
+          "cuckoo: detonando factura.exe en el sandbox aislado...\n" +
+          "[comportamiento observado]\n" +
+          "  - crea persistencia (tarea programada simulada)\n" +
+          "  - intenta contactar un C2 (dominio simulado: update.badcorp.invalid)\n" +
+          "  - cifra archivos de prueba y pide rescate (ransomware simulado)\n" +
+          "[IOCs] dominio: update.badcorp.invalid · hash: e3b0c442... · mutex: NANDE_LOCK\n" +
+          "Veredicto: MALICIOSO. Bandera: ND{malware_iocs}\n" +
+          "Nota: muestra ficticia, sin código real. Se analiza el comportamiento, no se despliega.\n",
+        isError: false,
+        flag: "ND{malware_iocs}",
+      };
+    }
+    return {
+      output:
+        `cuckoo: detonando ${muestra} en el sandbox...\n` +
+        "Sin comportamiento malicioso observado. Parece un archivo limpio.\n" +
+        "Probá con una muestra sospechosa del lab (ej: factura.exe).\n",
+      isError: false,
+    };
+  },
+
   tcpdump(args, ctx) {
     const target = args[args.length - 1] ?? "";
     const guard = requireVirtualTarget(target);

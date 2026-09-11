@@ -770,6 +770,22 @@ export const TOOL_CATALOG: ToolDef[] = [
     runnable: true,
   }),
   t({
+    id: "cuckoo",
+    name: "cuckoo",
+    category: "forense",
+    level: "avanzado",
+    simple:
+      "Mete un archivo sospechoso en una jaula y mira qué intenta hacer, sin riesgo.",
+    whatItDoes: "Sandbox de análisis de malware: detona la muestra y registra su comportamiento.",
+    whyExists: "Para estudiar qué hace un programa malicioso sin infectarse.",
+    whenToUse: "Analizar una muestra ficticia: persistencia, red, cambios de archivos, IOCs.",
+    resultMeaning: "Un informe de comportamiento y los indicadores (IOCs) para detectarlo.",
+    howToDetect: "El análisis es en un entorno aislado; el malware real intenta evadirlo.",
+    howToDefend: "EDR, listas de bloqueo por IOC, y no ejecutar adjuntos no confiables.",
+    usage: "cuckoo factura.exe",
+    runnable: true,
+  }),
+  t({
     id: "volatility",
     name: "volatility",
     category: "forense",
@@ -1327,6 +1343,6 @@ export const TOOL_CATALOG: ToolDef[] = [
     howToDetect: "Offline.",
     howToDefend: "Protección de código.",
     usage: "r2 programa.bin",
-    runnable: false,
+    runnable: true,
   }),
 ];

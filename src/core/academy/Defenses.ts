@@ -410,6 +410,38 @@ export const DEFENSES: Defense[] = [
     principle:
       "Segmenta la red y monitorea el trafico lateral. Una brecha no debe volverse total.",
   },
+  {
+    id: "d-hardcoded",
+    attack: "Secretos en el binario / cliente",
+    icon: "🔑",
+    standard: "OWASP A02 / diseño",
+    risk: "Una clave o token metido en el ejecutable se saca con reversing en minutos.",
+    vulnerable:
+      "if (clave === \"NANDE-2024-PRO\") activar(); // la clave viaja en el binario",
+    fixed:
+      "// validar contra el SERVIDOR; el cliente nunca tiene el secreto\n" +
+      "const ok = await api.validarLicencia(clave); // el server decide",
+    why:
+      "Todo lo que está en el binario o en el cliente es visible: ofuscar solo demora. La verificación de secretos (licencias, claves de API, contraseñas) tiene que pasar en el servidor, donde el usuario no llega.",
+    principle:
+      "Ningún secreto en el cliente ni en el binario. La validación vive en el servidor.",
+  },
+  {
+    id: "d-malware",
+    attack: "Malware / adjuntos maliciosos",
+    icon: "🦠",
+    standard: "OWASP A08 / operaciones",
+    risk: "Un adjunto ejecutado corre código: persistencia, cifrado, robo, C2.",
+    vulnerable:
+      "// abrir factura.exe que llegó por correo",
+    fixed:
+      "// no ejecutar adjuntos no confiables; analizarlos en sandbox\n" +
+      "// EDR + listas de bloqueo por IOC (dominio/hash/mutex) + backups",
+    why:
+      "La defensa es capas: no ejecutar lo no confiable, analizar en un sandbox aislado para sacar IOCs, y bloquear esos IOCs en toda la flota con EDR. Los backups offline te salvan del ransomware.",
+    principle:
+      "No ejecutes lo no confiable; analizá en sandbox, bloqueá por IOC y tené backups.",
+  },
 ];
 
 /** Busca una defensa por su id. */

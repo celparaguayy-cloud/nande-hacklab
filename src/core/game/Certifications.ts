@@ -158,6 +158,8 @@ export const FLAG_INFO: Record<string, { tecnica: string; defensa: string }> = {
   "ND{siem_correlacion}": { tecnica: "Correlación en SIEM", defensa: "(defensa) juntar los eventos del atacante." },
   "ND{dfir_timeline}": { tecnica: "Timeline DFIR", defensa: "(defensa) reconstruir el kill chain." },
   "ND{blackbox_aprobado}": { tecnica: "Examen final ÑANDE Blackbox", defensa: "Investigación completa: recon → evidencia → informe." },
+  "ND{reversing_clave_hardcodeada}": { tecnica: "Reversing: clave hardcodeada", defensa: "Ningún secreto en el binario; validar en el server." },
+  "ND{malware_iocs}": { tecnica: "Análisis de malware (IOCs)", defensa: "Sandbox + EDR + bloqueo por IOC + backups." },
 };
 
 /** Deriva un nombre para una bandera dinámica (ej. toma de cuenta). */
