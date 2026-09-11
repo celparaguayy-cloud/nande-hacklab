@@ -23,7 +23,13 @@ const TEMAS: { label: string; q: string; dom: Domain }[] = [
  */
 function TeamView(_props: TeamViewProps) {
   const [tema, setTema] = useState(TEMAS[0].q);
+  const [pregunta, setPregunta] = useState("");
   const r = consult(tema);
+
+  const preguntar = () => {
+    const q = pregunta.trim();
+    if (q) setTema(q);
+  };
 
   return (
     <div style={container}>
@@ -49,16 +55,36 @@ function TeamView(_props: TeamViewProps) {
       </div>
 
       <h3 style={sectionTitle}>Consultar al equipo</h3>
+      <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+        <input
+          value={pregunta}
+          onChange={(e) => setPregunta(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") preguntar(); }}
+          placeholder="Escribí tu pregunta (ej: cómo crackeo un hash, cómo leo estos logs…)"
+          style={{
+            flex: 1, minWidth: 0, padding: "9px 12px", borderRadius: 8,
+            border: "1px solid rgba(255,255,255,0.15)", background: "rgba(0,0,0,0.25)",
+            color: "#e6edf3", font: "inherit", fontSize: 13,
+          }}
+        />
+        <button onClick={preguntar} style={{ ...chip, ...chipActive, whiteSpace: "nowrap" }}>
+          Preguntar
+        </button>
+      </div>
+      <div style={{ fontSize: 12, opacity: 0.6, marginBottom: 8 }}>o elegí un tema rápido:</div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
         {TEMAS.map((t) => (
           <button
             key={t.q}
-            onClick={() => setTema(t.q)}
-            style={{ ...chip, ...(tema === t.q ? chipActive : {}) }}
+            onClick={() => { setTema(t.q); setPregunta(""); }}
+            style={{ ...chip, ...(tema === t.q && !pregunta.trim() ? chipActive : {}) }}
           >
             {t.label}
           </button>
         ))}
+      </div>
+      <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 10 }}>
+        Consultando sobre: <b style={{ color: accent }}>{tema}</b>
       </div>
 
       <div style={{ ...card, borderLeft: `3px solid ${accent}` }}>
