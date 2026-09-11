@@ -2,13 +2,14 @@ import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import type { VirtualKernel } from "../../core/VirtualKernel";
 import { RANKS, rankForLevel } from "../../core/game/Progression";
+import { DEFENSES } from "../../core/academy/Defenses";
 
 interface LearnViewProps {
   kernel: VirtualKernel;
   onOpenApp?: (id: string) => void;
 }
 
-type Tab = "inicio" | "rutas" | "lecciones" | "perfil";
+type Tab = "inicio" | "rutas" | "lecciones" | "defensa" | "perfil";
 
 /**
  * ÑANDE Learn: la app para aprender hacking, ordenada de lo básico a lo
@@ -186,11 +187,37 @@ function LearnView({ kernel, onOpenApp }: LearnViewProps) {
         </>
       )}
 
+      {tab === "defensa" && (
+        <>
+          <h3 style={sectionTitle}>Defensa · cómo se tapa cada ataque</h3>
+          <div style={{ ...card, color: "#8b98a5", fontSize: 13 }}>
+            🛡️ Por cada técnica que aprendés a explotar, acá está cómo evitarla.
+            Saber atacar sin saber defender es media carrera.
+          </div>
+          {DEFENSES.map((d) => (
+            <div key={d.id} style={card}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+                <strong>{d.icon} {d.attack}</strong>
+                <span style={stdBadge}>{d.standard}</span>
+              </div>
+              <p style={{ fontSize: 12.5, color: "#ff9b7b", margin: "8px 0 10px" }}>⚠ {d.risk}</p>
+              <div style={codeLabel}>✗ Vulnerable</div>
+              <pre style={vulnBox}>{d.vulnerable}</pre>
+              <div style={codeLabel}>✓ Corregido</div>
+              <pre style={fixBox}>{d.fixed}</pre>
+              <p style={{ fontSize: 12.5, opacity: 0.9, margin: "10px 0 6px" }}>{d.why}</p>
+              <div style={principleBox}>🔑 {d.principle}</div>
+            </div>
+          ))}
+        </>
+      )}
+
       <div style={tabBar}>
         {([
           ["inicio", "🏠", "Inicio"],
           ["rutas", "🚩", "Rutas"],
           ["lecciones", "🖥️", "Lecciones"],
+          ["defensa", "🛡️", "Defensa"],
           ["perfil", "👤", "Perfil"],
         ] as [Tab, string, string][]).map(([id, icon, label]) => (
           <button
@@ -281,6 +308,31 @@ const card: CSSProperties = {
   padding: 14, borderRadius: 12, background: "#111820", border: "1px solid #26313b", marginBottom: 12,
 };
 const sectionTitle: CSSProperties = { margin: "18px 0 10px", fontSize: 16 };
+const stdBadge: CSSProperties = {
+  fontSize: 10.5, padding: "3px 7px", borderRadius: 6,
+  background: "rgba(124,196,255,0.12)", color: "#7cc4ff", whiteSpace: "nowrap",
+};
+const codeLabel: CSSProperties = {
+  fontSize: 11, fontWeight: 700, letterSpacing: "0.04em",
+  margin: "6px 0 3px", opacity: 0.85,
+};
+const codeBase: CSSProperties = {
+  margin: 0, padding: "9px 11px", borderRadius: 8, fontSize: 11.5,
+  fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+  whiteSpace: "pre", overflowX: "auto", lineHeight: 1.6,
+  border: "1px solid rgba(255,255,255,0.06)",
+};
+const vulnBox: CSSProperties = {
+  ...codeBase, background: "rgba(248,113,113,0.09)", color: "#ffb4a8",
+};
+const fixBox: CSSProperties = {
+  ...codeBase, background: "rgba(110,231,135,0.09)", color: "#8ff0a6",
+};
+const principleBox: CSSProperties = {
+  fontSize: 12.5, fontWeight: 600, padding: "8px 10px", borderRadius: 8,
+  background: "rgba(245,181,68,0.1)", color: "#f5c15a",
+  borderLeft: "3px solid #f5b544",
+};
 const startBtn: CSSProperties = {
   width: "100%", padding: "10px", borderRadius: 10, border: "none",
   background: accent, color: "#05070a", fontWeight: 700, cursor: "pointer", fontSize: 14,
