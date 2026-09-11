@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { factionStandingFor } from "../../core/world/Factions";
 import type { VirtualKernel } from "../../core/VirtualKernel";
 
 interface WorldMonitorProps {
@@ -335,6 +336,31 @@ function WorldMonitor({ kernel }: WorldMonitorProps) {
             </div>
           </>
         ) : null}
+      </section>
+
+      <section style={{ marginTop: "24px" }}>
+        <h3 style={{ marginBottom: "12px" }}>Facciones · tu lugar en el mundo</h3>
+        <div style={listStyle}>
+          {factionStandingFor(kernel.player.capturedFlags()).map((f) => {
+            const color =
+              f.tier === "enemigo" ? "#ff7b72"
+              : f.tier === "desconfianza" ? "#ffa657"
+              : f.tier === "aliado" ? "#7ee787"
+              : f.tier === "leyenda" ? "#79c0ff"
+              : "#8b98a5";
+            return (
+              <div key={f.faction.id} style={cardStyle}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <strong>{f.faction.emoji} {f.faction.name}</strong>
+                  <span style={{ color, fontSize: 12, textTransform: "uppercase", letterSpacing: ".04em" }}>
+                    {f.tier}
+                  </span>
+                </div>
+                <div style={metaStyle}>{f.faction.ideologia}</div>
+              </div>
+            );
+          })}
+        </div>
       </section>
 
       <section style={{ marginTop: "24px" }}>
