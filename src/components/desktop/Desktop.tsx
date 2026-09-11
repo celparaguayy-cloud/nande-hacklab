@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { sound } from "../../core/audio/Sound";
 import WindowManager from "../window/WindowManager";
 import Terminal from "../terminal/Terminal";
 import { Files } from "../files/Files";
@@ -121,6 +122,15 @@ function Desktop() {
   const launcherRef = useRef<HTMLDivElement>(null);
 
   // El fondo y el acento se actualizan al tocarlos en Configuración.
+  useEffect(() => {
+    const offs = [
+      kernel.events.subscribe("skill.levelup", () => sound.play("levelup")),
+      kernel.events.subscribe("achievement.unlocked", () => sound.play("success")),
+      kernel.events.subscribe("lab.solved", () => sound.play("success")),
+    ];
+    return () => { for (const off of offs) off(); };
+  }, [kernel]);
+
   useEffect(() => {
     return kernel.events.subscribe("appearance.changed", () => {
       setAppearance(kernel.appearance.getState());

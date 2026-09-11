@@ -7,6 +7,7 @@ import {
 } from "react";
 
 import { VirtualKernel } from "../../core/VirtualKernel";
+import { sound } from "../../core/audio/Sound";
 import { VirtualTerminal } from "../../core/terminal/VirtualTerminal";
 
 interface TerminalProps {
@@ -155,6 +156,9 @@ export default function Terminal({ kernel }: TerminalProps) {
   }, [lines]);
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    // Vida audiovisual: un clic sutil por tecla (silenciable en Config).
+    if (event.key.length === 1) sound.play("key");
+    else if (event.key === "Enter") sound.play("click");
     if (event.key === "Enter") {
       event.preventDefault();
       executeCommand();

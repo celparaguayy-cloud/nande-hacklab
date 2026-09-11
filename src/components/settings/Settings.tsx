@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { VirtualKernel } from "../../core/VirtualKernel";
 import { WALLPAPERS, ACCENTS } from "../../core/desktop/Appearance";
+import { sound } from "../../core/audio/Sound";
 
 interface SettingsProps {
   kernel: VirtualKernel;
@@ -11,6 +12,7 @@ export function Settings({ kernel }: SettingsProps) {
     kernel.os.getState().hostname,
   );
   const [message, setMessage] = useState("");
+  const [muted, setMuted] = useState(() => sound.isMuted());
   const [appearance, setAppearance] = useState(() =>
     kernel.appearance.getState(),
   );
@@ -55,6 +57,26 @@ export function Settings({ kernel }: SettingsProps) {
       }}
     >
       <h2 style={{ marginTop: 0 }}>⚙️ Settings</h2>
+
+      <section style={sectionStyle}>
+        <h3 style={titleStyle}>🔊 Sonido</h3>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span style={{ color: "#7f8995", fontSize: 13 }}>
+            Efectos de sonido (teclas, logros, alertas)
+          </span>
+          <button
+            onClick={() => { const m = sound.toggleMuted(); setMuted(m); if (!m) sound.play("click"); }}
+            style={{
+              padding: "6px 14px", borderRadius: 8, cursor: "pointer",
+              border: "1px solid #2b3d4e",
+              background: muted ? "transparent" : "rgba(124,196,255,0.15)",
+              color: muted ? "#8b98a5" : "#7cc4ff", fontWeight: 600,
+            }}
+          >
+            {muted ? "🔇 Silenciado" : "🔊 Activado"}
+          </button>
+        </div>
+      </section>
 
       <section style={sectionStyle}>
         <h3 style={titleStyle}>Sistema</h3>
