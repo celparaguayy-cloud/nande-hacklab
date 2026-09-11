@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { factionStandingFor } from "../../core/world/Factions";
+import { eventsActiveOn } from "../../core/world/WorldEvents";
 import type { VirtualKernel } from "../../core/VirtualKernel";
 
 interface WorldMonitorProps {
@@ -336,6 +337,26 @@ function WorldMonitor({ kernel }: WorldMonitorProps) {
             </div>
           </>
         ) : null}
+      </section>
+
+      <section style={{ marginTop: "24px" }}>
+        <h3 style={{ marginBottom: "12px" }}>Eventos del mundo · ventana limitada</h3>
+        <div style={listStyle}>
+          {eventsActiveOn(Math.floor(summary.clock.tick / 1440) + 1).map((ev) => (
+            <div key={ev.id} style={cardStyle}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                <strong>{ev.icon} {ev.title}</strong>
+                <span style={{
+                  color: ev.diasRestantes <= 1 ? "#ff7b72" : "#f5b544",
+                  fontSize: 12, whiteSpace: "nowrap",
+                }}>
+                  {ev.diasRestantes === 1 ? "¡último día!" : `${ev.diasRestantes} días`}
+                </span>
+              </div>
+              <div style={metaStyle}>{ev.description}</div>
+            </div>
+          ))}
+        </div>
       </section>
 
       <section style={{ marginTop: "24px" }}>
