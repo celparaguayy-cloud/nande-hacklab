@@ -79,6 +79,45 @@ const REACTIONS: Record<string, Reaction> = {
     notoriety: 12,
     heat: 18,
   },
+  "ND{sniff_credenciales}": {
+    headline: {
+      title: "Sniffing en la red: credenciales viajaban en texto plano",
+      body: "Un servicio sin cifrar dejaba ver usuario y contraseña a cualquiera en el segmento.",
+      category: "Seguridad",
+    },
+    notoriety: 12,
+    heat: 10,
+  },
+  "ND{arp_mitm}": {
+    headline: {
+      title: "Ataque man-in-the-middle por ARP spoofing",
+      body: "Un atacante se puso entre la víctima y el router e interceptó su sesión.",
+      category: "Seguridad",
+    },
+    notoriety: 16,
+    heat: 18,
+    faction: { name: "colectivo", amount: 8 },
+  },
+  "ND{wifi_wpa_crackeada}": {
+    headline: {
+      title: "Clave WiFi débil crackeada con diccionario",
+      body: "Una red con contraseña común cayó en segundos ante un ataque offline.",
+      category: "Seguridad",
+    },
+    notoriety: 10,
+    heat: 8,
+  },
+  "ND{pivot_interno}": {
+    stock: { ticker: "ÑND", factor: -0.1 },
+    headline: {
+      title: "Movimiento lateral: llegaron a la red interna por un host puente",
+      body: "Tras tomar una máquina expuesta, el atacante pivoteó hacia segmentos internos con datos sensibles.",
+      category: "Seguridad",
+    },
+    notoriety: 20,
+    heat: 24,
+    faction: { name: "colectivo", amount: 12 },
+  },
   "ND{ssti_contexto_expuesto}": {
     stock: { ticker: "ÑND", factor: -0.11 },
     headline: {

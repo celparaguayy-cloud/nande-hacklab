@@ -583,6 +583,137 @@ const RUNNERS: Record<string, Runner> = {
     };
   },
 
+  tcpdump(args, ctx) {
+    const target = args[args.length - 1] ?? "";
+    const guard = requireVirtualTarget(target);
+    if (guard) return { output: `tcpdump: ${guard}\n`, isError: true };
+    const machine = ctx.lab.resolve(target);
+    if (!machine) {
+      return { output: `tcpdump: objetivo no válido (usá una IP 10.10.x.y de laboratorio).\n`, isError: false };
+    }
+    // Sniffing pasivo: si el objetivo habla un protocolo sin cifrar, se ven
+    // las credenciales en texto plano.
+    const claro = machine.services.find((sv) =>
+      ["ftp", "telnet", "http"].includes(sv.name),
+    );
+    if (!claro) {
+      return {
+        output:
+          `tcpdump escuchando en el segmento de ${machine.hostname}...\n` +
+          `Solo tráfico cifrado (TLS/SSH). No se ven credenciales.\n` +
+          `Lección: cifrar el tráfico hace inútil el sniffing.\n`,
+        isError: false,
+      };
+    }
+    return {
+      output:
+        `tcpdump -i eth0 host ${machine.ip}\n` +
+        `12:04:11 ${machine.ip}.${claro.port} > cliente: ${claro.name.toUpperCase()} LOGIN\n` +
+        `  usuario: soporte\n  password: Verano2024  (¡EN TEXTO PLANO!)\n` +
+        `Capturaste credenciales sin cifrar. Bandera: ND{sniff_credenciales}\n`,
+      isError: false,
+      flag: "ND{sniff_credenciales}",
+    };
+  },
+
+  arpspoof(args, ctx) {
+    const victima = args[0] ?? "";
+    const guard = requireVirtualTarget(victima);
+    if (guard) return { output: `arpspoof: ${guard}\n`, isError: true };
+    const machine = ctx.lab.resolve(victima);
+    if (!machine) {
+      return { output: `arpspoof: víctima no válida (IP 10.10.x.y).\n`, isError: false };
+    }
+    return {
+      output:
+        `arpspoof: haciéndome pasar por el router ante ${machine.hostname}...\n` +
+        `[ARP] ${machine.ip} ahora cree que sos la puerta de enlace.\n` +
+        `El tráfico de la víctima pasa por vos (man-in-the-middle).\n` +
+        `Interceptada una cookie de sesión: sid=9f3c...  Bandera: ND{arp_mitm}\n` +
+        `Defensa: cifrado extremo a extremo + ARP estático + detección de MITM.\n`,
+      isError: false,
+      flag: "ND{arp_mitm}",
+    };
+  },
+
+  "aircrack-ng"(args) {
+    const objetivo = (args[0] ?? "").trim();
+    if (!objetivo) {
+      return {
+        output:
+          `aircrack-ng: falta la red. Redes con handshake capturado:\n` +
+          `  Vecino-2G (WPA2)   CaféÑandé-Free (abierta)   Corp-Secure (WPA2)\n` +
+          `Uso: aircrack-ng Vecino-2G\n`,
+        isError: false,
+      };
+    }
+    // Handshakes capturados (ficticios). Claves débiles = de diccionario.
+    const capturas: Record<string, string | null> = {
+      "vecino-2g": "invitado",
+      "ñande-home": "nande1234",
+      "nande-home": "nande1234",
+      "café ñandé-free": null, // abierta, no hay clave
+      "cafe ñande-free": null,
+      "corp-secure": null, // clave fuerte: no está en el diccionario
+    };
+    const key = objetivo.toLowerCase();
+    if (!(key in capturas)) {
+      return { output: `aircrack-ng: no hay handshake capturado de "${objetivo}".\n`, isError: false };
+    }
+    const clave = capturas[key];
+    if (clave === null) {
+      return {
+        output:
+          `aircrack-ng: probando diccionario contra ${objetivo}...\n` +
+          `[00:00:19] 4913/4913 claves probadas\n` +
+          `KEY NOT FOUND. La clave no está en el diccionario (o la red es abierta).\n` +
+          `Lección: una clave larga y aleatoria resiste el diccionario.\n`,
+        isError: false,
+      };
+    }
+    return {
+      output:
+        `aircrack-ng: probando diccionario contra ${objetivo}...\n` +
+        `[00:00:03] handshake WPA validado\n` +
+        `KEY FOUND! [ ${clave} ]\n` +
+        `Clave WiFi crackeada. Bandera: ND{wifi_wpa_crackeada}\n`,
+      isError: false,
+      flag: "ND{wifi_wpa_crackeada}",
+    };
+  },
+
+  proxychains(args, ctx) {
+    const objetivo = args[args.length - 1] ?? "";
+    // Segmento interno 10.10.9.x: no accesible directo, solo por pivote.
+    if (!objetivo.startsWith("10.10.9.")) {
+      return {
+        output:
+          `proxychains: el objetivo debe estar en la red interna 10.10.9.x\n` +
+          `Esa red no se alcanza directo: se llega pivoteando por un host ya tomado.\n` +
+          `Probá: proxychains 10.10.9.10\n`,
+        isError: false,
+      };
+    }
+    void ctx;
+    const internos: Record<string, string> = {
+      "10.10.9.10": "panel-interno (RRHH) — expone la nómina",
+      "10.10.9.20": "backup-db — copias sin cifrar",
+    };
+    const desc = internos[objetivo];
+    if (!desc) {
+      return { output: `proxychains: 10.10.9.x sin host en ${objetivo}.\n`, isError: false };
+    }
+    return {
+      output:
+        `proxychains nmap ${objetivo}  (a través del host pivote 10.10.5.20)\n` +
+        `[proxychains] cadena: vos -> 10.10.5.20 -> ${objetivo}\n` +
+        `${objetivo} ALCANZADO: ${desc}\n` +
+        `Llegaste a la red interna moviéndote lateralmente. Bandera: ND{pivot_interno}\n`,
+      isError: false,
+      flag: "ND{pivot_interno}",
+    };
+  },
+
   searchsploit(args) {
     const query = args.join(" ") || "?";
 

@@ -346,6 +346,70 @@ export const DEFENSES: Defense[] = [
     principle:
       "Chequear-y-usar debe ser atomico: update condicional, transaccion o lock. Nunca en dos pasos.",
   },
+  {
+    id: "d-sniffing",
+    attack: "Sniffing de trafico",
+    icon: "👂",
+    standard: "OWASP A02: Cryptographic Failures",
+    risk: "En la misma red, alguien lee tus usuarios y contrasenas si viajan sin cifrar.",
+    vulnerable:
+      "POST http://api.interno/login  (HTTP plano: user y pass visibles)",
+    fixed:
+      "POST https://api.interno/login  // TLS en TODO, incluida la red interna\n" +
+      "// + HSTS para forzar https",
+    why:
+      "Cifrando el trafico (TLS/HTTPS, SSH), capturarlo no sirve: el sniffer solo ve datos ilegibles. El error clasico es confiar en que la red interna es segura y dejar HTTP plano ahi.",
+    principle:
+      "Cifra TODO el trafico, tambien el interno. Un sniffer no debe poder leer nada util.",
+  },
+  {
+    id: "d-mitm",
+    attack: "Man-in-the-middle (ARP spoofing)",
+    icon: "🕴️",
+    standard: "OWASP A02: Cryptographic Failures",
+    risk: "Un atacante se pone entre vos y el router y ve/altera todo tu trafico.",
+    vulnerable:
+      "// confiar en la red local + sesiones sin cifrar",
+    fixed:
+      "// TLS extremo a extremo (el MITM ve solo cifrado)\n" +
+      "// + ARP estatico en equipos criticos + Dynamic ARP Inspection en el switch",
+    why:
+      "Aunque el atacante intercepte el trafico, con TLS no puede leerlo ni modificarlo sin romper la validacion del certificado. En la red, ARP estatico y DAI evitan el envenenamiento de la tabla ARP.",
+    principle:
+      "Cifrado extremo a extremo + defensas de red (ARP estatico, DAI). No confies en la LAN.",
+  },
+  {
+    id: "d-wifi",
+    attack: "Crackeo de WiFi (WPA)",
+    icon: "📶",
+    standard: "Seguridad inalambrica",
+    risk: "Una clave WiFi comun o corta cae con diccionario en segundos.",
+    vulnerable:
+      "SSID: Casa   clave: invitado   (palabra de diccionario)",
+    fixed:
+      "clave larga y aleatoria (16+ chars) + WPA3\n" +
+      "// en empresa: WPA2/3-Enterprise (802.1X) con credenciales por usuario",
+    why:
+      "El crackeo del handshake es offline: no se detecta y se puede probar millones de claves. La unica defensa es que la clave NO este en ningun diccionario: larga, aleatoria y unica. WPA3 y 802.1X suben mucho la vara.",
+    principle:
+      "Clave WiFi larga, aleatoria y unica. WPA3, y en empresa 802.1X por usuario.",
+  },
+  {
+    id: "d-pivot",
+    attack: "Movimiento lateral / pivoting",
+    icon: "🔀",
+    standard: "OWASP A04: Insecure Design",
+    risk: "Tomar UNA maquina expuesta les abre toda la red interna detras.",
+    vulnerable:
+      "// red plana: si entran a un host, alcanzan todos los demas",
+    fixed:
+      "// segmentacion: VLANs + firewalls internos entre segmentos\n" +
+      "// + minimo privilegio y monitoreo lateral (EDR/NDR)",
+    why:
+      "Con la red segmentada, comprometer un host no da acceso al resto: hay firewalls internos que cortan el pivote. Sumado a monitoreo del trafico lateral, el movimiento se detecta y se frena. Una red plana convierte una brecha chica en total.",
+    principle:
+      "Segmenta la red y monitorea el trafico lateral. Una brecha no debe volverse total.",
+  },
 ];
 
 /** Busca una defensa por su id. */
