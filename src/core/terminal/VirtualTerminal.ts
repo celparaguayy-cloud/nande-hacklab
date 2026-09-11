@@ -1491,7 +1491,8 @@ export class VirtualTerminal {
         output:
           `curl: no se pudo resolver '${hostname}'.\n` +
           `Apps web: banco.nande, blog.yvoty.nande, fotos.arandu.nande, ` +
-          `docs.tape.nande, tools.pyta.nande.\n`,
+          `docs.tape.nande, tools.pyta.nande, preview.vortex.nande, ` +
+          `api.vortex.nande, link.gulu.nande.\n`,
         isError: true,
       };
     }

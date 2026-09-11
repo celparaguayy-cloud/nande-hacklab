@@ -13,6 +13,7 @@ import { VirtualBrowser } from "./browser/VirtualBrowser";
 import { WebServer } from "./http/WebServer";
 import { BankApp } from "./http/apps/bank";
 import { BlogApp, PhotosApp, FilesApp, ToolsApp } from "./http/apps/labs";
+import { SsrfApp, JwtNoneApp, RedirectApp } from "./http/apps/labs2";
 import { VirtualSearch } from "./search/VirtualSearch";
 import { VirtualInternet } from "./internet/VirtualInternet";
 import { WorldPublisher } from "./internet/WorldPublisher";
@@ -102,6 +103,9 @@ export class VirtualKernel {
     this.web.register(new PhotosApp());
     this.web.register(new FilesApp());
     this.web.register(new ToolsApp());
+    this.web.register(new SsrfApp());
+    this.web.register(new JwtNoneApp());
+    this.web.register(new RedirectApp());
   }
 
   constructor() {
@@ -222,6 +226,9 @@ export class VirtualKernel {
     this.dns.register("fotos.arandu.nande", "10.10.7.12");
     this.dns.register("docs.tape.nande", "10.10.7.13");
     this.dns.register("tools.pyta.nande", "10.10.7.14");
+    this.dns.register("preview.vortex.nande", "10.10.7.15");
+    this.dns.register("api.vortex.nande", "10.10.7.16");
+    this.dns.register("link.gulu.nande", "10.10.7.17");
 
     // community.nande: las comunidades vivas, navegables.
     this.internet.registerDynamicSite({

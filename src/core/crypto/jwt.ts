@@ -11,7 +11,7 @@
 import { sha256Raw } from "./hash";
 
 /** Cadena → bytes UTF-8. */
-function utf8Bytes(str: string): number[] {
+export function utf8Bytes(str: string): number[] {
   const out: number[] = [];
   for (let i = 0; i < str.length; i += 1) {
     const c = str.charCodeAt(i);
@@ -78,7 +78,7 @@ function base64ToBytes(b64: string): number[] {
   return out;
 }
 
-function base64url(bytes: number[]): string {
+export function base64url(bytes: number[]): string {
   return bytesToBase64(bytes).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 function base64urlToStr(part: string): string {

@@ -79,6 +79,46 @@ const REACTIONS: Record<string, Reaction> = {
     notoriety: 12,
     heat: 18,
   },
+  "ND{ssrf_metadata_robada}": {
+    stock: { ticker: "VTX", factor: -0.16 },
+    headline: {
+      title: "SSRF en Vortex: robaron credenciales internas de la nube",
+      body: "Un previsualizador de enlaces permitía llegar a la metadata interna y sacar llaves de administrador.",
+      category: "Seguridad",
+    },
+    notoriety: 16,
+    heat: 22,
+    faction: { name: "colectivo", amount: 10 },
+  },
+  "ND{ssrf_interno}": {
+    headline: {
+      title: "Vortex expuso un panel interno por una petición del servidor",
+      body: "El servicio alcanzaba direcciones que solo debían verse desde adentro.",
+      category: "Seguridad",
+    },
+    notoriety: 10,
+    heat: 12,
+  },
+  "ND{jwt_alg_none}": {
+    stock: { ticker: "VTX", factor: -0.22 },
+    headline: {
+      title: "Vortex API aceptaba tokens sin firma (alg:none)",
+      body: "Cualquiera podía hacerse pasar por administrador enviando un JWT no firmado.",
+      category: "Seguridad",
+    },
+    notoriety: 20,
+    heat: 26,
+    faction: { name: "colectivo", amount: 12 },
+  },
+  "ND{open_redirect}": {
+    headline: {
+      title: "Enlaces de Gulu Link se usaban para phishing",
+      body: "El acortador redirigía a cualquier sitio sin validar el destino.",
+      category: "Seguridad",
+    },
+    notoriety: 7,
+    heat: 8,
+  },
   "ND{path_traversal_secreto}": {
     stock: { ticker: "TAP", factor: -0.09 },
     headline: {
