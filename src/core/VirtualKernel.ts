@@ -14,6 +14,7 @@ import { WebServer } from "./http/WebServer";
 import { BankApp } from "./http/apps/bank";
 import { BlogApp, PhotosApp, FilesApp, ToolsApp } from "./http/apps/labs";
 import { SsrfApp, JwtNoneApp, RedirectApp } from "./http/apps/labs2";
+import { CsrfApp, LfiApp, UploadApp, DeserializeApp } from "./http/apps/labs3";
 import { VirtualSearch } from "./search/VirtualSearch";
 import { VirtualInternet } from "./internet/VirtualInternet";
 import { WorldPublisher } from "./internet/WorldPublisher";
@@ -106,6 +107,10 @@ export class VirtualKernel {
     this.web.register(new SsrfApp());
     this.web.register(new JwtNoneApp());
     this.web.register(new RedirectApp());
+    this.web.register(new CsrfApp());
+    this.web.register(new LfiApp());
+    this.web.register(new UploadApp());
+    this.web.register(new DeserializeApp());
   }
 
   constructor() {
@@ -229,6 +234,10 @@ export class VirtualKernel {
     this.dns.register("preview.vortex.nande", "10.10.7.15");
     this.dns.register("api.vortex.nande", "10.10.7.16");
     this.dns.register("link.gulu.nande", "10.10.7.17");
+    this.dns.register("m.banco-justicia.nande", "10.10.7.18");
+    this.dns.register("portal.nova.nande", "10.10.7.19");
+    this.dns.register("files.bytebox.nande", "10.10.7.20");
+    this.dns.register("cuenta.redix.nande", "10.10.7.21");
 
     // community.nande: las comunidades vivas, navegables.
     this.internet.registerDynamicSite({

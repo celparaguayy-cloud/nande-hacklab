@@ -182,6 +182,105 @@ export const DEFENSES: Defense[] = [
     principle:
       "El eslabón más débil suele ser humano. Concientización + MFA que no dependa de datos públicos.",
   },
+  {
+    id: "d-ssrf",
+    attack: "SSRF",
+    icon: "🌐",
+    standard: "OWASP A10: Server-Side Request Forgery",
+    risk: "El servidor trae URLs internas por vos: metadata de la nube, panels de localhost.",
+    vulnerable:
+      "const r = await httpGet(req.query.url); // trae CUALQUIER destino",
+    fixed:
+      "const u = new URL(req.query.url);\n" +
+      "if (!listaBlanca.includes(u.hostname)) return http400();\n" +
+      "if (esIPPrivada(u.hostname)) return http400(); // bloquear 169.254/10/127",
+    why:
+      "Se valida el destino contra una lista blanca y se bloquean rangos internos (link-local 169.254, privados 10/172/192.168, loopback 127). Así el servidor no puede ser usado para alcanzar lo que vos no ves.",
+    principle:
+      "No dejes que el server pida URLs arbitrarias. Lista blanca de destinos y bloqueo de IPs internas.",
+  },
+  {
+    id: "d-csrf",
+    attack: "CSRF",
+    icon: "🎭",
+    standard: "OWASP A01: Broken Access Control",
+    risk: "Otro sitio fuerza acciones en tu nombre usando tu cookie de sesión.",
+    vulnerable:
+      "app.post('/transferir', (req) => hacer(req.body)); // solo la cookie",
+    fixed:
+      "if (req.body.csrf !== sesion.csrfToken) return http403();\n" +
+      "// + cookies SameSite=Strict/Lax  + verificar Origin",
+    why:
+      "Un token anti-CSRF impredecible, atado a la sesión, que un sitio ajeno no puede conocer. Sumá cookies SameSite (no se envían en peticiones de otro sitio) y verificá la cabecera Origin.",
+    principle:
+      "Toda acción que cambie estado necesita token anti-CSRF + cookies SameSite.",
+  },
+  {
+    id: "d-lfi",
+    attack: "LFI / inclusión de archivos",
+    icon: "🗂️",
+    standard: "OWASP A03: Injection",
+    risk: "Con ?pg=../../ el sitio incluye archivos del sistema y su config.",
+    vulnerable:
+      "include('./vistas/' + req.query.pg); // ../ escapa la carpeta",
+    fixed:
+      "const vistas = { inicio, contacto }; // mapa fijo\n" +
+      "return vistas[req.query.pg] ?? http404(); // sin nombres del usuario",
+    why:
+      "En vez de construir la ruta con texto del usuario, se elige de un conjunto CERRADO de vistas permitidas. Si el nombre no está en el mapa, no hay inclusión posible. Nunca pases input del usuario a include/require.",
+    principle:
+      "No incluyas archivos por un nombre que venga del usuario. Usá un mapa fijo de vistas válidas.",
+  },
+  {
+    id: "d-upload",
+    attack: "Subida sin restringir",
+    icon: "📤",
+    standard: "OWASP A05: Security Misconfiguration",
+    risk: "Suben un shell.php y lo ejecutan: control total del servidor.",
+    vulnerable:
+      "guardar(req.file.name, req.file.data); // cualquier extensión, en la web root",
+    fixed:
+      "if (!['png','jpg','pdf'].includes(ext)) return http400();\n" +
+      "const nombre = uuid() + '.' + ext; // renombrar\n" +
+      "guardarFuera De La WebRoot(nombre); // y servir sin ejecutar",
+    why:
+      "Lista blanca de extensiones, renombrar el archivo (que el atacante no elija el nombre/ruta), guardarlo fuera de la carpeta pública y servirlo como descarga, nunca ejecutable. Validar el contenido real, no solo la extensión.",
+    principle:
+      "Lista blanca de tipos, renombrar, guardar fuera de la web root y servir sin ejecutar.",
+  },
+  {
+    id: "d-deserial",
+    attack: "Deserialización insegura",
+    icon: "📦",
+    standard: "OWASP A08: Software & Data Integrity Failures",
+    risk: "Un objeto de sesión manipulado te convierte en admin (o ejecuta código).",
+    vulnerable:
+      "const sesion = deserializar(cookie); // confía en el objeto del cliente",
+    fixed:
+      "// no guardes estado sensible del lado del cliente;\n" +
+      "// si hace falta, firmá el token (HMAC) y verificá antes de usar\n" +
+      "if (!hmacOk(cookie, SECRETO)) return http401();",
+    why:
+      "El rol y los permisos se resuelven en el SERVIDOR, no se confían a un objeto que manda el cliente. Si algo tiene que viajar, se firma (HMAC) y se verifica la firma antes de deserializar. Nunca deserialices formatos que permitan instanciar clases arbitrarias con datos no confiables.",
+    principle:
+      "No confíes en datos serializados del cliente. Estado sensible en el servidor; si viaja, firmalo.",
+  },
+  {
+    id: "d-redirect",
+    attack: "Open redirect",
+    icon: "↪️",
+    standard: "OWASP A01: Broken Access Control",
+    risk: "Un enlace de tu dominio manda a la víctima a un sitio de phishing.",
+    vulnerable:
+      "res.redirect(req.query.next); // a cualquier lado",
+    fixed:
+      "const destinos = { inicio: '/', perfil: '/perfil' };\n" +
+      "res.redirect(destinos[req.query.next] ?? '/'); // solo rutas internas",
+    why:
+      "Se redirige solo a destinos de una lista conocida (o a rutas relativas del propio sitio), nunca a una URL absoluta que venga del usuario. Así tu dominio no se puede usar para disfrazar un enlace malicioso.",
+    principle:
+      "Redirigí solo a destinos de una lista propia. Nunca a una URL que venga del usuario.",
+  },
 ];
 
 /** Busca una defensa por su id. */

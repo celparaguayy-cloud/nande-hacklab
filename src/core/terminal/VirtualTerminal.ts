@@ -1492,7 +1492,8 @@ export class VirtualTerminal {
           `curl: no se pudo resolver '${hostname}'.\n` +
           `Apps web: banco.nande, blog.yvoty.nande, fotos.arandu.nande, ` +
           `docs.tape.nande, tools.pyta.nande, preview.vortex.nande, ` +
-          `api.vortex.nande, link.gulu.nande.\n`,
+          `api.vortex.nande, link.gulu.nande, m.banco-justicia.nande, ` +
+          `portal.nova.nande, files.bytebox.nande, cuenta.redix.nande.\n`,
         isError: true,
       };
     }

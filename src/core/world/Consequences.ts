@@ -79,6 +79,47 @@ const REACTIONS: Record<string, Reaction> = {
     notoriety: 12,
     heat: 18,
   },
+  "ND{csrf_transferencia}": {
+    stock: { ticker: "MBA", factor: -0.1 },
+    headline: {
+      title: "CSRF en Banco Justicia: transferencias forzadas sin permiso",
+      body: "La app móvil hacía transferencias con solo la cookie de sesión, sin token anti-CSRF.",
+      category: "Seguridad",
+    },
+    notoriety: 12,
+    heat: 16,
+    faction: { name: "colectivo", amount: 8 },
+  },
+  "ND{lfi_config_incluida}": {
+    headline: {
+      title: "Portal Nova filtró su configuración por un LFI",
+      body: "El portal incluía cualquier archivo que se le pidiera; se accedió a la config con secretos.",
+      category: "Seguridad",
+    },
+    notoriety: 12,
+    heat: 14,
+  },
+  "ND{upload_webshell}": {
+    stock: { ticker: "ÑND", factor: -0.12 },
+    headline: {
+      title: "Bytebox comprometido: subieron una webshell",
+      body: "El alojamiento aceptaba cualquier archivo; un script subido terminó ejecutándose en el servidor.",
+      category: "Seguridad",
+    },
+    notoriety: 22,
+    heat: 28,
+    faction: { name: "colectivo", amount: 14 },
+  },
+  "ND{deserializacion_insegura}": {
+    headline: {
+      title: "Redix confiaba en sesiones serializadas del cliente",
+      body: "Un objeto de sesión manipulado bastaba para hacerse pasar por administrador.",
+      category: "Seguridad",
+    },
+    notoriety: 16,
+    heat: 20,
+    faction: { name: "colectivo", amount: 10 },
+  },
   "ND{ssrf_metadata_robada}": {
     stock: { ticker: "VTX", factor: -0.16 },
     headline: {
