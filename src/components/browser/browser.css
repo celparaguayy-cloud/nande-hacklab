@@ -302,3 +302,5 @@
   font: inherit; font-weight: 700; border-radius: var(--nd-r-sm);
 }
 .nande-site .panel-robbed { margin: 6px 0 0; color: #ff9b7b; font-weight: 700; }
+
+.nande-site .lab-actor { padding: 10px 12px; margin: 8px 0; border: 1px solid var(--nd-border); border-radius: var(--nd-r-sm); background: rgba(255,255,255,0.03); }
