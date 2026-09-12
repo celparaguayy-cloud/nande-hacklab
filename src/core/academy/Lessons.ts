@@ -537,6 +537,89 @@ export const LESSONS: Lesson[] = [
       },
     ],
   },
+
+  /* ===================================================================
+     ANONIMATO Y OPSEC — cuidar tu rastro. Aprendizaje avanzado: qué te
+     delata y cómo bajás tu huella (sin creer en la "invisibilidad total").
+     =================================================================== */
+  {
+    id: "l-anonimato",
+    title: "Anonimato: tu huella y cómo bajarla",
+    level: "avanzado",
+    summary: "Ver qué te identifica en la red y reducirlo (MAC, red tipo Tor).",
+    concept:
+      "En la red te identifican tu IP y la MAC de tu placa. Podés cambiar la MAC (MAC spoofing) y enrutar el tráfico por una red de anonimato (tipo Tor) para que el destino vea otra IP. El anonimato perfecto NO existe: baja tu huella, no la borra.",
+    reward: { xp: 140, coins: 100 },
+    steps: [
+      {
+        explain:
+          "Primero, mirá tu huella actual: qué IP y MAC te identifican y qué nivel de anonimato tenés.",
+        task: "Escribí: identidad",
+        hint: "identidad",
+        check: (cmd, out) => usedTool(cmd, "identidad") && /IP real/i.test(out),
+        debrief:
+          "Esa IP y esas MAC te siguen a todas partes. Bajemos la huella paso a paso.",
+      },
+      {
+        explain:
+          "La MAC es el 'número de serie' de tu placa de red en la red local. Cambiala para no ser el mismo dispositivo de siempre.",
+        task: "Escribí: macchanger wlan0 random",
+        hint: "macchanger wlan0 random",
+        check: (cmd, out) =>
+          usedTool(cmd, "macchanger") && cmd.includes("wlan0") && /cambiada/i.test(out),
+        debrief:
+          "Cambiaste tu MAC: en la red local ahora sos otro equipo. Defensa (Blue Team): monitorear cambios de MAC y usar 802.1X.",
+      },
+      {
+        explain:
+          "Ahora enrutá tu tráfico por la red de anonimato: el destino verá la IP de un nodo de salida en otro país, no la tuya.",
+        task: "Escribí: anon on",
+        hint: "anon on",
+        check: (cmd, out) => usedTool(cmd, "anon") && /ACTIVADA|anonimato/i.test(out),
+        debrief:
+          "Tu tráfico sale por un nodo lejano. Cambiá de circuito con 'anon new' cuando quieras otra salida.",
+      },
+      {
+        explain:
+          "Confirmá el cambio: volvé a mirar tu identidad. La IP visible ya no debería ser la tuya.",
+        task: "Escribí: identidad",
+        hint: "identidad",
+        check: (cmd, out) =>
+          usedTool(cmd, "identidad") && /por la red de anonimato/i.test(out),
+        debrief:
+          "Subiste tu nivel de anonimato. Pero OJO: los metadatos, los horarios y reutilizar identidades te delatan igual. Eso lo vemos en OPSEC.",
+      },
+    ],
+  },
+  {
+    id: "l-opsec",
+    title: "OPSEC: lo que te delata sin que lo notes",
+    level: "avanzado",
+    summary: "Metadatos y errores que arruinan el anonimato — y cómo evitarlos.",
+    concept:
+      "OPSEC (seguridad de las operaciones) es cuidar los detalles: una foto lleva tu ubicación GPS y tu nombre en los metadatos; publicar a la misma hora, reusar un alias o mandar un archivo sin limpiar te identifica aunque uses Tor.",
+    reward: { xp: 150, coins: 110 },
+    steps: [
+      {
+        explain:
+          "Mirá los metadatos de una foto con exiftool. Vas a ver cuánto delata un archivo común.",
+        task: "Escribí: exiftool foto.jpg",
+        hint: "exiftool foto.jpg",
+        check: (cmd, out) => usedTool(cmd, "exiftool") && /GPS/i.test(out),
+        debrief:
+          "La foto tenía tu nombre y tu ubicación GPS. Publicada así, te ubica en el mapa. Nunca subas archivos sin revisar esto.",
+      },
+      {
+        explain:
+          "Limpiá los metadatos antes de publicar. Con exiftool se borran de un saque.",
+        task: "Escribí: exiftool -all= foto.jpg",
+        hint: "exiftool -all= foto.jpg",
+        check: (cmd, out) => usedTool(cmd, "exiftool") && /ELIMINADOS/i.test(out),
+        debrief:
+          "Ahora el archivo no te delata. Regla OPSEC: limpiá metadatos SIEMPRE, separá identidades, variá horarios y nunca mezcles tu vida real con la operación. La técnica sin OPSEC no sirve.",
+      },
+    ],
+  },
 ];
 
 /** Motor de lecciones: mantiene el paso actual de la lección activa. */

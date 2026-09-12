@@ -302,6 +302,28 @@ export const COURSES: Course[] = [
     labs: ["lab-web-01", "lab-web-02"],
   },
   {
+    id: "anonimato",
+    stage: 12,
+    title: "Nivel 12 — Anonimato y OPSEC",
+    level: "avanzado",
+    simple:
+      "Cuidar tu rastro: cómo bajás tu huella en la red y qué detalles te delatan aunque uses herramientas de anonimato.",
+    summary:
+      "MAC spoofing, enrutar por una red tipo Tor, metadatos que delatan (GPS, autor), cadenas de proxies y disciplina de OPSEC. Lección clave: el anonimato perfecto no existe; la técnica sin OPSEC no sirve.",
+    requires: ["reconocimiento"],
+    topics: [
+      "anonimato",
+      "OPSEC",
+      "MAC spoofing",
+      "Tor / nodos de salida",
+      "metadatos",
+      "proxychains",
+      "correlación",
+    ],
+    tools: ["proxychains", "exiftool", "tcpdump", "sherlock", "whois"],
+    labs: [],
+  },
+  {
     id: "advanced",
     stage: 14,
     title: "Nivel 14 — Seguridad avanzada",

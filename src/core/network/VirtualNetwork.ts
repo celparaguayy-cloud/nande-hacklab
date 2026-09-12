@@ -138,6 +138,14 @@ export class VirtualNetwork {
     this.saveToStorage();
   }
 
+  /** Cambia la MAC de una interfaz (para practicar anonimato: MAC spoofing). */
+  setMac(name: string, mac: string): void {
+    const iface = this.state.interfaces.find((item) => item.name === name);
+    if (!iface) throw new Error(`Interfaz no encontrada: ${name}`);
+    iface.mac = mac;
+    this.saveToStorage();
+  }
+
   /** Si hay conectividad a la red virtual por cable o wifi. */
   private hasUplink(): boolean {
     return (

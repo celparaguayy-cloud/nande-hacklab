@@ -1243,13 +1243,35 @@ const RUNNERS: Record<string, Runner> = {
   },
 
   exiftool(args) {
-    const file = args[0] ?? "";
+    const file = args.find((a) => !a.startsWith("-")) ?? "";
+    const scrub = args.includes("-all=") || args.includes("--limpiar") || args.includes("-clean");
+
+    if (!file) {
+      return { output: "exiftool: falta el archivo. Probá: exiftool foto.jpg\n", isError: true };
+    }
+
+    if (scrub) {
+      return {
+        output:
+          `exiftool ${file}: metadatos ELIMINADOS.\n` +
+          `  Autor, GPS y software removidos. Ahora el archivo no te delata.\n` +
+          `Defensa/OPSEC: limpiá SIEMPRE los metadatos antes de publicar.\n`,
+        isError: false,
+      };
+    }
+
+    // Sin limpiar: la foto delata datos aprovechables (esto es lo que enseña).
     return {
       output:
-        `exiftool ${file} (metadatos ficticios)\n` +
-        `  Cámara: ÑandePhone 3\n  Fecha: día 1 del mundo\n` +
-        `  Ubicación: (removida)\n` +
-        `Lección: limpiá metadatos antes de publicar archivos.\n`,
+        `exiftool ${file} (metadatos)\n` +
+        `  Autor:      Kamba Ríos\n` +
+        `  Cámara:     ÑandePhone 3\n` +
+        `  Software:   ÑandeCam 2.4\n` +
+        `  Fecha:      día 1 del mundo, 21:47\n` +
+        `  GPS:        -25.2985, -57.6350  (¡ubicación real!)\n` +
+        `  Comentario: enviado desde casa\n\n` +
+        `⚠ Una foto puede delatar quién sos y DÓNDE estás.\n` +
+        `Limpiala con: exiftool -all= ${file}\n`,
       isError: false,
     };
   },

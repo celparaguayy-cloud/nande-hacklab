@@ -1,6 +1,13 @@
 import { VirtualKernel } from "../VirtualKernel";
 import { crack, WORDLIST } from "../crypto/cracker";
 import { decodeJwt, signJwt, verifyJwt, crackJwtSecret } from "../crypto/jwt";
+import { randomMac } from "../security/Anonymity";
+
+/** MACs de fábrica de las interfaces (para saber si el jugador las cambió). */
+const DEFAULT_MACS: Record<string, string> = {
+  eth0: "02:00:00:00:00:10",
+  wlan0: "02:00:00:00:00:20",
+};
 
 /** Herramienta de ejemplo que `code new` deja lista para compilar y correr.
  *  Es código real que corre en el sandbox: escanea un host y lista puertos. */
@@ -948,6 +955,17 @@ export class VirtualTerminal {
 
         case "wifi":
           return this.wifiCmd(commandArgs);
+
+        case "anon":
+        case "tor":
+          return this.anonCmd(commandArgs);
+
+        case "macchanger":
+          return this.macchangerCmd(commandArgs);
+
+        case "identidad":
+        case "whoami-net":
+          return this.identidadCmd();
 
         case "services":
         case "servicios":
@@ -2322,6 +2340,107 @@ export class VirtualTerminal {
     };
   }
 
+  /** Detecta si alguna interfaz tiene la MAC cambiada respecto de fábrica. */
+  private macChanged(): boolean {
+    return this.kernel.network.listInterfaces().some(
+      (i) => DEFAULT_MACS[i.name] && i.mac !== DEFAULT_MACS[i.name],
+    );
+  }
+
+  /** anon [status|on|off|new] — red de anonimato (tipo Tor). */
+  private anonCmd(args: string[]): { output: string; isError: boolean } {
+    const action = args[0] ?? "status";
+    const a = this.kernel.anonymity;
+
+    if (action === "on" || action === "start") {
+      const exit = a.enableTor();
+      return {
+        output:
+          `🧅 Red de anonimato ACTIVADA.\n` +
+          `Tu tráfico sale por un nodo en ${exit.pais} (${exit.ip}).\n` +
+          `El destino ve esa IP, no la tuya. Cambiá de circuito con 'anon new'.\n`,
+        isError: false,
+      };
+    }
+    if (action === "off" || action === "stop") {
+      a.disableTor();
+      return { output: "Red de anonimato DESACTIVADA. Volvés a salir con tu IP real.\n", isError: false };
+    }
+    if (action === "new" || action === "circuito") {
+      const exit = a.newCircuit();
+      return exit
+        ? { output: `Nuevo circuito: salís por ${exit.pais} (${exit.ip}).\n`, isError: false }
+        : { output: "La red de anonimato está apagada. Encendela con 'anon on'.\n", isError: false };
+    }
+
+    // status
+    const eth0 = this.kernel.network.getInterface("eth0");
+    const realIp = eth0?.ip ?? "10.10.0.10";
+    const on = a.isTorEnabled();
+    return {
+      output:
+        `Estado de anonimato:\n` +
+        `  Red de anonimato: ${on ? "ACTIVA 🧅" : "apagada"}\n` +
+        `  IP que ve el destino: ${a.visibleIp(realIp)}${on ? ` (nodo de salida en ${a.exitNode().pais})` : " (tu IP real)"}\n` +
+        `  Comandos: anon on · anon off · anon new\n`,
+      isError: false,
+    };
+  }
+
+  /** macchanger <iface> [random|<MAC>] — cambia la MAC (MAC spoofing). */
+  private macchangerCmd(args: string[]): { output: string; isError: boolean } {
+    const iface = args[0];
+    const mode = args[1] ?? "random";
+    if (!iface) {
+      return { output: "uso: macchanger <iface> [random|AA:BB:CC:DD:EE:FF]\n", isError: true };
+    }
+    const current = this.kernel.network.getInterface(iface);
+    if (!current) {
+      return { output: `macchanger: no existe la interfaz ${iface}\n`, isError: true };
+    }
+    const nueva =
+      mode === "random"
+        ? randomMac(this.kernel.world.getState().clock.tick + iface.length + 7)
+        : mode;
+    if (!/^([0-9a-f]{2}:){5}[0-9a-f]{2}$/i.test(nueva)) {
+      return { output: `macchanger: MAC inválida: ${nueva}\n`, isError: true };
+    }
+    try {
+      this.kernel.network.setMac(iface, nueva);
+    } catch (e) {
+      return { output: `macchanger: ${e instanceof Error ? e.message : "error"}\n`, isError: true };
+    }
+    return {
+      output:
+        `MAC de ${iface} cambiada:\n  antes: ${current.mac}\n  ahora: ${nueva}\n` +
+        `Tu placa se presenta con otra identidad en la red local.\n`,
+      isError: false,
+    };
+  }
+
+  /** identidad — panel de tu huella en la red (IP, MAC, salida, nivel). */
+  private identidadCmd(): { output: string; isError: boolean } {
+    const eth0 = this.kernel.network.getInterface("eth0");
+    const wlan0 = this.kernel.network.getInterface("wlan0");
+    const realIp = eth0?.ip ?? "10.10.0.10";
+    const a = this.kernel.anonymity;
+    const changed = this.macChanged();
+    const nivel = a.level(changed);
+    const lines = [
+      "═══ TU IDENTIDAD EN LA RED ═══",
+      `  IP real:         ${realIp}`,
+      `  IP visible:      ${a.visibleIp(realIp)}${a.isTorEnabled() ? " (por la red de anonimato)" : ""}`,
+      `  MAC eth0:        ${eth0?.mac ?? "-"}${eth0 && eth0.mac !== DEFAULT_MACS.eth0 ? " (cambiada)" : ""}`,
+      `  MAC wlan0:       ${wlan0?.mac ?? "-"}${wlan0 && wlan0.mac !== DEFAULT_MACS.wlan0 ? " (cambiada)" : ""}`,
+      `  Anonimato:       ${nivel.label.toUpperCase()} (${nivel.score}/3)`,
+      "",
+      "Para mejorar:",
+      ...nivel.tips.map((t) => `  • ${t}`),
+      "",
+    ];
+    return { output: lines.join("\n") + "\n", isError: false };
+  }
+
   private wifiCmd(args: string[]): { output: string; isError: boolean } {
     const action = args[0] ?? "status";
 
@@ -3644,6 +3763,12 @@ export class VirtualTerminal {
       "  tool-info <nombre>  Detalle de una herramienta",
       "  tool-remove <nombre> Desinstala",
       "  run <nombre> [args] Ejecuta una herramienta instalada",
+      "",
+      "Anonimato y OPSEC:",
+      "  identidad          Tu huella en la red (IP, MAC, nivel)",
+      "  anon on|off|new    Enrutar por la red de anonimato (tipo Tor)",
+      "  macchanger <if> random   Cambiar tu MAC (MAC spoofing)",
+      "  exiftool <archivo>       Ver/limpiar metadatos que te delatan",
       "",
       "Acceso remoto y pivoting (ultra):",
       "  connect <host> [usuario] [clave]  Entra a una máquina (SSH virtual)",
