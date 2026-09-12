@@ -158,6 +158,21 @@ export class CyberRuntime {
     };
   }
 
+  /* ------------------------------------------------------- container API */
+
+  /** Contenedores/K8s virtual: pods, secretos filtrados, escape. */
+  get containers() {
+    const c = this.k.containers;
+    return {
+      list: (ns?: string) => c.list(ns),
+      get: (name: string) => c.get(name),
+      env: (name: string) => c.env(name),
+      leakedSecrets: (name: string) => c.leakedSecrets(name),
+      canEscape: (name: string) => c.canEscape(name),
+      escape: (name: string) => c.escape(name),
+    };
+  }
+
   /* ---------------------------------------------------------- opsec API */
 
   /** Rastro OPSEC: cuánto te expusiste al atacar sin anonimato. */

@@ -32,6 +32,7 @@ import { MitreCorrelator } from "./soc/Mitre";
 import { RedTeamAgent, REDTEAM_TARGET } from "./game/RedTeamAgent";
 import { CtfForge } from "./game/CtfForge";
 import { OpsecTracer } from "./game/OpsecTracer";
+import { ContainerRuntime } from "./cloud/ContainerRuntime";
 import { BlogApp, PhotosApp, FilesApp, ToolsApp } from "./http/apps/labs";
 import { SsrfApp, JwtNoneApp, RedirectApp } from "./http/apps/labs2";
 import { CsrfApp, LfiApp, UploadApp, DeserializeApp } from "./http/apps/labs3";
@@ -159,6 +160,8 @@ export class VirtualKernel {
   public ctfForge: CtfForge;
   /** Rastreo OPSEC: el mundo te rastrea si atacás sin anonimato (heat/bust). */
   public opsec: OpsecTracer;
+  /** Runtime de contenedores/K8s virtual: secretos filtrados y escape. */
+  public containers: ContainerRuntime;
   /**
    * CyberRuntime — la API común del universo 5.0. Un solo punto por el que
    * TODA herramienta lee y escribe el mundo (host, servicio, proceso, red,
@@ -339,6 +342,7 @@ export class VirtualKernel {
       this.anonymity,
       () => this.world.getState().clock.tick,
     );
+    this.containers = new ContainerRuntime();
     // El corazón 5.0: se arma cuando todos los runtimes-fuente ya existen
     // (hosts, dns, red, navegador, bases, filesystem, eventos, reloj).
     this.runtime = new CyberRuntime(this);

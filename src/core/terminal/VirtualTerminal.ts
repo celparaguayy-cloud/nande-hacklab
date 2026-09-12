@@ -1041,6 +1041,11 @@ export class VirtualTerminal {
         case "5.0":
           return { output: this.universoText(), isError: false };
 
+        case "nandec":
+        case "kube":
+        case "kubectl":
+          return this.containerCmd(commandArgs);
+
         case "snapshot":
         case "foto":
           return this.snapshotCmd(commandArgs);
@@ -4121,6 +4126,79 @@ export class VirtualTerminal {
     ].join("\n");
   }
 
+  /**
+   * Contenedores/K8s virtual — dos fallas cloud-native reales.
+   *   nandec ps                → lista los pods/contenedores.
+   *   nandec inspect <c>       → detalle (imagen, privilegios, montajes).
+   *   nandec exec <c> env      → variables de entorno reales (¿secretos?).
+   *   nandec escape <c>        → escape de contenedor privilegiado al nodo.
+   */
+  private containerCmd(args: string[]): { output: string; isError: boolean } {
+    const cr = this.kernel.containers;
+    const sub = args[0] ?? "ps";
+
+    if (sub === "ps" || sub === "get" || sub === "pods") {
+      const rows = cr.list().map(
+        (c) => `  ${c.status === "Running" ? "🟢" : "🔴"} ${c.name.padEnd(16)} ${c.image.padEnd(20)} ns=${c.namespace}${c.privileged ? " ⚠privileged" : ""}`,
+      );
+      return {
+        output: `PODS/CONTENEDORES:\n${rows.join("\n")}\n\nInspeccioná con: nandec inspect <nombre>\n`,
+        isError: false,
+      };
+    }
+
+    if (sub === "inspect" || sub === "describe") {
+      const c = cr.get(args[1] ?? "");
+      if (!c) return { output: `contenedor desconocido: ${args[1]}\n`, isError: true };
+      const mounts = c.mounts.map((m) => `    ${m.hostPath} → ${m.containerPath}${m.readOnly ? " (ro)" : ""}`).join("\n") || "    (ninguno)";
+      return {
+        output:
+          `Contenedor: ${c.name}\n` +
+          `  Imagen: ${c.image}\n  Namespace: ${c.namespace}\n  Estado: ${c.status}\n` +
+          `  Privilegiado: ${c.privileged ? "SÍ ⚠" : "no"}\n  Montajes:\n${mounts}\n` +
+          (c.privileged && cr.canEscape(c.name) ? `  → montaje del host: probá 'nandec escape ${c.name}'\n` : ""),
+        isError: false,
+      };
+    }
+
+    if (sub === "exec") {
+      const name = args[1] ?? "";
+      const what = args[2] ?? "env";
+      if (what !== "env") return { output: "uso: nandec exec <contenedor> env\n", isError: true };
+      const env = cr.env(name);
+      if (!env) return { output: `contenedor desconocido: ${name}\n`, isError: true };
+      const lines = Object.entries(env).map(([k, v]) => `  ${k}=${v}`);
+      const leaks = cr.leakedSecrets(name);
+      // Un secreto (o bandera) en el env se captura como cualquier señal.
+      const notes = this.kernel.scanForSignals(lines.join("\n"));
+      return {
+        output:
+          `env de ${name}:\n${lines.join("\n")}\n` +
+          (leaks.length ? `\n🔓 Secretos filtrados en el env: ${leaks.map((l) => l.key).join(", ")}\n` : "") +
+          (notes.length ? "\n" + notes.join("\n") + "\n" : ""),
+        isError: false,
+      };
+    }
+
+    if (sub === "escape") {
+      const name = args[1] ?? "";
+      const r = cr.escape(name);
+      if (!r.ok) return { output: `✘ ${r.message}\n`, isError: true };
+      const notes = this.kernel.scanForSignals(r.content ?? "");
+      return {
+        output:
+          `✔ ${r.message}\n${r.content}\n` +
+          (notes.length ? "\n" + notes.join("\n") + "\n" : ""),
+        isError: false,
+      };
+    }
+
+    return {
+      output: "uso: nandec ps | inspect <c> | exec <c> env | escape <c>\n",
+      isError: false,
+    };
+  }
+
   /** Índice del universo 5.0: un vistazo vivo de lo que existe y su estado. */
   private universoText(): string {
     const k = this.kernel;
@@ -4161,6 +4239,9 @@ export class VirtualTerminal {
       "",
       "🛡️ Blue Team — defendé tu data center",
       "   soc · defensa · contener <id>",
+      "",
+      "☸️ Contenedores/K8s — secretos filtrados y escape de contenedor",
+      "   nandec ps · nandec inspect <c> · nandec exec <c> env · nandec escape <c>",
       "",
       "Apps del escritorio: NandeShark, NandeBlood, SOC. Academia: cursos 5.0",
       "(nandeshark, active-directory, purple-mitre, opsec-5, ctf-procedural).",
@@ -4274,6 +4355,7 @@ export class VirtualTerminal {
       "  redteam [expulsar] Adversario NPC que ataca de verdad; defendé",
       "  reto [nuevo]       Retos procedurales con bandera real (rejugables)",
       "  opsec              Tu rastro: exposición, calor y redadas",
+      "  nandec ps          Contenedores/K8s: secretos filtrados y escape",
       "",
       "Hardware y WiFi:",
       "  neofetch         Muestra tu PC virtual (specs)",
