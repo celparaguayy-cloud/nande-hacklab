@@ -76,14 +76,15 @@ export const CHAPTERS: Chapter[] = [
     number: 3,
     title: "Romper el candado",
     briefing:
-      "Interceptamos un hash de otra cuenta interna. No está salado —error de novato de ellos. " +
-      "Crackealo y conseguí la contraseña. Usá  crack <hash>  en la terminal.",
+      "Interceptamos un hash MD5 de otra cuenta interna: " +
+      "b9da943bf1dcb00b784cf3612d450f91. No está salado —error de novato de " +
+      "ellos. Crackealo y conseguí la contraseña con  crack <hash>  en la terminal.",
     objectives: [
       {
         id: "c3-o1",
         text: "Crackeá el hash MD5 filtrado",
         flag: "CRACK:girasol",
-        hint: "En la Terminal: crack 5f4dcc3b5aa765d61d8327deb882cf99  (o el hash que te pasamos)",
+        hint: "En la Terminal: crack b9da943bf1dcb00b784cf3612d450f91",
       },
     ],
     reward: { xp: 350, coins: 260, notoriety: 20 },
