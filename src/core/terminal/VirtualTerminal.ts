@@ -1612,13 +1612,51 @@ export class VirtualTerminal {
   }
 
   /** Grupos hacker: listar, unirse, salir. */
+  /** Resuelve lo que el jugador escribió (id, nombre, "rojo"/"azul"…) a un id. */
+  private resolveGroupId(query: string): string | null {
+    const q = query.trim().toLowerCase();
+    if (!q) return null;
+    const groups = this.kernel.groups.all();
+
+    // Sinónimos cómodos para los equipos por color/tema.
+    const alias: Record<string, string> = {
+      rojo: "red-team", red: "red-team", ataque: "red-team",
+      azul: "blue-team", blue: "blue-team", defensa: "blue-team",
+      ctf: "ctf", privacidad: "privacidad", osint: "osint",
+    };
+    if (alias[q]) {
+      const byFocus = groups.find((g) => g.focus === alias[q]);
+      if (byFocus) return byFocus.id;
+    }
+
+    // id exacto, id sin el prefijo "g-", o nombre que contenga lo escrito.
+    const exact = groups.find((g) => g.id.toLowerCase() === q);
+    if (exact) return exact.id;
+    const bySuffix = groups.find((g) => g.id.toLowerCase() === `g-${q}` || g.id.toLowerCase().endsWith(q));
+    if (bySuffix) return bySuffix.id;
+    const byName = groups.find((g) => g.name.toLowerCase().includes(q) || g.focus.includes(q));
+    return byName ? byName.id : null;
+  }
+
   private groupsCmd(args: string[]): { output: string; isError: boolean } {
-    if (args[0] === "join" && args[1]) {
-      const r = this.kernel.groups.join(args[1]);
+    const sub = (args[0] ?? "").toLowerCase();
+    const JOIN = ["join", "unir", "unirme", "unirse", "unite", "sumar", "sumarme", "entrar"];
+    const LEAVE = ["leave", "salir", "dejar", "abandonar", "irme"];
+
+    if (JOIN.includes(sub)) {
+      const query = args.slice(1).join(" ");
+      if (!query) {
+        return { output: "¿A cuál te querés unir? Ej: grupos unir rojo (o el id, como g-redteam)\n", isError: true };
+      }
+      const id = this.resolveGroupId(query);
+      if (!id) {
+        return { output: `No encontré ningún grupo que coincida con "${query}". Escribí "grupos" para ver la lista.\n`, isError: true };
+      }
+      const r = this.kernel.groups.join(id);
       return { output: `${r.ok ? "✅" : "⚠"} ${r.message}\n`, isError: !r.ok };
     }
 
-    if (args[0] === "leave") {
+    if (LEAVE.includes(sub)) {
       const r = this.kernel.groups.leave();
       return { output: `${r.message}\n`, isError: !r.ok };
     }
@@ -1636,7 +1674,7 @@ export class VirtualTerminal {
     return {
       output:
         `🕶️ Grupos hacker (éticos, dentro del sandbox)\n\n${lines}\n\n` +
-        `Unirse: groups join <id> · Salir: groups leave · Web: https://groups.nande\n`,
+        `Unirse: grupos unir <rojo|azul|id> · Salir: grupos salir · Web: https://groups.nande\n`,
       isError: false,
     };
   }
