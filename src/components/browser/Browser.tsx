@@ -129,6 +129,21 @@ export default function Browser({ kernel }: BrowserProps) {
     [],
   );
 
+  // El Mundo 2D (u otra app) puede pedir abrir una URL: al montar tomamos la
+  // que quedó pendiente, y mientras esté abierto escuchamos nuevas.
+  useEffect(() => {
+    if (kernel.pendingUrl) {
+      const u = kernel.pendingUrl;
+      kernel.pendingUrl = null;
+      load(u);
+    }
+    return kernel.events.subscribe("browser.navigate", (e) => {
+      const u = (e.data as { url?: string })?.url;
+      if (u) load(u);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kernel]);
+
   function pushHistory(url: string) {
     setHistory((current) => {
       const prefix = current.slice(0, cursor + 1);

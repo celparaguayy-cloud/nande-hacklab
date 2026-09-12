@@ -24,6 +24,7 @@ export type EventType =
   | "mission.completed"
   | "lab.solved"
   | "company.attack"
+  | "browser.navigate"
   // Mundo social vivo.
   | "community.joined"
   // Economía y mercado.

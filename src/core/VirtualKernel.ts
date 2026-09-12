@@ -101,6 +101,8 @@ export class VirtualKernel {
   public groups: HackerGroups;
   /** Comando que otra app (ej. ÑANDE Learn) quiere que corra la terminal. */
   public pendingCommand: string | null = null;
+  /** URL que otra app (ej. el Mundo 2D) quiere que abra el navegador. */
+  public pendingUrl: string | null = null;
   public map: WorldMap;
   public hardware: VirtualHardware;
   public wifi: VirtualWiFi;
@@ -570,6 +572,12 @@ export class VirtualKernel {
   queueCommand(command: string): void {
     this.pendingCommand = command;
     this.events.emit("terminal.run", { command });
+  }
+
+  /** Pide al navegador que abra una URL (lo usa el Mundo 2D al entrar a un edificio). */
+  navigateBrowser(url: string): void {
+    this.pendingUrl = url;
+    this.events.emit("browser.navigate", { url });
   }
 
   /** Libera el loop y las suscripciones del kernel. */

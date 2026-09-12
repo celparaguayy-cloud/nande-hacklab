@@ -23,6 +23,30 @@ interface World2DViewProps {
 /** Cuántos habitantes se muestran caminando (una muestra, por rendimiento). */
 const SAMPLE = 60;
 
+/** Edificios de la ciudad. Caminá cerca y entrá (tecla E o botón). */
+interface Building {
+  fx: number; // posición X como fracción del mundo (0-1)
+  fy: number;
+  emoji: string;
+  label: string;
+  /** A qué app abre, o qué URL navega en el navegador. */
+  app?: string;
+  url?: string;
+  color: string;
+}
+
+const BUILDINGS: Building[] = [
+  { fx: 0.16, fy: 0.18, emoji: "🏦", label: "Banco Justicia", url: "banco-justicia.nande", color: "#b45309" },
+  { fx: 0.5, fy: 0.13, emoji: "🖥️", label: "Terminal", app: "terminal", color: "#334155" },
+  { fx: 0.83, fy: 0.19, emoji: "🎓", label: "Academia", app: "learn", color: "#7c3aed" },
+  { fx: 0.14, fy: 0.52, emoji: "🎯", label: "Central de Mando", app: "mission", color: "#b91c1c" },
+  { fx: 0.86, fy: 0.5, emoji: "📱", label: "Pulso", app: "pulso", color: "#c026d3" },
+  { fx: 0.5, fy: 0.5, emoji: "🏢", label: "Mi Empresa", app: "company", color: "#a16207" },
+  { fx: 0.18, fy: 0.84, emoji: "🛡️", label: "SOC (Blue Team)", url: "soc.nande", color: "#0d9488" },
+  { fx: 0.5, fy: 0.87, emoji: "📈", label: "Bolsa", app: "market", color: "#dc2626" },
+  { fx: 0.84, fy: 0.83, emoji: "☁️", label: "Nimbus Cloud", url: "cloud.nande", color: "#2563eb" },
+];
+
 /** Mundo 2D pixelado: los habitantes caminan por las zonas según su rutina. */
 function World2DView({ kernel, onOpenApp }: World2DViewProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -30,6 +54,21 @@ function World2DView({ kernel, onOpenApp }: World2DViewProps) {
   const playerRef = useRef({ x: WORLD_SIZE / 2, y: WORLD_SIZE / 2 });
   const keysRef = useRef<Set<string>>(new Set());
   const [selected, setSelected] = useState<{ name: string; profession: string; id: string } | null>(null);
+  const [near, setNear] = useState<Building | null>(null);
+  const nearRef = useRef<Building | null>(null);
+
+  // Entrar al edificio cercano: abre su app o navega a su sitio.
+  const enter = (b: Building | null) => {
+    if (!b) return;
+    if (b.url) {
+      kernel.navigateBrowser(b.url);
+      onOpenApp?.("browser");
+    } else if (b.app) {
+      onOpenApp?.(b.app);
+    }
+  };
+  const enterRef = useRef(enter);
+  enterRef.current = enter;
 
   // Zona actual de una persona según la hora del mundo.
   const zoneOf = (id: string) => {
@@ -47,9 +86,12 @@ function World2DView({ kernel, onOpenApp }: World2DViewProps) {
   // Teclado para mover al jugador (WASD / flechas).
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
-      if (["arrowup", "arrowdown", "arrowleft", "arrowright", "w", "a", "s", "d"].includes(e.key.toLowerCase())) {
-        keysRef.current.add(e.key.toLowerCase());
+      const key = e.key.toLowerCase();
+      if (["arrowup", "arrowdown", "arrowleft", "arrowright", "w", "a", "s", "d"].includes(key)) {
+        keysRef.current.add(key);
         e.preventDefault();
+      } else if (key === "e") {
+        enterRef.current(nearRef.current);
       }
     };
     const up = (e: KeyboardEvent) => keysRef.current.delete(e.key.toLowerCase());
@@ -83,6 +125,19 @@ function World2DView({ kernel, onOpenApp }: World2DViewProps) {
       if (k.has("arrowright") || k.has("d")) pl.x += sp;
       pl.x = Math.max(4, Math.min(WORLD_SIZE - 4, pl.x));
       pl.y = Math.max(4, Math.min(WORLD_SIZE - 4, pl.y));
+
+      // ¿Hay un edificio al alcance? (para mostrar "Entrar").
+      let found: Building | null = null;
+      for (const b of BUILDINGS) {
+        if (Math.abs(pl.x - b.fx * WORLD_SIZE) < 9 && Math.abs(pl.y - b.fy * WORLD_SIZE) < 9) {
+          found = b;
+          break;
+        }
+      }
+      if (found !== nearRef.current) {
+        nearRef.current = found;
+        setNear(found);
+      }
 
       // NPCs.
       retargetAcc += dt;
@@ -121,6 +176,26 @@ function World2DView({ kernel, onOpenApp }: World2DViewProps) {
         ctx.font = `600 ${Math.round(7 * scale)}px system-ui`;
         ctx.fillText(z.name, c.x * scale, (z.row * CELL + 31) * scale);
       }
+
+      // Edificios de la ciudad (se entra a ellos).
+      for (const b of BUILDINGS) {
+        const cx = b.fx * WORLD_SIZE * scale;
+        const cy = b.fy * WORLD_SIZE * scale;
+        const bw = 12 * scale;
+        const activo = nearRef.current === b;
+        ctx.fillStyle = b.color;
+        ctx.fillRect(cx - bw / 2, cy - bw / 2, bw, bw);
+        ctx.strokeStyle = activo ? "#ffffff" : "rgba(0,0,0,0.55)";
+        ctx.lineWidth = activo ? 2 : 1;
+        ctx.strokeRect(cx - bw / 2, cy - bw / 2, bw, bw);
+        ctx.textAlign = "center";
+        ctx.font = `${Math.round(9 * scale)}px system-ui`;
+        ctx.fillText(b.emoji, cx, cy + 3 * scale);
+        ctx.fillStyle = "rgba(255,255,255,0.9)";
+        ctx.font = `600 ${Math.round(6 * scale)}px system-ui`;
+        ctx.fillText(b.label, cx, cy + bw / 2 + 8 * scale);
+      }
+      ctx.lineWidth = 1;
 
       // Avatares (figuritas pixeladas).
       const s = scale;
@@ -165,7 +240,7 @@ function World2DView({ kernel, onOpenApp }: World2DViewProps) {
         <div className="nd-app-head__text">
           <h2>ÑANDE World 2D</h2>
           <span className="nd-app-head__sub">
-            Movete con WASD o flechas · tocá a alguien para verlo
+            WASD o flechas para caminar · acercate a un edificio y entrá (E)
           </span>
         </div>
       </div>
@@ -177,6 +252,15 @@ function World2DView({ kernel, onOpenApp }: World2DViewProps) {
         onClick={onClick}
         style={canvasStyle}
       />
+
+      {near && (
+        <div style={tooltip}>
+          <span>{near.emoji} <strong>{near.label}</strong></span>
+          <button onClick={() => enter(near)} style={chatBtn}>
+            Entrar (E) →
+          </button>
+        </div>
+      )}
 
       {selected && (
         <div style={tooltip}>
