@@ -79,4 +79,12 @@ describe("Anonimato / OPSEC — comandos reales y lecciones completables", () =>
     const out = term.execute("strings /var/www/config.php");
     expect(steps[0].check("strings /var/www/config.php", out)).toBe(true);
   });
+
+  it("l-blueteam: una acción genera una alerta que el SOC muestra", () => {
+    const steps = lesson("l-blueteam").steps;
+    const c1 = "service-stop nginx server.nande";
+    expect(steps[0].check(c1, term.execute(c1))).toBe(true);
+    const c2 = "soc alerts";
+    expect(steps[1].check(c2, term.execute(c2))).toBe(true);
+  });
 });

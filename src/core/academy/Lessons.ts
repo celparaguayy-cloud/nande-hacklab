@@ -743,6 +743,39 @@ export const LESSONS: Lesson[] = [
       },
     ],
   },
+
+  /* ===================================================================
+     BLUE TEAM — detectar. Toda acción real deja un evento que el SOC ve.
+     =================================================================== */
+  {
+    id: "l-blueteam",
+    title: "Blue Team: detectar lo que pasa",
+    level: "avanzado",
+    summary: "Ver cómo una acción genera un evento y el SOC lo convierte en alerta.",
+    concept:
+      "El defensor no ataca: observa. Cada acción en el mundo (un servicio que cae, un login fallido) deja un evento, y el SOC lo convierte en una alerta con severidad. Detectar a tiempo es la mitad de la defensa.",
+    reward: { xp: 140, coins: 100 },
+    steps: [
+      {
+        explain:
+          "Provocá un incidente: detené el servicio web de un host. Eso, en la vida real, sería una caída sospechosa.",
+        task: "Escribí: service-stop nginx server.nande",
+        hint: "service-stop nginx server.nande",
+        check: (cmd, out) => usedTool(cmd, "service-stop") && /detenido|✔/i.test(out),
+        debrief:
+          "Ese cambio quedó registrado como evento del sistema, aunque nadie estuviera mirando.",
+      },
+      {
+        explain:
+          "Ahora ponete el sombrero de Blue Team: mirá el panel del SOC. La caída tiene que aparecer como alerta.",
+        task: "Escribí: soc alerts",
+        hint: "soc alerts",
+        check: (cmd, out) => usedTool(cmd, "soc") && /server\.nande/i.test(out),
+        debrief:
+          "El SOC detectó la caída y la clasificó. Blue Team: investigás la alerta, contenés y documentás. La detección temprana es lo que frena un ataque real.",
+      },
+    ],
+  },
 ];
 
 /** Motor de lecciones: mantiene el paso actual de la lección activa. */
