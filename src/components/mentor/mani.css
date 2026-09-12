@@ -1,14 +1,28 @@
 .mani {
   position: fixed;
   right: 12px;
-  bottom: calc(var(--nd-dock) + 18px);
+  bottom: calc(var(--nd-dock) + 14px);
   z-index: 600;
-  width: min(340px, calc(100vw - 24px));
+  width: min(320px, calc(100vw - 24px));
+  /* Nunca más alta que el espacio entre la barra superior y el dock, y con
+     scroll propio: así jamás tapa el dock ni se sale de la pantalla. */
+  max-height: calc(100dvh - var(--nd-topbar) - var(--nd-dock) - 28px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: var(--nd-r-md);
   background: var(--nd-panel-solid);
   border: 2px solid var(--nd-accent);
   box-shadow: var(--nd-shadow-lg);
   font-size: 13px;
   animation: nd-pop 0.18s ease-out;
+}
+.mani__head {
+  position: sticky;
+  top: 0;
+}
+/* En pantallas chicas (celular), un poco más angosta y pegada al borde. */
+@media (max-width: 640px) {
+  .mani { width: min(300px, calc(100vw - 16px)); right: 8px; font-size: 12.5px; }
 }
 .mani__head {
   display: flex; align-items: center; justify-content: space-between;

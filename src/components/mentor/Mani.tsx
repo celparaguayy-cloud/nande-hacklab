@@ -17,8 +17,27 @@ interface ManiProps {
  * más" sube un escalón (empujón → pista → comando → hacelo conmigo), y
  * "ya entendí" la pliega. Se refresca con los eventos del juego.
  */
+/** Recuerda si el panel quedó abierto o plegado (por defecto, plegado). */
+function loadOpen(): boolean {
+  try {
+    return localStorage.getItem("nande-mani-open") === "1";
+  } catch {
+    return false;
+  }
+}
+
 export default function Mani({ kernel, onRunCommand }: ManiProps) {
-  const [open, setOpen] = useState(true);
+  // Arranca PLEGADA (el manícito): así no tapa el escritorio ni las ventanas.
+  // Se abre cuando el jugador la toca, y se recuerda su estado.
+  const [open, setOpenRaw] = useState<boolean>(loadOpen);
+  const setOpen = (v: boolean) => {
+    setOpenRaw(v);
+    try {
+      localStorage.setItem("nande-mani-open", v ? "1" : "0");
+    } catch {
+      /* se puede jugar sin persistir */
+    }
+  };
   const [advice, setAdvice] = useState<Advice | null>(() => kernel.mentor.advise());
   const [muted, setMuted] = useState(() => kernel.mentor.getState().muted);
 
