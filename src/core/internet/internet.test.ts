@@ -114,6 +114,9 @@ describe("VirtualBrowser", () => {
     expect(page.hostname).toBe("www.nande");
     expect(page.address).toMatch(/^10\.10\./);
     expect(page.content).toContain("ÑANDE");
+    // El portal no es una página muerta: lleva a los sitios del mundo.
+    expect(page.content).toContain("banco.nande");
+    expect(page.content).toContain("soc.nande");
   });
 
   it("navega rutas internas de un sitio", () => {

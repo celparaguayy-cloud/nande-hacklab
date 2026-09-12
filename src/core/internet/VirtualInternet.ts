@@ -43,7 +43,36 @@ export class VirtualInternet {
           mimeType: "text/html",
           content: `
             <h1>ÑANDE</h1>
-            <p>Bienvenido a la Internet virtual de ÑANDE HACKLAB.</p>
+            <p>El portal de la Internet virtual. Desde acá llegás a todo el
+            mundo: los servicios de siempre y los laboratorios para practicar.</p>
+
+            <h2>Laboratorios para practicar</h2>
+            <p>Sitios reales, con fallas reales. Entrá y probá:</p>
+            <ul class="portal-list">
+              <li><a href="banco.nande">Banco Mbarete</a> — home banking (inyección SQL)</li>
+              <li><a href="blog.yvoty.nande">Yvoty Blog</a> — noticias (XSS reflejado)</li>
+              <li><a href="fotos.arandu.nande">Fotos Arandú</a> — álbumes (IDOR)</li>
+              <li><a href="tools.pyta.nande">Herramientas Pytã</a> — utilidad de red (inyección de comandos)</li>
+              <li><a href="preview.vortex.nande">Vortex Preview</a> — previsualizador (SSRF)</li>
+              <li><a href="cloud.nande">Nimbus Cloud</a> — nube ficticia (bucket, IAM, contenedor)</li>
+            </ul>
+
+            <h2>Defensa (Blue Team)</h2>
+            <ul class="portal-list">
+              <li><a href="soc.nande">ÑANDE SOC</a> — triage, SIEM y análisis del incidente</li>
+              <li><a href="ti.nande">ÑANDE TIP</a> — inteligencia de amenazas y atribución</li>
+              <li><a href="purple.nande">ÑANDE Purple</a> — ataque y defensa en un mismo caso</li>
+            </ul>
+
+            <h2>Servicios y comunidad</h2>
+            <ul class="portal-list">
+              <li><a href="news.nande">Noticias ÑANDE</a> — el diario del mundo</li>
+              <li><a href="video.nande">ÑANDE Video</a> — videos de la comunidad</li>
+              <li><a href="git.nande">Repositorios</a> — el código de los habitantes</li>
+            </ul>
+
+            <p class="site-foot">¿No sabés por dónde empezar? Escribí un nombre
+            en la barra (por ejemplo <b>banco</b>) y el buscador te lleva.</p>
           `,
         },
       ],
