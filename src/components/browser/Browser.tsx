@@ -92,6 +92,16 @@ export default function Browser({ kernel }: BrowserProps) {
   const [cursor, setCursor] = useState(0);
 
   const viewportRef = useRef<HTMLDivElement>(null);
+  const docRef = useRef<HTMLDivElement>(null);
+
+  // Se muestra la página renderizada sólo cuando no hay error/resultados/código.
+  const showDoc = !error && !results && !viewSource;
+
+  // Inyecta el HTML de la página SOLO cuando cambia (o cuando se vuelve a la
+  // vista normal). Así los re-render por otras causas no borran lo tipeado.
+  useEffect(() => {
+    if (showDoc && docRef.current) docRef.current.innerHTML = bodyHtml;
+  }, [bodyHtml, showDoc]);
 
   const canBack = cursor > 0;
   const canForward = cursor < history.length - 1;
@@ -318,7 +328,36 @@ export default function Browser({ kernel }: BrowserProps) {
     if (!node) return;
 
     function onClick(event: MouseEvent) {
-      const link = (event.target as HTMLElement).closest("a");
+      const el = event.target as HTMLElement;
+
+      // Tocar un payload de ejemplo (un <code> de la pista) lo pone directo en
+      // el campo del laboratorio y lo copia al portapapeles. En el celular,
+      // tipear a mano admin'-- o un UNION SELECT es un suplicio y espantaba.
+      const code = el.closest("code");
+      if (code && !code.closest("a") && node) {
+        const text = (code.textContent ?? "").trim();
+        if (text) {
+          event.preventDefault();
+          const field = node.querySelector<HTMLInputElement | HTMLTextAreaElement>(
+            'input:not([type="password"]):not([type="submit"]):not([type="button"]):not([type="hidden"]):not([type="checkbox"]):not([type="radio"]), textarea',
+          );
+          if (field) {
+            field.value = text;
+            field.focus();
+            setToast(`✓ Puesto en el campo: ${text}`);
+          } else {
+            setToast(`✓ Copiado: ${text}`);
+          }
+          try {
+            navigator.clipboard?.writeText(text);
+          } catch {
+            /* sin portapapeles igual quedó en el campo */
+          }
+          return;
+        }
+      }
+
+      const link = el.closest("a");
       if (!link) return;
 
       event.preventDefault();
@@ -436,12 +475,12 @@ export default function Browser({ kernel }: BrowserProps) {
           ) : viewSource ? (
             <pre className="br__source">{bodyHtml}</pre>
           ) : (
-            <div
-              className="br__doc nande-site"
-              // El HTML lo genera el propio núcleo del juego (no viene de
-              // fuera), así que se renderiza directamente.
-              dangerouslySetInnerHTML={{ __html: bodyHtml }}
-            />
+            // El HTML lo genera el propio núcleo del juego (no viene de fuera).
+            // Se inyecta por ref en un efecto (no con dangerouslySetInnerHTML)
+            // para que un re-render cualquiera —un toast, abrir DevTools— NO
+            // vuelva a pisar el contenido y borre lo que ya escribiste en un
+            // formulario del laboratorio.
+            <div className="br__doc nande-site" ref={docRef} />
           )}
         </div>
 
