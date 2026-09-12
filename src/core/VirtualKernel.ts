@@ -12,6 +12,8 @@ import { VirtualDNS } from "./dns/VirtualDNS";
 import { VirtualBrowser } from "./browser/VirtualBrowser";
 import { WebServer } from "./http/WebServer";
 import { BankApp } from "./http/apps/bank";
+import { ServerApp } from "./http/apps/server";
+import { HostRuntime, type VirtualService } from "./net/HostRuntime";
 import { BlogApp, PhotosApp, FilesApp, ToolsApp } from "./http/apps/labs";
 import { SsrfApp, JwtNoneApp, RedirectApp } from "./http/apps/labs2";
 import { CsrfApp, LfiApp, UploadApp, DeserializeApp } from "./http/apps/labs3";
@@ -73,6 +75,8 @@ export class VirtualKernel {
   public events: EventBus;
   public network: VirtualNetwork;
   public dns: VirtualDNS;
+  /** Fuente única de verdad de hosts/servicios/puertos del mundo virtual. */
+  public hosts: HostRuntime;
   public browser: VirtualBrowser;
   public web: WebServer;
   public search: VirtualSearch;
@@ -112,6 +116,7 @@ export class VirtualKernel {
 
   /** Registra las aplicaciones web vulnerables del mundo. */
   private registerWebApps(): void {
+    this.web.register(new ServerApp());
     this.web.register(new BankApp());
     this.web.register(new BlogApp());
     this.web.register(new PhotosApp());
@@ -152,11 +157,16 @@ export class VirtualKernel {
     this.search = new VirtualSearch();
     this.internet = new VirtualInternet();
     this.web = new WebServer();
+    this.hosts = new HostRuntime({
+      now: () => this.world.getState().clock.tick,
+      onEvent: (event) => this.events.emit("runtime.host", event),
+    });
     this.browser = new VirtualBrowser(
       this.dns,
       this.internet,
       this.network,
       this.web,
+      this.hosts,
     );
     this.registerWebApps();
 
@@ -208,7 +218,7 @@ export class VirtualKernel {
     );
 
     this.news = new NewsEngine();
-    this.tools = new SecurityTools(this.network, this.dns);
+    this.tools = new SecurityTools(this.network, this.dns, this.hosts);
     this.academy = new Academy();
     this.lessons = new LessonEngine();
     this.player = new Progression(this.events);
@@ -249,6 +259,10 @@ export class VirtualKernel {
     this.dns.register("tools.nande", "10.10.0.38");
     this.dns.register("store.nande", "10.10.0.39");
     this.dns.register("community.nande", "10.10.0.40");
+
+    // server.nande: servidor web de referencia (sin vuln) para demostrar el
+    // ciclo de vida de servicios (service-stop nginx → curl/nmap cambian).
+    this.dns.register("server.nande", "10.10.0.42");
 
     // Los laboratorios web: cada uno con una vulnerabilidad real.
     this.dns.register("banco.nande", "10.10.7.10");
@@ -492,7 +506,54 @@ export class VirtualKernel {
       },
     );
 
+    this.seedHosts();
     this.seedInitialSites();
+  }
+
+  /**
+   * Puebla el HostRuntime (la fuente de verdad de hosts/servicios) desde lo
+   * que ya existe: cada webapp del WebServer se vuelve un host con nginx en
+   * 80/tcp; server.nande suma ssh; y cada máquina del laboratorio aporta sus
+   * servicios reales. A partir de acá, nmap y el navegador leen de acá — el
+   * mismo estado produce ambas respuestas.
+   */
+  private seedHosts(): void {
+    // Webapps del mundo (banco.nande, blog.yvoty.nande, …): host con nginx.
+    for (const app of this.web.list()) {
+      const ip = this.dns.resolve(app.hostname);
+      if (!ip || this.hosts.has(app.hostname)) continue;
+      const extra: Partial<VirtualService>[] =
+        app.hostname === "server.nande"
+          ? [{ name: "sshd", port: 22, protocol: "tcp", version: "OpenÑSSH 9.6", kind: "ssh" }]
+          : [];
+      this.hosts.registerWebHost(app.hostname, ip, extra);
+    }
+
+    // Máquinas del laboratorio: importar sus servicios reales.
+    for (const machine of this.tools.labMachines()) {
+      if (this.hosts.has(machine.hostname) || this.hosts.has(machine.ip)) continue;
+      const services: VirtualService[] = machine.services.map((s) => ({
+        name: s.name,
+        port: s.port,
+        protocol: s.protocol,
+        version: s.version,
+        kind: kindOfService(s.name, s.port),
+        state: "running" as const,
+        enabled: true,
+      }));
+      this.hosts.register({
+        hostname: machine.hostname,
+        ip: machine.ip,
+        os: machine.os,
+        up: machine.up,
+        services,
+        firewall: [],
+      });
+      // Que el nombre resuelva por DNS también (nmap acepta host o IP).
+      if (!this.dns.has(machine.hostname)) {
+        this.dns.register(machine.hostname, machine.ip);
+      }
+    }
   }
 
   /**
@@ -792,6 +853,20 @@ export class VirtualKernel {
       worldEntityCount: this.registry.count(),
     };
   }
+}
+
+/** Deduce la capacidad de un servicio a partir de su nombre/puerto. */
+function kindOfService(
+  name: string,
+  port: number,
+): import("./net/HostRuntime").ServiceKind {
+  const n = name.toLowerCase();
+  if (n.includes("http") || port === 80 || port === 8080) return "http";
+  if (n.includes("https") || port === 443) return "https";
+  if (n.includes("ssh") || port === 22) return "ssh";
+  if (n.includes("sql") || n.includes("mysql") || n.includes("postgres") || port === 3306 || port === 5432) return "db";
+  if (n.includes("dns") || port === 53) return "dns";
+  return "other";
 }
 
 /** Mapea una señal capturada al tema de aprendizaje de la Mani. */

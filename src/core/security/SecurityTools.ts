@@ -3,6 +3,7 @@ import type { ToolCategory, ToolDef, ToolLevel } from "./toolCatalog";
 import { LabNetwork } from "./LabNetwork";
 import type { VirtualNetwork } from "../network/VirtualNetwork";
 import type { VirtualDNS } from "../dns/VirtualDNS";
+import type { HostRuntime } from "../net/HostRuntime";
 
 export type { ToolDef, ToolCategory, ToolLevel } from "./toolCatalog";
 
@@ -18,6 +19,10 @@ interface ToolContext {
   lab: LabNetwork;
   network: VirtualNetwork;
   dns: VirtualDNS;
+  /** Fuente única de verdad de hosts/servicios vivos. Cuando está presente,
+   *  nmap la consulta para reflejar el estado real (servicios apagados,
+   *  puertos bloqueados). Sin ella, cae al catálogo estático de LabNetwork. */
+  hosts?: HostRuntime;
 }
 
 /**
@@ -32,13 +37,19 @@ export class SecurityTools {
   private tools: Map<string, ToolDef>;
   private context: ToolContext;
 
-  constructor(network: VirtualNetwork, dns: VirtualDNS) {
+  constructor(network: VirtualNetwork, dns: VirtualDNS, hosts?: HostRuntime) {
     this.tools = new Map(TOOL_CATALOG.map((tool) => [tool.id, tool]));
     this.context = {
       lab: new LabNetwork(),
       network,
       dns,
+      hosts,
     };
+  }
+
+  /** Máquinas del laboratorio, para sembrarlas en el HostRuntime. */
+  labMachines() {
+    return this.context.lab.all();
   }
 
   all(): ToolDef[] {
@@ -228,6 +239,51 @@ const RUNNERS: Record<string, Runner> = {
 
     if (err) {
       return { output: `nmap: ${err}\n`, isError: true };
+    }
+
+    // Fuente de verdad viva: si el host está en el HostRuntime, el escaneo
+    // refleja el estado REAL de ahora (servicios apagados = puerto cerrado,
+    // firewall = filtrado). nmap no sabe la respuesta; el mundo la sabe.
+    if (ctx.hosts?.has(target)) {
+      const host = ctx.hosts.resolve(target)!;
+
+      if (!host.up) {
+        return { output: `nmap: ${target} (${host.ip}) parece caído.\n`, isError: false };
+      }
+
+      const running = new Set(
+        host.services.filter((s) => s.state === "running").map((s) => s.port),
+      );
+      const rows = host.services
+        .map((s) => {
+          const estado = host.firewall.includes(s.port)
+            ? "filtered"
+            : running.has(s.port)
+              ? "open"
+              : "closed";
+          return (
+            `${s.port}/${s.protocol}`.padEnd(10) +
+            `${estado}`.padEnd(10) +
+            `${s.name}`.padEnd(10) +
+            s.version
+          );
+        })
+        .join("\n");
+
+      const abiertos = host.services.filter(
+        (s) => s.state === "running" && !host.firewall.includes(s.port),
+      ).length;
+
+      return {
+        output:
+          `Nmap scan para ${host.hostname} (${host.ip})\n` +
+          `Sistema: ${host.os}\n\n` +
+          `PUERTO    ESTADO    SERVICIO  VERSIÓN\n` +
+          rows +
+          `\n\n${abiertos} puerto(s) abierto(s). ` +
+          `El estado es el real: apagá un servicio y volvé a escanear.\n`,
+        isError: false,
+      };
     }
 
     const machine = ctx.lab.resolve(target);

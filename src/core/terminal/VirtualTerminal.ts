@@ -908,6 +908,21 @@ export class VirtualTerminal {
         case "wifi":
           return this.wifiCmd(commandArgs);
 
+        case "services":
+        case "servicios":
+          return this.servicesCmd(commandArgs);
+
+        case "service-info":
+          return this.serviceInfoCmd(commandArgs);
+
+        case "service-start":
+        case "service-stop":
+        case "service-restart":
+          return this.serviceCtlCmd(command, commandArgs);
+
+        case "firewall":
+          return this.firewallCmd(commandArgs);
+
         default: {
           // Si no es un builtin, quizas sea una herramienta de seguridad.
           if (this.kernel.tools.find(command)) {
@@ -1578,6 +1593,166 @@ export class VirtualTerminal {
     }
   }
 
+
+  /** Lista hosts del mundo, o los servicios de un host con su estado real. */
+  private servicesCmd(args: string[]): { output: string; isError: boolean } {
+    const ref = args.find((a) => !a.startsWith("-"));
+
+    if (!ref) {
+      const hosts = this.kernel.hosts.all();
+      if (hosts.length === 0) {
+        return { output: "services: no hay hosts registrados.\n", isError: false };
+      }
+      const lines = hosts
+        .map((h) => {
+          const running = h.services.filter((s) => s.state === "running").length;
+          return `  ${h.hostname.padEnd(26)} ${h.ip.padEnd(12)} ${running}/${h.services.length} activos${h.up ? "" : "  (host caído)"}`;
+        })
+        .join("\n");
+      return {
+        output:
+          `Hosts del mundo virtual (usá 'services <host>' para ver sus servicios):\n` +
+          lines +
+          `\n`,
+        isError: false,
+      };
+    }
+
+    const host = this.kernel.hosts.resolve(ref);
+    if (!host) {
+      return { output: `services: host desconocido: ${ref}\n`, isError: true };
+    }
+
+    const rows = host.services
+      .map((s) => {
+        const estado = host.firewall.includes(s.port)
+          ? "filtrado"
+          : s.state === "running"
+            ? "activo"
+            : "detenido";
+        return `  ${`${s.port}/${s.protocol}`.padEnd(10)} ${s.name.padEnd(10)} ${estado.padEnd(10)} ${s.version}`;
+      })
+      .join("\n");
+
+    return {
+      output:
+        `Servicios de ${host.hostname} (${host.ip}) — ${host.up ? "encendido" : "APAGADO"}\n` +
+        `  PUERTO     SERVICIO   ESTADO     VERSIÓN\n` +
+        rows +
+        `\n\nControlá: service-stop <servicio> ${host.hostname} · service-start <servicio> ${host.hostname}\n`,
+      isError: false,
+    };
+  }
+
+  private serviceInfoCmd(args: string[]): { output: string; isError: boolean } {
+    const [svcRef, hostRef] = args.filter((a) => !a.startsWith("-"));
+    const host = hostRef ? this.kernel.hosts.resolve(hostRef) : undefined;
+    if (!host) {
+      return { output: `service-info: usá service-info <servicio> <host>\n`, isError: true };
+    }
+    const svc = host.services.find(
+      (s) => s.name.toLowerCase() === (svcRef ?? "").toLowerCase() || String(s.port) === svcRef,
+    );
+    if (!svc) {
+      return { output: `service-info: no existe el servicio ${svcRef} en ${host.hostname}\n`, isError: true };
+    }
+    return {
+      output:
+        `${svc.name} @ ${host.hostname} (${host.ip})\n` +
+        `  puerto:   ${svc.port}/${svc.protocol}\n` +
+        `  tipo:     ${svc.kind}\n` +
+        `  versión:  ${svc.version}\n` +
+        `  estado:   ${svc.state}${host.firewall.includes(svc.port) ? " (puerto bloqueado por firewall)" : ""}\n` +
+        `  al boot:  ${svc.enabled ? "sí" : "no"}\n`,
+      isError: false,
+    };
+  }
+
+  /**
+   * service-start / service-stop / service-restart <servicio> <host>.
+   * Acepta también el orden inverso <host> <servicio>. Al cambiar el estado,
+   * el navegador, curl y nmap lo ven al instante: todos miran el mismo mundo.
+   */
+  private serviceCtlCmd(
+    command: string,
+    args: string[],
+  ): { output: string; isError: boolean } {
+    const positional = args.filter((a) => !a.startsWith("-"));
+    if (positional.length < 2) {
+      return {
+        output: `${command}: usá ${command} <servicio> <host>  (ej. ${command} nginx server.nande)\n`,
+        isError: true,
+      };
+    }
+
+    // Detectar cuál argumento es el host (el que resuelve en el runtime).
+    let [a, b] = positional;
+    let host = this.kernel.hosts.resolve(b);
+    let service = a;
+    if (!host) {
+      // Probar el orden inverso: <host> <servicio>.
+      host = this.kernel.hosts.resolve(a);
+      service = b;
+    }
+    if (!host) {
+      return {
+        output: `${command}: host desconocido. Mirá 'services' para la lista.\n`,
+        isError: true,
+      };
+    }
+
+    const action = command.slice("service-".length) as "start" | "stop" | "restart";
+    const result =
+      action === "start"
+        ? this.kernel.hosts.startService(host.hostname, service)
+        : action === "stop"
+          ? this.kernel.hosts.stopService(host.hostname, service)
+          : this.kernel.hosts.restartService(host.hostname, service);
+
+    return {
+      output: `${result.ok ? "✔" : "✘"} ${result.message}\n`,
+      isError: !result.ok,
+    };
+  }
+
+  /** firewall block|allow <host> <puerto>  ·  firewall <host> (ver reglas). */
+  private firewallCmd(args: string[]): { output: string; isError: boolean } {
+    const positional = args.filter((a) => !a.startsWith("-"));
+    const action = positional[0];
+
+    if (action === "block" || action === "allow") {
+      const host = this.kernel.hosts.resolve(positional[1] ?? "");
+      const port = Number(positional[2]);
+      if (!host || !Number.isFinite(port)) {
+        return {
+          output: `firewall: usá firewall ${action} <host> <puerto>\n`,
+          isError: true,
+        };
+      }
+      const r =
+        action === "block"
+          ? this.kernel.hosts.blockPort(host.hostname, port)
+          : this.kernel.hosts.allowPort(host.hostname, port);
+      return { output: `${r.ok ? "✔" : "✘"} ${r.message}\n`, isError: !r.ok };
+    }
+
+    // Ver reglas de un host.
+    const host = this.kernel.hosts.resolve(action ?? "");
+    if (!host) {
+      return {
+        output:
+          `firewall: usá 'firewall block <host> <puerto>', 'firewall allow <host> <puerto>' o 'firewall <host>'.\n`,
+        isError: true,
+      };
+    }
+    const bloqueados = host.firewall.length
+      ? host.firewall.join(", ")
+      : "(ninguno)";
+    return {
+      output: `Firewall de ${host.hostname}: puertos bloqueados → ${bloqueados}\n`,
+      isError: false,
+    };
+  }
 
   private wifiCmd(args: string[]): { output: string; isError: boolean } {
     const action = args[0] ?? "status";
@@ -2851,6 +3026,15 @@ export class VirtualTerminal {
       "  crack <hash>     Crackea un hash MD5/SHA-256 de verdad",
       "  jwt <sub>        Inspecciona/crackea/forja tokens JWT",
       "  publicar <t> <n> Publicá tu propio sitio en la Internet virtual",
+      "",
+      "Hosts, servicios y firewall (mundo real):",
+      "  services [host]  Lista hosts, o los servicios de un host y su estado",
+      "  service-info <s> <host>       Detalle de un servicio",
+      "  service-stop <s> <host>       Detiene un servicio (curl/nmap lo ven)",
+      "  service-start <s> <host>      Arranca un servicio",
+      "  service-restart <s> <host>    Reinicia un servicio",
+      "  firewall block <host> <puerto>  Bloquea un puerto",
+      "  firewall allow <host> <puerto>  Permite un puerto",
       "",
       "Hardware y WiFi:",
       "  neofetch         Muestra tu PC virtual (specs)",

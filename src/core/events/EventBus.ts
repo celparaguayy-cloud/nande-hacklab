@@ -39,7 +39,10 @@ export type EventType =
   | "group.joined"
   | "group.op"
   // La app de aprendizaje pide correr un comando en la terminal.
-  | "terminal.run";
+  | "terminal.run"
+  // Runtime de hosts/servicios: cada acción real deja un evento que el SOC
+  // puede investigar (arrancar/parar servicios, firewall, conexiones).
+  | "runtime.host";
 
 export interface VirtualEvent<T = unknown> {
   type: EventType;

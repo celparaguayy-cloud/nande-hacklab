@@ -6,6 +6,7 @@ import {
 } from "../internet/VirtualInternet";
 import { WebServer } from "../http/WebServer";
 import type { HttpMethod, HttpResponse } from "../http/types";
+import type { HostRuntime } from "../net/HostRuntime";
 
 export interface VirtualPage {
   hostname: string;
@@ -21,6 +22,7 @@ export class VirtualBrowser {
   private internet: VirtualInternet;
   private network: VirtualNetwork;
   private server?: WebServer;
+  private hosts?: HostRuntime;
   /** Cookies guardadas por host, como las guardaría un navegador real. */
   private cookieJar = new Map<string, Record<string, string>>();
 
@@ -29,11 +31,28 @@ export class VirtualBrowser {
     internet: VirtualInternet,
     network: VirtualNetwork,
     server?: WebServer,
+    hosts?: HostRuntime,
   ) {
     this.dns = dns;
     this.internet = internet;
     this.network = network;
     this.server = server;
+    this.hosts = hosts;
+  }
+
+  /**
+   * Comprueba que el servicio HTTP del host esté realmente disponible en el
+   * HostRuntime. Si el host no está gestionado ahí, no interfiere. Si el
+   * servicio está caído o el puerto bloqueado, deja el evento y lanza el
+   * error de conexión rechazada — igual que un servidor real que no escucha.
+   */
+  private assertHttpUp(host: string): void {
+    if (!this.hosts) return;
+    if (this.hosts.httpReachable(host)) return;
+    this.hosts.refuseConnection(host, 80, "servicio HTTP caído o puerto bloqueado");
+    throw new Error(
+      `Conexión rechazada: ${host} no acepta HTTP (servicio caído o puerto bloqueado)`,
+    );
   }
 
   /** ¿Este host es una aplicación web dinámica (con HTTP real)? */
@@ -90,6 +109,8 @@ export class VirtualBrowser {
       throw new Error(`Red: ${host} no es alcanzable desde esta máquina`);
     }
 
+    this.assertHttpUp(host);
+
     let path = fullPath || "/";
     let currentMethod = method;
     let currentBody = body;
@@ -138,6 +159,8 @@ export class VirtualBrowser {
         `Red: ${address} no es alcanzable desde esta máquina`,
       );
     }
+
+    this.assertHttpUp(cleanHostname);
 
     const resource: VirtualResource | undefined =
       this.internet.getResource(cleanHostname, path);
