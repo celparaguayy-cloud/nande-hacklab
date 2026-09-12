@@ -338,9 +338,15 @@ export default function Browser({ kernel }: BrowserProps) {
         const text = (code.textContent ?? "").trim();
         if (text) {
           event.preventDefault();
-          const field = node.querySelector<HTMLInputElement | HTMLTextAreaElement>(
-            'input:not([type="password"]):not([type="submit"]):not([type="button"]):not([type="hidden"]):not([type="checkbox"]):not([type="radio"]), textarea',
+          // Se llena el PRIMER campo vacío (incluida la contraseña). Así los
+          // laboratorios de varios campos andan naturales: en un login NoSQL se
+          // toca "admin" → va al usuario, y "{$ne:null}" → va a la contraseña.
+          const inputs = Array.from(
+            node.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(
+              'input:not([type="submit"]):not([type="button"]):not([type="hidden"]):not([type="checkbox"]):not([type="radio"]), textarea',
+            ),
           );
+          const field = inputs.find((el) => !el.value) ?? inputs[0];
           if (field) {
             field.value = text;
             field.focus();
