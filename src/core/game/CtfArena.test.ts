@@ -46,6 +46,21 @@ describe("CtfArena — modo CTF contrarreloj", () => {
     expect(b.leaderboard().length).toBe(1);
   });
 
+  it("La Mani da pistas en escalera y cada una descuenta puntos", () => {
+    let t = 0;
+    const ctf = new CtfArena(() => t);
+    ctf.start("medio"); // base 500
+    const h1 = ctf.hint()!;
+    expect(h1.text).toContain("🥜");
+    expect(h1.used).toBe(1);
+    const h2 = ctf.hint()!;
+    expect(h2.text).not.toBe(h1.text); // escalera: siguiente pista
+    expect(ctf.hintsUsed()).toBe(2);
+    t = 10_000; // 10s
+    // 500 - 10s - 2 pistas*60 = 370
+    expect(ctf.solve()!.score).toBe(370);
+  });
+
   it("el puntaje nunca baja de 10 aunque tardes mucho", () => {
     let t = 0;
     const ctf = new CtfArena(() => t);

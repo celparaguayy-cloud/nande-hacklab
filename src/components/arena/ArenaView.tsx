@@ -18,6 +18,8 @@ export function ArenaView({ kernel, onOpenApp }: Props) {
   const [elapsed, setElapsed] = useState(0);
   const [board, setBoard] = useState<CtfScore[]>(() => kernel.ctf.leaderboard());
   const [flash, setFlash] = useState<string | null>(null);
+  const [mani, setMani] = useState<string | null>(null);
+  const [hintsUsed, setHintsUsed] = useState(0);
 
   useEffect(() => {
     const tick = () => {
@@ -39,11 +41,21 @@ export function ArenaView({ kernel, onOpenApp }: Props) {
 
   const start = (n?: CtfNivel) => {
     setFlash(null);
+    setMani(null);
+    setHintsUsed(0);
     const c = kernel.ctf.start(n);
     setCurrent(c);
     setElapsed(0);
     // Deja el objetivo listo para atacar: abre el navegador en el host.
     kernel.navigateBrowser(`http://${c.host}/`);
+  };
+
+  const pedirPista = () => {
+    const h = kernel.ctf.hint();
+    if (h) {
+      setMani(h.text);
+      setHintsUsed(kernel.ctf.hintsUsed());
+    }
   };
 
   const rendir = () => {
@@ -76,10 +88,21 @@ export function ArenaView({ kernel, onOpenApp }: Props) {
           <div style={{ fontSize: 12, color: "#8b98a5", marginTop: 10 }}>
             Vulneralo y capturá su bandera <code style={code}>ND{"{...}"}</code>. El cronómetro corre.
           </div>
+          {mani && (
+            <div style={maniBubble}>
+              <b>La Mani:</b> {mani}
+              {hintsUsed > 0 && (
+                <div style={{ fontSize: 11, color: "#d4b483", marginTop: 4 }}>
+                  Pistas usadas: {hintsUsed} · −{hintsUsed * 60} pts al resolver
+                </div>
+              )}
+            </div>
+          )}
           <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
             <button style={btnPrimary} onClick={() => onOpenApp?.("browser")}>Abrir Navegador</button>
             <button style={btnGhost} onClick={() => onOpenApp?.("terminal")}>Abrir Terminal</button>
-            <button style={btnGhost} onClick={() => onOpenApp?.("asistente")}>🤖 Pedir ayuda</button>
+            <button style={btnMani} onClick={pedirPista}>🥜 Pista de La Mani</button>
+            <button style={btnGhost} onClick={() => onOpenApp?.("asistente")}>🤖 Ñandú IA</button>
             <button style={btnDanger} onClick={rendir}>Rendirme</button>
           </div>
         </div>
@@ -123,6 +146,8 @@ const row: CSSProperties = { display: "flex", alignItems: "center", gap: 8, padd
 const btnPrimary: CSSProperties = { background: "#0284c7", color: "#fff", border: "none", borderRadius: 8, padding: "8px 12px", fontSize: 13, cursor: "pointer" };
 const btnGhost: CSSProperties = { background: "#111820", color: "#e6edf3", border: "1px solid #1b2733", borderRadius: 8, padding: "8px 12px", fontSize: 13, cursor: "pointer" };
 const btnDanger: CSSProperties = { background: "transparent", color: "#fca5a5", border: "1px solid #7f1d1d", borderRadius: 8, padding: "8px 12px", fontSize: 13, cursor: "pointer" };
+const btnMani: CSSProperties = { background: "#3a2a0f", color: "#ffd479", border: "1px solid #7a5a1a", borderRadius: 8, padding: "8px 12px", fontSize: 13, cursor: "pointer" };
+const maniBubble: CSSProperties = { marginTop: 10, background: "#1c1608", border: "1px solid #4a3a12", borderRadius: 8, padding: "8px 12px", color: "#ffe9b0", fontSize: 13, lineHeight: 1.5 };
 const btnLevel = (c: string): CSSProperties => ({ background: "#111820", color: c, border: `1px solid ${c}55`, borderRadius: 8, padding: "10px 16px", fontSize: 14, fontWeight: 600, cursor: "pointer" });
 
 export default ArenaView;
