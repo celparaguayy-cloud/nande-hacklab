@@ -56,6 +56,9 @@ function World2DView({ kernel, onOpenApp }: World2DViewProps) {
   const [selected, setSelected] = useState<{ name: string; profession: string; id: string } | null>(null);
   const [near, setNear] = useState<Building | null>(null);
   const nearRef = useRef<Building | null>(null);
+  // Destino al que camina el jugador cuando se toca la pantalla (para móvil,
+  // que no tiene teclado). Se limpia al llegar.
+  const targetRef = useRef<{ x: number; y: number } | null>(null);
 
   // Entrar al edificio cercano: abre su app o navega a su sitio.
   const enter = (b: Building | null) => {
@@ -123,6 +126,22 @@ function World2DView({ kernel, onOpenApp }: World2DViewProps) {
       if (k.has("arrowdown") || k.has("s")) pl.y += sp;
       if (k.has("arrowleft") || k.has("a")) pl.x -= sp;
       if (k.has("arrowright") || k.has("d")) pl.x += sp;
+
+      // Movimiento por toque (celular, sin teclado): caminar al destino.
+      if (k.size > 0) {
+        targetRef.current = null; // el teclado tiene prioridad
+      } else if (targetRef.current) {
+        const t = targetRef.current;
+        const dx = t.x - pl.x;
+        const dy = t.y - pl.y;
+        const dist = Math.hypot(dx, dy) || 1;
+        if (dist < 3) targetRef.current = null;
+        else {
+          pl.x += (dx / dist) * sp;
+          pl.y += (dy / dist) * sp;
+        }
+      }
+
       pl.x = Math.max(4, Math.min(WORLD_SIZE - 4, pl.x));
       pl.y = Math.max(4, Math.min(WORLD_SIZE - 4, pl.y));
 
@@ -221,8 +240,26 @@ function World2DView({ kernel, onOpenApp }: World2DViewProps) {
     const scale = canvas.width / WORLD_SIZE;
     const x = ((e.clientX - rect.left) * (canvas.width / rect.width)) / scale;
     const y = ((e.clientY - rect.top) * (canvas.height / rect.height)) / scale;
+
+    // 1) ¿Tocaron un edificio? -> entrar directo (clave para el celular).
+    const b = BUILDINGS.find(
+      (bb) => Math.abs(x - bb.fx * WORLD_SIZE) < 7 && Math.abs(y - bb.fy * WORLD_SIZE) < 7,
+    );
+    if (b) {
+      enter(b);
+      return;
+    }
+
+    // 2) ¿Tocaron a un habitante? -> seleccionarlo.
     const a = avatarAt(avatarsRef.current, x, y, 10);
-    setSelected(a ? { name: a.name, profession: a.profession, id: a.id } : null);
+    if (a) {
+      setSelected({ name: a.name, profession: a.profession, id: a.id });
+      return;
+    }
+
+    // 3) Si no, caminar hacia ahí (movimiento táctil, sin teclado).
+    setSelected(null);
+    targetRef.current = { x, y };
   };
 
   const openChat = () => {
@@ -240,7 +277,7 @@ function World2DView({ kernel, onOpenApp }: World2DViewProps) {
         <div className="nd-app-head__text">
           <h2>ÑANDE World 2D</h2>
           <span className="nd-app-head__sub">
-            WASD o flechas para caminar · acercate a un edificio y entrá (E)
+            Tocá para caminar · tocá un edificio para entrar (o WASD y tecla E)
           </span>
         </div>
       </div>
