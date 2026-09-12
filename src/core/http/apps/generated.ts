@@ -322,10 +322,11 @@ Y robar deja rastro: te sube el calor y sale en las noticias.</p>
       this.wrap(
         this.form(q) +
           `<ul>${list || "<li>Sin resultados.</li>"}</ul>` +
-          `<p class="lab-hint">Pista: el buscador arma la consulta con tu
-          texto. La tabla <code>usuarios</code> tiene id, usuario, password,
-          rol. Probá un <code>UNION SELECT</code> para sacar las
-          contraseñas. También hay una tabla <code>secretos(id, dato)</code>.</p>` +
+          `<p class="lab-hint">Pista: el buscador arma la consulta con tu texto.
+          La tabla <code>usuarios</code> tiene id, usuario, password, rol. Tocá
+          este payload para sacar las contraseñas:
+          <code>%' UNION SELECT id, usuario, password FROM usuarios -- </code>
+          (también hay una tabla <code>secretos(id, dato)</code>).</p>` +
           `<p class="site-foot"><a href="/login">Acceso del propietario →</a> ·
           <a href="/">Volver al sitio</a></p>`,
       ),
