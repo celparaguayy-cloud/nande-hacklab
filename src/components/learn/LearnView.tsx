@@ -134,16 +134,33 @@ function LearnView({ kernel, onOpenApp }: LearnViewProps) {
       {tab === "lecciones" && (
         <>
           <h3 style={sectionTitle}>Lecciones guiadas · practicá haciendo</h3>
-          {lessons.map((l) => (
-            <LessonCard
-              key={l.id}
-              title={l.title}
-              level={l.level}
-              summary={l.summary}
-              done={done.has(`lesson:${l.id}`)}
-              onStart={() => startLesson(l.id)}
-            />
-          ))}
+          {(["principiante", "intermedio", "avanzado", "experto"] as const).map(
+            (nivel) => {
+              const delNivel = lessons.filter((l) => l.level === nivel);
+              if (delNivel.length === 0) return null;
+              const hechas = delNivel.filter((l) => done.has(`lesson:${l.id}`)).length;
+              return (
+                <div key={nivel} style={{ marginBottom: 14 }}>
+                  <div style={levelHeader}>
+                    <span style={levelBadge(nivel)}>{nivel}</span>
+                    <span style={{ color: "#8b98a5", fontSize: 12 }}>
+                      {hechas}/{delNivel.length} completadas
+                    </span>
+                  </div>
+                  {delNivel.map((l) => (
+                    <LessonCard
+                      key={l.id}
+                      title={l.title}
+                      level={l.level}
+                      summary={l.summary}
+                      done={done.has(`lesson:${l.id}`)}
+                      onStart={() => startLesson(l.id)}
+                    />
+                  ))}
+                </div>
+              );
+            },
+          )}
         </>
       )}
 
@@ -373,6 +390,15 @@ function Progress({ value, max }: { value: number; max: number }) {
 }
 
 const accent = "#7cc4ff";
+
+const levelHeader: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  padding: "4px 2px 8px",
+  borderBottom: "1px solid #1b2733",
+  marginBottom: 8,
+};
 
 function levelBadge(level: string): CSSProperties {
   const c: Record<string, string> = {
