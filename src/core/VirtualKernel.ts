@@ -1013,6 +1013,42 @@ export class VirtualKernel {
       worldEntityCount: this.registry.count(),
     };
   }
+
+  /**
+   * Vista coherente del WorldState: el estado vivo de TODOS los runtimes en un
+   * solo lugar (Phase 1). No duplica datos — los lee de cada runtime, que
+   * sigue siendo la única fuente de verdad de lo suyo. Sirve para paneles,
+   * debugging y para el test "sin UI": si esto sabe lo que pasa, el mundo vive
+   * en el runtime y no en la pantalla.
+   */
+  worldState() {
+    const clock = this.world.getState().clock;
+    return {
+      clock,
+      hosts: this.hosts.all().map((h) => ({
+        hostname: h.hostname,
+        ip: h.ip,
+        up: h.up,
+        internal: !this.hosts.isPublic(h.hostname),
+        services: h.services.map((s) => ({ name: s.name, port: s.port, state: s.state })),
+        firewall: [...h.firewall],
+        processes: h.processes.length,
+      })),
+      tools: this.toolRuntime.list().map((t) => ({
+        name: t.manifest.name,
+        origin: t.origin,
+        capabilities: t.manifest.capabilities,
+      })),
+      alerts: this.soc.countBySeverity(),
+      alertTop: this.soc.topSeverity(),
+      databases: this.databases.list().map((d) => d.name),
+      ai: this.ai.mode(),
+      people: this.worldEngine.getPeopleCount(),
+      online: this.worldEngine.getOnlineCount(),
+      snapshots: this.snapshots.list().map((s) => s.name),
+      runtimeEvents: this.hosts.timeline(20),
+    };
+  }
 }
 
 /** Deduce la capacidad de un servicio a partir de su nombre/puerto. */
