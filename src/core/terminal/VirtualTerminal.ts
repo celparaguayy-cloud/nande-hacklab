@@ -1014,6 +1014,13 @@ export class VirtualTerminal {
         case "sniff":
           return this.sharkCmd(commandArgs);
 
+        case "nandeblood":
+        case "bloodhound":
+        case "kerberoast":
+        case "crack-tgs":
+        case "abuse":
+          return this.adCmd(command, commandArgs);
+
         case "snapshot":
         case "foto":
           return this.snapshotCmd(commandArgs);
@@ -2241,6 +2248,93 @@ export class VirtualTerminal {
       `═══ NandeShark · ${title} (${packets.length}) ═══\n` +
       `${lines.join("\n")}\n` +
       `\nDetalle con 'sniff follow <host>'. Credenciales en claro: 'sniff creds'.\n`
+    );
+  }
+
+  /**
+   * NandeBlood + AD — el Directorio Activo virtual como grafo real.
+   *
+   *   nandeblood                → grafo del dominio + ruta de ataque más corta.
+   *   kerberoast <cuenta-spn>   → pedís el TGS (hash crackeable offline).
+   *   crack-tgs <cuenta> <clave>→ crackeás el hash: si acertás, poseés la cuenta.
+   *   abuse <origen> <destino>  → abusás una ACL/sesión para tomar el destino.
+   */
+  private adCmd(
+    command: string,
+    args: string[],
+  ): { output: string; isError: boolean } {
+    const dir = this.kernel.directory;
+
+    if (command === "kerberoast") {
+      const target = args[0];
+      if (!target) {
+        const list = dir.kerberoastable().map((p) => `  ${p.name}  (SPN ${p.spn})`).join("\n");
+        return { output: `Cuentas kerberoasteables:\n${list || "  (ninguna)"}\nUso: kerberoast <cuenta>\n`, isError: false };
+      }
+      const r = dir.kerberoast(target);
+      if (!r.ok) return { output: `✘ ${r.message}\n`, isError: true };
+      return {
+        output:
+          `${r.message}\n\n${r.hash}\n\n` +
+          `Crackéalo offline con: crack-tgs ${target.toUpperCase()} <clave>\n` +
+          `(pista: probá claves de temporada, tipo "Estacion2024!")\n`,
+        isError: false,
+      };
+    }
+
+    if (command === "crack-tgs") {
+      const [target, guess] = args;
+      if (!target || !guess) return { output: "uso: crack-tgs <cuenta> <clave>\n", isError: true };
+      const r = dir.crack(target, guess);
+      const suffix = dir.domainOwned() ? this.onDomainOwned() : "";
+      return { output: `${r.ok ? "✔" : "✘"} ${r.message}\n${suffix}`, isError: !r.ok };
+    }
+
+    if (command === "abuse") {
+      const [from, to] = args;
+      if (!from || !to) return { output: "uso: abuse <origen> <destino>\n", isError: true };
+      const r = dir.abuse(from, to);
+      const suffix = r.ok && dir.domainOwned() ? this.onDomainOwned() : "";
+      return { output: `${r.ok ? "✔" : "✘"} ${r.message}\n${suffix}`, isError: !r.ok };
+    }
+
+    // nandeblood / bloodhound: el grafo + la ruta más corta a Domain Admins.
+    const owned = dir.owned().map((p) => p.name).join(", ");
+    const path = dir.pathToDomainAdmins();
+    const nodes = dir.all().map((p) => {
+      const tag = p.owned ? "🔴" : "⚪";
+      const spn = p.spn ? `  [SPN ${p.spn}]` : "";
+      return `  ${tag} ${p.name} (${p.kind})${spn}`;
+    });
+    let pathBlock: string;
+    if (dir.domainOwned()) {
+      pathBlock = "🏆 Dominio COMPROMETIDO: poseés Domain Admins.";
+    } else if (path) {
+      pathBlock =
+        "Ruta de ataque más corta a Domain Admins:\n" +
+        path
+          .map((s, i) => `  ${i + 1}. ${s.from} —${s.type}→ ${s.to}\n       ↳ ${s.how}`)
+          .join("\n") +
+        `\n\nSiguiente paso: ${nextStepHint(path)}`;
+    } else {
+      pathBlock = "No hay ruta desde lo que poseés todavía. Conseguí un foothold.";
+    }
+    return {
+      output:
+        `═══ NandeBlood · ${dir.domain} ═══\n` +
+        `Poseídos: ${owned || "(ninguno)"}\n\n` +
+        `Principales:\n${nodes.join("\n")}\n\n${pathBlock}\n`,
+      isError: false,
+    };
+  }
+
+  /** Al comprometer el dominio, el mundo reacciona (bandera + consecuencias). */
+  private onDomainOwned(): string {
+    const notes = this.kernel.scanForSignals("ND{dominio_comprometido}");
+    return (
+      `\n🏆 ¡Comprometiste el dominio ${this.kernel.directory.domain}! ` +
+      `Bandera: ND{dominio_comprometido}\n` +
+      (notes.length ? notes.join("\n") + "\n" : "")
     );
   }
 
@@ -3989,6 +4083,25 @@ export class VirtualTerminal {
       "  help             Muestra esta ayuda",
       "",
     ].join("\n");
+  }
+}
+
+/** Sugiere la técnica concreta para el primer paso aún no realizado. */
+function nextStepHint(
+  path: import("../ad/Directory").AttackStep[],
+): string {
+  const step = path[0];
+  if (!step) return "seguí el grafo.";
+  switch (step.type) {
+    case "MemberOf":
+      return `ya heredás ${step.to} al poseer ${step.from}.`;
+    case "GenericAll":
+    case "ForceChangePassword":
+      return `abusá la ACL: abuse ${step.from} ${step.to}`;
+    case "AdminTo":
+    case "HasSession":
+    case "CanRDP":
+      return `tomá el destino: abuse ${step.from} ${step.to}`;
   }
 }
 

@@ -126,6 +126,24 @@ export class CyberRuntime {
     };
   }
 
+  /* ------------------------------------------------------- directory API */
+
+  /** AD virtual + NandeBlood: el grafo del dominio como estado real. */
+  get ad() {
+    const dir = this.k.directory;
+    return {
+      principals: () => dir.all(),
+      edges: () => dir.allEdges(),
+      owned: () => dir.owned(),
+      kerberoastable: () => dir.kerberoastable(),
+      kerberoast: (spn: string) => dir.kerberoast(spn),
+      crack: (spn: string, guess: string) => dir.crack(spn, guess),
+      abuse: (from: string, to: string) => dir.abuse(from, to),
+      path: () => dir.pathToDomainAdmins(),
+      domainOwned: () => dir.domainOwned(),
+    };
+  }
+
   /* ---------------------------------------------------------- sniffer API */
 
   /** NandeShark: el tráfico REAL capturado del cable (paquetes, no textos). */

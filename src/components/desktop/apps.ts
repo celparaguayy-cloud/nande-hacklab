@@ -83,6 +83,16 @@ export const APPS: AppMeta[] = [
     dock: false,
   },
   {
+    id: "blood",
+    name: "NandeBlood",
+    title: "NandeBlood — rutas de ataque en el dominio",
+    summary: "El grafo del Directorio Activo: kerberoast, abuso de ACL y camino a Domain Admins",
+    category: "Sistema",
+    from: "#fca5a5",
+    to: "#7f1d1d",
+    dock: false,
+  },
+  {
     id: "arena",
     name: "Arena CTF",
     title: "Arena CTF — retos contrarreloj",

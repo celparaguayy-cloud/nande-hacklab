@@ -5,6 +5,7 @@ import Terminal from "../terminal/Terminal";
 import { CodeIDE } from "../code/CodeIDE";
 import { SOCView } from "../soc/SOCView";
 import { SharkView } from "../shark/SharkView";
+import { BloodView } from "../ad/BloodView";
 import { AsistenteView } from "../ai/AsistenteView";
 import { ArenaView } from "../arena/ArenaView";
 import { Files } from "../files/Files";
@@ -257,6 +258,7 @@ function Desktop() {
       code: <CodeIDE kernel={kernel} />,
       soc: <SOCView kernel={kernel} />,
       shark: <SharkView kernel={kernel} />,
+      blood: <BloodView kernel={kernel} />,
       asistente: <AsistenteView kernel={kernel} onOpenApp={openWindow} />,
       arena: <ArenaView kernel={kernel} onOpenApp={openWindow} />,
       files: <Files kernel={kernel} />,

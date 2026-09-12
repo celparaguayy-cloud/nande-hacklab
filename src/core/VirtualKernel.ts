@@ -27,6 +27,7 @@ import { CtfArena } from "./game/CtfArena";
 import { ThreatEngine, DEFENSE_HOST } from "./game/ThreatEngine";
 import { CyberRuntime } from "./runtime/CyberRuntime";
 import { PacketCapture } from "./net/PacketCapture";
+import { Directory } from "./ad/Directory";
 import { BlogApp, PhotosApp, FilesApp, ToolsApp } from "./http/apps/labs";
 import { SsrfApp, JwtNoneApp, RedirectApp } from "./http/apps/labs2";
 import { CsrfApp, LfiApp, UploadApp, DeserializeApp } from "./http/apps/labs3";
@@ -144,6 +145,8 @@ export class VirtualKernel {
   public ctf: CtfArena;
   /** Amenazas vivas: rivales atacan tu data center; vos defendés (Blue Team). */
   public threats: ThreatEngine;
+  /** Directorio Activo virtual (dominio, grupos, Kerberos/ACL) + NandeBlood. */
+  public directory: Directory;
   /**
    * CyberRuntime — la API común del universo 5.0. Un solo punto por el que
    * TODA herramienta lee y escribe el mundo (host, servicio, proceso, red,
@@ -313,6 +316,7 @@ export class VirtualKernel {
     this.anonymity = new Anonymity();
     this.ctf = new CtfArena();
     this.threats = new ThreatEngine(this.hosts);
+    this.directory = new Directory();
     // El corazón 5.0: se arma cuando todos los runtimes-fuente ya existen
     // (hosts, dns, red, navegador, bases, filesystem, eventos, reloj).
     this.runtime = new CyberRuntime(this);
