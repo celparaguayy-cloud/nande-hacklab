@@ -163,6 +163,12 @@ export class Mentor {
     if (this.friction >= 2) this.askedForCommand = true;
   }
 
+  /** Salto directo a la ayuda máxima: muestra el comando exacto. */
+  reveal(): void {
+    this.friction = 3;
+    this.askedForCommand = true;
+  }
+
   /**
    * Se avisa que el jugador intentó algo y falló (una consulta rota, un
    * comando que no capturó nada): sube la fricción, así la Mani ofrece más.

@@ -127,6 +127,17 @@ export default function Mani({ kernel, onRunCommand }: ManiProps) {
               >
                 No entiendo, ayudame más
               </button>
+              {advice.level < 2 && (
+                <button
+                  className="mani__btn"
+                  onClick={() => {
+                    kernel.mentor.reveal();
+                    setAdvice(kernel.mentor.advise());
+                  }}
+                >
+                  Mostrame el comando
+                </button>
+              )}
               <button className="mani__btn mani__btn--ghost" onClick={() => setOpen(false)}>
                 Ya entendí
               </button>
