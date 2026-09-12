@@ -16,6 +16,7 @@ import { ServerApp } from "./http/apps/server";
 import { HostRuntime, type VirtualService } from "./net/HostRuntime";
 import { CodeExecutionSandbox, type SandboxHost } from "./code/Sandbox";
 import { ToolRuntime } from "./code/ToolRuntime";
+import { NpcToolForge } from "./code/NpcToolForge";
 import { BlogApp, PhotosApp, FilesApp, ToolsApp } from "./http/apps/labs";
 import { SsrfApp, JwtNoneApp, RedirectApp } from "./http/apps/labs2";
 import { CsrfApp, LfiApp, UploadApp, DeserializeApp } from "./http/apps/labs3";
@@ -115,6 +116,7 @@ export class VirtualKernel {
   /** Sandbox de ejecución de código y registro de herramientas funcionales. */
   public sandbox: CodeExecutionSandbox;
   public toolRuntime: ToolRuntime;
+  public npcForge: NpcToolForge;
   private sandboxRng = 0x9e3779b9;
 
   private unsubscribePublisher: () => void;
@@ -262,6 +264,7 @@ export class VirtualKernel {
     this.toolRuntime = new ToolRuntime(this.sandbox, this.makeSandboxHost(), {
       now: () => this.world.getState().clock.tick,
     });
+    this.npcForge = new NpcToolForge(this.toolRuntime);
 
     // academy.nande y tools.nande: la biblioteca y la ruta de aprendizaje,
     // navegables como cualquier otro sitio del mundo virtual.
@@ -517,7 +520,23 @@ export class VirtualKernel {
     );
 
     this.seedHosts();
+    this.seedNpcTools();
     this.seedInitialSites();
+  }
+
+  /**
+   * Unos pocos NPC "desarrolladores" publican herramientas FUNCIONALES desde
+   * el arranque: código real que compila, pasa sus tests y queda ejecutable
+   * con `run`. Si un intento no compilara o fallara sus pruebas, no se
+   * publica (el forge lo descarta). Determinista.
+   */
+  private seedNpcTools(): void {
+    const people = this.worldEngine.getPeople();
+    if (people.length === 0) return;
+    for (let i = 0; i < 5; i += 1) {
+      const npc = people[(i * 53) % people.length];
+      this.npcForge.forge(npc, i);
+    }
   }
 
   /**

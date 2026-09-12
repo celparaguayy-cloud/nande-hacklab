@@ -154,3 +154,47 @@ describe("Experimento D — un NPC produce una tool real (o falla)", () => {
     expect(tool.manifest.author).toBe("kamba");
   });
 });
+
+describe("NPCs del mundo publican herramientas reales al arrancar", () => {
+  beforeEach(() => {
+    resetStorage();
+    seedRandom();
+  });
+
+  it("tool-list muestra herramientas de NPC y se pueden ejecutar", () => {
+    const kernel = new VirtualKernel();
+    const term = new VirtualTerminal(kernel);
+
+    const npcTools = kernel.toolRuntime.list().filter((t) => t.origin === "npc");
+    expect(npcTools.length).toBeGreaterThan(0);
+
+    // La herramienta de un NPC corre de verdad (no es un adorno).
+    const first = npcTools[0].manifest.name;
+    const out = term.execute(`run ${first}`);
+    expect(out).toContain(npcTools[0].manifest.author);
+    expect(out).not.toContain("error:");
+
+    // Y es inspeccionable: tiene código real.
+    expect(kernel.toolRuntime.get(first)!.source.length).toBeGreaterThan(10);
+  });
+
+  it("es determinista: misma seed → mismas herramientas de NPC", () => {
+    const names = () => {
+      const k = new VirtualKernel();
+      return k.toolRuntime
+        .list()
+        .filter((t) => t.origin === "npc")
+        .map((t) => t.manifest.name)
+        .sort()
+        .join(",");
+    };
+    resetStorage();
+    seedRandom();
+    const a = names();
+    resetStorage();
+    seedRandom();
+    const b = names();
+    expect(a).toBe(b);
+    expect(a.length).toBeGreaterThan(0);
+  });
+});
