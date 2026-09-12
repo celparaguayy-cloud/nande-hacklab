@@ -411,6 +411,132 @@ export const LESSONS: Lesson[] = [
       },
     ],
   },
+
+  /* ===================================================================
+     MEGA UPDATE — lecciones de los sistemas nuevos (servicios, código,
+     pivoting). Enseñan haciendo, verificando comando + salida reales.
+     =================================================================== */
+  {
+    id: "l-servicios",
+    title: "Servicios y puertos: apagá y prendé",
+    level: "principiante",
+    summary: "Entender que un puerto abierto es un servicio corriendo.",
+    concept:
+      "Un puerto está 'open' porque hay un servicio vivo detrás. Si lo apagás, el puerto se cierra y las webs dejan de responder. nmap, el navegador y curl miran el MISMO estado.",
+    reward: { xp: 90, coins: 70 },
+    steps: [
+      {
+        explain:
+          "Todo servidor del mundo tiene servicios. Mirá los de server.nande y su estado real.",
+        task: "Escribí: services server.nande",
+        hint: "services server.nande",
+        check: (cmd, out) =>
+          usedTool(cmd, "services") && /nginx/i.test(out),
+        debrief:
+          "nginx (puerto 80) es lo que sirve la web. 'activo' = corriendo. Ese estado es real y se puede cambiar.",
+      },
+      {
+        explain:
+          "Apagá el servicio HTTP. A partir de ahí el sitio no debería responder.",
+        task: "Escribí: service-stop nginx server.nande",
+        hint: "service-stop nginx server.nande",
+        check: (cmd) =>
+          usedTool(cmd, "service-stop") && cmd.includes("nginx"),
+        debrief:
+          "Detuviste el proceso de nginx. El puerto 80 quedó cerrado para todo el mundo, no sólo para vos.",
+      },
+      {
+        explain:
+          "Comprobá el efecto: intentá abrir el sitio con curl. Debería fallar.",
+        task: 'Escribí: curl http://server.nande',
+        hint: "curl http://server.nande",
+        check: (cmd, out) =>
+          usedTool(cmd, "curl") &&
+          cmd.includes("server.nande") &&
+          /rechazada|caído|no responde/i.test(out),
+        debrief:
+          "curl, el navegador y nmap ven lo mismo porque consultan el mismo mundo. Volvé a prenderlo con service-start nginx server.nande. Defensa (Blue Team): apagar servicios innecesarios reduce la superficie de ataque.",
+      },
+    ],
+  },
+  {
+    id: "l-codigo",
+    title: "Programá tu primera herramienta",
+    level: "intermedio",
+    summary: "Escribir código que corre en el sandbox y se vuelve una tool.",
+    concept:
+      "En ÑANDE podés programar herramientas de verdad: se compilan, corren en un sandbox seguro y se instalan para reusarlas con 'run'.",
+    reward: { xp: 120, coins: 90 },
+    steps: [
+      {
+        explain:
+          "Creá el esqueleto de una herramienta. Se guarda como archivo de código.",
+        task: "Escribí: code new mi-scanner",
+        hint: "code new mi-scanner",
+        check: (cmd, out) => usedTool(cmd, "code") && /mi-scanner/.test(out),
+        debrief:
+          "Se creó un archivo con un mini-escáner de ejemplo. Podés editarlo en la app Código.",
+      },
+      {
+        explain:
+          "Instalala: se compila (rechazando cosas peligrosas) y queda ejecutable.",
+        task: "Escribí: tool-install mi-scanner",
+        hint: "tool-install mi-scanner",
+        check: (cmd, out) =>
+          usedTool(cmd, "tool-install") && /instalada/i.test(out),
+        debrief:
+          "Quedó registrada y persiste aunque cierres la app. Compilar la validó: sin fetch, sin eval, sin salir del sandbox.",
+      },
+      {
+        explain: "Corré tu herramienta contra un host del mundo.",
+        task: "Escribí: run mi-scanner server.nande",
+        hint: "run mi-scanner server.nande",
+        check: (cmd, out) =>
+          usedTool(cmd, "run") && /tcp/i.test(out),
+        debrief:
+          "Tu código consultó el mundo virtual (los puertos reales del host) y devolvió resultado. Acabás de crear una tool funcional.",
+      },
+    ],
+  },
+  {
+    id: "l-pivoting",
+    title: "Pivoting: entrar y saltar a la red interna",
+    level: "avanzado",
+    summary: "Conectarse a una máquina y alcanzar lo que sólo se ve desde ahí.",
+    concept:
+      "Comprometido un host, te conectás con sus credenciales y desde adentro alcanzás máquinas de una red interna que no se ven desde afuera. Eso es pivotar.",
+    reward: { xp: 160, coins: 120 },
+    steps: [
+      {
+        explain:
+          "Entrá a server.nande con las credenciales de soporte (las que se filtran por la red).",
+        task: "Escribí: connect server.nande soporte Verano2024",
+        hint: "connect server.nande soporte Verano2024",
+        check: (cmd, out) =>
+          usedTool(cmd, "connect") && /conectado a server\.nande/i.test(out),
+        debrief:
+          "Estás dentro del servidor. Ahora tu terminal opera contra ESA máquina.",
+      },
+      {
+        explain:
+          "Desde adentro, escaneá para ver la red interna que no se veía desde tu casa.",
+        task: "Escribí: nmap",
+        hint: "nmap",
+        check: (_cmd, out) => /caja\.interna\.nande/i.test(out),
+        debrief:
+          "Apareció caja.interna.nande: sólo se ve pivotando por este server. Ese es el corazón del pivoting.",
+      },
+      {
+        explain:
+          "Saltá a la máquina interna con sus credenciales y leé la bandera.",
+        task: "connect caja.interna.nande admin GiraSol#2024  y luego  cat /root/flag.txt",
+        hint: "connect caja.interna.nande admin GiraSol#2024",
+        check: (_cmd, out) => out.includes("ND{pivoting_red_interna}"),
+        debrief:
+          "Llegaste a la caja fuerte pivotando en cadena. Defensa (Blue Team): segmentar la red y no reusar credenciales corta el pivoting; el SOC detecta los accesos.",
+      },
+    ],
+  },
 ];
 
 /** Motor de lecciones: mantiene el paso actual de la lección activa. */
