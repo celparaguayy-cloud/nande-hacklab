@@ -608,7 +608,7 @@ export class VirtualTerminal {
 
           if (separator <= 0) {
             return {
-              output: `export: formato inválido: ${assignment}\\n`,
+              output: `export: formato inválido: ${assignment}\n`,
               isError: true,
             };
           }
@@ -618,7 +618,7 @@ export class VirtualTerminal {
 
           if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
             return {
-              output: `export: nombre inválido: ${key}\\n`,
+              output: `export: nombre inválido: ${key}\n`,
               isError: true,
             };
           }
@@ -646,7 +646,7 @@ export class VirtualTerminal {
 
         if (!programName) {
           return {
-            output: `${command}: falta el nombre del programa\\n`,
+            output: `${command}: falta el nombre del programa\n`,
             isError: true,
           };
         }
@@ -737,7 +737,7 @@ export class VirtualTerminal {
 
       case "exit":
         return {
-          output: "Sesión virtual terminada.\\n",
+          output: "Sesión virtual terminada.\n",
           isError: false,
         };
 
@@ -1328,8 +1328,8 @@ export class VirtualTerminal {
     if (!hash) {
       return {
         output:
-          "Uso: crack <hash-md5-o-sha256> [salt=<sal>]\\n" +
-          "Ej: crack 5f4dcc3b5aa765d61d8327deb882cf99\\n",
+          "Uso: crack <hash-md5-o-sha256> [salt=<sal>]\n" +
+          "Ej: crack 5f4dcc3b5aa765d61d8327deb882cf99\n",
         isError: true,
       };
     }
@@ -1345,8 +1345,8 @@ export class VirtualTerminal {
         : "No estaba en el diccionario. Probá otra lista o un ataque más largo.";
       return {
         output:
-          `crack: ${r.algo.toUpperCase()} · ${r.attempts} intentos\\n` +
-          `No se pudo romper. ${extra}\\n`,
+          `crack: ${r.algo.toUpperCase()} · ${r.attempts} intentos\n` +
+          `No se pudo romper. ${extra}\n`,
         isError: false,
       };
     }
@@ -1356,14 +1356,14 @@ export class VirtualTerminal {
 
     // Señal de campaña: "CRACK:<contraseña>".
     const notes = this.kernel.scanForSignals(`CRACK:${r.password}`);
-    const suffix = notes.length ? "\\n" + notes.join("\\n") + "\\n" : "";
+    const suffix = notes.length ? "\n" + notes.join("\n") + "\n" : "";
 
     return {
       output:
-        `crack: ${r.algo.toUpperCase()} roto en ${r.attempts} intentos\\n` +
-        `✓ Contraseña: ${r.password}\\n` +
-        `Lección: un hash sin sal es una contraseña con un disfraz barato.\\n` +
-        `+120 XP, +N$80.\\n` +
+        `crack: ${r.algo.toUpperCase()} roto en ${r.attempts} intentos\n` +
+        `✓ Contraseña: ${r.password}\n` +
+        `Lección: un hash sin sal es una contraseña con un disfraz barato.\n` +
+        `+120 XP, +N$80.\n` +
         suffix,
       isError: false,
     };
@@ -1380,12 +1380,12 @@ export class VirtualTerminal {
 
     if (sub === "decode") {
       const parts = decodeJwt(args[1] ?? "");
-      if (!parts) return { output: "jwt: token inválido.\\n", isError: true };
+      if (!parts) return { output: "jwt: token inválido.\n", isError: true };
       return {
         output:
-          `Header:  ${JSON.stringify(parts.header)}\\n` +
-          `Payload: ${JSON.stringify(parts.payload)}\\n` +
-          `Firma:   ${parts.signature}\\n`,
+          `Header:  ${JSON.stringify(parts.header)}\n` +
+          `Payload: ${JSON.stringify(parts.payload)}\n` +
+          `Firma:   ${parts.signature}\n`,
         isError: false,
       };
     }
@@ -1395,14 +1395,14 @@ export class VirtualTerminal {
       const secret = crackJwtSecret(token, WORDLIST);
       if (!secret) {
         return {
-          output: "jwt: no se pudo adivinar la clave con el diccionario.\\n",
+          output: "jwt: no se pudo adivinar la clave con el diccionario.\n",
           isError: false,
         };
       }
       return {
         output:
-          `✓ Clave HS256 encontrada: ${secret}\\n` +
-          `Ahora forjá un token: jwt forge ${secret} rol=admin usuario=admin\\n`,
+          `✓ Clave HS256 encontrada: ${secret}\n` +
+          `Ahora forjá un token: jwt forge ${secret} rol=admin usuario=admin\n`,
         isError: false,
       };
     }
@@ -1410,7 +1410,7 @@ export class VirtualTerminal {
     if (sub === "forge") {
       const secret = args[1];
       if (!secret) {
-        return { output: "Uso: jwt forge <clave> clave=valor ...\\n", isError: true };
+        return { output: "Uso: jwt forge <clave> clave=valor ...\n", isError: true };
       }
       const payload: Record<string, unknown> = {};
       for (const a of args.slice(2)) {
@@ -1425,17 +1425,17 @@ export class VirtualTerminal {
       const notes = esAdmin
         ? this.kernel.scanForSignals("ND{jwt_forged_admin}")
         : [];
-      const suffix = notes.length ? "\\n" + notes.join("\\n") + "\\n" : "";
+      const suffix = notes.length ? "\n" + notes.join("\n") + "\n" : "";
 
       const tick = this.kernel.world.getState().clock.tick;
       if (esAdmin) this.kernel.player.award(150, { skill: "pentesting", coins: 100, tick });
 
       return {
         output:
-          `Token forjado:\\n${token}\\n` +
+          `Token forjado:\n${token}\n` +
           (esAdmin
-            ? `✓ Es un token de admin válido. ¡El servidor te creería!\\n+150 XP, +N$100.\\n`
-            : `(Payload sin rol=admin; agregá rol=admin para el golpe.)\\n`) +
+            ? `✓ Es un token de admin válido. ¡El servidor te creería!\n+150 XP, +N$100.\n`
+            : `(Payload sin rol=admin; agregá rol=admin para el golpe.)\n`) +
           suffix,
         isError: false,
       };
@@ -1445,10 +1445,10 @@ export class VirtualTerminal {
     const demo = signJwt({ usuario: "rocio", rol: "cliente" }, "nande");
     return {
       output:
-        "jwt <decode|crack|forge>\\n" +
-        "Token de práctica (clave débil, cracker lo rompe):\\n" +
-        demo + "\\n" +
-        "Probá: jwt crack " + demo.slice(0, 24) + "...\\n",
+        "jwt <decode|crack|forge>\n" +
+        "Token de práctica (clave débil, cracker lo rompe):\n" +
+        demo + "\n" +
+        "Probá: jwt crack " + demo.slice(0, 24) + "...\n",
       isError: false,
     };
   }
@@ -2177,13 +2177,13 @@ export class VirtualTerminal {
   } {
     if (!args[0]) {
       return {
-        output: "grep: falta el patrón\\n",
+        output: "grep: falta el patrón\n",
         isError: true,
       };
     }
 
     return {
-      output: `grep: uso independiente: usa grep dentro de un pipe\\n`,
+      output: `grep: uso independiente: usa grep dentro de un pipe\n`,
       isError: true,
     };
   }
@@ -2193,7 +2193,7 @@ export class VirtualTerminal {
     isError: boolean;
   } {
     return {
-      output: "head: uso independiente: usa head dentro de un pipe\\n",
+      output: "head: uso independiente: usa head dentro de un pipe\n",
       isError: true,
     };
   }
@@ -2203,7 +2203,7 @@ export class VirtualTerminal {
     isError: boolean;
   } {
     return {
-      output: "tail: uso independiente: usa tail dentro de un pipe\\n",
+      output: "tail: uso independiente: usa tail dentro de un pipe\n",
       isError: true,
     };
   }
@@ -2213,7 +2213,7 @@ export class VirtualTerminal {
     isError: boolean;
   } {
     return {
-      output: "wc: uso independiente: usa wc dentro de un pipe\\n",
+      output: "wc: uso independiente: usa wc dentro de un pipe\n",
       isError: true,
     };
   }
@@ -2235,7 +2235,7 @@ export class VirtualTerminal {
     let index = 0;
 
     format = format.replace(/%s/g, () => values[index++] ?? "");
-    format = format.replace(/\\n/g, "\\n");
+    format = format.replace(/\\n/g, "\n");
 
     return {
       output: format,
