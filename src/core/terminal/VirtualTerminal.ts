@@ -942,8 +942,23 @@ export class VirtualTerminal {
     args: string[],
     result: { output: string; isError: boolean; flag?: string },
   ): { output: string; isError: boolean } {
+    // El mundo reacciona a cualquier señal en la salida (bandera ND{...} o
+    // clave de campaña): economía, diario, notoriedad, avance de la campaña y
+    // maestría de La Mani. Antes esto sólo ocurría en el navegador y en curl,
+    // así que capítulos que se resuelven con herramientas —el pivoting con
+    // proxychains, el sniffing con tcpdump— NO avanzaban aunque la bandera
+    // saliera en pantalla: la campaña se trababa. Se escanea el texto de la
+    // salida (y la bandera explícita, por si la herramienta no la imprime).
+    const worldNotes = this.kernel.scanForSignals(
+      result.output + (result.flag ? `\n${result.flag}` : ""),
+    );
+    const worldSuffix = worldNotes.length ? `\n${worldNotes.join("\n")}` : "";
+
     if (!result.flag) {
-      return { output: result.output, isError: result.isError };
+      return {
+        output: result.output + (worldSuffix ? `${worldSuffix}\n` : ""),
+        isError: result.isError,
+      };
     }
 
     // Toda bandera capturada por una herramienta queda en el historial.
@@ -960,7 +975,10 @@ export class VirtualTerminal {
       .find((m) => m.ip === host || m.hostname === host);
 
     if (!machine) {
-      return { output: result.output, isError: result.isError };
+      return {
+        output: result.output + (worldSuffix ? `${worldSuffix}\n` : ""),
+        isError: result.isError,
+      };
     }
 
     const tick = this.kernel.world.getState().clock.tick;
@@ -1001,7 +1019,7 @@ export class VirtualTerminal {
     }
 
     return {
-      output: result.output + extra.join("\n") + "\n",
+      output: result.output + extra.join("\n") + worldSuffix + "\n",
       isError: result.isError,
     };
   }
