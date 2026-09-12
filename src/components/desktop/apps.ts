@@ -63,6 +63,16 @@ export const APPS: AppMeta[] = [
     dock: true,
   },
   {
+    id: "soc",
+    name: "SOC",
+    title: "ÑANDE SOC — Blue Team",
+    summary: "Alertas en vivo de eventos reales del sistema",
+    category: "Sistema",
+    from: "#38bdf8",
+    to: "#1e3a8a",
+    dock: false,
+  },
+  {
     id: "mission",
     name: "Misión",
     title: "Centro de Mando — Operación Génesis",

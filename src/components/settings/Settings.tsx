@@ -16,6 +16,8 @@ export function Settings({ kernel }: SettingsProps) {
   const [appearance, setAppearance] = useState(() =>
     kernel.appearance.getState(),
   );
+  const [ai, setAi] = useState(() => kernel.ai.config());
+  const refreshAi = () => setAi(kernel.ai.config());
 
   const chooseWallpaper = (id: string) => {
     kernel.appearance.setWallpaper(id);
@@ -76,6 +78,58 @@ export function Settings({ kernel }: SettingsProps) {
             {muted ? "🔇 Silenciado" : "🔊 Activado"}
           </button>
         </div>
+      </section>
+
+      <section style={sectionStyle}>
+        <h3 style={titleStyle}>🤖 Inteligencia artificial (opcional)</h3>
+        <div style={{ color: "#7f8995", fontSize: 12, marginBottom: 8, lineHeight: 1.5 }}>
+          Por defecto el juego usa una IA local, offline. Si querés respuestas
+          más ricas, pegá <b>tu propia</b> clave de Groq o Gemini: queda sólo en
+          este dispositivo, nunca se sube a ningún lado. Sin clave, todo funciona igual.
+        </div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+          {(["offline", "groq", "gemini"] as const).map((p) => (
+            <button
+              key={p}
+              onClick={() => { kernel.ai.getSettings().setProvider(p); refreshAi(); }}
+              style={{
+                padding: "6px 12px", borderRadius: 8, cursor: "pointer",
+                border: "1px solid #2b3d4e",
+                background: ai.provider === p ? "rgba(124,196,255,0.15)" : "transparent",
+                color: ai.provider === p ? "#7cc4ff" : "#8b98a5", fontWeight: 600,
+                textTransform: "capitalize",
+              }}
+            >
+              {p}
+            </button>
+          ))}
+          <span style={{ marginLeft: "auto", fontSize: 12, color: kernel.ai.mode() === "connected" ? "#86efac" : "#8b98a5" }}>
+            {kernel.ai.mode() === "connected" ? "● conectado" : "○ offline"}
+          </span>
+        </div>
+        {ai.provider !== "offline" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <input
+              type="password"
+              value={ai.apiKey}
+              onChange={(e) => { kernel.ai.getSettings().setApiKey(e.target.value); refreshAi(); }}
+              placeholder={`Tu clave de ${ai.provider}`}
+              style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #2b3d4e", background: "#0b1016", color: "#e6edf3", fontSize: 13 }}
+            />
+            <input
+              value={ai.model}
+              onChange={(e) => { kernel.ai.getSettings().setModel(e.target.value); refreshAi(); }}
+              placeholder="modelo"
+              style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #2b3d4e", background: "#0b1016", color: "#e6edf3", fontSize: 13 }}
+            />
+            <button
+              onClick={() => { kernel.ai.getSettings().reset(); refreshAi(); }}
+              style={{ alignSelf: "flex-start", padding: "5px 10px", borderRadius: 8, cursor: "pointer", border: "1px solid #2b3d4e", background: "transparent", color: "#fca5a5", fontSize: 12 }}
+            >
+              Borrar clave y volver a offline
+            </button>
+          </div>
+        )}
       </section>
 
       <section style={sectionStyle}>
