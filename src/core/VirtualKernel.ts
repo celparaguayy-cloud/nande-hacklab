@@ -33,6 +33,7 @@ import { RedTeamAgent, REDTEAM_TARGET } from "./game/RedTeamAgent";
 import { CtfForge } from "./game/CtfForge";
 import { OpsecTracer } from "./game/OpsecTracer";
 import { ContainerRuntime } from "./cloud/ContainerRuntime";
+import { Investigator } from "./soc/Investigator";
 import { BlogApp, PhotosApp, FilesApp, ToolsApp } from "./http/apps/labs";
 import { SsrfApp, JwtNoneApp, RedirectApp } from "./http/apps/labs2";
 import { CsrfApp, LfiApp, UploadApp, DeserializeApp } from "./http/apps/labs3";
@@ -162,6 +163,8 @@ export class VirtualKernel {
   public opsec: OpsecTracer;
   /** Runtime de contenedores/K8s virtual: secretos filtrados y escape. */
   public containers: ContainerRuntime;
+  /** DFIR: reconstruye el incidente desde los eventos reales del mundo. */
+  public dfir: Investigator;
   /**
    * CyberRuntime — la API común del universo 5.0. Un solo punto por el que
    * TODA herramienta lee y escribe el mundo (host, servicio, proceso, red,
@@ -346,6 +349,8 @@ export class VirtualKernel {
     // El corazón 5.0: se arma cuando todos los runtimes-fuente ya existen
     // (hosts, dns, red, navegador, bases, filesystem, eventos, reloj).
     this.runtime = new CyberRuntime(this);
+    // DFIR lee la memoria del mundo (EventStore del runtime) y las detecciones.
+    this.dfir = new Investigator(this.runtime.events, this.mitre);
 
     // academy.nande y tools.nande: la biblioteca y la ruta de aprendizaje,
     // navegables como cualquier otro sitio del mundo virtual.

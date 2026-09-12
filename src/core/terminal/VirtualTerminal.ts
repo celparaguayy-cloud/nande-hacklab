@@ -1046,6 +1046,10 @@ export class VirtualTerminal {
         case "kubectl":
           return this.containerCmd(commandArgs);
 
+        case "dfir":
+        case "investigar":
+          return this.dfirCmd();
+
         case "snapshot":
         case "foto":
           return this.snapshotCmd(commandArgs);
@@ -4199,6 +4203,39 @@ export class VirtualTerminal {
     };
   }
 
+  /**
+   * DFIR — respuesta a incidentes. Reconstruye lo que pasó desde los eventos
+   * REALES que el mundo recordó. Cierra el bucle Blue Team: detectar →
+   * investigar → responder.
+   */
+  private dfirCmd(): { output: string; isError: boolean } {
+    const inc = this.kernel.dfir.reconstruct();
+    if (!inc) {
+      return {
+        output:
+          "DFIR: no hay incidentes que investigar (aún no pasó nada anómalo).\n" +
+          "Dejá correr el mundo (el red team ataca solo) o generá eventos, y volvé.\n",
+        isError: false,
+      };
+    }
+    const sevIcon: Record<string, string> = { info: "⚪", low: "🔵", medium: "🟡", high: "🟠", critical: "🔴" };
+    const tl = inc.timeline.slice(-16).map((e) => {
+      const mid = e.mitreId ? ` [${e.mitreId}]` : "";
+      return `  t=${String(e.tick).padStart(5)} ${e.host.padEnd(20)} ${e.kind}${mid}  ${e.detail}`;
+    });
+    return {
+      output:
+        `═══ DFIR · reconstrucción del incidente ═══\n` +
+        `${sevIcon[inc.severity]} Severidad: ${inc.severity}\n` +
+        `Hosts afectados: ${inc.hostsAffected.join(", ")}\n` +
+        `Ventana: t=${inc.firstTick} → t=${inc.lastTick}\n` +
+        `Técnicas MITRE: ${inc.techniques.join(", ") || "(ninguna aún)"}\n\n` +
+        `Veredicto del analista:\n  ${inc.verdict}\n\n` +
+        `Línea de tiempo (evidencia real del mundo):\n${tl.join("\n")}\n`,
+      isError: false,
+    };
+  }
+
   /** Índice del universo 5.0: un vistazo vivo de lo que existe y su estado. */
   private universoText(): string {
     const k = this.kernel;
@@ -4238,7 +4275,7 @@ export class VirtualTerminal {
       `   anonimato: ${opsec.tor ? "🟢 activo" : "🔴 apagado"} · calor: ${opsec.heat}`,
       "",
       "🛡️ Blue Team — defendé tu data center",
-      "   soc · defensa · contener <id>",
+      "   soc · defensa · contener <id> · dfir (investigar incidentes)",
       "",
       "☸️ Contenedores/K8s — secretos filtrados y escape de contenedor",
       "   nandec ps · nandec inspect <c> · nandec exec <c> env · nandec escape <c>",
@@ -4356,6 +4393,7 @@ export class VirtualTerminal {
       "  reto [nuevo]       Retos procedurales con bandera real (rejugables)",
       "  opsec              Tu rastro: exposición, calor y redadas",
       "  nandec ps          Contenedores/K8s: secretos filtrados y escape",
+      "  dfir               Reconstruí un incidente desde los eventos reales",
       "",
       "Hardware y WiFi:",
       "  neofetch         Muestra tu PC virtual (specs)",

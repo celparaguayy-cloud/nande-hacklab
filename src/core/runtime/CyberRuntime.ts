@@ -158,6 +158,15 @@ export class CyberRuntime {
     };
   }
 
+  /* ------------------------------------------------------------ dfir API */
+
+  /** DFIR: reconstruye el incidente desde los eventos reales del mundo. */
+  get dfir() {
+    return {
+      reconstruct: () => this.k.dfir.reconstruct(),
+    };
+  }
+
   /* ------------------------------------------------------- container API */
 
   /** Contenedores/K8s virtual: pods, secretos filtrados, escape. */
