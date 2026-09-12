@@ -35,6 +35,8 @@ export function SOCView({ kernel }: SOCViewProps) {
   }, [kernel]);
 
   const counts = kernel.soc.countBySeverity();
+  const openInc = kernel.threats.openIncidents();
+  const tick = () => kernel.world.getState().clock.tick;
 
   return (
     <div style={container}>
@@ -44,6 +46,28 @@ export function SOCView({ kernel }: SOCViewProps) {
           Archivar
         </button>
       </div>
+
+      {openInc.length > 0 && (
+        <div style={{ background: "#2a1010", border: "1px solid #7f1d1d", borderRadius: 8, padding: "8px 12px", margin: "0 12px" }}>
+          <div style={{ fontWeight: 700, color: "#fca5a5", marginBottom: 6 }}>
+            🔴 {openInc.length} incidente(s) activo(s) en tu data center
+          </div>
+          {openInc.map((i) => (
+            <div key={i.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, padding: "2px 0" }}>
+              <span style={{ flex: 1 }}>{i.rival} tiró <b>{i.service}</b> de {i.host}</span>
+              <button
+                style={{ ...clearBtn, background: "#15803d", color: "#fff", border: "none" }}
+                onClick={() => { kernel.threats.contain(i.id, tick()); setAlerts(kernel.soc.list()); }}
+              >
+                Contener
+              </button>
+            </div>
+          ))}
+          <div style={{ fontSize: 11, color: "#8b98a5", marginTop: 4 }}>
+            Puntaje defensa: {kernel.threats.scoreState().score} · {kernel.threats.rank()}
+          </div>
+        </div>
+      )}
 
       <div style={counters}>
         {(["critical", "high", "medium", "low", "info"] as Severity[]).map((s) => (

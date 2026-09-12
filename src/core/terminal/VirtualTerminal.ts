@@ -1006,6 +1006,10 @@ export class VirtualTerminal {
         case "blue":
           return this.socCmd(commandArgs);
 
+        case "defensa":
+        case "contener":
+          return this.defensaCmd(command, commandArgs);
+
         case "snapshot":
         case "foto":
           return this.snapshotCmd(commandArgs);
@@ -2113,6 +2117,50 @@ export class VirtualTerminal {
     );
     return {
       output: `Alertas del SOC (${alerts.length}):\n` + lines.join("\n") + "\n",
+      isError: false,
+    };
+  }
+
+  /**
+   * defensa            → estado del Blue Team: incidentes, puntaje, rango.
+   * contener [id|all]  → contené un incidente (restaura el servicio).
+   */
+  private defensaCmd(
+    command: string,
+    args: string[],
+  ): { output: string; isError: boolean } {
+    const t = this.kernel.threats;
+    const tick = this.kernel.world.getState().clock.tick;
+
+    if (command === "contener") {
+      const id = args[0];
+      if (!id) {
+        return { output: "uso: contener <id-incidente>  ·  contener all\n", isError: true };
+      }
+      if (id === "all" || id === "todos") {
+        const n = t.containAll(tick);
+        return {
+          output: n ? `✔ Contuviste ${n} incidente(s). Servicios restaurados.\n` : "No había incidentes abiertos.\n",
+          isError: false,
+        };
+      }
+      const r = t.contain(id, tick);
+      return { output: `${r.ok ? "✔" : "✘"} ${r.message}\n`, isError: !r.ok };
+    }
+
+    // defensa (estado)
+    const sc = t.scoreState();
+    const abiertos = t.openIncidents();
+    const lines = t.list(10).map(
+      (i) => `  ${i.resolved ? "✅" : "🔴"} ${i.id}  ${i.rival} tiró ${i.service} de ${i.host}  (t=${i.tick})`,
+    );
+    return {
+      output:
+        `═══ DEFENSA · Blue Team ═══\n` +
+        `Rango: ${t.rank()} · Puntaje: ${sc.score} · Contenidos: ${sc.contained}\n` +
+        `Incidentes abiertos: ${abiertos.length}\n` +
+        (lines.length ? lines.join("\n") + "\n" : "  (sin incidentes por ahora)\n") +
+        (abiertos.length ? `\nContené con: contener ${abiertos[0].id}  (o 'contener all')\n` : ""),
       isError: false,
     };
   }

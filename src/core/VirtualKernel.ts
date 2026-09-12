@@ -24,6 +24,7 @@ import { SnapshotManager } from "./os/Snapshots";
 import { DatabaseRuntime } from "./db/DatabaseRuntime";
 import { Anonymity } from "./security/Anonymity";
 import { CtfArena } from "./game/CtfArena";
+import { ThreatEngine, DEFENSE_HOST } from "./game/ThreatEngine";
 import { BlogApp, PhotosApp, FilesApp, ToolsApp } from "./http/apps/labs";
 import { SsrfApp, JwtNoneApp, RedirectApp } from "./http/apps/labs2";
 import { CsrfApp, LfiApp, UploadApp, DeserializeApp } from "./http/apps/labs3";
@@ -137,6 +138,8 @@ export class VirtualKernel {
   public anonymity: Anonymity;
   /** Modo CTF contrarreloj con tabla de puntajes. */
   public ctf: CtfArena;
+  /** Amenazas vivas: rivales atacan tu data center; vos defendés (Blue Team). */
+  public threats: ThreatEngine;
   private sandboxRng = 0x9e3779b9;
 
   private unsubscribePublisher: () => void;
@@ -292,6 +295,7 @@ export class VirtualKernel {
     this.databases = new DatabaseRuntime();
     this.anonymity = new Anonymity();
     this.ctf = new CtfArena();
+    this.threats = new ThreatEngine(this.hosts);
 
     // academy.nande y tools.nande: la biblioteca y la ruta de aprendizaje,
     // navegables como cualquier otro sitio del mundo virtual.
@@ -641,6 +645,14 @@ export class VirtualKernel {
    * mismo estado produce ambas respuestas.
    */
   private seedHosts(): void {
+    // Tu data center (midc.nande): el host que defendés. Los rivales lo
+    // atacan con el tiempo y vos contenés los incidentes (Blue Team jugable).
+    this.dns.register(DEFENSE_HOST, "10.10.0.90");
+    this.hosts.registerWebHost(DEFENSE_HOST, "10.10.0.90", [
+      { name: "sshd", port: 22, protocol: "tcp", version: "OpenÑSSH 9.6", kind: "ssh" },
+      { name: "postgres", port: 5432, protocol: "tcp", version: "ÑandePG 14", kind: "db" },
+    ]);
+
     // Webapps del mundo (banco.nande, blog.yvoty.nande, …): host con nginx.
     for (const app of this.web.list()) {
       const ip = this.dns.resolve(app.hostname);
@@ -869,6 +881,22 @@ export class VirtualKernel {
       if (online.length > 0) {
         const who = online[Math.floor(Math.random() * online.length)];
         this.chat.incoming(who, worldState.clock.tick);
+      }
+    }
+
+    // Amenazas vivas: cada tanto, un rival ataca tu data center. El ataque
+    // tira un servicio (evento real que el SOC ve como alerta). Tenés que
+    // contenerlo desde el SOC o con 'contener'. Blue Team jugable.
+    if (worldState.clock.tick % 150 === 0) {
+      const inc = this.threats.maybeAttack(worldState.clock.tick);
+      if (inc) {
+        this.news.headline(
+          `Incidente en tu data center: ${inc.service} caído`,
+          `El rival ${inc.rival} atacó ${inc.host} y tiró el servicio ${inc.service}. ` +
+            `Contené el incidente desde el SOC antes de que escale.`,
+          "Seguridad",
+          worldState.clock.tick,
+        );
       }
     }
 
