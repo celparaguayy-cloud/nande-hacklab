@@ -894,3 +894,34 @@
     height: 42px;
   }
 }
+
+/* ------------------------------------------------------------------
+   Celular en HORIZONTAL (poca altura): el reloj gigante y las barras
+   comían casi toda la pantalla y no quedaba lugar para jugar. Se achica
+   todo lo decorativo y se libera alto para el contenido.
+   ------------------------------------------------------------------ */
+@media (max-height: 520px) and (orientation: landscape) {
+  :root {
+    --nd-topbar: 34px;
+    --nd-dock: 52px;
+  }
+  .nd-widget-clock {
+    font-size: clamp(40px, 11vh, 80px);
+  }
+  .nd-widget-weather {
+    margin-top: 8px;
+  }
+  .nd-widget-weather__temp {
+    font-size: 22px;
+  }
+  .nd-dock-wrap {
+    bottom: 6px;
+  }
+  .nd-dock {
+    padding: 5px 8px;
+  }
+  .nd-dock-btn {
+    width: 38px;
+    height: 38px;
+  }
+}

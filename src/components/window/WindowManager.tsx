@@ -300,11 +300,15 @@ function WindowManager({
       {windows.map((win) => {
         const position = win.maximized
           ? {
-              top: `${TOP_BAR}px`,
+              // Se toma de las variables CSS para que, cuando el celular en
+              // horizontal achica la barra y el dock, la ventana maximizada
+              // aproveche ese alto extra en vez de dejar un hueco.
+              top: "var(--nd-topbar, 40px)",
               left: "0",
               width: "100vw",
               // Se descuenta el dock: maximizada no significa taparlo.
-              height: `calc(100dvh - ${TOP_BAR + DOCK_ZONE}px)`,
+              height:
+                "calc(100dvh - var(--nd-topbar, 40px) - var(--nd-dock, 64px) - 22px)",
               borderRadius: 0,
             }
           : {
