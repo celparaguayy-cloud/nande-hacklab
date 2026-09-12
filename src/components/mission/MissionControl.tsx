@@ -54,6 +54,31 @@ export default function MissionControl({ kernel, onOpenApp }: Props) {
   const ranking = leaderboard(player.name, noto.notoriety, day);
   const myRank = ranking.findIndex((r) => r.isPlayer) + 1;
 
+  // Próximo paso concreto: el primer objetivo sin cumplir del capítulo. De su
+  // pista se deduce a dónde te lleva el botón — al sitio exacto en el
+  // Navegador, o directo a la Terminal — así siempre hay UNA acción clara.
+  const firstUndone = chapter?.objectives.find(
+    (o) => !kernel.campaign.isObjectiveDone(o.id),
+  );
+  const primary = (() => {
+    if (!firstUndone) return null;
+    const h = firstUndone.hint;
+    if (/en la terminal/i.test(h)) {
+      return { label: "▶ Abrir la Terminal", run: () => onOpenApp?.("terminal") };
+    }
+    const host = h.match(/\b([a-z0-9][a-z0-9.-]*\.nande(?:\/[a-zA-Z/]+)?)/i)?.[1];
+    if (host) {
+      return {
+        label: `▶ Ir a ${host}`,
+        run: () => {
+          kernel.navigateBrowser(host);
+          onOpenApp?.("browser");
+        },
+      };
+    }
+    return { label: "▶ Abrir el Navegador", run: () => onOpenApp?.("browser") };
+  })();
+
   return (
     <div className="mc">
       <div className="mc__head">
@@ -65,6 +90,58 @@ export default function MissionControl({ kernel, onOpenApp }: Props) {
           {ALIGN_LABEL[noto.alignment]}
         </div>
       </div>
+
+      {/* Próximo paso: lo PRIMERO que se ve, para saber siempre qué hacer. */}
+      {chapter ? (
+        <div className="mc__mission mc__mission--top">
+          <div className="mc__chapter">
+            Capítulo {chapter.number} · {chapter.title}
+          </div>
+          <p className="mc__brief">{chapter.briefing}</p>
+
+          {firstUndone && (
+            <div className="mc__next">
+              <div className="mc__next-label">Tu próximo paso</div>
+              <div className="mc__next-text">{firstUndone.text}</div>
+              <div className="mc__next-hint">💡 {firstUndone.hint}</div>
+            </div>
+          )}
+
+          <div className="mc__objectives">
+            {chapter.objectives.map((o) => {
+              const done = kernel.campaign.isObjectiveDone(o.id);
+              return (
+                <div key={o.id} className="mc__obj" data-done={done}>
+                  <span className="mc__check">{done ? "✓" : "○"}</span>
+                  <div className="mc__obj-text">{o.text}</div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mc__actions">
+            {primary && (
+              <button className="nd-btn nd-btn--primary" onClick={primary.run}>
+                {primary.label}
+              </button>
+            )}
+            <button className="nd-btn" onClick={() => onOpenApp?.("terminal")}>
+              Terminal
+            </button>
+            <button className="nd-btn" onClick={() => onOpenApp?.("browser")}>
+              Navegador
+            </button>
+          </div>
+        </div>
+      ) : campaign.finished ? (
+        <div className="mc__mission mc__done">
+          <div className="mc__chapter">🏆 Operación Génesis completada</div>
+          <p className="mc__brief">
+            Expusiste a Mbarete Bank ante todo ÑANDE. Sos un operador de pleno
+            derecho. Nuevas operaciones vendrán en próximas actualizaciones.
+          </p>
+        </div>
+      ) : null}
 
       {/* Stats de operador */}
       <div className="mc__stats">
@@ -96,48 +173,6 @@ export default function MissionControl({ kernel, onOpenApp }: Props) {
           al tope, el Blue Team te detecta.
         </p>
       </div>
-
-      {/* Misión actual */}
-      {chapter ? (
-        <div className="mc__mission">
-          <div className="mc__chapter">
-            Capítulo {chapter.number} · {chapter.title}
-          </div>
-          <p className="mc__brief">{chapter.briefing}</p>
-
-          <div className="mc__objectives">
-            {chapter.objectives.map((o) => {
-              const done = kernel.campaign.isObjectiveDone(o.id);
-              return (
-                <div key={o.id} className="mc__obj" data-done={done}>
-                  <span className="mc__check">{done ? "✓" : "○"}</span>
-                  <div>
-                    <div className="mc__obj-text">{o.text}</div>
-                    {!done && <div className="mc__obj-hint">💡 {o.hint}</div>}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="mc__actions">
-            <button className="nd-btn nd-btn--primary" onClick={() => onOpenApp?.("browser")}>
-              Abrir Navegador
-            </button>
-            <button className="nd-btn" onClick={() => onOpenApp?.("terminal")}>
-              Abrir Terminal
-            </button>
-          </div>
-        </div>
-      ) : campaign.finished ? (
-        <div className="mc__mission mc__done">
-          <div className="mc__chapter">🏆 Operación Génesis completada</div>
-          <p className="mc__brief">
-            Expusiste a Mbarete Bank ante todo ÑANDE. Sos un operador de pleno
-            derecho. Nuevas operaciones vendrán en próximas actualizaciones.
-          </p>
-        </div>
-      ) : null}
 
       {/* Reputación por facción */}
       <div className="mc__card">

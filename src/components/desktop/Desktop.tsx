@@ -215,6 +215,17 @@ function Desktop() {
 
   const openerRef = useRef<(id: string) => void>(() => {});
 
+  // Al volver a entrar (ya se había arrancado antes), el jugador caía en un
+  // escritorio vacío sin saber qué hacer. Si la campaña sigue en marcha, se
+  // abre el Centro de Mando con el próximo paso — así siempre hay un norte.
+  useEffect(() => {
+    if (!booted) return; // en el primer arranque lo abre finishBoot
+    if (kernel.campaign.getState().finished) return; // ya la terminó: escritorio limpio
+    const t = setTimeout(() => openerRef.current("mission"), 300);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function finishBoot(alias: string) {
     kernel.player.rename(alias);
     setPlayer(kernel.player.getState());

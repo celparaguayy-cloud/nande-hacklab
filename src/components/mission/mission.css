@@ -39,7 +39,16 @@
 .mc__hint { margin-top: 8px; font-size: 11.5px; color: var(--nd-text-dim); }
 
 .mc__mission { padding: 15px; border: 2px solid var(--nd-accent-line); background: var(--nd-accent-soft); }
+.mc__mission--top { border-width: 2px; box-shadow: 0 0 0 1px var(--nd-accent-soft), 0 8px 26px rgba(0,0,0,0.25); }
 .mc__mission.mc__done { border-color: var(--nd-ok); background: rgba(74,222,128,0.1); }
+
+/* Bloque "próximo paso": lo que el jugador tiene que hacer AHORA, resaltado. */
+.mc__next { background: var(--nd-surface-2, rgba(0,0,0,0.22)); border-left: 3px solid var(--nd-accent);
+  border-radius: 6px; padding: 10px 12px; margin-bottom: 12px; }
+.mc__next-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--nd-accent); font-weight: 700; margin-bottom: 4px; }
+.mc__next-text { font-weight: 700; font-size: 14.5px; margin-bottom: 4px; }
+.mc__next-hint { font-size: 12.5px; color: var(--nd-text-dim); line-height: 1.5; }
 .mc__chapter { font-weight: 700; font-size: 14px; margin-bottom: 8px; }
 .mc__brief { color: var(--nd-text); line-height: 1.55; margin-bottom: 12px; }
 .mc__objectives { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
