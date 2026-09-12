@@ -231,8 +231,9 @@ ${this.searchForm(buscar)}
   <tbody>${filas || '<tr><td colspan="3">Sin resultados.</td></tr>'}</tbody>
 </table>
 <p class="lab-hint">Pista: el buscador arma la consulta con tu texto. La
-tabla <code>usuarios</code> tiene columnas id, usuario, password, rol,
-saldo. Probá un <code>UNION SELECT</code>.</p>
+tabla <code>usuarios</code> tiene columnas id, usuario, password, rol, saldo.
+Tocá este payload para ponerlo en el buscador:
+<code>%' UNION SELECT id, usuario, password, rol FROM usuarios -- </code></p>
 <p><a href="/panel">Volver</a></p>`;
 
     return html(page(this.title, body), { debug: { sql } });
