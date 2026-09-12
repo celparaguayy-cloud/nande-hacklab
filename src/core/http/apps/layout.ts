@@ -16,6 +16,8 @@ export function page(
   return `
 <!doctype html>
 <article class="lab-site" style="--lab-accent:${accent}">
+  <div class="lab-sim-banner" role="note">🎓 SIMULACRO EDUCATIVO · sitio ficticio,
+  no es una empresa real · ningún dato sale de tu dispositivo</div>
   <header class="lab-header">
     <strong>${escapeHtml(title)}</strong>
     ${options.nav ?? ""}
@@ -23,7 +25,8 @@ export function page(
   <div class="lab-body">
     ${bodyHtml}
   </div>
-  <footer class="lab-footer">Laboratorio ÑANDE · entorno de práctica</footer>
+  <footer class="lab-footer">Laboratorio ÑANDE · entorno de práctica ficticio ·
+  todo corre aislado en tu dispositivo, sin conexión a nada real</footer>
 </article>`.trim();
 }
 

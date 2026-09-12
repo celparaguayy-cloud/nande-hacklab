@@ -174,6 +174,16 @@
 .lab-notice--ok { background: rgba(74,222,128,0.14); color: #7ee787; }
 .lab-notice--err { background: rgba(248,113,113,0.14); color: #ff7b72; }
 .lab-notice--info { background: rgba(96,165,250,0.12); color: #79c0ff; }
+/* Cartel de "es un simulacro": va horneado en el HTML de cada laboratorio, así
+   ninguna copia puede pasar por un sitio real y ningún escáner lo confunde con
+   phishing. Bien visible, arriba de todo. */
+.lab-sim-banner {
+  margin: -2px -2px 14px; padding: 7px 12px;
+  background: repeating-linear-gradient(45deg, rgba(56,225,176,0.14), rgba(56,225,176,0.14) 12px, rgba(56,225,176,0.07) 12px, rgba(56,225,176,0.07) 24px);
+  border: 1px solid var(--nd-accent-line); border-radius: var(--nd-r-sm);
+  color: var(--nd-text); font-size: 11.5px; font-weight: 600; letter-spacing: .01em;
+  text-align: center;
+}
 .lab-hint { margin-top: 16px; padding: 10px 12px; border-left: 3px solid var(--nd-warn); background: rgba(251,191,36,0.08); font-size: 12px; color: var(--nd-text-dim); }
 /* Los ejemplos de payload (code) se tocan para ponerlos directo en el campo:
    se ven como un botón chiquito para que se note que son tocables. */

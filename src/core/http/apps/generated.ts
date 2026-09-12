@@ -343,6 +343,12 @@ Y robar deja rastro: te sube el calor y sale en las noticias.</p>
   }
 
   private wrap(body: string): string {
-    return `<h1>${escapeHtml(this.entity.name)}</h1>${body}`;
+    return (
+      `<div class="lab-sim-banner" role="note">🎓 SIMULACRO EDUCATIVO · sitio ` +
+      `ficticio, no es una empresa real · ningún dato sale de tu dispositivo</div>` +
+      `<h1>${escapeHtml(this.entity.name)}</h1>${body}` +
+      `<footer class="lab-footer">Habitante ficticio de ÑANDE · entorno de ` +
+      `práctica aislado</footer>`
+    );
   }
 }
