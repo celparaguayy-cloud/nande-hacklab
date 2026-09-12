@@ -851,6 +851,7 @@ export class VirtualTerminal {
           return this.showMission(commandArgs);
 
         case "store":
+        case "tienda":
           return this.showStore();
 
         case "buy":
@@ -861,12 +862,16 @@ export class VirtualTerminal {
 
         case "market":
         case "bolsa":
+        case "acciones":
           return this.showMarket();
 
         case "buy-stock":
+        case "comprar-accion":
+        case "invertir":
           return this.buyStock(commandArgs);
 
         case "sell-stock":
+        case "vender-accion":
           return this.sellStock(commandArgs);
 
         case "portfolio":
@@ -1884,7 +1889,7 @@ export class VirtualTerminal {
         `Índice: ${eco.index}   ·   Capitalización: N$${eco.marketCap.toLocaleString()}\n` +
         `💸 Dinero movido en el mundo: N$${eco.moneyMoved.toLocaleString()}\n\n` +
         `${rows}\n\n` +
-        `Comprar: buy-stock <ticker> <cantidad> · Vender: sell-stock <ticker> <cantidad>\n` +
+        `Comprar: invertir <ticker> <cantidad> · Vender: vender-accion <ticker> <cantidad>\n` +
         `Tu cartera: portfolio\n`,
       isError: false,
     };
