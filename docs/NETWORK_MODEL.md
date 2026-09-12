@@ -80,6 +80,34 @@ de puertos/servicios vive en `HostRuntime`.
 `connection.refused`. `firewall block` → `filtered`. Determinismo entre dos
 kernels con la misma seed.
 
+## Procesos por host (servicios respaldados por PID)
+
+Cada `VirtualHost` tiene `processes[]`. Un servicio corriendo tiene su proceso
+(`svc.pid`). Efectos cruzados reales:
+
+- `service-start` crea el proceso; `service-stop` lo mata.
+- `killProcess(host, pid)`: si el pid respalda un servicio, **detiene el
+  servicio** → `nmap`/navegador/`curl` lo ven caído (evento `process.killed` +
+  `service.stopped`). `init` (pid 1) no se puede matar.
+
+## Acceso remoto y pivoting
+
+`VirtualHost` suma `creds[]`, `files{}`, `reachableFrom[]` y `flag`.
+
+- `connect <host> [usuario] [clave]` abre una sesión remota (SSH virtual). Si el
+  host tiene credenciales, deben ser válidas (evento `login.success/failure`).
+- Dentro de la sesión, los comandos operan contra ESE host: `ls`, `cat`, `ps`,
+  `kill`, `services`, `service-stop/start`, `nmap`, `flag`, `exit`.
+- **Red interna:** un host con `reachableFrom` no vacío es *interno* — no se ve
+  desde la red del jugador; sólo se alcanza pivotando desde un host de esa lista.
+  Estando conectado, `nmap` revela la red interna (`reachableFrom(host)`).
+- `connect` en cadena apila los saltos; `exit` vuelve salto a salto.
+
+Ejemplo sembrado (lab de pivoting): `server.nande` (SSH `soporte/Verano2024`)
+→ `nmap` interno revela `caja.interna.nande` (10.10.66.10, sólo alcanzable
+desde server) → `connect ... admin GiraSol#2024` → `cat /root/flag.txt` →
+`ND{pivoting_red_interna}` (dispara consecuencias en el mundo).
+
 ## Pendiente (próximas fases)
 
 - Persistir el estado de servicios/firewall (IndexedDB, Phase 40) para que

@@ -112,6 +112,51 @@ describe("Experimento A/B — service-stop propaga a curl, navegador y nmap", ()
     expect(term.execute("curl http://server.nande")).toContain("HTTP 200");
   });
 
+  it("pivoting: la red interna sólo se alcanza tras comprometer server.nande", () => {
+    // Desde la red del jugador, la caja interna no es alcanzable.
+    const directo = term.execute("connect caja.interna.nande admin GiraSol#2024");
+    expect(directo.toLowerCase()).toContain("no es alcanzable");
+
+    // Entrar a server.nande con las credenciales sniffadas.
+    const login = term.execute("connect server.nande soporte Verano2024");
+    expect(login).toContain("conectado a server.nande");
+
+    // Desde adentro, nmap revela la red interna.
+    const scan = term.execute("nmap");
+    expect(scan).toContain("caja.interna.nande");
+
+    // Pivotar a la caja interna (ahora sí alcanzable) con sus credenciales.
+    const pivot = term.execute("connect caja.interna.nande admin GiraSol#2024");
+    expect(pivot).toContain("conectado a caja.interna.nande");
+
+    // Leer la bandera dispara consecuencias en el mundo.
+    const flag = term.execute("cat /root/flag.txt");
+    expect(flag).toContain("ND{pivoting_red_interna}");
+
+    // Volver salto a salto.
+    expect(term.execute("exit")).toContain("server.nande");
+    expect(term.execute("exit").toLowerCase()).toContain("cerraste");
+  });
+
+  it("credenciales inválidas no dan acceso y quedan como evento", () => {
+    const bad = term.execute("connect server.nande soporte clave-mala");
+    expect(bad.toLowerCase()).toContain("inválid");
+    const kinds = kernel.hosts.timeline().map((e) => e.kind);
+    expect(kinds).toContain("login.failure");
+  });
+
+  it("matar el proceso de un servicio lo detiene (efecto cruzado)", () => {
+    const procs = kernel.hosts.processesOf("server.nande");
+    const nginx = procs.find((p) => p.service === "nginx");
+    expect(nginx).toBeDefined();
+
+    const r = kernel.hosts.killProcess("server.nande", nginx!.pid);
+    expect(r.ok).toBe(true);
+    // El servicio quedó detenido → HTTP ya no responde.
+    expect(kernel.hosts.httpReachable("server.nande")).toBe(false);
+    expect(term.execute("curl http://server.nande").toLowerCase()).toContain("rechazada");
+  });
+
   it("determinismo: dos kernels con la misma seed exponen el mismo mapa de puertos", () => {
     const portsOf = (k: VirtualKernel) =>
       k.hosts

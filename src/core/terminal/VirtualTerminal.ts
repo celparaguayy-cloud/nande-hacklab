@@ -30,6 +30,11 @@ export class VirtualTerminal {
   /** Lección guiada en curso y en qué paso va. */
   private activeLesson: string | null = null;
   private lessonStep = 0;
+  /** Sesión remota activa (pivoting): host y usuario, o null si es local. */
+  private remoteHost: string | null = null;
+  private remoteUser = "root";
+  /** Pila de hosts para volver con exit al pivotar en cadena. */
+  private remoteStack: { host: string; user: string }[] = [];
 
   constructor(kernel: VirtualKernel) {
     this.kernel = kernel;
@@ -599,6 +604,16 @@ export class VirtualTerminal {
 
     const command = args[0];
     const commandArgs = args.slice(1);
+
+    // En una sesión remota, los comandos operan contra el host remoto.
+    if (this.remoteHost) {
+      return this.executeRemote(command, commandArgs);
+    }
+
+    // connect/ssh: abrir una sesión remota (pivoting).
+    if (command === "connect" || command === "ssh") {
+      return this.connectCmd(commandArgs);
+    }
 
     try {
       switch (command) {
@@ -1632,6 +1647,210 @@ export class VirtualTerminal {
     }
   }
 
+
+  /**
+   * connect/ssh <host> [usuario] [clave] — abre una sesión remota.
+   * Reglas de alcance: un host público se alcanza desde la red del jugador;
+   * un host interno SÓLO se alcanza pivotando desde un host que lo lista en
+   * reachableFrom (o sea, estando ya conectado a él). Si el host pide
+   * credenciales, hay que darlas y ser válidas.
+   */
+  private connectCmd(args: string[]): { output: string; isError: boolean } {
+    const positional = args.filter((a) => !a.startsWith("-"));
+    const target = positional[0];
+    if (!target) {
+      return { output: "uso: connect <host> [usuario] [clave]\n", isError: true };
+    }
+    const host = this.kernel.hosts.resolve(target);
+    if (!host) {
+      return { output: `connect: host desconocido: ${target}\n`, isError: true };
+    }
+    if (!host.up) {
+      return { output: `connect: ${host.hostname} está apagado\n`, isError: false };
+    }
+
+    const origin = this.remoteHost; // desde dónde nos conectamos (null = jugador)
+    const alcanzable =
+      this.kernel.hosts.isPublic(host.hostname) ||
+      (origin !== null &&
+        (host.reachableFrom ?? []).includes(origin.toLowerCase()));
+
+    if (!alcanzable) {
+      return {
+        output:
+          `connect: ${host.hostname} no es alcanzable desde acá.\n` +
+          `(Es un host interno: hay que pivotar desde una máquina de su red.)\n`,
+        isError: false,
+      };
+    }
+
+    // Autenticación si el host tiene credenciales.
+    if (host.creds.length > 0) {
+      const user = positional[1];
+      const pass = positional[2];
+      if (!user || !pass) {
+        return {
+          output: `connect: ${host.hostname} pide credenciales. Usá: connect ${target} <usuario> <clave>\n`,
+          isError: true,
+        };
+      }
+      const auth = this.kernel.hosts.authenticate(host.hostname, user, pass);
+      if (!auth.ok) {
+        return { output: `✘ ${auth.message}\n`, isError: true };
+      }
+      if (origin !== null) this.remoteStack.push({ host: origin, user: this.remoteUser });
+      else this.remoteStack = [];
+      this.remoteHost = host.hostname;
+      this.remoteUser = user;
+    } else {
+      if (origin !== null) this.remoteStack.push({ host: origin, user: this.remoteUser });
+      else this.remoteStack = [];
+      this.remoteHost = host.hostname;
+      this.remoteUser = "root";
+    }
+
+    return {
+      output:
+        `✔ conectado a ${host.hostname} (${host.ip}) como ${this.remoteUser}.\n` +
+        (host.files["/etc/motd"] ? `${host.files["/etc/motd"]}\n` : "") +
+        `Comandos: ls · cat <archivo> · ps · services · service-stop <s> · kill <pid> · nmap · flag · exit\n`,
+      isError: false,
+    };
+  }
+
+  /**
+   * Ejecuta un comando DENTRO de una sesión remota: opera contra el host
+   * remoto (su filesystem, procesos y servicios), y `nmap` revela la red
+   * interna alcanzable desde ahí (pivoting). `exit` cierra o vuelve un salto.
+   */
+  private executeRemote(
+    command: string,
+    args: string[],
+  ): { output: string; isError: boolean } {
+    const hostname = this.remoteHost!;
+    const host = this.kernel.hosts.resolve(hostname);
+    if (!host) {
+      this.remoteHost = null;
+      return { output: "sesión perdida: el host desapareció.\n", isError: true };
+    }
+
+    switch (command) {
+      case "exit":
+      case "logout": {
+        const prev = this.remoteStack.pop();
+        if (prev) {
+          this.remoteHost = prev.host;
+          this.remoteUser = prev.user;
+          return { output: `Volviste a ${prev.host}.\n`, isError: false };
+        }
+        this.remoteHost = null;
+        this.remoteUser = "root";
+        return { output: `Cerraste la sesión en ${hostname}.\n`, isError: false };
+      }
+
+      case "connect":
+      case "ssh":
+        return this.connectCmd(args);
+
+      case "whoami":
+        return { output: `${this.remoteUser}\n`, isError: false };
+
+      case "hostname":
+        return { output: `${hostname}\n`, isError: false };
+
+      case "pwd":
+        return { output: `${this.remoteUser === "root" ? "/root" : `/home/${this.remoteUser}`}\n`, isError: false };
+
+      case "ls": {
+        const paths = Object.keys(host.files);
+        if (paths.length === 0) return { output: "(sin archivos visibles)\n", isError: false };
+        return { output: paths.join("\n") + "\n", isError: false };
+      }
+
+      case "cat": {
+        const path = args[0];
+        if (!path) return { output: "uso: cat <archivo>\n", isError: true };
+        const content = host.files[path];
+        if (content === undefined) {
+          return { output: `cat: ${path}: no existe\n`, isError: true };
+        }
+        // Un flag en un archivo cuenta como capturado (consecuencias reales).
+        const notes = this.kernel.scanForSignals(content);
+        const suffix = notes.length ? "\n" + notes.join("\n") + "\n" : "";
+        return { output: content + "\n" + suffix, isError: false };
+      }
+
+      case "flag": {
+        const content = host.files["/root/flag.txt"] ?? host.flag;
+        if (!content) return { output: "no hay bandera acá.\n", isError: false };
+        const notes = this.kernel.scanForSignals(content);
+        const suffix = notes.length ? "\n" + notes.join("\n") + "\n" : "";
+        return { output: content + "\n" + suffix, isError: false };
+      }
+
+      case "ps": {
+        const procs = this.kernel.hosts.processesOf(hostname);
+        const rows = procs
+          .map((p) => `  ${String(p.pid).padStart(5)}  ${p.owner.padEnd(10)} ${p.name}${p.service ? "  [servicio]" : ""}`)
+          .join("\n");
+        return { output: `PID    USUARIO    PROCESO\n${rows}\n`, isError: false };
+      }
+
+      case "kill": {
+        const pid = Number(args[0]);
+        if (!Number.isFinite(pid)) return { output: "uso: kill <pid>\n", isError: true };
+        const r = this.kernel.hosts.killProcess(hostname, pid);
+        return { output: `${r.ok ? "✔" : "✘"} ${r.message}\n`, isError: !r.ok };
+      }
+
+      case "services":
+      case "servicios":
+        return this.servicesCmd([hostname]);
+
+      case "service-info":
+        return this.serviceInfoCmd([args[0] ?? "", hostname]);
+
+      case "service-start":
+      case "service-stop":
+      case "service-restart":
+        return this.serviceCtlCmd(command, [args[0] ?? "", hostname]);
+
+      case "nmap": {
+        // Pivoting: revela la red interna alcanzable desde este host.
+        const internos = this.kernel.hosts.reachableFrom(hostname);
+        const lines = internos.map(
+          (h) => `  ${h.ip.padEnd(14)} ${h.hostname}  (${h.services.length} servicios)`,
+        );
+        return {
+          output:
+            `Escaneo interno desde ${hostname}:\n` +
+            (lines.length
+              ? lines.join("\n") + `\n\nConectá con: connect <host|ip> <usuario> <clave>\n`
+              : "  (no se ve ninguna red interna desde este host)\n"),
+          isError: false,
+        };
+      }
+
+      case "help":
+        return {
+          output:
+            `Sesión remota en ${hostname} (${this.remoteUser}):\n` +
+            `  ls, cat <archivo>, pwd, whoami, hostname\n` +
+            `  ps, kill <pid>, services, service-stop/start <s>\n` +
+            `  nmap (red interna), connect <host> <u> <c> (pivotar), flag, exit\n`,
+          isError: false,
+        };
+
+      case "clear":
+        return { output: "\x1b[2J\x1b[H", isError: false };
+
+      default:
+        return {
+          output: `${command}: no disponible en sesión remota (escribí 'help' o 'exit').\n`,
+          isError: true,
+        };
+    }
+  }
 
   /** Carpeta donde viven las herramientas del jugador. */
   private toolsDir = "/home/student/tools";
@@ -3243,6 +3462,11 @@ export class VirtualTerminal {
       "  tool-info <nombre>  Detalle de una herramienta",
       "  tool-remove <nombre> Desinstala",
       "  run <nombre> [args] Ejecuta una herramienta instalada",
+      "",
+      "Acceso remoto y pivoting (ultra):",
+      "  connect <host> [usuario] [clave]  Entra a una máquina (SSH virtual)",
+      "  (dentro) ls · cat <f> · ps · kill <pid> · services · nmap · flag · exit",
+      "  → desde una máquina comprometida, 'nmap' revela su red INTERNA",
       "",
       "Hosts, servicios y firewall (mundo real):",
       "  services [host]  Lista hosts, o los servicios de un host y su estado",

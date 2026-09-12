@@ -33,6 +33,25 @@ export interface VirtualService {
   state: ServiceState;
   /** Si arranca solo al bootear el host. */
   enabled: boolean;
+  /** PID del proceso que respalda al servicio (si está corriendo). */
+  pid?: number;
+}
+
+/** Un proceso vivo dentro de un host. Un servicio corriendo tiene el suyo. */
+export interface VirtualProc {
+  pid: number;
+  name: string;
+  owner: string;
+  cpu: number;
+  memory: number;
+  /** Nombre del servicio que respalda, si es un proceso de servicio. */
+  service?: string;
+}
+
+/** Credencial de acceso a un host (para conexión remota / pivoting). */
+export interface HostCredential {
+  user: string;
+  password: string;
 }
 
 export interface VirtualHost {
@@ -43,6 +62,21 @@ export interface VirtualHost {
   services: VirtualService[];
   /** Puertos bloqueados por el firewall del host. */
   firewall: number[];
+  /** Procesos vivos del host (incluye los que respaldan servicios). */
+  processes: VirtualProc[];
+  /** Archivos del host, para operar tras conectarse (path → contenido). */
+  files: Record<string, string>;
+  /** Credenciales válidas para conectarse por SSH virtual. */
+  creds: HostCredential[];
+  /**
+   * Red interna: nombres de hosts desde los cuales ESTE host es alcanzable.
+   * Si está definido y no vacío, el host es "interno": no se ve desde la red
+   * del jugador, sólo tras pivotar por uno de esos hosts. Vacío/ausente = host
+   * normal, alcanzable desde la red del jugador.
+   */
+  reachableFrom?: string[];
+  /** Bandera educativa que premia llegar a este host (opcional). */
+  flag?: string;
 }
 
 /** Un hecho ocurrido en el runtime. Es la evidencia que consume el SOC. */
@@ -55,7 +89,10 @@ export interface RuntimeEvent {
     | "port.blocked"
     | "port.unblocked"
     | "host.up"
-    | "host.down";
+    | "host.down"
+    | "process.killed"
+    | "login.success"
+    | "login.failure";
   host: string;
   ip: string;
   service?: string;
@@ -80,6 +117,7 @@ export class HostRuntime {
   private now: () => number;
   private onEvent?: (event: RuntimeEvent) => void;
   private logLimit: number;
+  private nextPid = 1000;
 
   constructor(options: HostRuntimeOptions = {}) {
     this.now = options.now ?? (() => 0);
@@ -91,6 +129,28 @@ export class HostRuntime {
 
   register(host: VirtualHost): VirtualHost {
     const key = host.hostname.toLowerCase();
+    // Asegurar campos nuevos con valores por defecto coherentes.
+    host.processes = host.processes ?? [];
+    host.files = host.files ?? {};
+    host.creds = host.creds ?? [];
+    // Un proceso init de base + un proceso por cada servicio corriendo.
+    if (host.processes.length === 0) {
+      host.processes.push({ pid: 1, name: "init", owner: "root", cpu: 0.1, memory: 8 });
+      for (const svc of host.services) {
+        if (svc.state === "running") {
+          const pid = this.nextPid++;
+          svc.pid = pid;
+          host.processes.push({
+            pid,
+            name: svc.name,
+            owner: svc.kind === "http" || svc.kind === "https" ? "www-data" : "root",
+            cpu: 0.3,
+            memory: 40,
+            service: svc.name,
+          });
+        }
+      }
+    }
     this.hosts.set(key, host);
     this.byIpIndex.set(host.ip, key);
     return host;
@@ -122,6 +182,9 @@ export class HostRuntime {
       up: true,
       services,
       firewall: [],
+      processes: [],
+      files: {},
+      creds: [],
     });
   }
 
@@ -221,8 +284,19 @@ export class HostRuntime {
       return { ok: true, message: `${svc.name} ya estaba corriendo` };
     }
     svc.state = "running";
-    this.log("service.started", host, svc, `${svc.name} arrancó en ${svc.port}/${svc.protocol}`);
-    return { ok: true, message: `${svc.name} arrancó (${svc.port}/${svc.protocol})` };
+    // Un servicio que arranca es un proceso vivo en el host.
+    const pid = this.nextPid++;
+    svc.pid = pid;
+    host.processes.push({
+      pid,
+      name: svc.name,
+      owner: svc.kind === "http" || svc.kind === "https" ? "www-data" : "root",
+      cpu: 0.3,
+      memory: 40,
+      service: svc.name,
+    });
+    this.log("service.started", host, svc, `${svc.name} arrancó en ${svc.port}/${svc.protocol} (pid ${pid})`);
+    return { ok: true, message: `${svc.name} arrancó (${svc.port}/${svc.protocol}, pid ${pid})` };
   }
 
   stopService(ref: string, nameOrPort: string): { ok: boolean; message: string } {
@@ -234,6 +308,11 @@ export class HostRuntime {
       return { ok: true, message: `${svc.name} ya estaba detenido` };
     }
     svc.state = "stopped";
+    // Detener el servicio mata su proceso.
+    if (svc.pid !== undefined) {
+      host.processes = host.processes.filter((p) => p.pid !== svc.pid);
+      svc.pid = undefined;
+    }
     this.log("service.stopped", host, svc, `${svc.name} se detuvo (${svc.port}/${svc.protocol})`);
     return { ok: true, message: `${svc.name} detenido (${svc.port}/${svc.protocol})` };
   }
@@ -272,6 +351,77 @@ export class HostRuntime {
     host.up = up;
     this.log(up ? "host.up" : "host.down", host, undefined, `host ${up ? "encendido" : "apagado"}`);
     return { ok: true, message: `${host.hostname} ${up ? "encendido" : "apagado"}` };
+  }
+
+  /* --------------------------------------------------- procesos por host */
+
+  /** Procesos vivos de un host. */
+  processesOf(ref: string): VirtualProc[] {
+    const host = this.resolve(ref);
+    return host ? [...host.processes] : [];
+  }
+
+  /**
+   * Mata un proceso de un host. Si ese proceso respaldaba un servicio, el
+   * servicio se detiene también (efecto cruzado real): matar el pid de nginx
+   * apaga el HTTP, y el navegador/nmap lo ven.
+   */
+  killProcess(ref: string, pid: number): { ok: boolean; message: string } {
+    const host = this.resolve(ref);
+    if (!host) return { ok: false, message: `host desconocido: ${ref}` };
+    const proc = host.processes.find((p) => p.pid === pid);
+    if (!proc) return { ok: false, message: `no existe el pid ${pid}` };
+    if (pid === 1) return { ok: false, message: `no se puede matar init (pid 1)` };
+
+    if (proc.service) {
+      // Es un proceso de servicio: detener el servicio (esto ya lo remueve).
+      const r = this.stopService(host.hostname, proc.service);
+      this.log("process.killed", host, undefined, `pid ${pid} (${proc.name}) terminado`, proc.pid);
+      return { ok: r.ok, message: `pid ${pid} terminado; servicio ${proc.service} detenido` };
+    }
+
+    host.processes = host.processes.filter((p) => p.pid !== pid);
+    this.log("process.killed", host, undefined, `pid ${pid} (${proc.name}) terminado`, pid);
+    return { ok: true, message: `pid ${pid} (${proc.name}) terminado` };
+  }
+
+  /* ------------------------------------------------ acceso remoto / pivot */
+
+  /** ¿Estas credenciales sirven para el host? Deja evento login.success/failure. */
+  authenticate(
+    ref: string,
+    user: string,
+    password: string,
+  ): { ok: boolean; message: string } {
+    const host = this.resolve(ref);
+    if (!host) return { ok: false, message: `host desconocido: ${ref}` };
+    if (!host.up) return { ok: false, message: `${host.hostname} está apagado` };
+    const ok = host.creds.some((c) => c.user === user && c.password === password);
+    this.log(
+      ok ? "login.success" : "login.failure",
+      host,
+      undefined,
+      `${ok ? "acceso" : "intento fallido"} de ${user}@${host.hostname}`,
+    );
+    return ok
+      ? { ok: true, message: `bienvenido, ${user}@${host.hostname}` }
+      : { ok: false, message: `credenciales inválidas para ${host.hostname}` };
+  }
+
+  /** ¿El host es alcanzable desde la red del jugador? (no es interno) */
+  isPublic(ref: string): boolean {
+    const host = this.resolve(ref);
+    if (!host) return false;
+    return !host.reachableFrom || host.reachableFrom.length === 0;
+  }
+
+  /**
+   * Hosts alcanzables DESDE un host dado (pivoting): los internos cuya lista
+   * reachableFrom incluye a `fromHost`. Es lo que un `nmap` ve tras pivotar.
+   */
+  reachableFrom(fromHost: string): VirtualHost[] {
+    const key = fromHost.toLowerCase();
+    return this.all().filter((h) => (h.reachableFrom ?? []).includes(key));
   }
 
   /** Registra que una conexión fue rechazada (la llama el navegador/curl). */

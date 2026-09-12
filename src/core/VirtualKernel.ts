@@ -608,8 +608,41 @@ export class VirtualKernel {
         app.hostname === "server.nande"
           ? [{ name: "sshd", port: 22, protocol: "tcp", version: "OpenÑSSH 9.6", kind: "ssh" }]
           : [];
-      this.hosts.registerWebHost(app.hostname, ip, extra);
+      const host = this.hosts.registerWebHost(app.hostname, ip, extra);
+
+      // server.nande es la puerta al pivoting: tiene SSH con credenciales
+      // (las mismas que se sniffan con tcpdump en el lab), archivos, y desde
+      // él se alcanza una red interna que NO se ve desde afuera.
+      if (app.hostname === "server.nande") {
+        host.creds.push({ user: "soporte", password: "Verano2024" });
+        host.files["/home/soporte/notas.txt"] =
+          "Recordatorio: la caja interna (caja.interna.nande, 10.10.66.10) sólo " +
+          "se ve desde este server. Usuario admin / clave GiraSol#2024.";
+        host.files["/etc/motd"] = "server.nande — acceso autorizado sólo a personal.";
+      }
     }
+
+    // Red interna: un host que SÓLO se alcanza pivotando por server.nande.
+    // Es la "caja fuerte" del laboratorio de pivoting: guarda una bandera.
+    this.hosts.register({
+      hostname: "caja.interna.nande",
+      ip: "10.10.66.10",
+      os: "ÑandeServer 3.0 (interno)",
+      up: true,
+      services: [
+        { name: "sshd", port: 22, protocol: "tcp", version: "OpenÑSSH 9.6", kind: "ssh", state: "running", enabled: true },
+        { name: "postgres", port: 5432, protocol: "tcp", version: "ÑandePG 14", kind: "db", state: "running", enabled: true },
+      ],
+      firewall: [],
+      processes: [],
+      files: {
+        "/root/flag.txt": "Bandera: ND{pivoting_red_interna}",
+        "/var/lib/pg/clientes.sql": "-- 12.400 registros de clientes (ficticios).",
+      },
+      creds: [{ user: "admin", password: "GiraSol#2024" }],
+      reachableFrom: ["server.nande"],
+      flag: "ND{pivoting_red_interna}",
+    });
 
     // Máquinas del laboratorio: importar sus servicios reales.
     for (const machine of this.tools.labMachines()) {
@@ -630,6 +663,10 @@ export class VirtualKernel {
         up: machine.up,
         services,
         firewall: [],
+        processes: [],
+        files: Object.fromEntries(machine.files.map((f) => [f.path, f.content])),
+        creds: [],
+        flag: machine.flag,
       });
       // Que el nombre resuelva por DNS también (nmap acepta host o IP).
       if (!this.dns.has(machine.hostname)) {
