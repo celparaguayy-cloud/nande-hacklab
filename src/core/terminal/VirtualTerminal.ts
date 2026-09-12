@@ -1050,6 +1050,10 @@ export class VirtualTerminal {
         case "investigar":
           return this.dfirCmd();
 
+        case "reverse":
+        case "crackme":
+          return this.reverseCmd(commandArgs);
+
         case "snapshot":
         case "foto":
           return this.snapshotCmd(commandArgs);
@@ -4236,6 +4240,65 @@ export class VirtualTerminal {
     };
   }
 
+  /**
+   * NandeReverse — ingeniería inversa. La bandera está cifrada con XOR de un
+   * byte; el XOR se ejecuta de verdad.
+   *   reverse          → info del crackme y cómo empezar.
+   *   reverse hexdump  → los bytes cifrados reales.
+   *   reverse disasm   → pistas del "check" de la bandera.
+   *   reverse brute    → fuerza bruta de las 256 claves (la técnica).
+   *   reverse xor <k>  → aplica XOR con la clave <k> (0..255 o 0x..).
+   */
+  private reverseCmd(args: string[]): { output: string; isError: boolean } {
+    const cm = this.kernel.crackme;
+    const sub = args[0] ?? "info";
+
+    if (sub === "hexdump" || sub === "hex") {
+      return { output: `Binario ${cm.name} (cifrado):\n${cm.hexdump()}\n`, isError: false };
+    }
+    if (sub === "disasm" || sub === "dis") {
+      return { output: `${cm.disasm()}\n`, isError: false };
+    }
+    if (sub === "brute" || sub === "bruteforce") {
+      const hits = cm.bruteforce();
+      if (hits.length === 0) {
+        return { output: "Fuerza bruta: ninguna clave dio texto con pinta de bandera.\n", isError: false };
+      }
+      const lines = hits.map((h) => `  KEY=0x${h.key.toString(16).padStart(2, "0")} (${h.key}) → ${h.text}`);
+      // Encontrar la bandera por fuerza bruta la captura de verdad.
+      const notes = this.kernel.scanForSignals(hits.map((h) => h.text).join("\n"));
+      return {
+        output:
+          `Fuerza bruta del espacio de claves (256):\n${lines.join("\n")}\n` +
+          (notes.length ? "\n" + notes.join("\n") + "\n" : ""),
+        isError: false,
+      };
+    }
+    if (sub === "xor") {
+      const raw = args[1] ?? "";
+      const key = raw.startsWith("0x") ? parseInt(raw, 16) : parseInt(raw, 10);
+      if (Number.isNaN(key)) return { output: "uso: reverse xor <clave 0..255 o 0x..>\n", isError: true };
+      const r = cm.decrypt(key);
+      const notes = r.looksLikeFlag ? this.kernel.scanForSignals(r.text) : [];
+      return {
+        output:
+          `XOR con KEY=0x${(key & 0xff).toString(16).padStart(2, "0")}: ${r.printable ? r.text : "(bytes no imprimibles)"}\n` +
+          (r.looksLikeFlag ? "✔ ¡Texto con pinta de bandera!\n" : "") +
+          (notes.length ? notes.join("\n") + "\n" : ""),
+        isError: false,
+      };
+    }
+
+    return {
+      output:
+        `═══ NandeReverse · ${cm.name} ═══\n` +
+        `Una bandera está cifrada con XOR de un solo byte dentro del binario.\n` +
+        `Pasos: 1) 'reverse hexdump'  2) 'reverse disasm'  3) 'reverse brute'\n` +
+        `La técnica: probar las 256 claves y quedarte con la que da ND{...}.\n`,
+      isError: false,
+    };
+  }
+
   /** Índice del universo 5.0: un vistazo vivo de lo que existe y su estado. */
   private universoText(): string {
     const k = this.kernel;
@@ -4279,6 +4342,9 @@ export class VirtualTerminal {
       "",
       "☸️ Contenedores/K8s — secretos filtrados y escape de contenedor",
       "   nandec ps · nandec inspect <c> · nandec exec <c> env · nandec escape <c>",
+      "",
+      "🔍 NandeReverse — ingeniería inversa (crackme XOR real)",
+      "   reverse hexdump · reverse disasm · reverse brute · reverse xor <k>",
       "",
       "Apps del escritorio: NandeShark, NandeBlood, SOC. Academia: cursos 5.0",
       "(nandeshark, active-directory, purple-mitre, opsec-5, ctf-procedural).",
@@ -4394,6 +4460,7 @@ export class VirtualTerminal {
       "  opsec              Tu rastro: exposición, calor y redadas",
       "  nandec ps          Contenedores/K8s: secretos filtrados y escape",
       "  dfir               Reconstruí un incidente desde los eventos reales",
+      "  reverse brute      Reversing: descifrá una bandera con XOR (crackme)",
       "",
       "Hardware y WiFi:",
       "  neofetch         Muestra tu PC virtual (specs)",

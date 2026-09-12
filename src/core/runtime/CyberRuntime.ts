@@ -158,6 +158,20 @@ export class CyberRuntime {
     };
   }
 
+  /* --------------------------------------------------------- reverse API */
+
+  /** Reversing: crackme con bandera cifrada (XOR real). */
+  get reverse() {
+    const cm = this.k.crackme;
+    return {
+      hexdump: () => cm.hexdump(),
+      disasm: () => cm.disasm(),
+      decrypt: (key: number) => cm.decrypt(key),
+      bruteforce: () => cm.bruteforce(),
+      isSolution: (key: number) => cm.isSolution(key),
+    };
+  }
+
   /* ------------------------------------------------------------ dfir API */
 
   /** DFIR: reconstruye el incidente desde los eventos reales del mundo. */
