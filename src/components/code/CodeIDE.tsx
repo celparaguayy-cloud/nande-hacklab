@@ -29,6 +29,7 @@ export function CodeIDE({ kernel }: CodeIDEProps) {
   const [source, setSource] = useState(STARTER);
   const [args, setArgs] = useState("server.nande");
   const [output, setOutput] = useState("");
+  const [aiBusy, setAiBusy] = useState(false);
   const [status, setStatus] = useState<{ kind: "ok" | "err" | ""; msg: string }>({
     kind: "",
     msg: "",
@@ -65,6 +66,29 @@ export function CodeIDE({ kernel }: CodeIDEProps) {
       refresh();
     } else {
       setStatus({ kind: "err", msg: "✘ " + r.errors.join(" · ") });
+    }
+  };
+
+  const askAI = async () => {
+    setAiBusy(true);
+    setStatus({ kind: "", msg: `🤖 pensando (${kernel.ai.mode()})…` });
+    try {
+      const r = await kernel.ai.generate([
+        {
+          role: "system",
+          content:
+            "Sos un tutor de programación de herramientas de hacking ético en ÑANDE. " +
+            "El código corre en un sandbox con print(...), args[], nande.scan(host), " +
+            "nande.http(url) y nande.resolve(host). Respondé breve y en español rioplatense.",
+        },
+        { role: "user", content: `Revisá o mejorá esta herramienta:\n\n${source}` },
+      ]);
+      setOutput(`🤖 ${r.model}:\n${r.text}`);
+      setStatus({ kind: "ok", msg: "respuesta lista" });
+    } catch {
+      setStatus({ kind: "err", msg: "la IA no respondió" });
+    } finally {
+      setAiBusy(false);
     }
   };
 
@@ -115,6 +139,9 @@ export function CodeIDE({ kernel }: CodeIDEProps) {
           <button onClick={compile} style={btn}>Compilar</button>
           <button onClick={test} style={{ ...btn, background: "#0e7490" }}>▶ Probar</button>
           <button onClick={install} style={{ ...btn, background: "#15803d" }}>Instalar</button>
+          <button onClick={askAI} disabled={aiBusy} style={{ ...btn, background: "#6d28d9", opacity: aiBusy ? 0.6 : 1 }}>
+            🤖 Ayuda IA
+          </button>
         </div>
 
         <textarea
