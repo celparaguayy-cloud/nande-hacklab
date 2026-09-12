@@ -13,6 +13,7 @@ import { VirtualBrowser } from "./browser/VirtualBrowser";
 import { WebServer } from "./http/WebServer";
 import { BankApp } from "./http/apps/bank";
 import { ServerApp } from "./http/apps/server";
+import { ControlPanelApp } from "./http/apps/panel";
 import { HostRuntime, type VirtualService } from "./net/HostRuntime";
 import { CodeExecutionSandbox, type SandboxHost } from "./code/Sandbox";
 import { ToolRuntime } from "./code/ToolRuntime";
@@ -137,6 +138,7 @@ export class VirtualKernel {
   /** Registra las aplicaciones web vulnerables del mundo. */
   private registerWebApps(): void {
     this.web.register(new ServerApp());
+    this.web.register(new ControlPanelApp());
     this.web.register(new BankApp());
     this.web.register(new BlogApp());
     this.web.register(new PhotosApp());
@@ -292,6 +294,8 @@ export class VirtualKernel {
     // server.nande: servidor web de referencia (sin vuln) para demostrar el
     // ciclo de vida de servicios (service-stop nginx → curl/nmap cambian).
     this.dns.register("server.nande", "10.10.0.42");
+    // panel.nande: servicio web legítimo con login y sesión (no es un lab).
+    this.dns.register("panel.nande", "10.10.0.43");
 
     // Los laboratorios web: cada uno con una vulnerabilidad real.
     this.dns.register("banco.nande", "10.10.7.10");
