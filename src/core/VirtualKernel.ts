@@ -25,6 +25,7 @@ import { DatabaseRuntime } from "./db/DatabaseRuntime";
 import { Anonymity } from "./security/Anonymity";
 import { CtfArena } from "./game/CtfArena";
 import { ThreatEngine, DEFENSE_HOST } from "./game/ThreatEngine";
+import { CyberRuntime } from "./runtime/CyberRuntime";
 import { BlogApp, PhotosApp, FilesApp, ToolsApp } from "./http/apps/labs";
 import { SsrfApp, JwtNoneApp, RedirectApp } from "./http/apps/labs2";
 import { CsrfApp, LfiApp, UploadApp, DeserializeApp } from "./http/apps/labs3";
@@ -140,6 +141,13 @@ export class VirtualKernel {
   public ctf: CtfArena;
   /** Amenazas vivas: rivales atacan tu data center; vos defendés (Blue Team). */
   public threats: ThreatEngine;
+  /**
+   * CyberRuntime — la API común del universo 5.0. Un solo punto por el que
+   * TODA herramienta lee y escribe el mundo (host, servicio, proceso, red,
+   * identidad, http, base de datos, filesystem, reloj y eventos). No
+   * reimplementa: delega en los runtimes que ya son la fuente de verdad.
+   */
+  public runtime: CyberRuntime;
   private sandboxRng = 0x9e3779b9;
 
   private unsubscribePublisher: () => void;
@@ -296,6 +304,9 @@ export class VirtualKernel {
     this.anonymity = new Anonymity();
     this.ctf = new CtfArena();
     this.threats = new ThreatEngine(this.hosts);
+    // El corazón 5.0: se arma cuando todos los runtimes-fuente ya existen
+    // (hosts, dns, red, navegador, bases, filesystem, eventos, reloj).
+    this.runtime = new CyberRuntime(this);
 
     // academy.nande y tools.nande: la biblioteca y la ruta de aprendizaje,
     // navegables como cualquier otro sitio del mundo virtual.
@@ -818,6 +829,7 @@ export class VirtualKernel {
     this.stop();
     this.unsubscribePublisher();
     this.soc.dispose();
+    this.runtime.dispose();
   }
 
   /**
