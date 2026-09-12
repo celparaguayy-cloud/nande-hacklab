@@ -212,6 +212,9 @@ filtrar. Encadená otro con <code>;</code> — probá
   private form(value: string): string {
     return `
 <p>Verificá si un host responde.</p>
+<p class="lab-hint">Objetivo: el host se pasa a un comando del sistema sin
+filtrar. Encadená otro comando con <code>;</code> — probá
+<code>127.0.0.1; whoami</code> y después <code>127.0.0.1; cat flag</code>.</p>
 <form method="GET" action="/ping">
   ${field("Host", "host", "text", value)}
   <button type="submit">Ping</button>

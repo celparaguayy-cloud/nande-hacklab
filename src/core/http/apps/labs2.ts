@@ -86,6 +86,9 @@ o <code>http://127.0.0.1/admin</code>.</p>`;
   private form(value: string): string {
     return `
 <p>Pegá un enlace y te muestro una vista previa.</p>
+<p class="lab-hint">Objetivo: la URL la pide el <b>servidor</b>, no tu
+navegador. Apuntá a un destino interno que solo él alcanza — probá
+<code>http://169.254.169.254/metadata</code>.</p>
 <form method="GET" action="/fetch">
   ${field("URL", "url", "text", value)}
   <button type="submit">Previsualizar</button>
