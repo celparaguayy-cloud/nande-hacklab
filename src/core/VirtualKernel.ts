@@ -65,6 +65,7 @@ import {
   renderCommunitiesFront,
   renderCommunity,
 } from "./social/communitySite";
+import { renderForum } from "./internet/forumSite";
 import { renderAcademySite, renderToolsSite } from "./academy/academySites";
 import type { WorldEntity } from "./world/WorldRegistry";
 
@@ -352,6 +353,18 @@ export class VirtualKernel {
         }
 
         return undefined;
+      },
+    });
+
+    // foro.nande: foro navegable con hilos generados del mundo vivo.
+    this.dns.register("foro.nande", "10.10.0.44");
+    this.internet.registerDynamicSite({
+      hostname: "foro.nande",
+      title: "Foro Tapé",
+      description: "El foro de la comunidad: hilos y respuestas del mundo.",
+      resolve: (path) => {
+        const content = renderForum(this.worldEngine.getPeople(), path);
+        return content ? { path, mimeType: "text/html", content } : undefined;
       },
     });
 
