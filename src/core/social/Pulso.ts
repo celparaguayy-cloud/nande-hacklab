@@ -68,10 +68,14 @@ function handleOf(name: string): string {
   );
 }
 
-const PETS = ["Luna", "Rocky", "Michi", "Toby", "Nube", "Simba", "Kiki", "Rex"];
+const PETS = [
+  "Luna", "Rocky", "Michi", "Toby", "Nube", "Simba", "Kiki", "Rex",
+  "Chaco", "Pelusa", "Coco", "Manchas", "Tobías", "Lola", "Duque", "Canela",
+];
 const WORKPLACES = [
   "Arandu Software", "Banco Justicia", "Vortex Media", "Nimbus Cloud",
   "Pixela Games", "Guaraní Tech", "Pytã Security", "Yvoty Media",
+  "Redix", "Bytebox", "Codeá", "Nova Sistemas", "Gulu", "Tapé Logística",
 ];
 
 const COMPLAINTS = [
@@ -80,21 +84,64 @@ const COMPLAINTS = [
   "¿por qué todo tiene que pedir contraseña nueva cada mes? 🙄",
   "el wifi de la oficina anda peor que mi paciencia",
   "me cambiaron el turno sin avisar, un desastre la gestión",
+  "otra reunión que podría haber sido un mail 📧",
+  "se me trabó la compu justo cuando estaba por guardar, quiero llorar",
+  "el sistema del banco caído de nuevo, no puedo pagar nada",
+  "mi jefe manda mensajes a las 11 de la noche, ¿en serio?",
+  "pagué el delivery y llegó frío, gracias por nada",
+  "el colectivo pasó lleno y no paró, llego tardísimo",
+  "actualicé la app y ahora anda peor que antes 🤦",
+  "me llamaron de un número raro diciendo que gané un premio, obvio no",
+  "la impresora del trabajo tiene vida propia y me odia",
 ];
 const BRAGS = [
   "por fin terminé el proyecto en el que estaba hace semanas 🚀",
   "me ascendieron 🎉 gracias a todos los que confiaron",
   "aprendí algo nuevo hoy y no puedo parar de aplicarlo",
   "cerré un trato importante, semana redonda ✨",
+  "primer maratón terminado 🏃 las piernas no me responden pero valió la pena",
+  "arranqué un curso nuevo y me tiene enganchadísimo",
+  "hoy me animé a presentar mi idea y salió mejor de lo que esperaba",
+  "cociné algo que en teoría no sabía cocinar y quedó increíble 👩‍🍳",
+  "mi equipo salió campeón del torneo del barrio ⚽",
+  "junté el ahorro para la compu nueva, después de meses 💻",
+  "planté un huerto en el balcón y ya salió el primer tomate 🍅",
 ];
 const PHOTOS = [
   "📷 atardecer desde la oficina",
   "📷 mi setup nuevo, quedó hermoso",
   "📷 café ☕ y a programar",
   "📷 finde en familia ❤️",
+  "📷 la vista desde el cerro, valió cada escalón",
+  "📷 asado con los pibes 🔥",
+  "📷 lluvia y mate, combo perfecto 🧉",
+  "📷 mi gato durmiendo arriba del teclado otra vez",
+  "📷 feria del barrio, me llevé de todo",
+  "📷 tereré con la banda a la sombra 🌳",
 ];
 
 /** Genera los posts de una persona según su antigüedad social. */
+/**
+ * Un post con el color de la persona: su oficio y sus intereses. Hace que el
+ * feed no sea un muro de frases repetidas, sino gente distinta hablando de lo
+ * suyo. Determinista: la misma persona dice siempre lo mismo.
+ */
+function personalPost(person: VirtualPerson, s: number): string {
+  const oficio = person.profession || "vecino";
+  const interes = person.interests?.[s % Math.max(1, person.interests.length)] ?? "mis proyectos";
+  const plantillas = [
+    `otro día de ${oficio} 💼 se hace lo que se puede`,
+    `metido con ${interes} otra vez, no me canso`,
+    `alguien más de ${oficio} por acá que la sufra conmigo? 😅`,
+    `fin de semana para ponerme al día con ${interes}`,
+    `hoy alguien me preguntó cómo es ser ${oficio}… largo de explicar jaja`,
+    `si te interesa ${interes}, escribime que la charlamos`,
+    `orgulloso de lo que hacemos, ${oficio} no es para cualquiera 💪`,
+    `probando cosas nuevas de ${interes}, después les cuento`,
+  ];
+  return pick(plantillas, s);
+}
+
 function postsFor(person: VirtualPerson, day: number): PulsoPost[] {
   const seed = seedOf(person.name);
   const handle = handleOf(person.name);
@@ -104,12 +151,15 @@ function postsFor(person: VirtualPerson, day: number): PulsoPost[] {
   for (let i = 0; i < count; i += 1) {
     const s = seedOf(`${person.name}-${i}`);
     const kind = s % 4;
+    // Parte de los posts "normales" hablan del oficio/intereses de la persona,
+    // para que cada uno suene distinto (sin tocar las filtraciones del OSINT).
+    const personal = (s >>> 7) % 5 < 2;
     let text: string;
     let leak: PulsoPost["leak"];
     let leakValue: string | undefined;
 
-    if (kind === 0) text = pick(COMPLAINTS, s);
-    else if (kind === 1) text = pick(BRAGS, s);
+    if (kind === 0) text = personal ? personalPost(person, s) : pick(COMPLAINTS, s);
+    else if (kind === 1) text = personal ? personalPost(person, s >>> 3) : pick(BRAGS, s);
     else if (kind === 2) text = pick(PHOTOS, s);
     else {
       // Post que FILTRA algo. Determinista, para que el OSINT sea estable.
