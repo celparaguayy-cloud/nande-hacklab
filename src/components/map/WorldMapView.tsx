@@ -265,8 +265,11 @@ function WorldMapView({ kernel }: WorldMapViewProps) {
       residents: zones.reduce((sum, z) => sum + z.residents, 0),
       places: zones.reduce((sum, z) => sum + z.places, 0),
       present: zones.reduce((sum, z) => sum + z.present, 0),
+      // Gente realmente conectada (no "todos", que siempre están ubicados en
+      // alguna zona). Antes el encabezado decía "4000 en la calle" — engañoso.
+      online: kernel.worldEngine.getOnlineCount(),
     }),
-    [zones],
+    [zones, kernel],
   );
 
   return (
@@ -292,7 +295,7 @@ function WorldMapView({ kernel }: WorldMapViewProps) {
             <span>{totals.residents} habitantes</span>
             <span>· {totals.places} lugares</span>
             <span style={{ color: "var(--nd-ok)" }}>
-              · {totals.present} en la calle
+              · {totals.online} en línea
             </span>
           </div>
         </div>
