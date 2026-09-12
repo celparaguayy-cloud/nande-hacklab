@@ -74,6 +74,22 @@ export function SOCView({ kernel }: SOCViewProps) {
         </div>
       )}
 
+      {kernel.redteam.compromised() && (
+        <div style={{ background: "#2a1010", border: "1px solid #7f1d1d", borderRadius: 8, padding: "8px 12px", margin: "8px 12px 0" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ flex: 1, fontSize: 13, color: "#fca5a5" }}>
+              🛑 <b>{kernel.redteam.rival()}</b> comprometió objetivo.corp.nande (kill-chain completa).
+            </span>
+            <button
+              style={{ ...clearBtn, background: "#b91c1c", color: "#fff", border: "none" }}
+              onClick={() => { kernel.redteam.evict(tick()); setAlerts(kernel.soc.list()); }}
+            >
+              Expulsar
+            </button>
+          </div>
+        </div>
+      )}
+
       {mitre.length > 0 && (
         <div style={{ background: "#101a2a", border: "1px solid #1e3a5f", borderRadius: 8, padding: "8px 12px", margin: "8px 12px 0" }}>
           <div style={{ fontWeight: 700, color: "#93c5fd", marginBottom: 6, fontSize: 13 }}>

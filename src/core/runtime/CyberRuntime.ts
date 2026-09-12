@@ -158,6 +158,20 @@ export class CyberRuntime {
     };
   }
 
+  /* --------------------------------------------------------- redteam API */
+
+  /** Red team autónomo: el adversario NPC que corre una kill-chain real. */
+  get redteam() {
+    const rt = this.k.redteam;
+    return {
+      timeline: (n = 20) => rt.timeline(n),
+      phase: () => rt.currentPhase(),
+      rival: () => rt.rival(),
+      compromised: () => rt.compromised(),
+      evict: () => rt.evict(this.k.world.getState().clock.tick),
+    };
+  }
+
   /* ---------------------------------------------------------- purple API */
 
   /** Correlador MITRE ATT&CK: detecciones derivadas de acciones reales. */

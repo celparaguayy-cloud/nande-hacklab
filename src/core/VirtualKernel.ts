@@ -29,6 +29,7 @@ import { CyberRuntime } from "./runtime/CyberRuntime";
 import { PacketCapture } from "./net/PacketCapture";
 import { Directory } from "./ad/Directory";
 import { MitreCorrelator } from "./soc/Mitre";
+import { RedTeamAgent, REDTEAM_TARGET } from "./game/RedTeamAgent";
 import { BlogApp, PhotosApp, FilesApp, ToolsApp } from "./http/apps/labs";
 import { SsrfApp, JwtNoneApp, RedirectApp } from "./http/apps/labs2";
 import { CsrfApp, LfiApp, UploadApp, DeserializeApp } from "./http/apps/labs3";
@@ -150,6 +151,8 @@ export class VirtualKernel {
   public directory: Directory;
   /** Correlador MITRE ATT&CK: mapea las acciones ofensivas reales a técnicas. */
   public mitre: MitreCorrelator;
+  /** Red team autónomo: un adversario NPC que corre una kill-chain real. */
+  public redteam: RedTeamAgent;
   /**
    * CyberRuntime — la API común del universo 5.0. Un solo punto por el que
    * TODA herramienta lee y escribe el mundo (host, servicio, proceso, red,
@@ -322,6 +325,7 @@ export class VirtualKernel {
     // El correlador escucha antes de que el directorio emita nada.
     this.mitre = new MitreCorrelator(this.events, () => this.world.getState().clock.tick);
     this.directory = new Directory((s) => this.events.emit("attack.technique", s));
+    this.redteam = new RedTeamAgent(this.hosts);
     // El corazón 5.0: se arma cuando todos los runtimes-fuente ya existen
     // (hosts, dns, red, navegador, bases, filesystem, eventos, reloj).
     this.runtime = new CyberRuntime(this);
@@ -682,6 +686,14 @@ export class VirtualKernel {
       { name: "postgres", port: 5432, protocol: "tcp", version: "ÑandePG 14", kind: "db" },
     ]);
 
+    // objetivo.corp.nande: el host sandboxeado que ataca el red team autónomo.
+    // Tiene web (nginx) + SSH con una credencial "filtrada" que el adversario
+    // termina usando. Sus operaciones son reales, así SOC y MITRE las detectan.
+    this.dns.register(REDTEAM_TARGET, "10.10.9.80");
+    this.hosts.registerWebHost(REDTEAM_TARGET, "10.10.9.80", [
+      { name: "sshd", port: 22, protocol: "tcp", version: "OpenÑSSH 9.6", kind: "ssh" },
+    ]).creds.push({ user: "svc-backup", password: "Backup#2024" });
+
     // Webapps del mundo (banco.nande, blog.yvoty.nande, …): host con nginx.
     for (const app of this.web.list()) {
       const ip = this.dns.resolve(app.hostname);
@@ -929,6 +941,24 @@ export class VirtualKernel {
           "Seguridad",
           worldState.clock.tick,
         );
+      }
+    }
+
+    // Red team autónomo: cada tanto, el adversario NPC avanza su kill-chain
+    // contra objetivo.corp.nande con operaciones REALES (escaneo, fuerza
+    // bruta, acceso, impacto). El SOC y MITRE lo detectan solos. Cuando
+    // completa la cadena, el mundo se entera y vos podés expulsarlo.
+    if (worldState.clock.tick % 45 === 0) {
+      const step = this.redteam.act(worldState.clock.tick);
+      if (step && step.phase === "impact") {
+        this.news.headline(
+          `Ataque en curso: ${this.redteam.rival()} golpea corp.nande`,
+          `Un adversario completó su cadena contra ${REDTEAM_TARGET}. ` +
+            `Revisá el SOC y expulsalo (comando 'redteam expulsar').`,
+          "Seguridad",
+          worldState.clock.tick,
+        );
+        this.events.emit("world.news.created", { signal: `redteam:${this.redteam.rival()}` });
       }
     }
 

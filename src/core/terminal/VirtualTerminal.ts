@@ -1025,6 +1025,10 @@ export class VirtualTerminal {
         case "attack":
           return this.mitreCmd();
 
+        case "redteam":
+        case "adversario":
+          return this.redteamCmd(commandArgs);
+
         case "snapshot":
         case "foto":
           return this.snapshotCmd(commandArgs);
@@ -2360,6 +2364,36 @@ export class VirtualTerminal {
         `═══ MITRE ATT&CK · Purple Team ═══\n` +
         `Técnicas detectadas por táctica:\n${matrix}\n\n` +
         `Detecciones recientes:\n${timeline}\n`,
+      isError: false,
+    };
+  }
+
+  /**
+   * Red team autónomo — el adversario NPC que corre una kill-chain real.
+   *   redteam            → estado y timeline del adversario.
+   *   redteam expulsar   → lo echás (restaura el servicio, rota rival).
+   */
+  private redteamCmd(args: string[]): { output: string; isError: boolean } {
+    const rt = this.kernel.redteam;
+    if (args[0] === "expulsar" || args[0] === "evict" || args[0] === "kick") {
+      const tick = this.kernel.world.getState().clock.tick;
+      const had = rt.evict(tick);
+      return {
+        output: had
+          ? `✔ Expulsaste al adversario de ${"objetivo.corp.nande"}. Servicio restaurado. Próximo rival: ${rt.rival()}.\n`
+          : `No había actividad del adversario para expulsar.\n`,
+        isError: false,
+      };
+    }
+    const tl = rt.timeline(12);
+    const lines = tl.map((s) => `  t=${String(s.tick).padStart(5)} [${s.phase}] ${s.action} — ${s.detail}`);
+    return {
+      output:
+        `═══ Red Team autónomo · objetivo.corp.nande ═══\n` +
+        `Rival actual: ${rt.rival()} · Fase: ${rt.currentPhase()}${rt.compromised() ? " (🔴 objetivo comprometido)" : ""}\n\n` +
+        (lines.length ? lines.join("\n") + "\n" : "  (el adversario todavía no actuó)\n") +
+        `\nTip: sus operaciones son reales; miralas en 'mitre' y en el SOC.\n` +
+        (rt.compromised() ? `Expulsalo con: redteam expulsar\n` : ""),
       isError: false,
     };
   }
