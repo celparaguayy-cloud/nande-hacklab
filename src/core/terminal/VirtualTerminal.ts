@@ -1021,6 +1021,10 @@ export class VirtualTerminal {
         case "abuse":
           return this.adCmd(command, commandArgs);
 
+        case "mitre":
+        case "attack":
+          return this.mitreCmd();
+
         case "snapshot":
         case "foto":
           return this.snapshotCmd(commandArgs);
@@ -2324,6 +2328,38 @@ export class VirtualTerminal {
         `═══ NandeBlood · ${dir.domain} ═══\n` +
         `Poseídos: ${owned || "(ninguno)"}\n\n` +
         `Principales:\n${nodes.join("\n")}\n\n${pathBlock}\n`,
+      isError: false,
+    };
+  }
+
+  /**
+   * MITRE ATT&CK — la matriz de detecciones derivadas de tus acciones reales.
+   * Purple Team: cada técnica ofensiva que ejecutaste encendió una detección.
+   */
+  private mitreCmd(): { output: string; isError: boolean } {
+    const m = this.kernel.mitre;
+    const recent = m.recent(12);
+    if (recent.length === 0) {
+      return {
+        output:
+          "MITRE ATT&CK: sin detecciones todavía.\n" +
+          "Hacé algo ofensivo (kerberoast, un login por fuerza bruta, enviar\n" +
+          "una clave por HTTP) y el correlador lo mapea a una técnica acá.\n",
+        isError: false,
+      };
+    }
+    const byTactic = m.byTactic();
+    const matrix = Object.entries(byTactic)
+      .map(([tactic, techs]) => `  ${tactic}:\n${techs.map((t) => `    · ${t}`).join("\n")}`)
+      .join("\n");
+    const timeline = recent
+      .map((d) => `  [${d.mitreId}] ${d.technique} — ${d.host} (t=${d.tick}, ${d.confidence})`)
+      .join("\n");
+    return {
+      output:
+        `═══ MITRE ATT&CK · Purple Team ═══\n` +
+        `Técnicas detectadas por táctica:\n${matrix}\n\n` +
+        `Detecciones recientes:\n${timeline}\n`,
       isError: false,
     };
   }

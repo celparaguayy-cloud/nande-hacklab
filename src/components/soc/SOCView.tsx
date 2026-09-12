@@ -28,14 +28,19 @@ export function SOCView({ kernel }: SOCViewProps) {
     const refresh = () => setAlerts(kernel.soc.list());
     const un1 = kernel.events.subscribe("runtime.host", refresh);
     const un2 = kernel.events.subscribe("world.tick", refresh);
+    const un3 = kernel.events.subscribe("attack.technique", refresh);
+    const un4 = kernel.events.subscribe("network.request", refresh);
     return () => {
       un1();
       un2();
+      un3();
+      un4();
     };
   }, [kernel]);
 
   const counts = kernel.soc.countBySeverity();
   const openInc = kernel.threats.openIncidents();
+  const mitre = kernel.mitre.recent(6);
   const tick = () => kernel.world.getState().clock.tick;
 
   return (
@@ -66,6 +71,21 @@ export function SOCView({ kernel }: SOCViewProps) {
           <div style={{ fontSize: 11, color: "#8b98a5", marginTop: 4 }}>
             Puntaje defensa: {kernel.threats.scoreState().score} · {kernel.threats.rank()}
           </div>
+        </div>
+      )}
+
+      {mitre.length > 0 && (
+        <div style={{ background: "#101a2a", border: "1px solid #1e3a5f", borderRadius: 8, padding: "8px 12px", margin: "8px 12px 0" }}>
+          <div style={{ fontWeight: 700, color: "#93c5fd", marginBottom: 6, fontSize: 13 }}>
+            🎯 MITRE ATT&CK — técnicas detectadas ({kernel.mitre.count()})
+          </div>
+          {mitre.slice().reverse().map((d) => (
+            <div key={d.seq} style={{ display: "flex", gap: 8, fontSize: 12, padding: "2px 0" }}>
+              <span style={{ color: "#60a5fa", fontFamily: "ui-monospace, monospace", minWidth: 78 }}>{d.mitreId}</span>
+              <span style={{ flex: 1 }}>{d.technique}</span>
+              <span style={{ color: "#64748b", fontSize: 11 }}>{d.tactic}</span>
+            </div>
+          ))}
         </div>
       )}
 

@@ -42,7 +42,10 @@ export type EventType =
   | "terminal.run"
   // Runtime de hosts/servicios: cada acción real deja un evento que el SOC
   // puede investigar (arrancar/parar servicios, firewall, conexiones).
-  | "runtime.host";
+  | "runtime.host"
+  // Una técnica ofensiva REAL ocurrió (kerberoast, abuso de ACL, dominio
+  // comprometido…). El correlador MITRE la mapea a una táctica/technique.
+  | "attack.technique";
 
 export interface VirtualEvent<T = unknown> {
   type: EventType;

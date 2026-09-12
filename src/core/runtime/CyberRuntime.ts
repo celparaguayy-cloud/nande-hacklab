@@ -158,6 +158,19 @@ export class CyberRuntime {
     };
   }
 
+  /* ---------------------------------------------------------- purple API */
+
+  /** Correlador MITRE ATT&CK: detecciones derivadas de acciones reales. */
+  get mitre() {
+    const m = this.k.mitre;
+    return {
+      recent: (n = 50) => m.recent(n),
+      techniques: () => m.techniques(),
+      byTactic: () => m.byTactic(),
+      count: () => m.count(),
+    };
+  }
+
   /* -------------------------------------------------------------- log API */
 
   /** Timeline de eventos de hosts/servicios (evidencia para el SOC). */

@@ -42,6 +42,7 @@ const TRACKED: EventType[] = [
   "group.joined",
   "group.op",
   "runtime.host",
+  "attack.technique",
 ];
 
 export class EventStore {

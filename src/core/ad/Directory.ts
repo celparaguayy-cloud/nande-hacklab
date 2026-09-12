@@ -48,15 +48,31 @@ export interface AttackStep {
   how: string;
 }
 
+/** Señal ofensiva que el correlador MITRE puede detectar. */
+export interface AttackSignal {
+  technique: string;
+  tactic: string;
+  mitreId: string;
+  detail: string;
+  host: string;
+}
+
 const DA_GROUP = "DOMAIN ADMINS@NANDE.LOCAL";
 
 export class Directory {
   private principals = new Map<string, Principal>();
   private edges: Edge[] = [];
+  private onSignal?: (s: AttackSignal) => void;
   readonly domain = "NANDE.LOCAL";
 
-  constructor() {
+  constructor(onSignal?: (s: AttackSignal) => void) {
+    this.onSignal = onSignal;
     this.seed();
+  }
+
+  /** Emite una señal ofensiva para que la detecte el correlador (Purple). */
+  private signal(s: AttackSignal): void {
+    this.onSignal?.(s);
   }
 
   private add(p: Principal): void {
@@ -166,6 +182,14 @@ export class Directory {
     if (!p || !p.spn) {
       return { ok: false, message: `${spnUser} no tiene SPN (no es kerberoasteable)` };
     }
+    // Pedir el TGS deja rastro en el DC (evento 4769): es detectable.
+    this.signal({
+      technique: "Kerberoasting",
+      tactic: "Credential Access",
+      mitreId: "T1558.003",
+      detail: `Solicitud de TGS para la cuenta de servicio ${p.name} (SPN ${p.spn}).`,
+      host: this.domain,
+    });
     // "Hash" determinista y ficticio: sólo sirve dentro del sandbox.
     const hash = `$krb5tgs$23$*${p.name}*$${fakeHash(p.name + (p.weakPassword ?? ""))}`;
     return { ok: true, hash, message: `TGS de ${p.name} obtenido. Crackéalo offline.` };
@@ -206,6 +230,16 @@ export class Directory {
       return { ok: false, message: "MemberOf no se 'abusa': la membresía se hereda al poseer" };
     }
     this.own(t.name);
+    this.signal(abuseSignal(edge.type, f.name, t.name));
+    if (this.domainOwned()) {
+      this.signal({
+        technique: "Domain Dominance",
+        tactic: "Impact",
+        mitreId: "T1078.002",
+        detail: `Compromiso de Domain Admins en ${this.domain} tras la cadena de escalada.`,
+        host: this.domain,
+      });
+    }
     return {
       ok: true,
       message: `Abusaste ${edge.type} (${f.name} → ${t.name}). Ahora poseés ${t.name}.`,
@@ -253,6 +287,25 @@ export class Directory {
       node = from;
     }
     return steps;
+  }
+}
+
+/** Mapea el abuso de un borde a su técnica MITRE. */
+function abuseSignal(type: EdgeType, from: string, to: string): AttackSignal {
+  const base = { detail: `Abuso ${type}: ${from} → ${to}.`, host: "NANDE.LOCAL" };
+  switch (type) {
+    case "ForceChangePassword":
+      return { ...base, technique: "Account Manipulation", tactic: "Persistence", mitreId: "T1098" };
+    case "GenericAll":
+      return { ...base, technique: "Domain Policy Modification", tactic: "Privilege Escalation", mitreId: "T1484" };
+    case "AdminTo":
+      return { ...base, technique: "Valid Accounts / Local Admin", tactic: "Lateral Movement", mitreId: "T1078" };
+    case "HasSession":
+      return { ...base, technique: "Credential Dumping (token)", tactic: "Credential Access", mitreId: "T1003" };
+    case "CanRDP":
+      return { ...base, technique: "Remote Services (RDP)", tactic: "Lateral Movement", mitreId: "T1021.001" };
+    case "MemberOf":
+      return { ...base, technique: "Group Membership", tactic: "Privilege Escalation", mitreId: "T1078" };
   }
 }
 
