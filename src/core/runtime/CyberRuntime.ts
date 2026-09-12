@@ -158,6 +158,17 @@ export class CyberRuntime {
     };
   }
 
+  /* ----------------------------------------------------------- onion API */
+
+  /** Dark web sim: servicios ocultos gated por el circuito de anonimato. */
+  get onion() {
+    const o = this.k.onion;
+    return {
+      directory: () => o.directory(),
+      browse: (addr: string) => o.browse(addr),
+    };
+  }
+
   /* --------------------------------------------------------- reverse API */
 
   /** Reversing: crackme con bandera cifrada (XOR real). */

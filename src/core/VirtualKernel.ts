@@ -35,6 +35,7 @@ import { OpsecTracer } from "./game/OpsecTracer";
 import { ContainerRuntime } from "./cloud/ContainerRuntime";
 import { Investigator } from "./soc/Investigator";
 import { Crackme } from "./reversing/Crackme";
+import { OnionRuntime } from "./darkweb/OnionRuntime";
 import { BlogApp, PhotosApp, FilesApp, ToolsApp } from "./http/apps/labs";
 import { SsrfApp, JwtNoneApp, RedirectApp } from "./http/apps/labs2";
 import { CsrfApp, LfiApp, UploadApp, DeserializeApp } from "./http/apps/labs3";
@@ -168,6 +169,8 @@ export class VirtualKernel {
   public dfir: Investigator;
   /** Reversing: un crackme con bandera cifrada (XOR real) para revertir. */
   public crackme: Crackme;
+  /** Dark web sim: servicios ocultos alcanzables sólo con el circuito activo. */
+  public onion: OnionRuntime;
   /**
    * CyberRuntime — la API común del universo 5.0. Un solo punto por el que
    * TODA herramienta lee y escribe el mundo (host, servicio, proceso, red,
@@ -350,6 +353,7 @@ export class VirtualKernel {
     );
     this.containers = new ContainerRuntime();
     this.crackme = new Crackme(7);
+    this.onion = new OnionRuntime(() => this.anonymity.isTorEnabled());
     // El corazón 5.0: se arma cuando todos los runtimes-fuente ya existen
     // (hosts, dns, red, navegador, bases, filesystem, eventos, reloj).
     this.runtime = new CyberRuntime(this);

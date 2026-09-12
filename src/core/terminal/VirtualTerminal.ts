@@ -1054,6 +1054,10 @@ export class VirtualTerminal {
         case "crackme":
           return this.reverseCmd(commandArgs);
 
+        case "onion":
+        case "tor-browse":
+          return this.onionCmd(commandArgs);
+
         case "snapshot":
         case "foto":
           return this.snapshotCmd(commandArgs);
@@ -4299,6 +4303,40 @@ export class VirtualTerminal {
     };
   }
 
+  /**
+   * Dark web sim — servicios ocultos (.onion) que sólo se alcanzan con el
+   * circuito de anonimato activo. Enseña por qué existen y cómo se llega.
+   *   onion            → directorio de servicios ocultos conocidos.
+   *   onion <addr>     → intentá abrir uno (requiere 'anon on').
+   */
+  private onionCmd(args: string[]): { output: string; isError: boolean } {
+    const o = this.kernel.onion;
+    if (!args[0]) {
+      const dir = o.directory().map((s) => `  ${s.address}  —  ${s.title}`);
+      const anon = this.kernel.anonymity.isTorEnabled();
+      return {
+        output:
+          `═══ Directorio .onion (educativo) ═══\n${dir.join("\n")}\n\n` +
+          `Circuito de anonimato: ${anon ? "🟢 activo" : "🔴 apagado — activá con 'anon on'"}\n` +
+          `Abrí uno con: onion <direccion>\n`,
+        isError: false,
+      };
+    }
+    const r = o.browse(args[0]);
+    if (!r.ok) {
+      return { output: `⚠ ${r.message}\n`, isError: true };
+    }
+    const site = r.site!;
+    // Llegar a un servicio oculto con bandera la captura como cualquier señal.
+    const notes = site.flag ? this.kernel.scanForSignals(site.content) : [];
+    return {
+      output:
+        `🧅 ${site.title} (${site.address})\n${r.message}\n\n${site.content}\n` +
+        (notes.length ? "\n" + notes.join("\n") + "\n" : ""),
+      isError: false,
+    };
+  }
+
   /** Índice del universo 5.0: un vistazo vivo de lo que existe y su estado. */
   private universoText(): string {
     const k = this.kernel;
@@ -4334,7 +4372,7 @@ export class VirtualTerminal {
       reto ? `   activo: ${reto.hostname} (${reto.clue})` : "   (sin reto activo)",
       "",
       "🕵️ OPSEC — el mundo te rastrea si atacás sin anonimato",
-      "   opsec · anon on",
+      "   opsec · anon on · onion (dark web, requiere circuito)",
       `   anonimato: ${opsec.tor ? "🟢 activo" : "🔴 apagado"} · calor: ${opsec.heat}`,
       "",
       "🛡️ Blue Team — defendé tu data center",
@@ -4461,6 +4499,7 @@ export class VirtualTerminal {
       "  nandec ps          Contenedores/K8s: secretos filtrados y escape",
       "  dfir               Reconstruí un incidente desde los eventos reales",
       "  reverse brute      Reversing: descifrá una bandera con XOR (crackme)",
+      "  onion              Dark web: servicios ocultos (requieren 'anon on')",
       "",
       "Hardware y WiFi:",
       "  neofetch         Muestra tu PC virtual (specs)",
