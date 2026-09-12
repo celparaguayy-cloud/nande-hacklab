@@ -6,7 +6,7 @@
  * Estrategia: red primero para navegación (para tomar versiones nuevas),
  * cache primero para el resto.
  */
-const CACHE = "nande-hacklab-v1";
+const CACHE = "nande-hacklab-v2";
 const CORE = ["./", "./index.html", "./manifest.webmanifest", "./nande-icon.svg"];
 
 self.addEventListener("install", (event) => {

@@ -35,19 +35,23 @@ jobs:
       - name: Compilar la web
         run: npm run build
 
-      # Capacitor: instala el runtime, agrega la plataforma Android y
-      # sincroniza la web compilada dentro del proyecto nativo.
+      # Capacitor: instala el runtime (versiones PINEADAS de la misma línea
+      # mayor, para que no se cuele un salto de versión que rompa el build),
+      # agrega la plataforma Android sólo si no existe, y sincroniza la web.
       - name: Preparar proyecto Android (Capacitor)
         run: |
-          npm install --no-save @capacitor/core @capacitor/cli @capacitor/android
-          npx cap add android
+          npm install --no-save --no-audit --no-fund \
+            @capacitor/core@^7.4.0 \
+            @capacitor/cli@^7.4.0 \
+            @capacitor/android@^7.4.0
+          if [ ! -d android ]; then npx cap add android; fi
           npx cap sync android
 
       - name: Compilar APK de depuración
         run: |
           cd android
           chmod +x ./gradlew
-          ./gradlew assembleDebug
+          ./gradlew assembleDebug --stacktrace --no-daemon
 
       - name: Publicar el APK como artefacto
         uses: actions/upload-artifact@v4
