@@ -14,6 +14,8 @@ import { WebServer } from "./http/WebServer";
 import { BankApp } from "./http/apps/bank";
 import { ServerApp } from "./http/apps/server";
 import { HostRuntime, type VirtualService } from "./net/HostRuntime";
+import { CodeExecutionSandbox, type SandboxHost } from "./code/Sandbox";
+import { ToolRuntime } from "./code/ToolRuntime";
 import { BlogApp, PhotosApp, FilesApp, ToolsApp } from "./http/apps/labs";
 import { SsrfApp, JwtNoneApp, RedirectApp } from "./http/apps/labs2";
 import { CsrfApp, LfiApp, UploadApp, DeserializeApp } from "./http/apps/labs3";
@@ -110,6 +112,10 @@ export class VirtualKernel {
   public map: WorldMap;
   public hardware: VirtualHardware;
   public wifi: VirtualWiFi;
+  /** Sandbox de ejecución de código y registro de herramientas funcionales. */
+  public sandbox: CodeExecutionSandbox;
+  public toolRuntime: ToolRuntime;
+  private sandboxRng = 0x9e3779b9;
 
   private unsubscribePublisher: () => void;
   private tickTimer: ReturnType<typeof setInterval> | null = null;
@@ -252,6 +258,10 @@ export class VirtualKernel {
     );
     this.hardware = new VirtualHardware();
     this.wifi = new VirtualWiFi(this.network);
+    this.sandbox = new CodeExecutionSandbox();
+    this.toolRuntime = new ToolRuntime(this.sandbox, this.makeSandboxHost(), {
+      now: () => this.world.getState().clock.tick,
+    });
 
     // academy.nande y tools.nande: la biblioteca y la ruta de aprendizaje,
     // navegables como cualquier otro sitio del mundo virtual.
@@ -508,6 +518,59 @@ export class VirtualKernel {
 
     this.seedHosts();
     this.seedInitialSites();
+  }
+
+  /**
+   * Construye el "host" del sandbox: la ÚNICA superficie por la que el código
+   * del jugador o de un NPC toca el mundo. Todo pasa por los mismos runtimes
+   * (HostRuntime, DNS, navegador); jamás por APIs reales del dispositivo.
+   */
+  private makeSandboxHost(): SandboxHost {
+    return {
+      now: () => this.world.getState().clock.tick,
+      rng: () => {
+        // PRNG determinista (mulberry32): sin Math.random, reproducible.
+        this.sandboxRng = (this.sandboxRng + 0x6d2b79f5) | 0;
+        let t = this.sandboxRng;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      },
+      resolve: (host) => this.dns.resolve(host),
+      scan: (host) => {
+        const h = this.hosts.resolve(host);
+        if (!h || !h.up) return [];
+        return h.services.map((s) => ({
+          port: s.port,
+          service: s.name,
+          state: h.firewall.includes(s.port)
+            ? "filtered"
+            : s.state === "running"
+              ? "open"
+              : "closed",
+        }));
+      },
+      http: (url) => {
+        const clean = url.replace(/^https?:\/\//i, "");
+        const slash = clean.indexOf("/");
+        const hostname = (slash === -1 ? clean : clean.slice(0, slash)).toLowerCase();
+        const path = slash === -1 ? "/" : clean.slice(slash);
+        if (!this.browser.isWebApp(hostname)) {
+          return { status: 0, text: `host no es una webapp del mundo: ${hostname}` };
+        }
+        try {
+          const { response } = this.browser.request("GET", hostname, path);
+          const text = response.body
+            .replace(/<style[\s\S]*?<\/style>/gi, "")
+            .replace(/<[^>]+>/g, " ")
+            .replace(/\s+/g, " ")
+            .trim();
+          return { status: response.status, text };
+        } catch (e) {
+          return { status: 0, text: e instanceof Error ? e.message : "error" };
+        }
+      },
+    };
   }
 
   /**

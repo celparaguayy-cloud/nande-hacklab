@@ -2,6 +2,26 @@ import { VirtualKernel } from "../VirtualKernel";
 import { crack, WORDLIST } from "../crypto/cracker";
 import { decodeJwt, signJwt, verifyJwt, crackJwtSecret } from "../crypto/jwt";
 
+/** Herramienta de ejemplo que `code new` deja lista para compilar y correr.
+ *  Es código real que corre en el sandbox: escanea un host y lista puertos. */
+const STARTER_TOOL = `// mini-scanner — escanea un host del mundo y lista sus puertos.
+// Uso: run <esta-tool> <host>   (ej. run mi-scanner server.nande)
+var objetivo = args[0] || "server.nande";
+print("Escaneando " + objetivo + " ...");
+var puertos = nande.scan(objetivo);
+if (puertos.length === 0) {
+  print("Sin respuesta: host caido o desconocido.");
+} else {
+  var abiertos = 0;
+  for (var i = 0; i < puertos.length; i++) {
+    var p = puertos[i];
+    print(p.port + "/tcp  " + p.state + "  " + p.service);
+    if (p.state === "open") abiertos++;
+  }
+  print("Total: " + abiertos + " puerto(s) abierto(s).");
+}
+`;
+
 export class VirtualTerminal {
   private kernel: VirtualKernel;
   private currentUser: string;
@@ -923,6 +943,25 @@ export class VirtualTerminal {
         case "firewall":
           return this.firewallCmd(commandArgs);
 
+        case "code":
+          return this.codeCmd(commandArgs);
+
+        case "compile":
+          return this.compileCmd(commandArgs);
+
+        case "tool-install":
+          return this.toolInstallCmd(commandArgs);
+
+        case "tool-list":
+        case "tools-mias":
+          return this.toolListCmd();
+
+        case "tool-info":
+          return this.toolInfoCmd(commandArgs);
+
+        case "tool-remove":
+          return this.toolRemoveCmd(commandArgs);
+
         default: {
           // Si no es un builtin, quizas sea una herramienta de seguridad.
           if (this.kernel.tools.find(command)) {
@@ -1594,6 +1633,161 @@ export class VirtualTerminal {
   }
 
 
+  /** Carpeta donde viven las herramientas del jugador. */
+  private toolsDir = "/home/student/tools";
+
+  private ensureToolsDir(): void {
+    if (!this.kernel.filesystem.exists(this.toolsDir)) {
+      this.kernel.filesystem.createDirectory(this.toolsDir, "student", "users", "755");
+    }
+  }
+
+  private toolPath(name: string): string {
+    const clean = name.replace(/[^\w.-]/g, "");
+    const file = clean.endsWith(".js") ? clean : `${clean}.js`;
+    return file.startsWith("/") ? file : `${this.toolsDir}/${file}`;
+  }
+
+  /**
+   * code new <nombre>   → crea una herramienta de ejemplo funcional
+   * code <ruta|nombre>  → muestra el código fuente
+   */
+  private codeCmd(args: string[]): { output: string; isError: boolean } {
+    const sub = args[0];
+
+    if (sub === "new") {
+      const name = args[1];
+      if (!name) {
+        return { output: "uso: code new <nombre>\n", isError: true };
+      }
+      this.ensureToolsDir();
+      const path = this.toolPath(name);
+      if (this.kernel.filesystem.exists(path)) {
+        return { output: `code: ya existe ${path}\n`, isError: true };
+      }
+      const scaffold = STARTER_TOOL;
+      this.kernel.filesystem.createFile(path, scaffold, "student", "users", "755");
+      return {
+        output:
+          `✔ Creé ${path} con una herramienta de ejemplo.\n\n` +
+          `Editala (app Archivos) o probala ya mismo:\n` +
+          `  compile ${path}\n` +
+          `  tool-install ${path}\n` +
+          `  run ${name.replace(/\.js$/, "")} server.nande\n`,
+        isError: false,
+      };
+    }
+
+    const ref = sub;
+    if (!ref) {
+      return {
+        output:
+          "uso:\n  code new <nombre>     crea una herramienta de ejemplo\n" +
+          "  code <ruta>           muestra el código\n",
+        isError: false,
+      };
+    }
+    const path = this.toolPath(ref);
+    if (!this.kernel.filesystem.exists(path)) {
+      return { output: `code: no existe ${path}\n`, isError: true };
+    }
+    const src = this.kernel.filesystem.readFile(path);
+    return { output: `# ${path}\n${src}\n`, isError: false };
+  }
+
+  /** Compila (valida) un archivo de código sin instalarlo. */
+  private compileCmd(args: string[]): { output: string; isError: boolean } {
+    const ref = args.find((a) => !a.startsWith("-"));
+    if (!ref) return { output: "uso: compile <ruta>\n", isError: true };
+    const path = this.toolPath(ref);
+    if (!this.kernel.filesystem.exists(path)) {
+      return { output: `compile: no existe ${path}\n`, isError: true };
+    }
+    const src = this.kernel.filesystem.readFile(path);
+    const r = this.kernel.sandbox.compile(src);
+    const lines: string[] = [];
+    if (r.ok) lines.push(`✔ ${path} compila.`);
+    else lines.push(`✘ ${path} no compila:`);
+    for (const e of r.errors) lines.push(`  error: ${e}`);
+    for (const w of r.warnings) lines.push(`  aviso: ${w}`);
+    return { output: lines.join("\n") + "\n", isError: !r.ok };
+  }
+
+  /** Compila e instala un archivo como herramienta ejecutable. */
+  private toolInstallCmd(args: string[]): { output: string; isError: boolean } {
+    const ref = args.find((a) => !a.startsWith("-"));
+    if (!ref) return { output: "uso: tool-install <ruta>\n", isError: true };
+    const path = this.toolPath(ref);
+    if (!this.kernel.filesystem.exists(path)) {
+      return { output: `tool-install: no existe ${path}\n`, isError: true };
+    }
+    const src = this.kernel.filesystem.readFile(path);
+    const baseName = (path.split("/").pop() ?? "tool").replace(/\.js$/, "");
+    const r = this.kernel.toolRuntime.install(src, { name: baseName }, "player");
+    if (!r.ok) {
+      return {
+        output: `✘ no se instaló:\n${r.errors.map((e) => `  ${e}`).join("\n")}\n`,
+        isError: true,
+      };
+    }
+    const warn = r.warnings.length
+      ? `\n${r.warnings.map((w) => `  aviso: ${w}`).join("\n")}`
+      : "";
+    return {
+      output: `✔ herramienta "${r.name}" instalada. Ejecutala con: run ${r.name}${warn}\n`,
+      isError: false,
+    };
+  }
+
+  private toolListCmd(): { output: string; isError: boolean } {
+    const tools = this.kernel.toolRuntime.list();
+    if (tools.length === 0) {
+      return {
+        output:
+          "No tenés herramientas instaladas.\n" +
+          "Creá una: code new mi-tool → tool-install mi-tool → run mi-tool\n",
+        isError: false,
+      };
+    }
+    const lines = tools.map(
+      (t) =>
+        `  ${t.manifest.name.padEnd(18)} v${t.manifest.version.padEnd(8)} ` +
+        `[${t.origin === "npc" ? "NPC" : "vos"}] ${t.manifest.description}`,
+    );
+    return {
+      output: `Herramientas instaladas (${tools.length}):\n` + lines.join("\n") + "\n",
+      isError: false,
+    };
+  }
+
+  private toolInfoCmd(args: string[]): { output: string; isError: boolean } {
+    const name = args[0];
+    const tool = name ? this.kernel.toolRuntime.get(name) : undefined;
+    if (!tool) return { output: `tool-info: no existe la herramienta ${name}\n`, isError: true };
+    const m = tool.manifest;
+    return {
+      output:
+        `${m.name} v${m.version}\n` +
+        `  autor:        ${m.author} (${tool.origin})\n` +
+        `  descripción:  ${m.description}\n` +
+        `  capacidades:  ${m.capabilities.join(", ")}\n` +
+        (m.input ? `  entrada:      ${m.input}\n` : "") +
+        (m.output ? `  salida:       ${m.output}\n` : "") +
+        `  código:       ${tool.source.split("\n").length} líneas\n`,
+      isError: false,
+    };
+  }
+
+  private toolRemoveCmd(args: string[]): { output: string; isError: boolean } {
+    const name = args[0];
+    if (!name) return { output: "uso: tool-remove <nombre>\n", isError: true };
+    const ok = this.kernel.toolRuntime.remove(name);
+    return {
+      output: ok ? `✔ desinstalé "${name}"\n` : `tool-remove: no existe "${name}"\n`,
+      isError: !ok,
+    };
+  }
+
   /** Lista hosts del mundo, o los servicios de un host con su estado real. */
   private servicesCmd(args: string[]): { output: string; isError: boolean } {
     const ref = args.find((a) => !a.startsWith("-"));
@@ -2160,9 +2354,22 @@ export class VirtualTerminal {
     if (!id) {
       return {
         output:
-          "uso: run <id> [args]\nMirá qué hay en 'store' y ejecutá una creación.\n",
+          "uso: run <nombre> [args]\nEjecutá una herramienta instalada (tool-list) o una creación de la store.\n",
         isError: true,
       };
+    }
+
+    // 1) ¿Es una herramienta funcional instalada por vos o por un NPC?
+    if (this.kernel.toolRuntime.has(id)) {
+      const tool = this.kernel.toolRuntime.get(id)!;
+      const r = this.kernel.toolRuntime.run(id, args.slice(1));
+      const head = `▶ ${tool.manifest.name} v${tool.manifest.version} (por ${tool.manifest.author})\n`;
+      if (!r.ok) {
+        return { output: head + `✘ error: ${r.error}\n${r.output}`, isError: true };
+      }
+      const worldNotes = this.kernel.scanForSignals(r.output);
+      const suffix = worldNotes.length ? "\n" + worldNotes.join("\n") + "\n" : "";
+      return { output: head + r.output + suffix, isError: false };
     }
 
     const item = this.kernel.store.get(id);
@@ -3026,6 +3233,16 @@ export class VirtualTerminal {
       "  crack <hash>     Crackea un hash MD5/SHA-256 de verdad",
       "  jwt <sub>        Inspecciona/crackea/forja tokens JWT",
       "  publicar <t> <n> Publicá tu propio sitio en la Internet virtual",
+      "",
+      "Programación (herramientas funcionales de verdad):",
+      "  code new <nombre>   Crea una herramienta de ejemplo (corre en sandbox)",
+      "  code <ruta>         Muestra el código de una herramienta",
+      "  compile <ruta>      Valida el código sin instalar",
+      "  tool-install <ruta> Compila e instala la herramienta",
+      "  tool-list           Tus herramientas instaladas",
+      "  tool-info <nombre>  Detalle de una herramienta",
+      "  tool-remove <nombre> Desinstala",
+      "  run <nombre> [args] Ejecuta una herramienta instalada",
       "",
       "Hosts, servicios y firewall (mundo real):",
       "  services [host]  Lista hosts, o los servicios de un host y su estado",
