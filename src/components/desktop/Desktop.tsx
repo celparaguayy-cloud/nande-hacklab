@@ -20,6 +20,7 @@ import MissionControl from "../mission/MissionControl";
 import PulsoView from "../pulso/PulsoView";
 import TeamView from "../team/TeamView";
 import CompanyView from "../company/CompanyView";
+import C2View from "../c2/C2View";
 import Boot from "../boot/Boot";
 import Mani from "../mentor/Mani";
 import { VirtualKernel } from "../../core/VirtualKernel";
@@ -250,6 +251,7 @@ function Desktop() {
       pulso: <PulsoView kernel={kernel} />,
       team: <TeamView kernel={kernel} />,
       company: <CompanyView kernel={kernel} />,
+      c2: <C2View kernel={kernel} />,
       notes: <NotesView kernel={kernel} />,
       games: <GamesView kernel={kernel} />,
       world2d: <World2DView kernel={kernel} onOpenApp={openWindow} />,

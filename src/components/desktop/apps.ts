@@ -123,6 +123,16 @@ export const APPS: AppMeta[] = [
     dock: true,
   },
   {
+    id: "c2",
+    name: "C2",
+    title: "Centro de mando (C2) — simulado",
+    summary: "Tu botnet de máquinas comprometidas y cómo la detectan",
+    category: "Desarrollo",
+    from: "#f87171",
+    to: "#7f1d1d",
+    dock: true,
+  },
+  {
     id: "team",
     name: "Equipo",
     title: "ÑANDE Equipo — tus especialistas",
