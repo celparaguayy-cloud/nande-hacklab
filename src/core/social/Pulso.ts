@@ -56,16 +56,17 @@ function pick<T>(arr: T[], seed: number): T {
   return arr[((seed % arr.length) + arr.length) % arr.length];
 }
 
-function handleOf(name: string): string {
-  return (
-    "@" +
-    name
-      .normalize("NFD")
-      .replace(/[̀-ͯ]/g, "")
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "")
-      .slice(0, 12)
-  );
+function handleOf(name: string, id?: string): string {
+  const base = name
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "")
+    .slice(0, 10);
+  // El mundo tiene homónimos; se agrega un sufijo del id para que dos "Ana
+  // López" no compartan el mismo @usuario.
+  const suffix = id ? id.replace(/\D/g, "").slice(-3) : "";
+  return "@" + base + suffix;
 }
 
 const PETS = [
@@ -143,13 +144,16 @@ function personalPost(person: VirtualPerson, s: number): string {
 }
 
 function postsFor(person: VirtualPerson, day: number): PulsoPost[] {
-  const seed = seedOf(person.name);
-  const handle = handleOf(person.name);
+  // Se siembra por ID (único), no por nombre: el mundo tiene muchos homónimos
+  // y antes TODOS los "Benjamín Benítez" publicaban exactamente lo mismo, así
+  // que el feed parecía el mismo post repetido una y otra vez.
+  const seed = seedOf(person.id);
+  const handle = handleOf(person.name, person.id);
   const count = 3 + (seed % 4);
   const posts: PulsoPost[] = [];
 
   for (let i = 0; i < count; i += 1) {
-    const s = seedOf(`${person.name}-${i}`);
+    const s = seedOf(`${person.id}-${i}`);
     const kind = s % 4;
     // Parte de los posts "normales" hablan del oficio/intereses de la persona,
     // para que cada uno suene distinto (sin tocar las filtraciones del OSINT).
@@ -269,9 +273,9 @@ export class Pulso {
     return {
       id: person.id,
       name: person.name,
-      handle: handleOf(person.name),
+      handle: handleOf(person.name, person.id),
       bio: `${person.profession} · ${person.interests.slice(0, 2).join(", ")}`,
-      followers: 20 + (seedOf(person.name) % 5000),
+      followers: 20 + (seedOf(person.id) % 5000),
       posts,
       following: this.state.following.includes(person.id),
     };
@@ -285,7 +289,7 @@ export class Pulso {
       .filter(
         (p) =>
           p.name.toLowerCase().includes(q) ||
-          handleOf(p.name).includes(q),
+          handleOf(p.name, p.id).includes(q),
       )
       .slice(0, 12)
       .map((p) => this.profile(p.id)!)
