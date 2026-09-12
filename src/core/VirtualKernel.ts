@@ -843,6 +843,30 @@ export class VirtualKernel {
       }
     }
 
+    // El mundo sigue vivo: cada tanto, un habitante en línea programa y
+    // publica una herramienta funcional nueva (compilada y testeada de
+    // verdad). Con tope, para no crecer sin límite ni pesar.
+    if (
+      worldState.clock.tick % 200 === 0 &&
+      this.toolRuntime.list().filter((t) => t.origin === "npc").length < 24
+    ) {
+      const online = this.worldEngine.getOnlinePeople();
+      if (online.length > 0) {
+        const who = online[worldState.clock.tick % online.length];
+        const r = this.npcForge.forge(who, worldState.clock.tick);
+        if (r.ok) {
+          this.news.headline(
+            `${who.name} publicó una herramienta: ${r.name}`,
+            `Un vecino compartió una herramienta funcional en la comunidad. ` +
+              `Podés verla e instalarla desde tu terminal (tool-list).`,
+            "Tecnología",
+            worldState.clock.tick,
+          );
+          this.events.emit("world.news.created", { signal: `tool:${r.name}` });
+        }
+      }
+    }
+
     // Tu empresa: factura cada día y, cada tanto, alguien la ataca. Si
     // activaste el control correcto, la repelés; si no, perdés plata.
     const compDay = Math.floor(worldState.clock.tick / 1440) + 1;
