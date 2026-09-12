@@ -205,10 +205,21 @@ function postsFor(person: VirtualPerson, day: number): PulsoPost[] {
   return posts;
 }
 
+export interface PulsoComment {
+  text: string;
+  day: number;
+  /** Autor: "vos" para el jugador. */
+  author: string;
+}
+
 interface PulsoState {
   following: string[];
   /** Posts del propio jugador. */
   myPosts: { text: string; day: number }[];
+  /** Ids de posts que el jugador likeó. */
+  liked?: string[];
+  /** Comentarios del jugador por post. */
+  comments?: Record<string, PulsoComment[]>;
 }
 
 export class Pulso {
@@ -223,6 +234,8 @@ export class Pulso {
     this.getPeople = getPeople;
     this.currentDay = currentDay;
     this.state = this.load() ?? { following: [], myPosts: [] };
+    this.state.liked = this.state.liked ?? [];
+    this.state.comments = this.state.comments ?? {};
   }
 
   private load(): PulsoState | null {
@@ -328,5 +341,45 @@ export class Pulso {
 
   myPosts(): { text: string; day: number }[] {
     return [...this.state.myPosts];
+  }
+
+  /* ------------------------------------------------- likes y comentarios */
+
+  /** ¿El jugador le dio like a este post? */
+  hasLiked(postId: string): boolean {
+    return (this.state.liked ?? []).includes(postId);
+  }
+
+  /** Alterna el like del jugador. Devuelve el nuevo estado. */
+  toggleLike(postId: string): boolean {
+    const liked = this.state.liked ?? (this.state.liked = []);
+    const i = liked.indexOf(postId);
+    if (i === -1) liked.push(postId);
+    else liked.splice(i, 1);
+    this.save();
+    return liked.includes(postId);
+  }
+
+  /** Total de likes visible: base del post + 1 si vos likeaste. */
+  likeCountFor(post: PulsoPost): number {
+    return post.likes + (this.hasLiked(post.id) ? 1 : 0);
+  }
+
+  /** Comentarios (los del jugador) de un post. */
+  commentsFor(postId: string): PulsoComment[] {
+    return [...((this.state.comments ?? {})[postId] ?? [])];
+  }
+
+  /** Agrega un comentario del jugador a un post. */
+  comment(postId: string, text: string): void {
+    const clean = text.trim().slice(0, 200);
+    if (!clean) return;
+    const map = this.state.comments ?? (this.state.comments = {});
+    (map[postId] = map[postId] ?? []).push({
+      text: clean,
+      day: this.currentDay(),
+      author: "vos",
+    });
+    this.save();
   }
 }

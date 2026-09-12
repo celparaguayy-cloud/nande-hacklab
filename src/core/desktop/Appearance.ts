@@ -39,9 +39,55 @@ export const WALLPAPERS: WallpaperPreset[] = [
     name: "Océano",
     css: "linear-gradient(160deg, #0a1f2b 0%, #08131b 60%, #05070a 100%)",
   },
+  {
+    id: "aurora",
+    name: "Aurora",
+    css: "radial-gradient(1200px 600px at 20% -10%, #0e3b3b 0%, transparent 60%), radial-gradient(1000px 500px at 90% 10%, #2a1150 0%, transparent 55%), linear-gradient(160deg, #06121a 0%, #05070a 100%)",
+  },
+  {
+    id: "guarani",
+    name: "Guaraní",
+    css: "radial-gradient(900px 500px at 80% 0%, #123a1a 0%, transparent 55%), linear-gradient(160deg, #0c1a10 0%, #0a1408 60%, #05070a 100%)",
+  },
+  {
+    id: "synthwave",
+    name: "Synthwave",
+    css: "linear-gradient(180deg, #241035 0%, #3a1150 40%, #7a1f5a 72%, #ff7a59 100%)",
+  },
+  {
+    id: "carbon",
+    name: "Carbón",
+    css: "repeating-linear-gradient(45deg, #0d0f12 0px, #0d0f12 8px, #0f1216 8px, #0f1216 16px)",
+  },
+  {
+    id: "asuncion",
+    name: "Asunción noche",
+    css: "linear-gradient(180deg, #0a1526 0%, #12233f 45%, #21324d 78%, #3a2a1a 100%)",
+  },
+  {
+    id: "terminal",
+    name: "Fósforo",
+    css: "radial-gradient(circle at 50% 120%, #06240f 0%, #04140a 45%, #020806 100%)",
+  },
+  {
+    id: "rosa",
+    name: "Amanecer",
+    css: "linear-gradient(160deg, #2a1526 0%, #3a1b30 45%, #b5546a 100%)",
+  },
 ];
 
-export const ACCENTS = ["#7cc4ff", "#7ee2a8", "#ffd479", "#c084fc", "#ff8f8f"];
+export const ACCENTS = [
+  "#7cc4ff",
+  "#7ee2a8",
+  "#ffd479",
+  "#c084fc",
+  "#ff8f8f",
+  "#f472b6",
+  "#34d399",
+  "#fb923c",
+  "#60a5fa",
+  "#a3e635",
+];
 
 export interface AppearanceState {
   wallpaperId: string;

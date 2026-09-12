@@ -59,7 +59,13 @@ export default function PulsoView({ kernel }: Props) {
       {tab === "feed" && (
         <div className="pulso__list">
           {feed.map((post) => (
-            <PostCard key={post.id} post={post} onOpen={() => openProfile(post.authorId)} />
+            <PostCard
+              key={post.id}
+              post={post}
+              kernel={kernel}
+              bump={() => force((n) => n + 1)}
+              onOpen={() => openProfile(post.authorId)}
+            />
           ))}
         </div>
       )}
@@ -88,13 +94,37 @@ export default function PulsoView({ kernel }: Props) {
           profile={profile}
           following={kernel.pulso.isFollowing(profile.id)}
           onFollow={() => toggleFollow(profile.id)}
+          kernel={kernel}
+          bump={() => force((n) => n + 1)}
         />
       )}
     </div>
   );
 }
 
-function PostCard({ post, onOpen }: { post: PulsoPost; onOpen: () => void }) {
+function PostCard({
+  post,
+  onOpen,
+  kernel,
+  bump,
+}: {
+  post: PulsoPost;
+  onOpen: () => void;
+  kernel: VirtualKernel;
+  bump: () => void;
+}) {
+  const [draft, setDraft] = useState("");
+  const [open, setOpen] = useState(false);
+  const liked = kernel.pulso.hasLiked(post.id);
+  const comments = kernel.pulso.commentsFor(post.id);
+
+  const sendComment = () => {
+    if (!draft.trim()) return;
+    kernel.pulso.comment(post.id, draft);
+    setDraft("");
+    bump();
+  };
+
   return (
     <div className={`pulso__post${post.leak ? " pulso__post--leak" : ""}`}>
       <div className="pulso__post-head">
@@ -107,13 +137,54 @@ function PostCard({ post, onOpen }: { post: PulsoPost; onOpen: () => void }) {
       </div>
       <p className="pulso__text">{post.text}</p>
       <div className="pulso__meta">
-        <span>♥ {post.likes}</span>
+        <button
+          className="pulso__like"
+          aria-pressed={liked}
+          onClick={() => { kernel.pulso.toggleLike(post.id); bump(); }}
+          style={{
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            color: liked ? "#ff6b81" : "inherit",
+            font: "inherit",
+            padding: 0,
+          }}
+        >
+          {liked ? "♥" : "♡"} {kernel.pulso.likeCountFor(post)}
+        </button>
+        <button
+          className="pulso__like"
+          onClick={() => setOpen((o) => !o)}
+          style={{ background: "none", border: "none", cursor: "pointer", color: "inherit", font: "inherit", padding: 0 }}
+        >
+          💬 {comments.length > 0 ? comments.length : ""}
+        </button>
         {post.leak && (
           <span className="pulso__leak" title="Información aprovechable (OSINT)">
             filtró {LEAK_LABEL[post.leak]}: <code>{post.leakValue}</code>
           </span>
         )}
       </div>
+      {open && (
+        <div className="pulso__comments" style={{ marginTop: 8 }}>
+          {comments.map((c, i) => (
+            <div key={i} style={{ fontSize: 13, padding: "2px 0" }}>
+              <strong>{c.author}:</strong> {c.text}
+            </div>
+          ))}
+          <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+            <input
+              className="pulso__input"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") sendComment(); }}
+              placeholder="Comentá…"
+              style={{ flex: 1 }}
+            />
+            <button className="pulso__follow" onClick={sendComment}>Enviar</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -131,10 +202,14 @@ function ProfileView({
   profile,
   following,
   onFollow,
+  kernel,
+  bump,
 }: {
   profile: Profile;
   following: boolean;
   onFollow: () => void;
+  kernel: VirtualKernel;
+  bump: () => void;
 }) {
   const leaks = profile.posts.filter((p) => p.leak);
   return (
@@ -176,7 +251,7 @@ function ProfileView({
 
       <div className="pulso__list">
         {profile.posts.map((post) => (
-          <PostCard key={post.id} post={post} onOpen={() => {}} />
+          <PostCard key={post.id} post={post} kernel={kernel} bump={bump} onOpen={() => {}} />
         ))}
       </div>
     </div>
