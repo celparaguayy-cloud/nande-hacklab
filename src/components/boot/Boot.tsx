@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { PERSON_COUNT } from "../../core/world/VirtualPeople";
 import "./boot.css";
 
 interface BootProps {
@@ -13,7 +14,7 @@ const BOOT_LINES = [
   "Inicializando kernel virtual ..... OK",
   "Montando sistema de archivos ..... OK",
   "Conectando a La Grid ............. OK",
-  "Cargando 2000 habitantes ......... OK",
+  `Cargando ${PERSON_COUNT.toLocaleString("es")} habitantes ... OK`,
   "Motor SQL ........................ OK",
   "Servidor web virtual ............. OK",
   "Aislamiento de red real .......... ACTIVO",

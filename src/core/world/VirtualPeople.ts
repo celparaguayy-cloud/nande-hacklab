@@ -49,7 +49,13 @@ const INTERESTS = [
   "emprendimiento",
 ];
 
-const PERSON_COUNT = 2000;
+/**
+ * Cuánta gente vive en el mundo virtual. Duplicado a 4.000 para un mundo más
+ * poblado sin castigar al celular: el render está acotado (el mapa y el feed
+ * muestran una muestra) y la economía avanza por lotes, así que el costo por
+ * tick sube poco. Fuente única de la cifra — la UI y los tests la leen de acá.
+ */
+export const PERSON_COUNT = 4000;
 
 function pick<T>(items: T[], index: number): T {
   return items[index % items.length];

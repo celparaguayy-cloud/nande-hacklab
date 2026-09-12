@@ -4,6 +4,7 @@ import { WorldRegistry } from "./WorldRegistry";
 import { EventBus } from "../events/EventBus";
 import type { WorldEntity } from "./WorldRegistry";
 import { resetStorage, seedRandom } from "../../test/setup";
+import { PERSON_COUNT } from "./VirtualPeople";
 
 function buildEngine() {
   const registry = new WorldRegistry();
@@ -47,8 +48,8 @@ describe("WorldEngine", () => {
   it("puebla el mundo con habitantes", () => {
     const { engine } = buildEngine();
 
-    expect(engine.getPeopleCount()).toBe(2000);
-    expect(engine.getPeople()).toHaveLength(2000);
+    expect(engine.getPeopleCount()).toBe(PERSON_COUNT);
+    expect(engine.getPeople()).toHaveLength(PERSON_COUNT);
   });
 
   it("mantiene el contador de conectados en sincronia", () => {

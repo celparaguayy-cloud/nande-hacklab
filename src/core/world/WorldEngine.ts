@@ -1,5 +1,5 @@
 import { VirtualAgents } from "../social/VirtualAgents";
-import { generatePeople } from "./VirtualPeople";
+import { generatePeople, PERSON_COUNT } from "./VirtualPeople";
 import { WorldRegistry } from "./WorldRegistry";
 import { EventBus } from "../events/EventBus";
 import { VirtualSocial } from "../social/VirtualSocial";
@@ -41,7 +41,7 @@ export interface WorldEvent {
   description: string;
 }
 
-const PEOPLE: VirtualPerson[] = generatePeople(2000);
+const PEOPLE: VirtualPerson[] = generatePeople(PERSON_COUNT);
 
 /** Como se nombra cada vinculo en los avisos del mundo. */
 const TIPO_VINCULO: Record<string, string> = {

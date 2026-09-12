@@ -3,7 +3,7 @@ import { VirtualKernel } from "../VirtualKernel";
 import { WorldMap, ZONES } from "./WorldMap";
 import { Communities } from "../social/Communities";
 import { WorldRegistry } from "./WorldRegistry";
-import { generatePeople } from "./VirtualPeople";
+import { generatePeople, PERSON_COUNT } from "./VirtualPeople";
 import { resetStorage, seedRandom } from "../../test/setup";
 
 describe("WorldMap", () => {
@@ -63,7 +63,7 @@ describe("WorldMap", () => {
     const residents = snapshot.reduce((s, z) => s + z.residents, 0);
     const places = snapshot.reduce((s, z) => s + z.places, 0);
 
-    expect(residents).toBe(2000);
+    expect(residents).toBe(PERSON_COUNT);
     expect(places).toBe(kernel.registry.count());
 
     kernel.dispose();

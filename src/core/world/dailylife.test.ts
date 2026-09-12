@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { VirtualKernel } from "../VirtualKernel";
 import { lifeAt, isAwake } from "./DailyLife";
-import { generatePeople } from "./VirtualPeople";
+import { generatePeople, PERSON_COUNT } from "./VirtualPeople";
 import { resetStorage, seedRandom } from "../../test/setup";
 
 describe("DailyLife", () => {
@@ -79,7 +79,7 @@ describe("vida del mundo en el kernel", () => {
     const breakdown = kernel.worldEngine.lifeBreakdown(10);
     const total = Object.values(breakdown).reduce((s, n) => s + n, 0);
 
-    expect(total).toBe(2000);
+    expect(total).toBe(PERSON_COUNT);
     kernel.dispose();
   });
 
@@ -88,7 +88,7 @@ describe("vida del mundo en el kernel", () => {
     const presence = kernel.worldEngine.presenceByZone(14);
     const total = Object.values(presence).reduce((s, n) => s + n, 0);
 
-    expect(total).toBe(2000);
+    expect(total).toBe(PERSON_COUNT);
     kernel.dispose();
   });
 
