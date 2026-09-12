@@ -67,4 +67,16 @@ describe("Anonimato / OPSEC — comandos reales y lecciones completables", () =>
     expect(steps[0].check("whois banco.nande", term.execute("whois banco.nande"))).toBe(true);
     expect(steps[1].check("sherlock kamba", term.execute("sherlock kamba"))).toBe(true);
   });
+
+  it("l-wifi: escanear y crackear un WPA2 débil", () => {
+    const steps = lesson("l-wifi").steps;
+    expect(steps[0].check("wifi scan", term.execute("wifi scan"))).toBe(true);
+    expect(steps[1].check("aircrack-ng Vecino-2G", term.execute("aircrack-ng Vecino-2G"))).toBe(true);
+  });
+
+  it("l-reversing: strings encuentra una credencial quemada", () => {
+    const steps = lesson("l-reversing").steps;
+    const out = term.execute("strings /var/www/config.php");
+    expect(steps[0].check("strings /var/www/config.php", out)).toBe(true);
+  });
 });

@@ -686,6 +686,63 @@ export const LESSONS: Lesson[] = [
       },
     ],
   },
+
+  /* ===================================================================
+     WIRELESS — seguridad de redes WiFi (con permiso, en el laboratorio).
+     =================================================================== */
+  {
+    id: "l-wifi",
+    title: "WiFi: por qué una clave débil se rompe",
+    level: "intermedio",
+    summary: "Escanear redes y crackear un WPA2 con clave de diccionario.",
+    concept:
+      "El WiFi WPA2 se protege con una clave. Si es corta o común, se puede capturar el 'handshake' y probarla contra un diccionario hasta romperla. La defensa es una clave larga y aleatoria (o WPA3).",
+    reward: { xp: 130, coins: 100 },
+    steps: [
+      {
+        explain:
+          "Mirá qué redes hay alrededor y con qué seguridad. Siempre con permiso y sobre tu propia red.",
+        task: "Escribí: wifi scan",
+        hint: "wifi scan",
+        check: (cmd, out) => usedTool(cmd, "wifi") && /Vecino-2G/i.test(out),
+        debrief:
+          "Cada red muestra su cifrado. WPA2 con clave débil es atacable; una red abierta ni siquiera cifra.",
+      },
+      {
+        explain:
+          "Contra una red con handshake capturado y clave de diccionario, aircrack-ng la rompe probando claves.",
+        task: "Escribí: aircrack-ng Vecino-2G",
+        hint: "aircrack-ng Vecino-2G",
+        check: (cmd, out) => usedTool(cmd, "aircrack-ng") && /KEY FOUND/i.test(out),
+        debrief:
+          "La clave estaba en el diccionario. Defensa: clave larga y aleatoria (12+ caracteres), WPA3 y no reusar la contraseña del router.",
+      },
+    ],
+  },
+
+  /* ===================================================================
+     ANÁLISIS ESTÁTICO — buscar secretos dentro de archivos/binarios.
+     =================================================================== */
+  {
+    id: "l-reversing",
+    title: "Análisis estático: secretos en los archivos",
+    level: "avanzado",
+    summary: "Extraer cadenas de un archivo y encontrar credenciales quemadas.",
+    concept:
+      "Muchos programas guardan secretos 'quemados' en el código o la config. 'strings' saca todo el texto legible de un archivo: a veces ahí aparecen usuarios y contraseñas. Nunca hay que dejar credenciales en el código.",
+    reward: { xp: 130, coins: 100 },
+    steps: [
+      {
+        explain:
+          "En una máquina de laboratorio hay un archivo de configuración. Sacale las cadenas legibles con 'strings'.",
+        task: "Escribí: strings /var/www/config.php",
+        hint: "strings /var/www/config.php",
+        check: (cmd, out) => usedTool(cmd, "strings") && /pass/i.test(out),
+        debrief:
+          "Apareció una credencial quemada en la config. Defensa: nunca guardar secretos en el código; usar variables de entorno o un gestor de secretos, y rotarlos.",
+      },
+    ],
+  },
 ];
 
 /** Motor de lecciones: mantiene el paso actual de la lección activa. */
