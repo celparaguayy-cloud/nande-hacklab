@@ -17,7 +17,7 @@ interface TerminalProps {
 /** Cabecera que ve el usuario al abrir o limpiar la terminal. */
 const BANNER = [
   "ÑANDE OS Terminal",
-  "Escribe 'help' para ver los comandos disponibles.",
+  "¿Recién empezás? Escribí 'guia'.  ·  Todos los comandos: 'help'.",
   "",
 ];
 
