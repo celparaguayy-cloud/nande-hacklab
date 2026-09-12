@@ -120,7 +120,6 @@ export const APPS: AppMeta[] = [
     category: "Internet",
     from: "#93c5fd",
     to: "#2563eb",
-    dock: true,
   },
   {
     id: "pulso",
@@ -140,7 +139,6 @@ export const APPS: AppMeta[] = [
     category: "Mundo",
     from: "#fca5a5",
     to: "#b45309",
-    dock: true,
   },
   {
     id: "c2",
@@ -150,7 +148,6 @@ export const APPS: AppMeta[] = [
     category: "Desarrollo",
     from: "#f87171",
     to: "#7f1d1d",
-    dock: true,
   },
   {
     id: "team",
@@ -160,7 +157,6 @@ export const APPS: AppMeta[] = [
     category: "Educación",
     from: "#6ee7b7",
     to: "#0d9488",
-    dock: true,
   },
   {
     id: "chat",
@@ -170,7 +166,6 @@ export const APPS: AppMeta[] = [
     category: "Internet",
     from: "#6ee7b7",
     to: "#059669",
-    dock: true,
   },
   {
     id: "network",
@@ -189,7 +184,6 @@ export const APPS: AppMeta[] = [
     category: "Mundo",
     from: "#5eead4",
     to: "#0d9488",
-    dock: true,
   },
   {
     id: "world2d",
@@ -199,7 +193,6 @@ export const APPS: AppMeta[] = [
     category: "Mundo",
     from: "#c4b5fd",
     to: "#7c3aed",
-    dock: true,
   },
   {
     id: "world",
@@ -218,7 +211,6 @@ export const APPS: AppMeta[] = [
     category: "Oficina",
     from: "#fca5a5",
     to: "#dc2626",
-    dock: true,
   },
   {
     id: "notes",
@@ -228,7 +220,6 @@ export const APPS: AppMeta[] = [
     category: "Oficina",
     from: "#fde68a",
     to: "#d97706",
-    dock: true,
   },
   {
     id: "games",
@@ -238,7 +229,6 @@ export const APPS: AppMeta[] = [
     category: "Juegos",
     from: "#f9a8d4",
     to: "#db2777",
-    dock: true,
   },
   {
     id: "processes",
@@ -257,7 +247,6 @@ export const APPS: AppMeta[] = [
     category: "Sistema",
     from: "#cbd5e1",
     to: "#64748b",
-    dock: true,
   },
 ];
 
