@@ -178,6 +178,13 @@ describe("aislamiento del sandbox", () => {
           continue;
         }
 
+        // MODO CONECTADO (opt-in): la IA con la clave del propio jugador es la
+        // única excepción documentada al aislamiento. Su red vive aislada en
+        // src/core/ai/net/. Todo lo demás sigue 100% offline.
+        if (full.replace(/\\/g, "/").includes("src/core/ai/net/")) {
+          continue;
+        }
+
         const content = readFileSync(full, "utf-8");
 
         for (const termino of prohibidos) {
