@@ -53,17 +53,31 @@ export default function Mani({ kernel, onRunCommand }: ManiProps) {
   const [advice, setAdvice] = useState<Advice | null>(() => kernel.mentor.advise());
   const [muted, setMuted] = useState(() => kernel.mentor.getState().muted);
   const [copied, setCopied] = useState(false);
+  // Ayuda en el modo CTF: cuando hay un reto activo, la Mani ayuda con ESE
+  // objetivo (no solo con la campaña). Se refresca con el reloj del mundo.
+  const [, force] = useState(0);
+  const [ctfHint, setCtfHint] = useState<string | null>(null);
 
   useEffect(() => {
     const refresh = () => setAdvice(kernel.mentor.advise());
+    const bump = () => force((n) => n + 1);
     const unsubs = [
       kernel.events.subscribe("mission.progress", refresh),
       kernel.events.subscribe("mission.completed", refresh),
       kernel.events.subscribe("player.xp", refresh),
       kernel.events.subscribe("world.news.created", refresh),
+      // Para detectar cuándo empieza/termina un reto CTF y aparecer ahí.
+      kernel.events.subscribe("world.tick", bump),
     ];
     return () => unsubs.forEach((u) => u());
   }, [kernel]);
+
+  const ctfChallenge = kernel.ctf.current();
+
+  // Al cambiar (o terminar) el reto CTF, olvidar la pista anterior.
+  useEffect(() => {
+    setCtfHint(null);
+  }, [ctfChallenge?.host]);
 
   if (muted) {
     return (
@@ -112,7 +126,42 @@ export default function Mani({ kernel, onRunCommand }: ManiProps) {
       </div>
 
       <div className="mani__body">
-        {advice ? (
+        {ctfChallenge ? (
+          <>
+            <p className="mani__text">
+              🎯 Estás en un reto CTF contra <b>{ctfChallenge.host}</b> ({ctfChallenge.ip}).
+              {ctfHint ? ` ${ctfHint}` : " ¿Necesitás una mano? Te doy una pista (te cuesta puntos)."}
+            </p>
+            {ctfHint && /(?:curl|nmap|connect|cat|service-)/.test(ctfHint) && (
+              <div className="mani__cmd">
+                <button
+                  className="mani__run"
+                  onClick={() => {
+                    try { navigator.clipboard?.writeText(ctfHint.replace(/^🥜\s*(Comando exacto:|Comandos:)?\s*/, "")); } catch { /* sin portapapeles */ }
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 1600);
+                  }}
+                >
+                  {copied ? "¡Copiado!" : "Copiar comando"}
+                </button>
+              </div>
+            )}
+            <div className="mani__actions">
+              <button
+                className="mani__btn"
+                onClick={() => {
+                  const h = kernel.ctf.hint();
+                  if (h) setCtfHint(h.text);
+                }}
+              >
+                🥜 Dame una pista
+              </button>
+              <button className="mani__btn mani__btn--ghost" onClick={() => setOpen(false)}>
+                Dale, sigo solo
+              </button>
+            </div>
+          </>
+        ) : advice ? (
           <>
             <p className="mani__text">{advice.text}</p>
 
