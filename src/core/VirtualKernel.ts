@@ -20,6 +20,7 @@ import { NpcToolForge } from "./code/NpcToolForge";
 import { BlueTeamSOC } from "./security/BlueTeam";
 import { AIService } from "./ai/AIService";
 import { SnapshotManager } from "./os/Snapshots";
+import { DatabaseRuntime } from "./db/DatabaseRuntime";
 import { BlogApp, PhotosApp, FilesApp, ToolsApp } from "./http/apps/labs";
 import { SsrfApp, JwtNoneApp, RedirectApp } from "./http/apps/labs2";
 import { CsrfApp, LfiApp, UploadApp, DeserializeApp } from "./http/apps/labs3";
@@ -126,6 +127,8 @@ export class VirtualKernel {
   public ai: AIService;
   /** Fotos del mundo: guardar/restaurar para experimentar sin miedo. */
   public snapshots: SnapshotManager;
+  /** Catálogo de bases de datos consultables (motor SQL real). */
+  public databases: DatabaseRuntime;
   private sandboxRng = 0x9e3779b9;
 
   private unsubscribePublisher: () => void;
@@ -277,6 +280,7 @@ export class VirtualKernel {
     this.soc = new BlueTeamSOC(this.events);
     this.ai = new AIService();
     this.snapshots = new SnapshotManager(() => this.world.getState().clock.tick);
+    this.databases = new DatabaseRuntime();
 
     // academy.nande y tools.nande: la biblioteca y la ruta de aprendizaje,
     // navegables como cualquier otro sitio del mundo virtual.

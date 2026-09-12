@@ -966,6 +966,11 @@ export class VirtualTerminal {
         case "foto":
           return this.snapshotCmd(commandArgs);
 
+        case "db-list":
+        case "db-schema":
+        case "db-query":
+          return this.dbCmd(command, commandArgs);
+
         case "code":
           return this.codeCmd(commandArgs);
 
@@ -2066,6 +2071,54 @@ export class VirtualTerminal {
       output: `Alertas del SOC (${alerts.length}):\n` + lines.join("\n") + "\n",
       isError: false,
     };
+  }
+
+  /** db-list · db-schema <db> · db-query <db> <sql> — bases de datos reales. */
+  private dbCmd(
+    command: string,
+    args: string[],
+  ): { output: string; isError: boolean } {
+    if (command === "db-list") {
+      const dbs = this.kernel.databases.list();
+      const lines = dbs.map(
+        (d) => `  ${d.name.padEnd(14)} ${d.tables.length} tablas — ${d.description}`,
+      );
+      return { output: `Bases de datos:\n${lines.join("\n")}\n`, isError: false };
+    }
+
+    const dbName = args[0];
+    const db = dbName ? this.kernel.databases.get(dbName) : undefined;
+    if (!db) {
+      return { output: `${command}: base desconocida. Mirá 'db-list'.\n`, isError: true };
+    }
+
+    if (command === "db-schema") {
+      const info = this.kernel.databases.list().find((d) => d.name === dbName.toLowerCase())!;
+      const lines = info.tables.map(
+        (t) => `  ${t.name} (${t.columns.join(", ")}) — ${t.rows} filas`,
+      );
+      return { output: `Esquema de ${dbName}:\n${lines.join("\n")}\n`, isError: false };
+    }
+
+    // db-query <db> <sql...>
+    const sql = args.slice(1).join(" ").trim();
+    if (!sql) {
+      return { output: "uso: db-query <base> <SQL>\n", isError: true };
+    }
+    try {
+      const r = db.query(sql);
+      const header = r.columns.join(" | ");
+      const rows = r.rows.map((row) => row.map((c) => String(c ?? "NULL")).join(" | "));
+      return {
+        output: `${header}\n${"-".repeat(header.length)}\n${rows.join("\n")}\n(${r.rows.length} fila/s)\n`,
+        isError: false,
+      };
+    } catch (error) {
+      return {
+        output: `db-query: ${error instanceof Error ? error.message : "error"}\n`,
+        isError: true,
+      };
+    }
   }
 
   /** snapshot create|list|restore|rm <nombre> — fotos del mundo (Experimento G). */
