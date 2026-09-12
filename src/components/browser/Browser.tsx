@@ -338,6 +338,23 @@ export default function Browser({ kernel }: BrowserProps) {
         const text = (code.textContent ?? "").trim();
         if (text) {
           event.preventDefault();
+
+          // Un payload que es una ruta completa (/algo?param=…) se ABRE al
+          // tocarlo, como enviar el ataque. Sirve para los labs sin formulario
+          // (traversal, IDOR, CSRF, race…), donde en el celular editar la barra
+          // de direcciones a mano era un martirio.
+          if (/^\/[^\s]*$/.test(text)) {
+            const { hostname } = splitUrl(address);
+            try {
+              navigator.clipboard?.writeText(text);
+            } catch {
+              /* ignore */
+            }
+            setToast(`✓ Abriendo ${text}`);
+            load(`${hostname}${text}`);
+            return;
+          }
+
           // Se llena el PRIMER campo vacío (incluida la contraseña). Así los
           // laboratorios de varios campos andan naturales: en un login NoSQL se
           // toca "admin" → va al usuario, y "{$ne:null}" → va a la contraseña.

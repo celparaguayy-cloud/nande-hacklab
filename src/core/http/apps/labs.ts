@@ -180,8 +180,9 @@ ${notice(`Mostrando <code>${escapeHtml(resuelto)}</code>`, "info")}
   <li><a href="/ver?archivo=precios.txt">precios.txt</a></li>
 </ul>
 <p class="lab-hint">Pista: el visor abre <code>public/&lt;archivo&gt;</code>.
-¿Y si el archivo empieza con <code>../</code>? Hay un
-<code>config/secrets.env</code> fuera de la carpeta pública.</p>`;
+¿Y si el archivo empieza con <code>../</code> para salir de esa carpeta? Hay un
+<code>config/secrets.env</code> afuera. Tocá para probarlo:
+<code>/ver?archivo=../config/secrets.env</code></p>`;
 
     return html(page(this.title, body));
   }
