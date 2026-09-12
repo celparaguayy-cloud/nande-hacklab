@@ -620,6 +620,72 @@ export const LESSONS: Lesson[] = [
       },
     ],
   },
+
+  /* ===================================================================
+     CRIPTOGRAFÍA Y CRACKING — cómo se guardan y se rompen las claves.
+     =================================================================== */
+  {
+    id: "l-cripto",
+    title: "Criptografía: hashes y cracking",
+    level: "avanzado",
+    summary: "Identificar un hash y romper una contraseña débil (y cómo defenderla).",
+    concept:
+      "Las contraseñas no se guardan tal cual: se guardan 'hasheadas'. Un hash es de una sola vía, pero si la clave es débil se rompe probando (fuerza bruta / diccionario). Por eso importan las claves largas, el 'salt' y los hashes lentos (bcrypt/argon2).",
+    reward: { xp: 140, coins: 100 },
+    steps: [
+      {
+        explain:
+          "Primero identificá qué tipo de hash tenés: la longitud delata el algoritmo. Un MD5 tiene 32 caracteres.",
+        task: "Escribí: hashid 5f4dcc3b5aa765d61d8327deb882cf99",
+        hint: "hashid 5f4dcc3b5aa765d61d8327deb882cf99",
+        check: (cmd, out) => usedTool(cmd, "hashid") && /MD5/i.test(out),
+        debrief:
+          "Es MD5: rápido y viejo, pésimo para guardar contraseñas justamente porque se rompe rápido.",
+      },
+      {
+        explain:
+          "Ahora rompelo: 'crack' prueba un diccionario contra el hash. Esta clave es débil, así que caerá.",
+        task: "Escribí: crack 5f4dcc3b5aa765d61d8327deb882cf99",
+        hint: "crack 5f4dcc3b5aa765d61d8327deb882cf99",
+        check: (cmd, out) => usedTool(cmd, "crack") && /roto/i.test(out),
+        debrief:
+          "Era 'password'. Defensa: claves largas y únicas, hashes LENTOS con salt (bcrypt/argon2) y segundo factor. Así el diccionario no alcanza.",
+      },
+    ],
+  },
+
+  /* ===================================================================
+     OSINT — lo que se sabe de un objetivo mirando fuentes abiertas.
+     =================================================================== */
+  {
+    id: "l-osint",
+    title: "OSINT: el rastro público",
+    level: "intermedio",
+    summary: "Reunir información de fuentes abiertas y entender por qué es peligrosa.",
+    concept:
+      "OSINT es investigar con información PÚBLICA: quién registró un dominio, en qué redes está un usuario, qué dejó ver la gente. Con piezas sueltas se arma un perfil. Es la otra cara del OPSEC.",
+    reward: { xp: 120, coins: 90 },
+    steps: [
+      {
+        explain:
+          "Empezá por el dominio: 'whois' dice quién y cuándo lo registró.",
+        task: "Escribí: whois banco.nande",
+        hint: "whois banco.nande",
+        check: (cmd, out) => usedTool(cmd, "whois") && /Registrante/i.test(out),
+        debrief:
+          "Con eso ya tenés un punto de partida. Ahora busquemos a una persona.",
+      },
+      {
+        explain:
+          "'sherlock' busca un mismo nombre de usuario en muchos sitios: si alguien reusa su alias, lo encontrás en todos.",
+        task: "Escribí: sherlock kamba",
+        hint: "sherlock kamba",
+        check: (cmd, out) => usedTool(cmd, "sherlock") && /\[\+\]/.test(out),
+        debrief:
+          "Reusar el mismo alias conecta todos tus perfiles: eso es lo que rompe el anonimato. Defensa/OPSEC: separá identidades y minimizá lo que publicás.",
+      },
+    ],
+  },
 ];
 
 /** Motor de lecciones: mantiene el paso actual de la lección activa. */

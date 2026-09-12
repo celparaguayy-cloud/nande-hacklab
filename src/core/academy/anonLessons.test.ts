@@ -53,4 +53,18 @@ describe("Anonimato / OPSEC — comandos reales y lecciones completables", () =>
     const clean = term.execute("exiftool -all= foto.jpg");
     expect(steps[1].check("exiftool -all= foto.jpg", clean)).toBe(true);
   });
+
+  it("l-cripto: identificar y romper un hash débil", () => {
+    const steps = lesson("l-cripto").steps;
+    const c1 = "hashid 5f4dcc3b5aa765d61d8327deb882cf99";
+    const c2 = "crack 5f4dcc3b5aa765d61d8327deb882cf99";
+    expect(steps[0].check(c1, term.execute(c1))).toBe(true);
+    expect(steps[1].check(c2, term.execute(c2))).toBe(true);
+  });
+
+  it("l-osint: whois y sherlock reúnen rastro público", () => {
+    const steps = lesson("l-osint").steps;
+    expect(steps[0].check("whois banco.nande", term.execute("whois banco.nande"))).toBe(true);
+    expect(steps[1].check("sherlock kamba", term.execute("sherlock kamba"))).toBe(true);
+  });
 });
