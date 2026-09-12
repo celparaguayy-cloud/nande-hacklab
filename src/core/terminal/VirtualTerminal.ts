@@ -849,6 +849,12 @@ export class VirtualTerminal {
             isError: false,
           };
 
+        case "guia":
+        case "guía":
+        case "empezar":
+        case "start":
+          return { output: this.guia(), isError: false };
+
         case "ip":
           return this.executeIp(commandArgs);
 
@@ -3538,9 +3544,36 @@ export class VirtualTerminal {
     };
   }
 
+  /** Guía de arranque: qué hacer en los primeros minutos. */
+  private guia(): string {
+    return [
+      "╔══════════════════════════════════════════╗",
+      "║   CÓMO EMPEZAR EN ÑANDE — 4 pasos         ║",
+      "╚══════════════════════════════════════════╝",
+      "",
+      "1) Abrí la app «Misión» (en el dock): te dice tu",
+      "   PRÓXIMO PASO exacto y te lleva al lugar.",
+      "",
+      "2) ¿Nunca hackeaste? Abrí «Learn» y hacé la",
+      "   lección de nmap. Se aprende haciendo.",
+      "",
+      "3) En esta Terminal probá:",
+      "     nmap server.nande      (ver puertos)",
+      "     curl http://banco.nande/   (una web real)",
+      "     learn                  (lecciones guiadas)",
+      "",
+      "4) ¿Trabado? Escribí  hint  para una pista, o",
+      "   preguntale a «La Mani» (el maní flotante).",
+      "",
+      "Tip: 'help' lista TODOS los comandos.",
+      "",
+    ].join("\n");
+  }
+
   private help(): string {
     return [
       "Comandos disponibles:",
+      "  guia             ⭐ Cómo empezar (leé esto primero)",
       "",
       "  pwd              Muestra el directorio actual",
       "  cd <ruta>        Cambia de directorio",
