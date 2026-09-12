@@ -23,6 +23,7 @@ export type EventType =
   | "achievement.unlocked"
   | "mission.completed"
   | "lab.solved"
+  | "company.attack"
   // Mundo social vivo.
   | "community.joined"
   // Economía y mercado.

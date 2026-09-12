@@ -31,6 +31,7 @@ import { SecurityTools } from "./security/SecurityTools";
 import { Academy } from "./academy/Academy";
 import { LessonEngine } from "./academy/Lessons";
 import { Progression } from "./game/Progression";
+import { PlayerCompany } from "./game/PlayerCompany";
 import { Notoriety } from "./game/Notoriety";
 import { Campaign } from "./campaign/Campaign";
 import { Mentor } from "./mentor/Mentor";
@@ -82,6 +83,8 @@ export class VirtualKernel {
   public academy: Academy;
   public lessons: LessonEngine;
   public player: Progression;
+  public company: PlayerCompany;
+  private lastCompanyDay = 0;
   public notoriety: Notoriety;
   public campaign: Campaign;
   public mentor: Mentor;
@@ -207,6 +210,7 @@ export class VirtualKernel {
     this.academy = new Academy();
     this.lessons = new LessonEngine();
     this.player = new Progression(this.events);
+    this.company = new PlayerCompany();
     this.missions = new MissionEngine(this.player, this.events);
     this.store = new Store(this.registry);
     this.economy = new Economy(this.events);
@@ -635,6 +639,20 @@ export class VirtualKernel {
       if (online.length > 0) {
         const who = online[Math.floor(Math.random() * online.length)];
         this.chat.incoming(who, worldState.clock.tick);
+      }
+    }
+
+    // Tu empresa: factura cada día y, cada tanto, alguien la ataca. Si
+    // activaste el control correcto, la repelés; si no, perdés plata.
+    const compDay = Math.floor(worldState.clock.tick / 1440) + 1;
+    if (compDay !== this.lastCompanyDay) {
+      this.lastCompanyDay = compDay;
+      if (this.company.exists()) {
+        this.company.earnDay();
+        if (compDay % 3 === 0) {
+          const r = this.company.receiveAttack(compDay);
+          if (r) this.events.emit("company.attack", r);
+        }
       }
     }
 

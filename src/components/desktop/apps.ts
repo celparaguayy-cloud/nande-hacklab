@@ -113,6 +113,16 @@ export const APPS: AppMeta[] = [
     dock: true,
   },
   {
+    id: "company",
+    name: "Mi Empresa",
+    title: "Mi Empresa — fundá y defendé",
+    summary: "Fundá tu empresa y defendela de los ataques",
+    category: "Mundo",
+    from: "#fca5a5",
+    to: "#b45309",
+    dock: true,
+  },
+  {
     id: "team",
     name: "Equipo",
     title: "ÑANDE Equipo — tus especialistas",
