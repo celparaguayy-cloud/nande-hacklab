@@ -1033,6 +1033,10 @@ export class VirtualTerminal {
         case "ctf-gen":
           return this.retoCmd(commandArgs);
 
+        case "opsec":
+        case "rastro":
+          return this.opsecCmd();
+
         case "snapshot":
         case "foto":
           return this.snapshotCmd(commandArgs);
@@ -2435,6 +2439,32 @@ export class VirtualTerminal {
       `al recurso y la bandera se captura sola al verla en la respuesta.\n` +
       `Empezá con: nmap ${ch.hostname}   y   curl http://${ch.hostname}/\n`
     );
+  }
+
+  /**
+   * OPSEC — tu rastro. Cada técnica ofensiva ruidosa que ejecutaste, ¿te dejó
+   * expuesto (sin anonimato) o el mundo sólo vio un nodo de salida?
+   */
+  private opsecCmd(): { output: string; isError: boolean } {
+    const op = this.kernel.opsec;
+    const s = op.state();
+    const tl = op.timeline(8);
+    const lines = tl.map(
+      (t) => `  t=${String(t.tick).padStart(5)} ${t.exposed ? "🔴 EXPUESTO" : "🟢 enmascarado"}  ${t.mitreId} ${t.technique}  (origen visto: ${t.seenSource})`,
+    );
+    return {
+      output:
+        `═══ OPSEC · tu rastro ═══\n` +
+        `Anonimato: ${s.tor ? `🟢 activo (salida ${s.exitIp})` : "🔴 apagado (tu IP real queda expuesta)"}\n` +
+        `Ataques expuestos: ${s.exposedCount} · enmascarados: ${s.maskedCount} · redadas: ${s.busts}\n` +
+        `Calor actual: ${s.heat}\n\n` +
+        (lines.length ? lines.join("\n") + "\n" : "  (todavía no ejecutaste técnicas ruidosas)\n") +
+        (op.atRisk()
+          ? `\n⚠ Estás atacando sin anonimato. Enrutá antes de seguir: anon on\n`
+          : "") +
+        `\nLección: el anonimato no es cosmético. Sin él, tus técnicas te delatan.\n`,
+      isError: false,
+    };
   }
 
   /** Al comprometer el dominio, el mundo reacciona (bandera + consecuencias). */

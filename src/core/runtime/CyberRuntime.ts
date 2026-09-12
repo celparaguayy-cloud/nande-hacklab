@@ -158,6 +158,18 @@ export class CyberRuntime {
     };
   }
 
+  /* ---------------------------------------------------------- opsec API */
+
+  /** Rastro OPSEC: cuánto te expusiste al atacar sin anonimato. */
+  get opsec() {
+    const op = this.k.opsec;
+    return {
+      state: () => op.state(),
+      timeline: (n = 20) => op.timeline(n),
+      atRisk: () => op.atRisk(),
+    };
+  }
+
   /* ------------------------------------------------------------ ctf API */
 
   /** Retos procedurales: bandera real detrás de una app web real. */
