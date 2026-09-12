@@ -53,6 +53,16 @@ export const APPS: AppMeta[] = [
     dock: true,
   },
   {
+    id: "code",
+    name: "Código",
+    title: "ÑANDE Code — programá tus herramientas",
+    summary: "Escribí, compilá y corré tus propias tools",
+    category: "Desarrollo",
+    from: "#86efac",
+    to: "#15803d",
+    dock: true,
+  },
+  {
     id: "mission",
     name: "Misión",
     title: "Centro de Mando — Operación Génesis",

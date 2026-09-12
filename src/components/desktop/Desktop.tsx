@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { sound } from "../../core/audio/Sound";
 import WindowManager from "../window/WindowManager";
 import Terminal from "../terminal/Terminal";
+import { CodeIDE } from "../code/CodeIDE";
 import { Files } from "../files/Files";
 import { ProcessMonitor } from "../processes/ProcessMonitor";
 import { Settings } from "../settings/Settings";
@@ -249,6 +250,7 @@ function Desktop() {
   const apps = useMemo(
     () => ({
       terminal: <Terminal kernel={kernel} />,
+      code: <CodeIDE kernel={kernel} />,
       files: <Files kernel={kernel} />,
       processes: <ProcessMonitor kernel={kernel} />,
       settings: <Settings kernel={kernel} />,

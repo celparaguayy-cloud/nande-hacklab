@@ -186,6 +186,25 @@ export class ToolRuntime {
     return c.compiled;
   }
 
+  /**
+   * Compila y ejecuta código suelto (sin instalarlo), con las capacidades
+   * inferidas del propio código. Lo usa el IDE para el botón "Probar".
+   */
+  runSource(source: string, args: string[] = []): RunResult {
+    const c = this.sandbox.compile(source);
+    if (!c.ok || !c.compiled) {
+      return {
+        ok: false,
+        output: "",
+        error: c.errors.join("; ") || "no compila",
+      };
+    }
+    return this.sandbox.run(c.compiled, args, {
+      host: this.host,
+      capabilities: inferCapabilities(source),
+    });
+  }
+
   /** Ejecuta una herramienta instalada con sus capacidades declaradas. */
   run(name: string, args: string[] = []): RunResult {
     const tool = this.get(name);
