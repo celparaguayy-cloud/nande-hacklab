@@ -337,6 +337,77 @@ export const COURSES: Course[] = [
     tools: ["crackmapexec", "maltego", "siem"],
     labs: [],
   },
+  // ─── ÑANDE 5.0 · el universo vivo: aprendé usando las herramientas propias ───
+  {
+    id: "nandeshark",
+    stage: 13,
+    title: "5.0 — NandeShark: leer el tráfico real",
+    level: "avanzado",
+    simple:
+      "Un sniffer captura lo que viaja por la red. Si algo va sin cifrar (HTTP), lo ves tal cual: hasta una contraseña.",
+    summary:
+      "Análisis de tráfico sobre paquetes REALES del mundo: filtros estilo Wireshark, seguir un stream y cazar credenciales en claro. En la terminal: 'sniff', 'sniff creds', 'sniff follow <host>'. También hay app: NandeShark.",
+    requires: ["redes"],
+    topics: ["sniffing", "HTTP vs HTTPS", "credenciales en claro", "filtros de captura", "análisis de tráfico"],
+    tools: ["wireshark", "tcpdump"],
+    labs: [],
+  },
+  {
+    id: "active-directory",
+    stage: 13,
+    title: "5.0 — Directorio Activo y NandeBlood",
+    level: "experto",
+    simple:
+      "En las empresas, las cuentas y permisos viven en un 'directorio'. A veces una cadena de permisos te lleva de un usuario simple a mandar en todo.",
+    summary:
+      "AD como grafo de ataque (estilo BloodHound): Kerberoasting, abuso de ACLs (GenericAll, ForceChangePassword), sesiones y camino a Domain Admins. En la terminal: 'nandeblood', 'kerberoast <cuenta>', 'crack-tgs', 'abuse <origen> <destino>'. App: NandeBlood.",
+    requires: ["pentesting", "passwords"],
+    topics: ["Active Directory", "Kerberos", "Kerberoasting", "abuso de ACL", "rutas de ataque", "Domain Admins"],
+    tools: ["crackmapexec", "hydra", "hashcat"],
+    labs: [],
+  },
+  {
+    id: "purple-mitre",
+    stage: 14,
+    title: "5.0 — Purple Team con MITRE ATT&CK",
+    level: "experto",
+    simple:
+      "Cada cosa que hace un atacante tiene un nombre en un mapa (MITRE ATT&CK). Acá ves cómo tus propios ataques encienden esas detecciones.",
+    summary:
+      "El correlador mapea tus acciones ofensivas REALES a técnicas de ATT&CK y las muestra por táctica. Enfrentá al Red Team autónomo (NPC) que corre una kill-chain de verdad y defendé. En la terminal: 'mitre', 'redteam', 'redteam expulsar'. Panel: SOC.",
+    requires: ["purple-team", "active-directory"],
+    topics: ["MITRE ATT&CK", "detección", "correlación", "red team autónomo", "respuesta a incidentes"],
+    tools: ["siem", "ids", "metasploit"],
+    labs: [],
+  },
+  {
+    id: "opsec-5",
+    stage: 14,
+    title: "5.0 — OPSEC: no dejar rastro",
+    level: "experto",
+    simple:
+      "Atacar hace ruido. Si no cuidás tu rastro, te rastrean y cae una redada. El anonimato no es un botón mágico.",
+    summary:
+      "El mundo te rastrea cuando atacás sin anonimato: tu IP real queda expuesta, el calor sube y cae una redada. Con la red de anonimato el mundo sólo ve el nodo de salida. En la terminal: 'anon on', 'opsec'. Lección: la técnica sin OPSEC no sirve.",
+    requires: ["anonimato", "active-directory"],
+    topics: ["OPSEC", "rastreo", "calor / redada", "nodo de salida", "disciplina operativa"],
+    tools: ["proxychains", "exiftool", "sherlock"],
+    labs: [],
+  },
+  {
+    id: "ctf-procedural",
+    stage: 13,
+    title: "5.0 — Retos procedurales (rejugables)",
+    level: "avanzado",
+    simple:
+      "Retos que se generan solos, siempre distintos: cada uno esconde una bandera real detrás de una web real.",
+    summary:
+      "Practicá recon y fallas web con retos infinitos: robots.txt que filtra rutas, backups expuestos, control de acceso roto en /api/v1. La bandera es real y se captura al acceder al recurso. En la terminal: 'reto', 'reto nuevo', luego 'nmap' y 'curl'.",
+    requires: ["web-security", "reconocimiento"],
+    topics: ["recon web", "robots.txt", "archivos expuestos", "control de acceso", "rejugabilidad"],
+    tools: ["curl", "nmap", "ffuf"],
+    labs: [],
+  },
 ];
 
 export class Academy {
