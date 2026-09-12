@@ -103,6 +103,18 @@ export function Files({ kernel }: FilesProps) {
     }
   };
 
+  const renameEntry = (path: string) => {
+    const name = path.split("/").pop() || path;
+    const nuevo = window.prompt(`Nuevo nombre para "${name}":`, name);
+    if (!nuevo || nuevo === name) return;
+    try {
+      kernel.filesystem.rename(path, nuevo);
+      refreshFiles();
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "No se pudo renombrar.");
+    }
+  };
+
   const openFile = (path: string) => {
     try {
       const content = kernel.filesystem.readFile(path);
@@ -365,6 +377,13 @@ export function Files({ kernel }: FilesProps) {
                   >
                     {entry.permissions}
                   </span>
+                </button>
+
+                <button
+                  onClick={() => renameEntry(entry.path)}
+                  title="Renombrar"
+                >
+                  ✏️
                 </button>
 
                 <button

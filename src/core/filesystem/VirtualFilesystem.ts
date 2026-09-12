@@ -278,6 +278,47 @@ export class VirtualFilesystem {
     this.saveToStorage();
   }
 
+  /**
+   * Mueve/renombra una entrada. Si es un directorio, arrastra a todos sus
+   * hijos. Falla si el origen no existe o el destino ya está ocupado.
+   */
+  move(from: string, to: string): void {
+    if (from === "/") throw new Error("No se puede mover el directorio raíz");
+    if (!this.exists(from)) throw new Error(`No existe: ${from}`);
+    if (this.exists(to)) throw new Error(`El destino ya existe: ${to}`);
+    if (to === from) return;
+    if (to.startsWith(`${from}/`)) {
+      throw new Error("No se puede mover un directorio dentro de sí mismo");
+    }
+
+    const target = this.files.get(from)!;
+
+    if (target.type === "directory") {
+      const prefix = `${from}/`;
+      // Reubicar hijos primero.
+      for (const [p, f] of [...this.files.entries()]) {
+        if (p.startsWith(prefix)) {
+          const nuevo = to + p.slice(from.length);
+          this.files.delete(p);
+          this.files.set(nuevo, { ...f, path: nuevo });
+        }
+      }
+    }
+
+    this.files.delete(from);
+    this.files.set(to, { ...target, path: to });
+    this.saveToStorage();
+  }
+
+  /** Renombra una entrada dentro de su mismo directorio. */
+  rename(path: string, newName: string): void {
+    const clean = newName.trim().replace(/\//g, "");
+    if (!clean) throw new Error("Nombre inválido");
+    const parent = path.slice(0, path.lastIndexOf("/")) || "";
+    const to = `${parent}/${clean}`;
+    this.move(path, to);
+  }
+
   chmod(path: string, permissions: string): void {
     const file = this.files.get(path);
 
