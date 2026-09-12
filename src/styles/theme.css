@@ -893,6 +893,16 @@
     width: 42px;
     height: 42px;
   }
+
+  /* En iOS, un input de menos de 16px hace que el navegador ZOOMEE solo al
+     tocarlo, y el layout salta feo. Se fuerzan a 16px los campos donde se
+     tipea (terminal, barra de direcciones, formularios de laboratorio). */
+  .nd-term__input,
+  .br__addr input,
+  .nande-site input,
+  .nande-site textarea {
+    font-size: 16px;
+  }
 }
 
 /* ------------------------------------------------------------------
