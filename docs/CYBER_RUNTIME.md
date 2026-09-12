@@ -79,6 +79,33 @@ runtime **es** el mundo:
 5. **Firewall real**: bloquear el puerto 22 lo oculta del escaneo; permitirlo lo
    devuelve.
 
+## Subsistemas 5.0 sobre el runtime
+
+Todo lo de 5.0 se apoya en el keystone y comparte su mundo/reloj/eventos.
+Escribí `universo` en la terminal para el índice vivo.
+
+| Subsistema        | Archivo                         | Comandos                                   |
+| ----------------- | ------------------------------- | ------------------------------------------ |
+| NandeShark        | `core/net/PacketCapture.ts`     | `sniff`, `sniff creds`, `sniff follow`     |
+| NandeBlood (AD)   | `core/ad/Directory.ts`          | `nandeblood`, `kerberoast`, `crack-tgs`, `abuse` |
+| MITRE (Purple)    | `core/soc/Mitre.ts`             | `mitre`                                    |
+| Red team autónomo | `core/game/RedTeamAgent.ts`     | `redteam`, `redteam expulsar`             |
+| CTF procedural    | `core/game/CtfForge.ts`         | `reto`, `reto nuevo`                        |
+| OPSEC tracer      | `core/game/OpsecTracer.ts`      | `opsec`                                    |
+
+**Las consecuencias se propagan** — el bucle completo, todo con estado real:
+
+1. Atacás (ej. `kerberoast`, `abuse`) → el Directorio muta y emite
+   `attack.technique`.
+2. El correlador MITRE mapea esa técnica y la muestra (`mitre`, panel SOC).
+3. El OpsecTracer ve el mismo evento: si no estás en Tor, tu IP real queda
+   expuesta → sube el calor → puede caer una redada.
+4. En paralelo, el Red Team NPC corre su propia kill-chain con operaciones
+   reales del runtime (login, service.stop), que el SOC y MITRE detectan
+   igual que las tuyas.
+
+Ninguna de esas detecciones se fabrica: nacen del ataque real.
+
 ## Restricciones de seguridad (invariantes)
 
 Todo lo anterior opera **exclusivamente sobre objetos virtuales**. Cero ejecución

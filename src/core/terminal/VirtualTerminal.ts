@@ -1037,6 +1037,10 @@ export class VirtualTerminal {
         case "rastro":
           return this.opsecCmd();
 
+        case "universo":
+        case "5.0":
+          return { output: this.universoText(), isError: false };
+
         case "snapshot":
         case "foto":
           return this.snapshotCmd(commandArgs);
@@ -4117,6 +4121,53 @@ export class VirtualTerminal {
     ].join("\n");
   }
 
+  /** Índice del universo 5.0: un vistazo vivo de lo que existe y su estado. */
+  private universoText(): string {
+    const k = this.kernel;
+    const reto = k.ctfForge.current();
+    const rt = k.redteam;
+    const dom = k.directory.domainOwned();
+    const opsec = k.opsec.state();
+    return [
+      "╔══════════════════════════════════════════════════╗",
+      "║   ÑANDE 5.0 · el universo cibernético vivo        ║",
+      "╚══════════════════════════════════════════════════╝",
+      "Un solo mundo, un reloj, un sistema de eventos. Todo lo que hacés",
+      "con una herramienta lo ven las demás: no hay salida falsa.",
+      "",
+      "🦈 NandeShark — tráfico real de la red",
+      "   sniff · sniff creds · sniff follow <host>",
+      `   capturados ahora: ${k.shark.count()} paquete(s)`,
+      "",
+      "🩸 NandeBlood — Directorio Activo como grafo de ataque",
+      "   nandeblood · kerberoast <cuenta> · crack-tgs · abuse <o> <d>",
+      `   dominio ${k.directory.domain}: ${dom ? "🔴 COMPROMETIDO" : "en pie"}`,
+      "",
+      "🎯 MITRE ATT&CK — Purple Team (tus ataques encienden detecciones)",
+      "   mitre",
+      `   técnicas detectadas: ${k.mitre.count()}`,
+      "",
+      "🤖 Red Team autónomo — un adversario NPC ataca de verdad",
+      "   redteam · redteam expulsar",
+      `   rival: ${rt.rival()} · fase: ${rt.currentPhase()}${rt.compromised() ? " (🔴)" : ""}`,
+      "",
+      "🎲 Retos procedurales — bandera real, rejugables",
+      "   reto · reto nuevo",
+      reto ? `   activo: ${reto.hostname} (${reto.clue})` : "   (sin reto activo)",
+      "",
+      "🕵️ OPSEC — el mundo te rastrea si atacás sin anonimato",
+      "   opsec · anon on",
+      `   anonimato: ${opsec.tor ? "🟢 activo" : "🔴 apagado"} · calor: ${opsec.heat}`,
+      "",
+      "🛡️ Blue Team — defendé tu data center",
+      "   soc · defensa · contener <id>",
+      "",
+      "Apps del escritorio: NandeShark, NandeBlood, SOC. Academia: cursos 5.0",
+      "(nandeshark, active-directory, purple-mitre, opsec-5, ctf-procedural).",
+      "",
+    ].join("\n");
+  }
+
   private help(): string {
     return [
       "Comandos disponibles:",
@@ -4213,6 +4264,16 @@ export class VirtualTerminal {
       "  firewall block <host> <puerto>  Bloquea un puerto",
       "  firewall allow <host> <puerto>  Permite un puerto",
       "  soc / soc alerts   Centro de operaciones: alertas de eventos reales",
+      "  defensa / contener <id>   Blue Team: incidentes de tu data center",
+      "",
+      "ÑANDE 5.0 — el universo vivo (escribí 'universo' para el índice):",
+      "  sniff [filtro]     NandeShark: capturá el tráfico REAL (creds en claro)",
+      "  nandeblood         AD: grafo de ataque y ruta a Domain Admins",
+      "  kerberoast · crack-tgs · abuse   Escalada en el dominio virtual",
+      "  mitre              Purple: técnicas ATT&CK detectadas por tus acciones",
+      "  redteam [expulsar] Adversario NPC que ataca de verdad; defendé",
+      "  reto [nuevo]       Retos procedurales con bandera real (rejugables)",
+      "  opsec              Tu rastro: exposición, calor y redadas",
       "",
       "Hardware y WiFi:",
       "  neofetch         Muestra tu PC virtual (specs)",
