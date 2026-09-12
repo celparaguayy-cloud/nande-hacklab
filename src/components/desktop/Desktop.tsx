@@ -418,23 +418,52 @@ function Desktop() {
           </div>
 
           <div className="nd-launcher__body">
-            <div className="nd-launcher__apps">
-              {visibleApps.map((app) => (
-                <button
-                  key={app.id}
-                  className="nd-app-tile"
-                  onClick={() => openWindow(app.id)}
-                  title={app.summary}
-                >
-                  <AppIcon id={app.id} size={44} />
-                  <span className="nd-app-tile__label">{app.name}</span>
-                </button>
-              ))}
+            {/* "Todas" sin búsqueda: agrupado por categoría, más ordenado.
+                Con búsqueda o categoría elegida: grilla plana. */}
+            {category === null && !query.trim() ? (
+              <div className="nd-launcher__grouped">
+                {CATEGORIES.map((cat) => {
+                  const catApps = visibleApps.filter((a) => a.category === cat);
+                  if (catApps.length === 0) return null;
+                  return (
+                    <div key={cat} className="nd-launcher__group">
+                      <div className="nd-launcher__group-title">{cat}</div>
+                      <div className="nd-launcher__apps">
+                        {catApps.map((app) => (
+                          <button
+                            key={app.id}
+                            className="nd-app-tile"
+                            onClick={() => openWindow(app.id)}
+                            title={app.summary}
+                          >
+                            <AppIcon id={app.id} size={44} />
+                            <span className="nd-app-tile__label">{app.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="nd-launcher__apps">
+                {visibleApps.map((app) => (
+                  <button
+                    key={app.id}
+                    className="nd-app-tile"
+                    onClick={() => openWindow(app.id)}
+                    title={app.summary}
+                  >
+                    <AppIcon id={app.id} size={44} />
+                    <span className="nd-app-tile__label">{app.name}</span>
+                  </button>
+                ))}
 
-              {visibleApps.length === 0 && (
-                <p className="nd-empty">No hay aplicaciones para «{query}».</p>
-              )}
-            </div>
+                {visibleApps.length === 0 && (
+                  <p className="nd-empty">No hay aplicaciones para «{query}».</p>
+                )}
+              </div>
+            )}
 
             <div className="nd-launcher__cats">
               <button

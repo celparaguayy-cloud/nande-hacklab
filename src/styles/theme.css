@@ -333,6 +333,30 @@
   align-content: start;
 }
 
+/* Vista "Todas" agrupada por categoría: contenedor que scrollea, con
+   secciones tituladas. Cada sección reusa la grilla de apps. */
+.nd-launcher__grouped {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 4px 0 12px;
+  align-content: start;
+}
+
+.nd-launcher__group-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--nd-text-dim, #8b98a5);
+  padding: 10px 16px 2px;
+}
+
+.nd-launcher__grouped .nd-launcher__apps {
+  overflow: visible;
+  padding: 4px 12px;
+}
+
 .nd-launcher__cats {
   width: 152px;
   min-height: 268px;
