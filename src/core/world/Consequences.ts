@@ -69,6 +69,15 @@ const REACTIONS: Record<string, Reaction> = {
     notoriety: 8,
     heat: 10,
   },
+  "ND{xss_reflejado}": {
+    headline: {
+      title: "Yvoty Blog inyectaba scripts: el buscador no filtraba nada",
+      body: "Una búsqueda con una etiqueta <script> se ejecutaba en el navegador de cualquiera que abriera el enlace.",
+      category: "Seguridad",
+    },
+    notoriety: 7,
+    heat: 8,
+  },
   "ND{cmd_injection_pwned}": {
     stock: { ticker: "PYT", factor: -0.1 },
     headline: {

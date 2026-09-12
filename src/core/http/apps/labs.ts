@@ -35,6 +35,17 @@ export class BlogApp implements WebApp {
       ? `<div class="lab-reflect">Resultados para: ${q}</div>`
       : "";
 
+    // El "navegador" de ÑANDE detecta el script inyectado y confirma el XSS:
+    // ahí se otorga la bandera, igual que en los demás laboratorios.
+    const disparoXss = /<script[\s>]/i.test(q);
+    const confirmado = disparoXss
+      ? notice(
+          "⚡ El &lt;script&gt; se ejecutó: XSS reflejado confirmado. " +
+            "Bandera: ND{xss_reflejado}",
+          "ok",
+        )
+      : "";
+
     const body = `
 <p>El blog de la ciudad. Buscá una nota.</p>
 <form method="GET" action="/buscar">
@@ -42,6 +53,7 @@ export class BlogApp implements WebApp {
   <button type="submit">Buscar</button>
 </form>
 ${reflejo}
+${confirmado}
 <p class="lab-hint">Pista: lo que buscás se muestra tal cual, sin filtrar.
 Probá <code>&lt;script&gt;alert(1)&lt;/script&gt;</code> en la búsqueda.</p>`;
 
