@@ -776,6 +776,102 @@ export const LESSONS: Lesson[] = [
       },
     ],
   },
+
+  /* ===================================================================
+     NUBE — configuraciones inseguras (buckets/IAM/contenedores).
+     =================================================================== */
+  {
+    id: "l-cloud",
+    title: "Nube: un bucket público lo lee cualquiera",
+    level: "avanzado",
+    summary: "Leer un bucket mal configurado y entender el default seguro.",
+    concept:
+      "En la nube, el almacenamiento (buckets) debe ser privado por defecto. Uno marcado 'público' lo lee cualquiera de Internet — y ahí suele haber secretos (.env, backups).",
+    reward: { xp: 150, coins: 110 },
+    steps: [
+      {
+        explain:
+          "El servicio de nube tiene un bucket marcado PÚBLICO. Leelo directo con curl, sin credenciales.",
+        task: "Escribí: curl http://cloud.nande/buckets/nimbus-backups",
+        hint: "curl http://cloud.nande/buckets/nimbus-backups",
+        check: (cmd, out) => usedTool(cmd, "curl") && /cloud_bucket_publico/i.test(out),
+        debrief:
+          "Un bucket público expone todo a Internet. Defensa: privado por defecto, cifrado, y nunca guardar secretos ahí; revisar accesos periódicamente.",
+      },
+    ],
+  },
+
+  /* ===================================================================
+     DEVSECOPS — secretos en el repo y dependencias vulnerables.
+     =================================================================== */
+  {
+    id: "l-devsecops",
+    title: "DevSecOps: el secreto que quedó en git",
+    level: "avanzado",
+    summary: "Encontrar un token filtrado en la historia de git.",
+    concept:
+      "Borrar un archivo con secretos NO los borra: en git quedan en el commit donde se subieron. Por eso nunca hay que commitear credenciales, y si pasa, hay que rotarlas y purgar la historia.",
+    reward: { xp: 150, coins: 110 },
+    steps: [
+      {
+        explain:
+          "En el pipeline hay un repo. Mirá el commit donde subieron config.env 'por error'.",
+        task: "Escribí: curl http://ci.nande/repo/commit/4d5e6f",
+        hint: "curl http://ci.nande/repo/commit/4d5e6f",
+        check: (cmd, out) => usedTool(cmd, "curl") && /devsecops_secreto_filtrado/i.test(out),
+        debrief:
+          "El token seguía ahí aunque borraron el archivo después. Defensa: .gitignore + gestor de secretos, escaneo de secretos en CI, y rotar lo filtrado.",
+      },
+    ],
+  },
+
+  /* ===================================================================
+     THREAT INTEL — atribuir con evidencia, no con rumores.
+     =================================================================== */
+  {
+    id: "l-threatintel",
+    title: "Threat Intel: atribuir con evidencia",
+    level: "avanzado",
+    summary: "Atribuir un ataque cruzando IOCs de confianza con el actor correcto.",
+    concept:
+      "La inteligencia de amenazas cruza indicadores (IOCs) con actores conocidos. Clave: usar indicadores de CONFIANZA ALTA. Atribuir por un rumor de baja confianza puede acusar al equivocado.",
+    reward: { xp: 150, coins: 110 },
+    steps: [
+      {
+        explain:
+          "Atribuí el incidente usando un IOC de confianza alta y el actor cuya infraestructura coincide.",
+        task: 'Escribí: curl "http://ti.nande/atribuir?ioc=nande_lock&actor=gris"',
+        hint: 'curl "http://ti.nande/atribuir?ioc=nande_lock&actor=gris"',
+        check: (cmd, out) => usedTool(cmd, "curl") && /ti_atribucion/i.test(out),
+        debrief:
+          "Atribuiste bien y con fundamento. Regla: nunca atribuir con un solo indicador débil; correlacioná varias fuentes de confianza.",
+      },
+    ],
+  },
+
+  /* ===================================================================
+     INGENIERÍA SOCIAL — reconocer un phishing.
+     =================================================================== */
+  {
+    id: "l-phishing",
+    title: "Ingeniería social: cazar un phishing",
+    level: "intermedio",
+    summary: "Analizar un correo y reconocer las señales de engaño.",
+    concept:
+      "La mayoría de los ataques empiezan por una persona, no por un exploit. El phishing usa remitentes parecidos, enlaces engañosos y urgencia para que hagas clic sin pensar.",
+    reward: { xp: 120, coins: 90 },
+    steps: [
+      {
+        explain:
+          "Analizá un correo sospechoso con phish-analyzer: te marca las señales de engaño.",
+        task: "Escribí: phish-analyzer correo-01",
+        hint: "phish-analyzer correo-01",
+        check: (cmd, out) => usedTool(cmd, "phish-analyzer") && /phishing/i.test(out),
+        debrief:
+          "Remitente falso, enlace mentiroso y urgencia: el combo clásico. Defensa: no hagas clic apurado, verificá el dominio real y activá segundo factor. Ante la duda, no abras.",
+      },
+    ],
+  },
 ];
 
 /** Motor de lecciones: mantiene el paso actual de la lección activa. */

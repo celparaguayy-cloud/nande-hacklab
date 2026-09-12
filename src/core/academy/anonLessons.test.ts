@@ -87,4 +87,20 @@ describe("Anonimato / OPSEC — comandos reales y lecciones completables", () =>
     const c2 = "soc alerts";
     expect(steps[1].check(c2, term.execute(c2))).toBe(true);
   });
+
+  it("l-cloud / l-devsecops / l-threatintel: labs vía curl dan su bandera", () => {
+    const cloud = "curl http://cloud.nande/buckets/nimbus-backups";
+    expect(lesson("l-cloud").steps[0].check(cloud, term.execute(cloud))).toBe(true);
+
+    const dev = "curl http://ci.nande/repo/commit/4d5e6f";
+    expect(lesson("l-devsecops").steps[0].check(dev, term.execute(dev))).toBe(true);
+
+    const ti = 'curl "http://ti.nande/atribuir?ioc=nande_lock&actor=gris"';
+    expect(lesson("l-threatintel").steps[0].check(ti, term.execute(ti))).toBe(true);
+  });
+
+  it("l-phishing: phish-analyzer reconoce el engaño", () => {
+    const c = "phish-analyzer correo-01";
+    expect(lesson("l-phishing").steps[0].check(c, term.execute(c))).toBe(true);
+  });
 });
