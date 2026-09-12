@@ -962,6 +962,10 @@ export class VirtualTerminal {
         case "blue":
           return this.socCmd(commandArgs);
 
+        case "snapshot":
+        case "foto":
+          return this.snapshotCmd(commandArgs);
+
         case "code":
           return this.codeCmd(commandArgs);
 
@@ -2061,6 +2065,41 @@ export class VirtualTerminal {
     return {
       output: `Alertas del SOC (${alerts.length}):\n` + lines.join("\n") + "\n",
       isError: false,
+    };
+  }
+
+  /** snapshot create|list|restore|rm <nombre> — fotos del mundo (Experimento G). */
+  private snapshotCmd(args: string[]): { output: string; isError: boolean } {
+    const sub = args[0] ?? "list";
+    const name = args.slice(1).join(" ").trim();
+
+    if (sub === "list" || sub === "ls") {
+      const snaps = this.kernel.snapshots.list();
+      if (snaps.length === 0) {
+        return { output: "No hay fotos. Creá una: snapshot create <nombre>\n", isError: false };
+      }
+      const lines = snaps.map((s) => `  ${s.name.padEnd(20)} ${s.keys} claves  (t=${s.tick})`);
+      return { output: `Fotos guardadas:\n${lines.join("\n")}\n`, isError: false };
+    }
+
+    if (sub === "create" || sub === "save") {
+      const r = this.kernel.snapshots.create(name);
+      return { output: `${r.ok ? "✔" : "✘"} ${r.message}\n`, isError: !r.ok };
+    }
+
+    if (sub === "restore" || sub === "load") {
+      const r = this.kernel.snapshots.restore(name);
+      return { output: `${r.ok ? "✔" : "✘"} ${r.message}\n`, isError: !r.ok };
+    }
+
+    if (sub === "rm" || sub === "delete" || sub === "borrar") {
+      const ok = this.kernel.snapshots.remove(name);
+      return { output: ok ? `✔ borré la foto "${name}"\n` : `✘ no existe "${name}"\n`, isError: !ok };
+    }
+
+    return {
+      output: "uso: snapshot create|list|restore|rm <nombre>\n",
+      isError: true,
     };
   }
 

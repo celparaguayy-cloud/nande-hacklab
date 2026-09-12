@@ -19,6 +19,7 @@ import { ToolRuntime } from "./code/ToolRuntime";
 import { NpcToolForge } from "./code/NpcToolForge";
 import { BlueTeamSOC } from "./security/BlueTeam";
 import { AIService } from "./ai/AIService";
+import { SnapshotManager } from "./os/Snapshots";
 import { BlogApp, PhotosApp, FilesApp, ToolsApp } from "./http/apps/labs";
 import { SsrfApp, JwtNoneApp, RedirectApp } from "./http/apps/labs2";
 import { CsrfApp, LfiApp, UploadApp, DeserializeApp } from "./http/apps/labs3";
@@ -123,6 +124,8 @@ export class VirtualKernel {
   public soc: BlueTeamSOC;
   /** IA opcional: offline por defecto; conectada con la clave del jugador. */
   public ai: AIService;
+  /** Fotos del mundo: guardar/restaurar para experimentar sin miedo. */
+  public snapshots: SnapshotManager;
   private sandboxRng = 0x9e3779b9;
 
   private unsubscribePublisher: () => void;
@@ -273,6 +276,7 @@ export class VirtualKernel {
     this.npcForge = new NpcToolForge(this.toolRuntime);
     this.soc = new BlueTeamSOC(this.events);
     this.ai = new AIService();
+    this.snapshots = new SnapshotManager(() => this.world.getState().clock.tick);
 
     // academy.nande y tools.nande: la biblioteca y la ruta de aprendizaje,
     // navegables como cualquier otro sitio del mundo virtual.
