@@ -236,7 +236,8 @@ Bandera: ND{open_redirect}</pre>
   ${field("Destino (next)", "next", "text", value)}
   <button type="submit">Ir</button>
 </form>
-<p class="lab-hint">Pista: no valida el destino. Probá
-<code>?next=http://sitio-atacante.evil</code>: te manda afuera sin chequear.</p>`;
+<p class="lab-hint">Pista: no valida el destino. Tocá este payload para
+probarlo: <code>/go?next=http://sitio-atacante.evil</code> — te manda afuera
+sin chequear.</p>`;
   }
 }

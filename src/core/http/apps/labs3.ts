@@ -146,8 +146,8 @@ export class LfiApp implements WebApp {
 <nav><a href="/?pg=inicio">Inicio</a> · <a href="/?pg=contacto">Contacto</a></nav>
 ${cuerpo}
 <p class="lab-hint">Pista: la página se arma incluyendo <code>?pg=</code> sin
-filtrar. Salí del directorio de vistas: <code>?pg=../../config/secretos.env</code>
-o <code>?pg=/etc/passwd</code>.</p>`;
+filtrar. Salí del directorio de vistas para leer un archivo de afuera. Tocá
+para probarlo: <code>/?pg=../../config/secretos.env</code></p>`;
 
     return html(page(this.title, body), { debug: { note: `include ${pg}` } });
   }
