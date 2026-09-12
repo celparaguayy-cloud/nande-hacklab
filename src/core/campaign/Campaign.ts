@@ -186,7 +186,92 @@ export const CHAPTERS: Chapter[] = [
     reward: { xp: 800, coins: 700, notoriety: 50 },
     debrief:
       "El golpe salió. La caja de Mbarete/Banco Justicia quedó en cero y todo ÑANDE habla de vos. " +
-      "Sos leyenda del colectivo Año'ῖ. Fin de Operación Génesis.",
+      "Sos leyenda del colectivo Año'ῖ. Fin de Operación Génesis… pero Kuña ya tiene el próximo blanco: " +
+      "Nova Corp, el holding que mueve la nube de medio país. Empieza OPERACIÓN NIMBUS.",
+  },
+
+  /* ===================================================================
+     OPERACIÓN 2 · NIMBUS — asalto a la infraestructura de nube de Nova Corp.
+     Usa todo lo aprendido: DevSecOps, nube (buckets/IAM/contenedores).
+     =================================================================== */
+  {
+    id: "c9",
+    number: 9,
+    title: "Nimbus · La fuga en el pipeline",
+    briefing:
+      "Kuña otra vez. Nova Corp despliega con un pipeline CI/CD descuidado. " +
+      "Alguien subió un archivo con secretos y lo 'borró' después… pero en git nada se borra. " +
+      "Metete en el historial y traé el token de despliegue.",
+    objectives: [
+      {
+        id: "c9-o1",
+        text: "Encontrá el secreto filtrado en la historia de git de ci.nande",
+        flag: "ND{devsecops_secreto_filtrado}",
+        hint: "Mirá el commit donde subieron config.env: curl http://ci.nande/repo/commit/4d5e6f",
+      },
+    ],
+    reward: { xp: 400, coins: 300, notoriety: 15 },
+    debrief:
+      "Con ese token de despliegue tenemos un pie en la nube de Nova. Ahora a buscar dónde guardan los datos.",
+  },
+  {
+    id: "c10",
+    number: 10,
+    title: "Nimbus · La nube abierta",
+    briefing:
+      "Nova guarda todo en 'buckets'. Uno quedó marcado PÚBLICO por error: lo lee cualquiera. " +
+      "Ahí adentro hay un .env con más secretos. Sacalos.",
+    objectives: [
+      {
+        id: "c10-o1",
+        text: "Leé el bucket público de Nimbus y sacá sus secretos",
+        flag: "ND{cloud_bucket_publico}",
+        hint: "curl http://cloud.nande/buckets/nimbus-backups",
+      },
+    ],
+    reward: { xp: 450, coins: 350, notoriety: 15 },
+    debrief:
+      "Tenés credenciales de la nube. Pero para dominarla, hay que escalar privilegios.",
+  },
+  {
+    id: "c11",
+    number: 11,
+    title: "Nimbus · Escalar en la nube",
+    briefing:
+      "La cuenta tiene un rol con permisos de más (Action:* Resource:*). Si lo asumís, sos admin de toda la nube. " +
+      "Eso es IAM mal configurado, el error más caro de la nube.",
+    objectives: [
+      {
+        id: "c11-o1",
+        text: "Asumí el rol permisivo y volvete admin de la cuenta",
+        flag: "ND{iam_permisivo}",
+        hint: 'curl "http://cloud.nande/iam/asumir?rol=deploy-bot"',
+      },
+    ],
+    reward: { xp: 550, coins: 450, notoriety: 20 },
+    debrief:
+      "Sos dueño de la nube de Nova. Queda un último eslabón: un contenedor privilegiado que corre como root.",
+  },
+  {
+    id: "c12",
+    number: 12,
+    title: "Nimbus · El contenedor final",
+    briefing:
+      "El job-07 corre en modo privilegiado: si entrás, tenés el nodo entero. " +
+      "Tomá ese contenedor y cerrá Operación Nimbus. Después, vos decidís qué hacés con tanto poder.",
+    objectives: [
+      {
+        id: "c12-o1",
+        text: "Comprometé el contenedor privilegiado job-07",
+        flag: "ND{contenedor_inseguro}",
+        hint: "curl http://cloud.nande/contenedores/job-07",
+      },
+    ],
+    reward: { xp: 900, coins: 800, notoriety: 60 },
+    debrief:
+      "Nova Corp quedó expuesta de punta a punta: pipeline, datos, identidad y cómputo. " +
+      "Documentaste cada paso: eso convierte un robo en un informe que obliga a arreglar todo. " +
+      "Fin de OPERACIÓN NIMBUS. Sos, oficialmente, leyenda de ÑANDE.",
   },
 ];
 
@@ -215,6 +300,13 @@ export class Campaign {
       if (!raw) return null;
       const s = JSON.parse(raw) as CampaignState;
       if (typeof s.current !== "number" || !Array.isArray(s.done)) return null;
+      // Migración: quien terminó la campaña vieja (8 caps) desbloquea
+      // Operación 2. Si está 'finished' pero quedan capítulos por delante,
+      // reabrimos en el siguiente.
+      if (s.finished && s.current < CHAPTERS.length - 1) {
+        s.finished = false;
+        s.current += 1;
+      }
       return s;
     } catch {
       return null;

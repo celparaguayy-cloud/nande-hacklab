@@ -58,7 +58,7 @@ describe("Operación Génesis: campaña con consecuencias", () => {
     expect(k.campaign.getState().finished).toBe(false);
   });
 
-  it("el arco 'El Golpe' cierra Operación Génesis", () => {
+  it("Génesis (8 caps) da paso a Operación Nimbus, y Nimbus cierra todo", () => {
     resetStorage(); seedRandom();
     const k = new VirtualKernel();
     for (const sig of [
@@ -69,9 +69,19 @@ describe("Operación Génesis: campaña con consecuencias", () => {
       "ND{pivot_interno}",
       "ND{sniff_credenciales}",
       "ND{ssrf_metadata_robada}",
+      "ND{acceso:banco-justicia}",
+    ]) k.captureSignal(sig);
+    // Génesis completa NO cierra la campaña: ahora sigue Operación Nimbus.
+    expect(k.campaign.getState().finished).toBe(false);
+
+    for (const sig of [
+      "ND{devsecops_secreto_filtrado}",
+      "ND{cloud_bucket_publico}",
+      "ND{iam_permisivo}",
     ]) k.captureSignal(sig);
     expect(k.campaign.getState().finished).toBe(false);
-    const r = k.captureSignal("ND{acceso:banco-justicia}");
+
+    const r = k.captureSignal("ND{contenedor_inseguro}");
     expect(k.campaign.getState().finished).toBe(true);
     expect(r.campaignCompleted).toBe(true);
   });
