@@ -73,6 +73,16 @@ export const APPS: AppMeta[] = [
     dock: false,
   },
   {
+    id: "asistente",
+    name: "Ñandú IA",
+    title: "Ñandú — Asistente IA",
+    summary: "Co-piloto de hacking (offline o con tu clave de Groq/Gemini)",
+    category: "Educación",
+    from: "#c4b5fd",
+    to: "#6d28d9",
+    dock: true,
+  },
+  {
     id: "mission",
     name: "Misión",
     title: "Centro de Mando — Operación Génesis",

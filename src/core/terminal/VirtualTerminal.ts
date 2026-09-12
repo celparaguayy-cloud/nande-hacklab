@@ -9,6 +9,21 @@ const DEFAULT_MACS: Record<string, string> = {
   wlan0: "02:00:00:00:00:20",
 };
 
+/** Objetivos del modo "te dan una IP y la vulnerás". Cada uno es un host
+ *  ficticio con una falla real; se completa capturando su bandera. */
+const TARGETS: { ip: string; host: string; nivel: string; pista: string; flag: string }[] = [
+  { ip: "10.10.7.11", host: "blog.yvoty.nande", nivel: "fácil", flag: "ND{xss_reflejado}",
+    pista: "Un buscador que refleja lo que escribís sin filtrar. Pensá en XSS." },
+  { ip: "10.10.7.12", host: "fotos.arandu.nande", nivel: "fácil", flag: "ND{idor_album_ajeno}",
+    pista: "Los álbumes se ven por ?id=. ¿Y si cambiás el número? (IDOR)" },
+  { ip: "10.10.7.13", host: "docs.tape.nande", nivel: "medio", flag: "ND{path_traversal_secreto}",
+    pista: "Un visor que abre public/<archivo>. Salí de esa carpeta con ../ (path traversal)." },
+  { ip: "10.10.7.14", host: "tools.pyta.nande", nivel: "medio", flag: "ND{cmd_injection_pwned}",
+    pista: "Un ping que pasa el host a un comando. Encadená otro con ; (inyección de comandos)." },
+  { ip: "10.10.66.10", host: "caja.interna.nande", nivel: "difícil", flag: "ND{pivoting_red_interna}",
+    pista: "No se ve desde afuera: entrá a server.nande (soporte/Verano2024) y pivotá." },
+];
+
 /** Herramienta de ejemplo que `code new` deja lista para compilar y correr.
  *  Es código real que corre en el sandbox: escanea un host y lista puertos. */
 const STARTER_TOOL = `// mini-scanner — escanea un host del mundo y lista sus puertos.
@@ -861,6 +876,11 @@ export class VirtualTerminal {
         case "empezar":
         case "start":
           return { output: this.guia(), isError: false };
+
+        case "objetivo":
+        case "target":
+        case "reto":
+          return this.objetivoCmd(commandArgs);
 
         case "ip":
           return this.executeIp(commandArgs);
@@ -3663,6 +3683,53 @@ export class VirtualTerminal {
     };
   }
 
+  /**
+   * objetivo [lista] — modo "te dan una IP y la vulnerás". Te asigna el
+   * primer objetivo sin resolver (su bandera no está capturada todavía),
+   * con pista. Al capturar la bandera del objetivo, queda marcado y el
+   * siguiente 'objetivo' te da otro. Todo ficticio y dentro del sandbox.
+   */
+  private objetivoCmd(args: string[]): { output: string; isError: boolean } {
+    const captured = new Set(this.kernel.player.capturedFlags());
+    const done = (t: (typeof TARGETS)[number]) => captured.has(t.flag);
+
+    if (args[0] === "lista" || args[0] === "list") {
+      const rows = TARGETS.map(
+        (t, i) => `  ${done(t) ? "✅" : "🎯"} #${i + 1} ${t.ip.padEnd(13)} ${t.host}  [${t.nivel}]`,
+      ).join("\n");
+      const hechos = TARGETS.filter(done).length;
+      return {
+        output: `Objetivos (${hechos}/${TARGETS.length} vulnerados):\n${rows}\n`,
+        isError: false,
+      };
+    }
+
+    const pendiente = TARGETS.find((t) => !done(t));
+    if (!pendiente) {
+      return {
+        output:
+          "🏆 ¡Vulneraste todos los objetivos! Sos un operador completo.\n" +
+          "Mirá 'objetivo lista' para repasar.\n",
+        isError: false,
+      };
+    }
+
+    return {
+      output:
+        `🎯 OBJETIVO ASIGNADO\n` +
+        `  IP:     ${pendiente.ip}\n` +
+        `  Host:   ${pendiente.host}\n` +
+        `  Nivel:  ${pendiente.nivel}\n\n` +
+        `Misión: enumerá el objetivo, encontrá la falla y capturá su bandera.\n` +
+        `  1) nmap ${pendiente.ip}\n` +
+        `  2) abrí el sitio (Navegador) o usá curl http://${pendiente.host}/\n` +
+        `  Pista: ${pendiente.pista}\n\n` +
+        `Cuando captures la bandera, escribí 'objetivo' para el siguiente.\n` +
+        `¿Trabado? 'hint' o preguntale a Ñandú (Asistente IA).\n`,
+      isError: false,
+    };
+  }
+
   /** Guía de arranque: qué hacer en los primeros minutos. */
   private guia(): string {
     return [
@@ -3672,6 +3739,7 @@ export class VirtualTerminal {
       "",
       "1) Abrí la app «Misión» (en el dock): te dice tu",
       "   PRÓXIMO PASO exacto y te lleva al lugar.",
+      "   (o escribí 'objetivo': te dan una IP para vulnerar)",
       "",
       "2) ¿Nunca hackeaste? Abrí «Learn» y hacé la",
       "   lección de nmap. Se aprende haciendo.",
@@ -3693,6 +3761,7 @@ export class VirtualTerminal {
     return [
       "Comandos disponibles:",
       "  guia             ⭐ Cómo empezar (leé esto primero)",
+      "  objetivo         🎯 Te asignan una IP para vulnerar (reto)",
       "",
       "  pwd              Muestra el directorio actual",
       "  cd <ruta>        Cambia de directorio",
