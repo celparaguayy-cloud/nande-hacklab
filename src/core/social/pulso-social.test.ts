@@ -49,4 +49,19 @@ describe("Pulso — red social más real (likes y comentarios)", () => {
     const otra = new Pulso(people, () => 5);
     expect(otra.commentsFor(post.id)).toHaveLength(1);
   });
+
+  it("si comentás en el post de alguien, te responde y queda notificación", () => {
+    const pulso = new Pulso(people, () => 7);
+    const post = pulso.feed()[0];
+
+    pulso.comment(post.id, "¿de qué es tu proyecto?", post.authorName);
+    const cs = pulso.commentsFor(post.id);
+    expect(cs).toHaveLength(2); // tu comentario + respuesta del autor
+    expect(cs[1].author).toBe(post.authorName);
+
+    const notifs = pulso.notifications();
+    expect(notifs.length).toBe(1);
+    expect(notifs[0].author).toBe(post.authorName);
+    expect(pulso.unreadNotifications()).toBe(1);
+  });
 });

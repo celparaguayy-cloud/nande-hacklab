@@ -220,6 +220,8 @@ interface PulsoState {
   liked?: string[];
   /** Comentarios del jugador por post. */
   comments?: Record<string, PulsoComment[]>;
+  /** Notificaciones: respuestas de NPC a tus comentarios. */
+  notifications?: { postId: string; author: string; text: string; day: number }[];
 }
 
 export class Pulso {
@@ -370,16 +372,44 @@ export class Pulso {
     return [...((this.state.comments ?? {})[postId] ?? [])];
   }
 
-  /** Agrega un comentario del jugador a un post. */
-  comment(postId: string, text: string): void {
+  /**
+   * Agrega un comentario del jugador a un post. Si se pasa el nombre del autor
+   * del post, éste responde (determinista): así el foro social se siente de
+   * ida y vuelta, y queda una notificación.
+   */
+  comment(postId: string, text: string, authorName?: string): void {
     const clean = text.trim().slice(0, 200);
     if (!clean) return;
     const map = this.state.comments ?? (this.state.comments = {});
-    (map[postId] = map[postId] ?? []).push({
-      text: clean,
-      day: this.currentDay(),
-      author: "vos",
-    });
+    const list = (map[postId] = map[postId] ?? []);
+    list.push({ text: clean, day: this.currentDay(), author: "vos" });
+
+    if (authorName) {
+      const reply = pick(COMMENT_BACKS, seedOf(postId + clean));
+      list.push({ text: reply, day: this.currentDay(), author: authorName });
+      const notifs = this.state.notifications ?? (this.state.notifications = []);
+      notifs.unshift({ postId, author: authorName, text: reply, day: this.currentDay() });
+      this.state.notifications = notifs.slice(0, 40);
+    }
     this.save();
   }
+
+  /** Notificaciones: respuestas de NPC a tus comentarios (más nuevas primero). */
+  notifications(limit = 20): { postId: string; author: string; text: string; day: number }[] {
+    return (this.state.notifications ?? []).slice(0, limit);
+  }
+
+  unreadNotifications(): number {
+    return (this.state.notifications ?? []).length;
+  }
 }
+
+/** Respuestas que un NPC puede darle a tu comentario. */
+const COMMENT_BACKS = [
+  "¡Gracias por comentar! 🙌",
+  "Jajaja tal cual, buenísimo.",
+  "No lo había pensado así, gracias.",
+  "Te sigo, me gustan tus comentarios.",
+  "Dale, cualquier cosa te escribo por privado.",
+  "Uh, buen punto. Lo voy a probar.",
+];

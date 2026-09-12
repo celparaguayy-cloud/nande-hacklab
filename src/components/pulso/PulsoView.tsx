@@ -7,7 +7,7 @@ interface Props {
   kernel: VirtualKernel;
 }
 
-type Tab = "feed" | "buscar" | "perfil";
+type Tab = "feed" | "buscar" | "perfil" | "notis";
 
 const LEAK_LABEL: Record<string, string> = {
   password: "🔑 contraseña",
@@ -53,8 +53,26 @@ export default function PulsoView({ kernel }: Props) {
         <button data-on={tab === "perfil"} onClick={() => setTab("perfil")} disabled={!profile}>
           Perfil
         </button>
+        <button data-on={tab === "notis"} onClick={() => setTab("notis")}>
+          🔔 Notis{kernel.pulso.unreadNotifications() > 0 ? ` (${kernel.pulso.unreadNotifications()})` : ""}
+        </button>
         <span className="pulso__me">Seguís a {kernel.pulso.followingCount()}</span>
       </div>
+
+      {tab === "notis" && (
+        <div className="pulso__list">
+          {kernel.pulso.notifications().length === 0 && (
+            <p className="pulso__empty">Sin notificaciones. Comentá en un post y te responden.</p>
+          )}
+          {kernel.pulso.notifications().map((n, i) => (
+            <div key={i} className="pulso__post">
+              <p className="pulso__text">
+                <strong>{n.author}</strong> te respondió: {n.text}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
 
       {tab === "feed" && (
         <div className="pulso__list">
@@ -120,7 +138,7 @@ function PostCard({
 
   const sendComment = () => {
     if (!draft.trim()) return;
-    kernel.pulso.comment(post.id, draft);
+    kernel.pulso.comment(post.id, draft, post.authorName);
     setDraft("");
     bump();
   };
