@@ -116,7 +116,8 @@ ${notice(`Álbum #${id} — de <strong>${escapeHtml(album.dueno)}</strong>`, "in
   <li><a href="/album?id=2">Álbum #2</a></li>
 </ul>
 <p class="lab-hint">Pista: los álbumes se ven por <code>?id=</code> y el
-servidor no comprueba de quién son. ¿Qué hay en otros números?</p>`;
+servidor no comprueba de quién son. Probá con otros números —el del admin es el
+#7. Tocá para verlo: <code>/album?id=7</code></p>`;
 
     return html(page(this.title, body));
   }
