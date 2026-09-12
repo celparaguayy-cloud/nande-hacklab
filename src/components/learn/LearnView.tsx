@@ -4,13 +4,14 @@ import type { VirtualKernel } from "../../core/VirtualKernel";
 import { RANKS, rankForLevel } from "../../core/game/Progression";
 import { DEFENSES } from "../../core/academy/Defenses";
 import { certificationsFor, flagLabel } from "../../core/game/Certifications";
+import { buildReport } from "../../core/game/Report";
 
 interface LearnViewProps {
   kernel: VirtualKernel;
   onOpenApp?: (id: string) => void;
 }
 
-type Tab = "inicio" | "rutas" | "lecciones" | "defensa" | "trofeos" | "perfil";
+type Tab = "inicio" | "rutas" | "lecciones" | "defensa" | "trofeos" | "informe" | "perfil";
 
 /**
  * ÑANDE Learn: la app para aprender hacking, ordenada de lo básico a lo
@@ -37,6 +38,7 @@ function LearnView({ kernel, onOpenApp }: LearnViewProps) {
   const done = new Set(player.completedCourses);
   const flags = kernel.player.capturedFlags();
   const certs = certificationsFor(flags);
+  const report = buildReport(flags);
 
   // Practicar una lección: abre la terminal y la arranca.
   const startLesson = (id: string) => {
@@ -258,6 +260,52 @@ function LearnView({ kernel, onOpenApp }: LearnViewProps) {
         </>
       )}
 
+      {tab === "informe" && (
+        <>
+          <h3 style={sectionTitle}>Informe de competencia ÑANDE</h3>
+          <div style={card}>
+            <div style={{ fontSize: 13, opacity: 0.9 }}>{report.resumen}</div>
+            <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+              <span style={{ ...sevBadge, background: "rgba(248,113,113,0.15)", color: "#ff7b72" }}>
+                {report.porSeveridad["crítica"]} críticos
+              </span>
+              <span style={{ ...sevBadge, background: "rgba(245,181,68,0.15)", color: "#f5b544" }}>
+                {report.porSeveridad["alta"]} altos
+              </span>
+              <span style={{ ...sevBadge, background: "rgba(124,196,255,0.15)", color: "#7cc4ff" }}>
+                {report.porSeveridad["media"]} medios
+              </span>
+            </div>
+            <div style={{ marginTop: 10, fontWeight: 600, color: accent }}>{report.competencia}</div>
+          </div>
+
+          {report.findings.length > 0 ? (
+            <>
+              <h3 style={sectionTitle}>Hallazgos</h3>
+              <div style={{ display: "grid", gap: 8 }}>
+                {report.findings.map((f) => {
+                  const c = f.severidad === "crítica" ? "#ff7b72" : f.severidad === "alta" ? "#f5b544" : "#7cc4ff";
+                  return (
+                    <div key={f.flag} style={{ ...card, borderLeft: `3px solid ${c}` }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                        <strong>{f.tecnica}</strong>
+                        <span style={{ color: c, fontSize: 12, textTransform: "uppercase" }}>{f.severidad}</span>
+                      </div>
+                      <div style={{ fontSize: 12.5, opacity: 0.85, marginTop: 4 }}>🛡️ {f.remediacion}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
+            <div style={{ ...card, color: "#8b98a5" }}>
+              Capturá banderas en los laboratorios y acá se arma tu informe, con
+              cada hallazgo, su severidad y su remediación.
+            </div>
+          )}
+        </>
+      )}
+
       <div style={tabBar}>
         {([
           ["inicio", "🏠", "Inicio"],
@@ -265,6 +313,7 @@ function LearnView({ kernel, onOpenApp }: LearnViewProps) {
           ["lecciones", "🖥️", "Lecciones"],
           ["defensa", "🛡️", "Defensa"],
           ["trofeos", "🏆", "Trofeos"],
+          ["informe", "📄", "Informe"],
           ["perfil", "👤", "Perfil"],
         ] as [Tab, string, string][]).map(([id, icon, label]) => (
           <button
@@ -355,6 +404,7 @@ const card: CSSProperties = {
   padding: 14, borderRadius: 12, background: "#111820", border: "1px solid #26313b", marginBottom: 12,
 };
 const sectionTitle: CSSProperties = { margin: "18px 0 10px", fontSize: 16 };
+const sevBadge: CSSProperties = { fontSize: 11.5, fontWeight: 700, padding: "3px 9px", borderRadius: 999 };
 const stdBadge: CSSProperties = {
   fontSize: 10.5, padding: "3px 7px", borderRadius: 6,
   background: "rgba(124,196,255,0.12)", color: "#7cc4ff", whiteSpace: "nowrap",
