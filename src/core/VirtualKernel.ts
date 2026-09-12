@@ -23,6 +23,7 @@ import { AIService } from "./ai/AIService";
 import { SnapshotManager } from "./os/Snapshots";
 import { DatabaseRuntime } from "./db/DatabaseRuntime";
 import { Anonymity } from "./security/Anonymity";
+import { CtfArena } from "./game/CtfArena";
 import { BlogApp, PhotosApp, FilesApp, ToolsApp } from "./http/apps/labs";
 import { SsrfApp, JwtNoneApp, RedirectApp } from "./http/apps/labs2";
 import { CsrfApp, LfiApp, UploadApp, DeserializeApp } from "./http/apps/labs3";
@@ -134,6 +135,8 @@ export class VirtualKernel {
   public databases: DatabaseRuntime;
   /** Estado de anonimato del jugador (Tor virtual, MAC spoofing). */
   public anonymity: Anonymity;
+  /** Modo CTF contrarreloj con tabla de puntajes. */
+  public ctf: CtfArena;
   private sandboxRng = 0x9e3779b9;
 
   private unsubscribePublisher: () => void;
@@ -288,6 +291,7 @@ export class VirtualKernel {
     this.snapshots = new SnapshotManager(() => this.world.getState().clock.tick);
     this.databases = new DatabaseRuntime();
     this.anonymity = new Anonymity();
+    this.ctf = new CtfArena();
 
     // academy.nande y tools.nande: la biblioteca y la ruta de aprendizaje,
     // navegables como cualquier otro sitio del mundo virtual.

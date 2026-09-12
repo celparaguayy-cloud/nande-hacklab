@@ -73,6 +73,16 @@ export const APPS: AppMeta[] = [
     dock: false,
   },
   {
+    id: "arena",
+    name: "Arena CTF",
+    title: "Arena CTF — retos contrarreloj",
+    summary: "Te dan una IP, la vulnerás contra reloj y sumás puntos",
+    category: "Juegos",
+    from: "#fca5a5",
+    to: "#b91c1c",
+    dock: true,
+  },
+  {
     id: "asistente",
     name: "Ñandú IA",
     title: "Ñandú — Asistente IA",

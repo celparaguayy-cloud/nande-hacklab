@@ -92,6 +92,13 @@ export function CodeIDE({ kernel }: CodeIDEProps) {
     }
   };
 
+  const nueva = () => {
+    setName(`tool-${kernel.toolRuntime.count() + 1}`);
+    setSource(STARTER);
+    setOutput("");
+    setStatus({ kind: "ok", msg: "Nueva herramienta lista. Editá, Probá e Instalá." });
+  };
+
   const load = (t: ToolArtifact) => {
     setName(t.manifest.name);
     setSource(t.source);
@@ -136,6 +143,7 @@ export function CodeIDE({ kernel }: CodeIDEProps) {
             placeholder="nombre"
             spellCheck={false}
           />
+          <button onClick={nueva} style={{ ...btn, background: "#1f2937" }}>Nueva</button>
           <button onClick={compile} style={btn}>Compilar</button>
           <button onClick={test} style={{ ...btn, background: "#0e7490" }}>▶ Probar</button>
           <button onClick={install} style={{ ...btn, background: "#15803d" }}>Instalar</button>

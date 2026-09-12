@@ -5,6 +5,7 @@ import Terminal from "../terminal/Terminal";
 import { CodeIDE } from "../code/CodeIDE";
 import { SOCView } from "../soc/SOCView";
 import { AsistenteView } from "../ai/AsistenteView";
+import { ArenaView } from "../arena/ArenaView";
 import { Files } from "../files/Files";
 import { ProcessMonitor } from "../processes/ProcessMonitor";
 import { Settings } from "../settings/Settings";
@@ -255,6 +256,7 @@ function Desktop() {
       code: <CodeIDE kernel={kernel} />,
       soc: <SOCView kernel={kernel} />,
       asistente: <AsistenteView kernel={kernel} onOpenApp={openWindow} />,
+      arena: <ArenaView kernel={kernel} onOpenApp={openWindow} />,
       files: <Files kernel={kernel} />,
       processes: <ProcessMonitor kernel={kernel} />,
       settings: <Settings kernel={kernel} />,
