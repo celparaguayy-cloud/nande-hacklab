@@ -158,6 +158,17 @@ export class CyberRuntime {
     };
   }
 
+  /* ------------------------------------------------------------ ctf API */
+
+  /** Retos procedurales: bandera real detrás de una app web real. */
+  get ctf() {
+    const forge = this.k.ctfForge;
+    return {
+      current: () => forge.current(),
+      generate: (seed: number) => forge.generate(seed),
+    };
+  }
+
   /* --------------------------------------------------------- redteam API */
 
   /** Red team autónomo: el adversario NPC que corre una kill-chain real. */

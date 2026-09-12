@@ -1029,6 +1029,10 @@ export class VirtualTerminal {
         case "adversario":
           return this.redteamCmd(commandArgs);
 
+        case "reto":
+        case "ctf-gen":
+          return this.retoCmd(commandArgs);
+
         case "snapshot":
         case "foto":
           return this.snapshotCmd(commandArgs);
@@ -2396,6 +2400,41 @@ export class VirtualTerminal {
         (rt.compromised() ? `Expulsalo con: redteam expulsar\n` : ""),
       isError: false,
     };
+  }
+
+  /**
+   * Retos procedurales — bandera real detrás de una app web real.
+   *   reto          → muestra el reto activo y su pista de recon.
+   *   reto nuevo    → fabrica un reto nuevo (otra falla, otra bandera).
+   */
+  private retoCmd(args: string[]): { output: string; isError: boolean } {
+    const forge = this.kernel.ctfForge;
+    if (args[0] === "nuevo" || args[0] === "new") {
+      const seed = (this.kernel.world.getState().clock.tick || Date.now()) ^ 0x5eed;
+      const ch = forge.generate(seed >>> 0);
+      return { output: this.renderReto(ch, false), isError: false };
+    }
+    const ch = forge.current();
+    if (!ch) {
+      return { output: "No hay reto activo. Generá uno con: reto nuevo\n", isError: false };
+    }
+    const solved = this.kernel.player.capturedFlags().includes(ch.flag);
+    return { output: this.renderReto(ch, solved), isError: false };
+  }
+
+  private renderReto(
+    ch: import("../game/CtfForge").GeneratedChallenge,
+    solved: boolean,
+  ): string {
+    return (
+      `═══ Reto procedural ═══\n` +
+      `Objetivo: ${ch.hostname} (${ch.ip})\n` +
+      `Estado: ${solved ? "✅ RESUELTO" : "⏳ pendiente"}\n\n` +
+      `${ch.clue}\n\n` +
+      `La bandera es real y vive detrás de la app. Encontrá la falla, accedé\n` +
+      `al recurso y la bandera se captura sola al verla en la respuesta.\n` +
+      `Empezá con: nmap ${ch.hostname}   y   curl http://${ch.hostname}/\n`
+    );
   }
 
   /** Al comprometer el dominio, el mundo reacciona (bandera + consecuencias). */

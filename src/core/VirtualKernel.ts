@@ -30,6 +30,7 @@ import { PacketCapture } from "./net/PacketCapture";
 import { Directory } from "./ad/Directory";
 import { MitreCorrelator } from "./soc/Mitre";
 import { RedTeamAgent, REDTEAM_TARGET } from "./game/RedTeamAgent";
+import { CtfForge } from "./game/CtfForge";
 import { BlogApp, PhotosApp, FilesApp, ToolsApp } from "./http/apps/labs";
 import { SsrfApp, JwtNoneApp, RedirectApp } from "./http/apps/labs2";
 import { CsrfApp, LfiApp, UploadApp, DeserializeApp } from "./http/apps/labs3";
@@ -153,6 +154,8 @@ export class VirtualKernel {
   public mitre: MitreCorrelator;
   /** Red team autónomo: un adversario NPC que corre una kill-chain real. */
   public redteam: RedTeamAgent;
+  /** Generador de retos procedurales: banderas reales detrás de apps reales. */
+  public ctfForge: CtfForge;
   /**
    * CyberRuntime — la API común del universo 5.0. Un solo punto por el que
    * TODA herramienta lee y escribe el mundo (host, servicio, proceso, red,
@@ -326,6 +329,7 @@ export class VirtualKernel {
     this.mitre = new MitreCorrelator(this.events, () => this.world.getState().clock.tick);
     this.directory = new Directory((s) => this.events.emit("attack.technique", s));
     this.redteam = new RedTeamAgent(this.hosts);
+    this.ctfForge = new CtfForge(this.web, this.dns, this.hosts);
     // El corazón 5.0: se arma cuando todos los runtimes-fuente ya existen
     // (hosts, dns, red, navegador, bases, filesystem, eventos, reloj).
     this.runtime = new CyberRuntime(this);
@@ -600,6 +604,10 @@ export class VirtualKernel {
     this.seedHosts();
     this.seedNpcTools();
     this.seedInitialSites();
+
+    // El "reto del día" arranca listo (semilla determinista). El jugador puede
+    // pedir uno nuevo con 'reto nuevo'. La bandera vive detrás de una app real.
+    this.ctfForge.generate(1);
   }
 
   /**
