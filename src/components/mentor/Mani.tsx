@@ -26,6 +26,18 @@ function loadOpen(): boolean {
   }
 }
 
+/** Herramientas de la terminal: si el "comando" empieza con una, se ejecuta;
+ *  si no, es un payload para un campo de la web y se copia. */
+const TERMINAL_TOOLS = [
+  "crack", "jwt", "nmap", "curl", "proxychains", "tcpdump", "sqlmap", "ping",
+  "nslookup", "dig", "hydra", "gobuster", "hashcat", "john", "ssh", "cat",
+  "ls", "cd", "whoami", "traceroute", "wifi", "arp", "nc", "netcat",
+];
+function isTerminalCommand(cmd: string): boolean {
+  const first = cmd.trim().split(/\s+/)[0]?.toLowerCase() ?? "";
+  return TERMINAL_TOOLS.includes(first);
+}
+
 export default function Mani({ kernel, onRunCommand }: ManiProps) {
   // Arranca PLEGADA (el manícito): así no tapa el escritorio ni las ventanas.
   // Se abre cuando el jugador la toca, y se recuerda su estado.
@@ -40,6 +52,7 @@ export default function Mani({ kernel, onRunCommand }: ManiProps) {
   };
   const [advice, setAdvice] = useState<Advice | null>(() => kernel.mentor.advise());
   const [muted, setMuted] = useState(() => kernel.mentor.getState().muted);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     const refresh = () => setAdvice(kernel.mentor.advise());
@@ -106,12 +119,32 @@ export default function Mani({ kernel, onRunCommand }: ManiProps) {
             {advice.command && (
               <div className="mani__cmd">
                 <code>{advice.command}</code>
-                {onRunCommand && (
+                {isTerminalCommand(advice.command) ? (
+                  onRunCommand && (
+                    <button
+                      className="mani__run"
+                      onClick={() => onRunCommand(advice.command!)}
+                    >
+                      Ejecutar
+                    </button>
+                  )
+                ) : (
+                  // No es un comando de terminal (es un payload para un campo
+                  // de la web, como admin'--). Ejecutarlo en la terminal no
+                  // tiene sentido: mejor copiarlo para pegarlo en el sitio.
                   <button
                     className="mani__run"
-                    onClick={() => onRunCommand(advice.command!)}
+                    onClick={() => {
+                      try {
+                        navigator.clipboard?.writeText(advice.command!);
+                      } catch {
+                        /* sin portapapeles */
+                      }
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 1600);
+                    }}
                   >
-                    Ejecutar
+                    {copied ? "¡Copiado!" : "Copiar"}
                   </button>
                 )}
               </div>
