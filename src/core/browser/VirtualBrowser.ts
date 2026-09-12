@@ -17,12 +17,29 @@ export interface VirtualPage {
   mimeType: string;
 }
 
+/**
+ * Un hecho de tráfico HTTP REAL: lo que de verdad viajó por la red virtual en
+ * una petición. Es lo que captura NandeShark (incluye el cuerpo del formulario,
+ * así una credencial enviada en claro se ve "en el cable" — la lección clásica).
+ */
+export interface TrafficRecord {
+  method: HttpMethod;
+  host: string;
+  ip: string;
+  path: string;
+  status: number;
+  reqBody: Record<string, string>;
+  tick: number;
+}
+
 export class VirtualBrowser {
   private dns: VirtualDNS;
   private internet: VirtualInternet;
   private network: VirtualNetwork;
   private server?: WebServer;
   private hosts?: HostRuntime;
+  private onTraffic?: (t: TrafficRecord) => void;
+  private now: () => number;
   /** Cookies guardadas por host, como las guardaría un navegador real. */
   private cookieJar = new Map<string, Record<string, string>>();
 
@@ -32,12 +49,15 @@ export class VirtualBrowser {
     network: VirtualNetwork,
     server?: WebServer,
     hosts?: HostRuntime,
+    opts?: { onTraffic?: (t: TrafficRecord) => void; now?: () => number },
   ) {
     this.dns = dns;
     this.internet = internet;
     this.network = network;
     this.server = server;
     this.hosts = hosts;
+    this.onTraffic = opts?.onTraffic;
+    this.now = opts?.now ?? (() => 0);
   }
 
   /**
@@ -139,6 +159,19 @@ export class VirtualBrowser {
 
       break;
     }
+
+    // El tráfico REAL de esta petición queda disponible para quien escuche el
+    // cable (NandeShark). No es un log decorativo: es lo que de verdad viajó,
+    // incluido el cuerpo del formulario tal cual se envió.
+    this.onTraffic?.({
+      method,
+      host,
+      ip: this.dns.resolve(host) ?? "",
+      path: fullPath || "/",
+      status: response!.status,
+      reqBody: body,
+      tick: this.now(),
+    });
 
     return { response: response!, finalPath: path };
   }

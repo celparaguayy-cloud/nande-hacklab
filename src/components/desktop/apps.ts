@@ -73,6 +73,16 @@ export const APPS: AppMeta[] = [
     dock: false,
   },
   {
+    id: "shark",
+    name: "NandeShark",
+    title: "NandeShark — análisis de tráfico",
+    summary: "Capturá el tráfico real de la red: HTTP, logins, credenciales en claro",
+    category: "Sistema",
+    from: "#67e8f9",
+    to: "#0e7490",
+    dock: false,
+  },
+  {
     id: "arena",
     name: "Arena CTF",
     title: "Arena CTF — retos contrarreloj",

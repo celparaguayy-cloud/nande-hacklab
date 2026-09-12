@@ -126,6 +126,20 @@ export class CyberRuntime {
     };
   }
 
+  /* ---------------------------------------------------------- sniffer API */
+
+  /** NandeShark: el tráfico REAL capturado del cable (paquetes, no textos). */
+  get sniff() {
+    const shark = this.k.shark;
+    return {
+      recent: (n = 100) => shark.recent(n),
+      filter: (expr: string) => shark.filter(expr),
+      follow: (host: string) => shark.followHost(host),
+      credentials: () => shark.credentials(),
+      count: () => shark.count(),
+    };
+  }
+
   /* -------------------------------------------------------------- log API */
 
   /** Timeline de eventos de hosts/servicios (evidencia para el SOC). */

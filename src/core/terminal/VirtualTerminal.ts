@@ -1010,6 +1010,10 @@ export class VirtualTerminal {
         case "contener":
           return this.defensaCmd(command, commandArgs);
 
+        case "nandeshark":
+        case "sniff":
+          return this.sharkCmd(commandArgs);
+
         case "snapshot":
         case "foto":
           return this.snapshotCmd(commandArgs);
@@ -2163,6 +2167,81 @@ export class VirtualTerminal {
         (abiertos.length ? `\nContené con: contener ${abiertos[0].id}  (o 'contener all')\n` : ""),
       isError: false,
     };
+  }
+
+  /**
+   * NandeShark — analizador de tráfico. Captura lo que de verdad viajó por la
+   * red virtual: peticiones HTTP (con su cuerpo), logins, conexiones
+   * rechazadas. No inventa paquetes.
+   *
+   *   sniff                 → últimos paquetes capturados.
+   *   sniff <filtro>        → filtra (http | auth | tcp | host==banco.nande | texto).
+   *   sniff creds           → credenciales vistas en claro (fuga educativa).
+   *   sniff follow <host>   → sigue el "stream" con un host.
+   */
+  private sharkCmd(args: string[]): { output: string; isError: boolean } {
+    const shark = this.kernel.shark;
+
+    if (args[0] === "creds" || args[0] === "credenciales") {
+      const creds = shark.credentials();
+      if (creds.length === 0) {
+        return {
+          output:
+            "NandeShark: no se vio ninguna credencial en claro todavía.\n" +
+            "Probá enviar un login por HTTP (formulario) y volvé a mirar.\n",
+          isError: false,
+        };
+      }
+      const lines = creds.map(
+        (c) => `  🔓 ${c.host}  ${c.field}=${c.value}  (t=${c.tick})`,
+      );
+      return {
+        output:
+          `═══ NandeShark · credenciales en claro ═══\n` +
+          `${lines.join("\n")}\n` +
+          `\nLección: viajaron sin cifrar (HTTP). Con HTTPS no se verían.\n`,
+        isError: false,
+      };
+    }
+
+    if (args[0] === "follow" || args[0] === "seguir") {
+      const host = args[1];
+      if (!host) {
+        return { output: "uso: sniff follow <host>\n", isError: true };
+      }
+      const pk = shark.followHost(host);
+      return { output: this.renderPackets(pk, `stream con ${host}`), isError: false };
+    }
+
+    const filter = args.join(" ").trim();
+    const pk = filter ? shark.filter(filter) : shark.recent(40);
+    return {
+      output: this.renderPackets(pk, filter ? `filtro: ${filter}` : "últimos paquetes"),
+      isError: false,
+    };
+  }
+
+  /** Formatea una lista de paquetes capturados como una tabla legible. */
+  private renderPackets(
+    packets: import("../net/PacketCapture").Packet[],
+    title: string,
+  ): string {
+    if (packets.length === 0) {
+      return (
+        `NandeShark (${title}): 0 paquetes.\n` +
+        `El sniffer sólo ve tráfico REAL. Navegá una web, probá un login o\n` +
+        `un curl, y el paquete aparece acá. Filtros: http · auth · tcp · host==<host>\n`
+      );
+    }
+    const lines = packets.slice(-40).map((p) => {
+      const flag = p.leak ? " 🔓" : "";
+      return `  #${String(p.seq).padStart(3)} t=${String(p.tick).padStart(5)} ${p.proto.padEnd(4)} ${p.src} → ${p.dst}  ${p.summary}${flag}`;
+    });
+    return (
+      `═══ NandeShark · ${title} (${packets.length}) ═══\n` +
+      `${lines.join("\n")}\n` +
+      `\nDetalle con 'sniff follow <host>'. Credenciales en claro: 'sniff creds'.\n`
+    );
   }
 
   /** db-list · db-schema <db> · db-query <db> <sql> — bases de datos reales. */

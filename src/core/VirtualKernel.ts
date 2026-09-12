@@ -26,6 +26,7 @@ import { Anonymity } from "./security/Anonymity";
 import { CtfArena } from "./game/CtfArena";
 import { ThreatEngine, DEFENSE_HOST } from "./game/ThreatEngine";
 import { CyberRuntime } from "./runtime/CyberRuntime";
+import { PacketCapture } from "./net/PacketCapture";
 import { BlogApp, PhotosApp, FilesApp, ToolsApp } from "./http/apps/labs";
 import { SsrfApp, JwtNoneApp, RedirectApp } from "./http/apps/labs2";
 import { CsrfApp, LfiApp, UploadApp, DeserializeApp } from "./http/apps/labs3";
@@ -91,6 +92,8 @@ export class VirtualKernel {
   /** Fuente única de verdad de hosts/servicios/puertos del mundo virtual. */
   public hosts: HostRuntime;
   public browser: VirtualBrowser;
+  /** NandeShark: captura y análisis del tráfico REAL del mundo virtual. */
+  public shark: PacketCapture;
   public web: WebServer;
   public search: VirtualSearch;
   public internet: VirtualInternet;
@@ -207,7 +210,13 @@ export class VirtualKernel {
       this.network,
       this.web,
       this.hosts,
+      {
+        // Cada petición real deja su rastro en el cable: NandeShark lo captura.
+        onTraffic: (t) => this.events.emit("network.request", t),
+        now: () => this.world.getState().clock.tick,
+      },
     );
+    this.shark = new PacketCapture(this.events);
     this.registerWebApps();
 
     this.publisher = new WorldPublisher(
@@ -830,6 +839,7 @@ export class VirtualKernel {
     this.unsubscribePublisher();
     this.soc.dispose();
     this.runtime.dispose();
+    this.shark.dispose();
   }
 
   /**
