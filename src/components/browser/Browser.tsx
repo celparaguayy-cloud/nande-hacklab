@@ -133,9 +133,14 @@ export default function Browser({ kernel }: BrowserProps) {
   // que quedó pendiente, y mientras esté abierto escuchamos nuevas.
   useEffect(() => {
     if (kernel.pendingUrl) {
+      // Otra app (la misión, el Mundo 2D…) pidió abrir un sitio: se carga ese
+      // y NO la portada. Antes un segundo efecto pisaba esto con el inicio, así
+      // que "Ir a banco.nande" terminaba mostrando la home — parecía roto.
       const u = kernel.pendingUrl;
       kernel.pendingUrl = null;
       load(u);
+    } else {
+      setBodyHtml(renderHome(featured));
     }
     return kernel.events.subscribe("browser.navigate", (e) => {
       const u = (e.data as { url?: string })?.url;
@@ -305,11 +310,6 @@ export default function Browser({ kernel }: BrowserProps) {
     return () => clearTimeout(id);
   }, [toast]);
 
-  // Primera carga: la página de inicio.
-  useEffect(() => {
-    setBodyHtml(renderHome(featured));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // Intercepta clics en enlaces y envíos de formularios del HTML renderizado,
   // para que la navegación pase por el navegador virtual.
