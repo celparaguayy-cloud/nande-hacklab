@@ -17,6 +17,7 @@ import { HostRuntime, type VirtualService } from "./net/HostRuntime";
 import { CodeExecutionSandbox, type SandboxHost } from "./code/Sandbox";
 import { ToolRuntime } from "./code/ToolRuntime";
 import { NpcToolForge } from "./code/NpcToolForge";
+import { BlueTeamSOC } from "./security/BlueTeam";
 import { BlogApp, PhotosApp, FilesApp, ToolsApp } from "./http/apps/labs";
 import { SsrfApp, JwtNoneApp, RedirectApp } from "./http/apps/labs2";
 import { CsrfApp, LfiApp, UploadApp, DeserializeApp } from "./http/apps/labs3";
@@ -117,6 +118,8 @@ export class VirtualKernel {
   public sandbox: CodeExecutionSandbox;
   public toolRuntime: ToolRuntime;
   public npcForge: NpcToolForge;
+  /** Centro de operaciones (Blue Team): consume eventos reales del runtime. */
+  public soc: BlueTeamSOC;
   private sandboxRng = 0x9e3779b9;
 
   private unsubscribePublisher: () => void;
@@ -265,6 +268,7 @@ export class VirtualKernel {
       now: () => this.world.getState().clock.tick,
     });
     this.npcForge = new NpcToolForge(this.toolRuntime);
+    this.soc = new BlueTeamSOC(this.events);
 
     // academy.nande y tools.nande: la biblioteca y la ruta de aprendizaje,
     // navegables como cualquier otro sitio del mundo virtual.
@@ -764,6 +768,7 @@ export class VirtualKernel {
   dispose(): void {
     this.stop();
     this.unsubscribePublisher();
+    this.soc.dispose();
   }
 
   /**

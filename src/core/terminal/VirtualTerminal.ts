@@ -958,6 +958,10 @@ export class VirtualTerminal {
         case "firewall":
           return this.firewallCmd(commandArgs);
 
+        case "soc":
+        case "blue":
+          return this.socCmd(commandArgs);
+
         case "code":
           return this.codeCmd(commandArgs);
 
@@ -2004,6 +2008,59 @@ export class VirtualTerminal {
     return {
       output: ok ? `✔ desinstalé "${name}"\n` : `tool-remove: no existe "${name}"\n`,
       isError: !ok,
+    };
+  }
+
+  /**
+   * soc [alerts|clear] — Centro de operaciones (Blue Team). Muestra las
+   * alertas generadas por eventos REALES del runtime: apagá un servicio o
+   * fallá un login y aparecen acá.
+   */
+  private socCmd(args: string[]): { output: string; isError: boolean } {
+    const sub = args[0] ?? "status";
+
+    if (sub === "clear") {
+      this.kernel.soc.clear();
+      return { output: "SOC: alertas archivadas.\n", isError: false };
+    }
+
+    const counts = this.kernel.soc.countBySeverity();
+    const total = this.kernel.soc.count();
+
+    if (sub === "status" || sub === "resumen") {
+      const top = this.kernel.soc.topSeverity();
+      return {
+        output:
+          `═══ SOC · Blue Team ═══\n` +
+          `Alertas: ${total}  (crítica:${counts.critical} alta:${counts.high} media:${counts.medium} baja:${counts.low} info:${counts.info})\n` +
+          `Nivel más alto: ${top ?? "sin alertas"}\n` +
+          `Usá 'soc alerts' para ver el detalle. Cada alerta vino de un evento real del mundo.\n`,
+        isError: false,
+      };
+    }
+
+    // soc alerts
+    const alerts = this.kernel.soc.list(30);
+    if (alerts.length === 0) {
+      return {
+        output:
+          "SOC: sin alertas. Provocá una (ej. service-stop nginx server.nande) y volvé a mirar.\n",
+        isError: false,
+      };
+    }
+    const icon: Record<string, string> = {
+      critical: "🟥",
+      high: "🟧",
+      medium: "🟨",
+      low: "🟦",
+      info: "⬜",
+    };
+    const lines = alerts.map(
+      (a) => `  ${icon[a.severity]} [${a.severity.toUpperCase().padEnd(8)}] ${a.title} · ${a.host}\n       ${a.detail} (t=${a.tick})`,
+    );
+    return {
+      output: `Alertas del SOC (${alerts.length}):\n` + lines.join("\n") + "\n",
+      isError: false,
     };
   }
 
@@ -3476,6 +3533,7 @@ export class VirtualTerminal {
       "  service-restart <s> <host>    Reinicia un servicio",
       "  firewall block <host> <puerto>  Bloquea un puerto",
       "  firewall allow <host> <puerto>  Permite un puerto",
+      "  soc / soc alerts   Centro de operaciones: alertas de eventos reales",
       "",
       "Hardware y WiFi:",
       "  neofetch         Muestra tu PC virtual (specs)",
