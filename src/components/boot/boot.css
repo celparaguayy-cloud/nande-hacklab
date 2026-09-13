@@ -32,6 +32,34 @@
   padding: 24px;
   text-shadow: 0 0 6px rgba(78, 240, 122, 0.55);
 }
+.boot__brand {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.boot__brand-logo {
+  font-size: 48px;
+  letter-spacing: 4px;
+  color: #eaffef;
+  text-shadow: 0 0 14px rgba(78, 240, 122, 0.9);
+}
+.boot__brand-sub {
+  font-size: 16px;
+  color: #6fbf88;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+.boot__phrase {
+  margin: 0 0 18px;
+  font-size: 18px;
+  line-height: 1.45;
+  color: #9ff5b8;
+  border-left: 3px solid #2a7a45;
+  padding-left: 12px;
+  min-height: 1.45em;
+}
 .boot__log {
   margin: 0;
   font-size: 19px;

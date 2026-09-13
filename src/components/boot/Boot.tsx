@@ -23,6 +23,32 @@ const BOOT_LINES = [
   "> KUÑA (Colectivo Año'ῖ): ¿Estás ahí? Te necesitamos.",
 ];
 
+/**
+ * Frases que aparecen en el arranque — cultura hacker ética, en criollo y
+ * fáciles de entender. Rotan en cada carga (una distinta cada vez) para que
+ * la pantalla de inicio se sienta viva.
+ */
+const BOOT_PHRASES = [
+  "«El mejor hacker no es el que más sabe, sino el que más pregunta.»",
+  "«Antes de romper algo, entendé cómo funciona.»",
+  "«Un buen recon vale más que mil exploits.»",
+  "«Todo lo que ves acá es ficticio. El conocimiento es real.»",
+  "«Hackear es resolver un rompecabezas que alguien creyó cerrado.»",
+  "«La curiosidad no es delito. Usala para el bien.»",
+  "«Si no dejás rastro, aprendé igual a leerlos.»",
+  "«El firewall más fuerte es una persona bien entrenada.»",
+  "«Leé el error. El error casi siempre te dice la respuesta.»",
+  "«No memorices comandos: entendé qué le pedís a la máquina.»",
+  "«Cada puerto abierto es una puerta. Preguntá quién vive detrás.»",
+  "«Defender es atacar tu propio sistema antes que otro lo haga.»",
+];
+
+function phraseOfTheLoad(): string {
+  // Cambia por carga: usamos el reloj real (no afecta al mundo determinista).
+  const i = Math.floor(Date.now() / 1000) % BOOT_PHRASES.length;
+  return BOOT_PHRASES[i];
+}
+
 type Phase = "booting" | "identify";
 
 /**
@@ -37,6 +63,7 @@ export default function Boot({ onReady }: BootProps) {
   const [phase, setPhase] = useState<Phase>("booting");
   const [shown, setShown] = useState(0);
   const [alias, setAlias] = useState("");
+  const [phrase] = useState(phraseOfTheLoad);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Va revelando las líneas del booteo.
@@ -62,6 +89,11 @@ export default function Boot({ onReady }: BootProps) {
     <div className="boot">
       <div className="boot__scan" />
       <div className="boot__crt">
+        <div className="boot__brand">
+          <span className="boot__brand-logo">ÑANDE</span>
+          <span className="boot__brand-sub">HACKLAB · cyber range educativo</span>
+        </div>
+        <p className="boot__phrase">{phrase}</p>
         <pre className="boot__log">
           {BOOT_LINES.slice(0, shown).join("\n")}
           {phase === "booting" && <span className="boot__cursor">▊</span>}

@@ -42,6 +42,99 @@ function usedTool(command: string, tool: string): boolean {
 
 export const LESSONS: Lesson[] = [
   {
+    id: "l-cero-consola",
+    title: "Cero absoluto: encendé la consola",
+    level: "principiante",
+    summary: "Qué es esta pantalla negra y cómo hablarle a la computadora.",
+    concept:
+      "La 'terminal' es una ventanita donde le escribís órdenes a la computadora con palabras, en vez de tocar botones. Vos escribís, ella hace y te contesta.",
+    reward: { xp: 40, coins: 30 },
+    steps: [
+      {
+        explain:
+          "Imaginá que la computadora es un ayudante que no te ve la cara. Lo primero es preguntarle: ¿yo quién soy acá adentro? Eso se pide con 'whoami' (en inglés: '¿quién soy?').",
+        task: "Escribí: whoami",
+        hint: "Solo escribí la palabra whoami y apretá Enter.",
+        check: (cmd, out) =>
+          usedTool(cmd, "whoami") && /student|estudiante/i.test(out),
+        debrief:
+          "¡Ese sos vos! Sos el usuario 'student'. Cada persona en una computadora tiene un nombre de usuario, como tu nombre en la escuela. Todo lo que hagas queda a nombre de ese usuario.",
+      },
+      {
+        explain:
+          "Ahora preguntemos: ¿en qué cajón estoy parado? Las computadoras guardan todo en 'carpetas' (como cajones). 'pwd' te dice en qué carpeta estás ahora.",
+        task: "Escribí: pwd",
+        hint: "Solo escribí pwd y Enter.",
+        check: (cmd, out) => usedTool(cmd, "pwd") && out.includes("/home/"),
+        debrief:
+          "Estás en /home/student: tu carpeta personal, tu 'pieza'. La barra / separa las carpetas, como los pisos de un edificio. Siempre conviene saber dónde estás parado antes de tocar algo.",
+      },
+    ],
+  },
+  {
+    id: "l-cero-mirar",
+    title: "Cero absoluto: mirá y leé",
+    level: "principiante",
+    summary: "Ver qué hay en una carpeta y abrir un archivo para leerlo.",
+    concept:
+      "Antes de tocar, se mira. 'ls' lista lo que hay (como abrir el cajón y ver qué tiene). 'cat' abre un archivo de texto y te lo muestra.",
+    reward: { xp: 40, coins: 30 },
+    steps: [
+      {
+        explain:
+          "Abramos el cajón para ver qué hay. 'ls' (de 'list', listar) muestra los archivos y carpetas del lugar donde estás.",
+        task: "Escribí: ls",
+        hint: "Solo escribí ls y Enter.",
+        check: (cmd, out) =>
+          usedTool(cmd, "ls") && /bienvenida|documentos/i.test(out),
+        debrief:
+          "Eso que apareció son tus archivos y carpetas. Ves 'bienvenida.txt' (un archivo de texto) y 'documentos' (una carpeta). Mirar antes de actuar es el hábito número uno de un buen hacker.",
+      },
+      {
+        explain:
+          "Hay un archivo llamado bienvenida.txt. Un '.txt' es texto puro, como una carta. 'cat' lo abre y te lo lee en pantalla.",
+        task: "Leé el archivo: cat bienvenida.txt",
+        hint: "Escribí: cat bienvenida.txt",
+        check: (cmd, out) =>
+          usedTool(cmd, "cat") &&
+          cmd.includes("bienvenida") &&
+          out.trim().length > 20 &&
+          !/no existe|not found|no such|no se encontr/i.test(out),
+        debrief:
+          "¡Leíste tu primer archivo! Los hackers leen MUCHO: archivos de configuración, notas, registros. Muchas veces la contraseña o la pista está escrita en un archivo que nadie se molestó en esconder bien.",
+      },
+    ],
+  },
+  {
+    id: "l-cero-moverse",
+    title: "Cero absoluto: moverse entre carpetas",
+    level: "principiante",
+    summary: "Entrar y salir de carpetas sin perderte.",
+    concept:
+      "'cd' (change directory, cambiar de carpeta) te mueve de un cajón a otro. 'cd ..' te devuelve al cajón de arriba. Siempre podés confirmar con 'pwd'.",
+    reward: { xp: 45, coins: 35 },
+    steps: [
+      {
+        explain:
+          "Vamos a entrar a la carpeta 'documentos'. Es como abrir un cajón que está dentro de otro cajón. Se usa 'cd' seguido del nombre.",
+        task: "Entrá a la carpeta: cd documentos",
+        hint: "Escribí: cd documentos",
+        check: (cmd) => usedTool(cmd, "cd") && cmd.includes("documentos"),
+        debrief:
+          "Entraste. Ahora estás 'adentro' de documentos. Todo lo que hagas pasa ahí adentro hasta que salgas.",
+      },
+      {
+        explain:
+          "Confirmemos que nos movimos. 'pwd' de nuevo te dice dónde estás parado ahora.",
+        task: "Confirmá dónde estás: pwd",
+        hint: "Escribí: pwd",
+        check: (cmd, out) => usedTool(cmd, "pwd") && out.includes("documentos"),
+        debrief:
+          "La ruta ahora termina en /documentos: te moviste de verdad. Cuando entres a máquinas ajenas, saber moverte sin perderte es clave. Para volver atrás usás 'cd ..' (dos puntitos = 'la carpeta de arriba').",
+      },
+    ],
+  },
+  {
     id: "l-nmap",
     title: "Tu primer escaneo con nmap",
     level: "principiante",

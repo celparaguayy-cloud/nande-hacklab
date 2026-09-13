@@ -44,6 +44,71 @@ if (puertos.length === 0) {
 }
 `;
 
+interface ManPage {
+  /** Resumen de una línea. */
+  name: string;
+  /** Forma de uso. */
+  synopsis: string;
+  /** Explicación simple (puede tener varias líneas). */
+  desc: string;
+  /** Ejemplos concretos. */
+  examples?: string[];
+}
+
+/**
+ * Manuales (man) de los comandos clave. Explicados fácil, como a alguien que
+ * recién arranca, pero con el uso REAL del comando en ÑANDE. `man <cmd>` los
+ * muestra; `man` a secas lista los que hay.
+ */
+const MANPAGES: Record<string, ManPage> = {
+  ls: { name: "listar archivos y carpetas", synopsis: "ls [ruta]",
+    desc: "Muestra qué hay en una carpeta (como abrir un cajón y ver qué tiene).\nSin ruta, lista la carpeta actual.", examples: ["ls", "ls documentos"] },
+  cd: { name: "cambiar de carpeta", synopsis: "cd <ruta>",
+    desc: "Te mueve a otra carpeta. 'cd ..' sube a la de arriba; 'cd' solo te lleva a tu casa (/home/student).", examples: ["cd documentos", "cd .."] },
+  cat: { name: "mostrar el contenido de un archivo", synopsis: "cat <archivo>",
+    desc: "Abre un archivo de texto y lo escribe en pantalla. Sirve para leer notas, configuraciones y, a veces, secretos mal guardados.", examples: ["cat bienvenida.txt"] },
+  pwd: { name: "dónde estoy parado", synopsis: "pwd",
+    desc: "Muestra la carpeta actual (la ruta completa). Útil para no perderte cuando entrás y salís de carpetas o de otras máquinas.", examples: ["pwd"] },
+  whoami: { name: "qué usuario soy", synopsis: "whoami",
+    desc: "Dice con qué usuario estás actuando. Importa: no es lo mismo ser 'student' que ser 'root' (el jefe que puede todo).", examples: ["whoami"] },
+  id: { name: "información del usuario", synopsis: "id",
+    desc: "Muestra tu usuario, tu grupo y tus permisos. En seguridad, saber 'quién sos' define qué podés hacer.", examples: ["id"] },
+  echo: { name: "mostrar texto / escribir archivos", synopsis: "echo <texto> [> archivo]",
+    desc: "Repite el texto que le des. Con > lo guarda en un archivo (pisa lo que había); con >> lo agrega al final.", examples: ["echo hola", "echo nota > apunte.txt", "echo mas >> apunte.txt"] },
+  mkdir: { name: "crear una carpeta", synopsis: "mkdir <nombre>",
+    desc: "Crea una carpeta nueva (un cajón vacío) donde estás parado.", examples: ["mkdir pruebas"] },
+  touch: { name: "crear un archivo vacío", synopsis: "touch <archivo>",
+    desc: "Crea un archivo vacío. Sirve para preparar algo antes de escribirle.", examples: ["touch notas.txt"] },
+  rm: { name: "borrar archivos o carpetas", synopsis: "rm <ruta>",
+    desc: "Elimina un archivo o carpeta. ¡Cuidado! En una computadora real no hay papelera para esto. Acá es un sandbox, tranquilo.", examples: ["rm apunte.txt"] },
+  chmod: { name: "cambiar permisos", synopsis: "chmod <modo> <archivo>",
+    desc: "Cambia quién puede leer, escribir o ejecutar un archivo. Los permisos son la primera defensa: un archivo mal permisado es un agujero de seguridad.", examples: ["chmod 600 secreto.txt"] },
+  chown: { name: "cambiar el dueño", synopsis: "chown <usuario> <archivo>",
+    desc: "Cambia de quién es un archivo. Solo el dueño (o root) suele poder tocarlo.", examples: ["chown student notas.txt"] },
+  ps: { name: "procesos que corren", synopsis: "ps",
+    desc: "Lista los programas en ejecución (procesos), con su número (PID). Un servicio caído no aparece acá — por eso 'ps' delata qué está vivo.", examples: ["ps"] },
+  clear: { name: "limpiar la pantalla", synopsis: "clear",
+    desc: "Borra lo que hay en la terminal. No borra nada del sistema, solo ordena la vista.", examples: ["clear"] },
+  ping: { name: "¿está viva esa máquina?", synopsis: "ping <ip|host>",
+    desc: "Le manda un 'saludito' a una máquina y espera respuesta, como tocar el timbre. Si contesta, está prendida y alcanzable.", examples: ["ping 10.10.5.20", "ping server.nande"] },
+  nslookup: { name: "traducir nombre → IP", synopsis: "nslookup <host>",
+    desc: "Los humanos usamos nombres (server.nande); las máquinas usan números (IP). Esto traduce el nombre a su número, como una guía telefónica (DNS).", examples: ["nslookup banco.nande"] },
+  nmap: { name: "escanear puertos y servicios", synopsis: "nmap <ip|host>",
+    desc: "Golpea todas las 'puertas' (puertos) de una máquina y te dice cuáles están abiertas y qué servicio hay detrás (web, ssh, base de datos...). Es el primer paso de casi todo ataque y defensa.", examples: ["nmap 10.10.5.20", "nmap server.nande"] },
+  connect: { name: "conectarse a otra máquina (pivotar)", synopsis: "connect <host> <usuario> <clave>",
+    desc: "Si tenés credenciales, entrás a otra máquina y desde ahí ves su red interna. Así se 'pivota' hacia lo que no se ve desde afuera.", examples: ["connect server.nande soporte Verano2024"] },
+  curl: { name: "pedir una página desde la terminal", synopsis: "curl <url>",
+    desc: "Trae el contenido de una web sin abrir el navegador. Sirve para probar formularios, APIs e inyecciones a mano.", examples: ["curl http://banco.nande/login"] },
+  grep: { name: "buscar texto", synopsis: "... | grep <palabra>",
+    desc: "Filtra líneas que contienen una palabra. Se usa con | (pipe) para quedarte solo con lo que importa de una salida larga.", examples: ["cat notas.txt | grep clave"] },
+  learn: { name: "lecciones guiadas", synopsis: "learn [id]",
+    desc: "Aprendé haciendo: te lleva paso a paso usando herramientas reales contra laboratorios. 'learn' lista las lecciones; 'learn l-cero-consola' arranca de cero.", examples: ["learn", "learn l-cero-consola"] },
+  man: { name: "manual de un comando", synopsis: "man <comando>",
+    desc: "Muestra la ayuda de un comando: para qué sirve, cómo se usa y ejemplos. 'man' solo lista los manuales disponibles.", examples: ["man nmap", "man ls"] },
+  help: { name: "lista de comandos", synopsis: "help",
+    desc: "Muestra todos los comandos disponibles agrupados por tema. Si querés el detalle de uno, usá 'man <comando>'.", examples: ["help"] },
+};
+
 export class VirtualTerminal {
   private kernel: VirtualKernel;
   private currentUser: string;
@@ -870,6 +935,10 @@ export class VirtualTerminal {
             output: this.help(),
             isError: false,
           };
+
+        case "man":
+        case "ayuda":
+          return this.manCmd(commandArgs);
 
         case "guia":
         case "guía":
@@ -4393,6 +4462,44 @@ export class VirtualTerminal {
     ].join("\n");
   }
 
+  /** `man <cmd>`: manual de un comando (o la lista si no se da comando). */
+  private manCmd(args: string[]): { output: string; isError: boolean } {
+    const topic = (args[0] ?? "").toLowerCase().trim();
+    if (!topic) {
+      const names = Object.keys(MANPAGES).sort().join(", ");
+      return {
+        output:
+          "man <comando> — muestra el manual de un comando.\n\n" +
+          `Manuales disponibles:\n  ${names}\n\n` +
+          "Ejemplo: man nmap",
+        isError: false,
+      };
+    }
+    const page = MANPAGES[topic];
+    if (!page) {
+      return {
+        output: `No hay manual para "${topic}". Escribí 'man' para ver la lista, o 'help' para todos los comandos.`,
+        isError: true,
+      };
+    }
+    const indent = (t: string) =>
+      t
+        .split("\n")
+        .map((l) => "    " + l)
+        .join("\n");
+    const parts = [
+      `NOMBRE\n    ${topic} — ${page.name}`,
+      "",
+      `USO\n    ${page.synopsis}`,
+      "",
+      `DESCRIPCIÓN\n${indent(page.desc)}`,
+    ];
+    if (page.examples && page.examples.length > 0) {
+      parts.push("", `EJEMPLOS\n${indent(page.examples.join("\n"))}`);
+    }
+    return { output: parts.join("\n"), isError: false };
+  }
+
   private help(): string {
     return [
       "Comandos disponibles:",
@@ -4418,6 +4525,7 @@ export class VirtualTerminal {
       "  uname            Información del kernel",
       "  ps               Procesos virtuales",
       "  clear            Limpia la terminal",
+      "  man <comando>    Manual de un comando (ej: man nmap)",
       "",
       "Redes y academia:",
       "  ping <ip>        Ver si una máquina responde",
