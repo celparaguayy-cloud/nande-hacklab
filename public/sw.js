@@ -50,18 +50,17 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Recursos: cache primero, y si no está, red (y se guarda).
+  // Recursos: RED PRIMERO, y el cache sólo como respaldo offline. Antes era
+  // "cache primero", y eso hacía que un usuario con la app abierta/instalada
+  // siguiera viendo código VIEJO (bugs ya arreglados) hasta limpiar datos.
+  // Ahora, online siempre se toma la última versión; offline cae al cache.
   event.respondWith(
-    caches.match(request).then(
-      (cached) =>
-        cached ||
-        fetch(request)
-          .then((res) => {
-            const copy = res.clone();
-            caches.open(CACHE).then((c) => c.put(request, copy)).catch(() => {});
-            return res;
-          })
-          .catch(() => cached),
-    ),
+    fetch(request)
+      .then((res) => {
+        const copy = res.clone();
+        caches.open(CACHE).then((c) => c.put(request, copy)).catch(() => {});
+        return res;
+      })
+      .catch(() => caches.match(request).then((cached) => cached)),
   );
 });

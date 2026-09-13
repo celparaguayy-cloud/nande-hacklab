@@ -21,7 +21,22 @@ const isCapacitor =
 
 if ('serviceWorker' in navigator && !isCapacitor) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch(() => {
+    navigator.serviceWorker.register('./sw.js').then((reg) => {
+      // Buscar actualizaciones al abrir: si hay una versión nueva esperando,
+      // que tome control y se recargue una sola vez. Así el usuario NO queda
+      // pegado a una versión vieja con bugs ya arreglados.
+      reg.update().catch(() => {})
+      reg.addEventListener('updatefound', () => {
+        const nw = reg.installing
+        if (!nw) return
+        nw.addEventListener('statechange', () => {
+          if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+            // Hay una versión nueva instalada y ya había una controlando: recargar.
+            window.location.reload()
+          }
+        })
+      })
+    }).catch(() => {
       // Sin service worker la app igual funciona, solo que no offline.
     })
   })
