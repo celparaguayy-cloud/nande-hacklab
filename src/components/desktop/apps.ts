@@ -145,8 +145,8 @@ export const APPS: AppMeta[] = [
   {
     id: "asistente",
     name: "Ñandú IA",
-    title: "Ñandú — Asistente IA",
-    summary: "Co-piloto de hacking (offline o con tu clave de Groq/Gemini)",
+    title: "Ñandú — Asistente que HACE",
+    summary: "Le pedís y ejecuta comandos reales, escribe código y abre la app justa",
     category: "Educación",
     from: "#c4b5fd",
     to: "#6d28d9",

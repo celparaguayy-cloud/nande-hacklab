@@ -1095,7 +1095,10 @@ export class VirtualTerminal {
           }
 
           return {
-            output: `Comando no encontrado: ${command}\n`,
+            output:
+              `Comando no encontrado: ${command}\n` +
+              `Escribí 'help' para ver los comandos, o 'universo' para el índice 5.0.\n` +
+              `(Tip: si copiaste una pista, pegá SÓLO el comando, no la frase entera.)\n`,
             isError: true,
           };
         }
