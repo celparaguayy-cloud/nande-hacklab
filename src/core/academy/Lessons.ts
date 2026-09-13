@@ -965,6 +965,144 @@ export const LESSONS: Lesson[] = [
       },
     ],
   },
+  {
+    id: "l-dns",
+    title: "Nombres y números: cómo encuentra la web (DNS)",
+    level: "principiante",
+    summary: "Entender que cada nombre esconde un número (una IP).",
+    concept:
+      "Vos escribís 'banco.nande', pero las máquinas no entienden nombres: usan números llamados IP. El DNS es la 'guía telefónica' que traduce el nombre al número.",
+    reward: { xp: 70, coins: 50 },
+    steps: [
+      {
+        explain:
+          "Preguntémosle al DNS qué número (IP) tiene un nombre. Es como buscar un contacto en la agenda: ponés el nombre y te da el teléfono.",
+        task: "Traducí el nombre a IP: nslookup banco.nande",
+        hint: "Escribí: nslookup banco.nande",
+        check: (cmd, out) =>
+          usedTool(cmd, "nslookup") &&
+          /address|10\.10\./i.test(out) &&
+          out.includes("10.10.7.10"),
+        debrief:
+          "banco.nande vive en 10.10.7.10. Todo nombre en internet se traduce así antes de conectarse. Para un hacker esto importa: a veces el nombre lindo esconde una IP interna que no debería verse, y el DNS te la revela.",
+      },
+    ],
+  },
+  {
+    id: "l-http-xss",
+    title: "Hablarle a una web sin navegador (HTTP) + tu primer XSS",
+    level: "intermedio",
+    summary: "Pedir una página con curl y lograr que ejecute tu código.",
+    concept:
+      "Una web es un servidor que te contesta cuando le pedís algo (HTTP). Con 'curl' le pedís directo desde la terminal. Si el sitio no filtra lo que escribís, podés inyectar código: eso es XSS.",
+    reward: { xp: 130, coins: 100 },
+    steps: [
+      {
+        explain:
+          "Primero pedile la página de inicio al blog, sin abrir el navegador. 'curl' trae el HTML crudo y te muestra el código de estado (200 = todo bien).",
+        task: "Pedí la página: curl http://blog.yvoty.nande/",
+        hint: "Escribí: curl http://blog.yvoty.nande/",
+        check: (cmd, out) =>
+          usedTool(cmd, "curl") &&
+          cmd.includes("blog.yvoty") &&
+          out.includes("200"),
+        debrief:
+          "El servidor te contestó '200 OK' y te mandó su contenido. Así funciona toda la web: pedido → respuesta. Ahora fijate que el buscador refleja lo que escribís…",
+      },
+      {
+        explain:
+          "El buscador devuelve tal cual lo que le pasás en ?q=. Si le mandás una etiqueta <script>, el navegador la EJECUTA en vez de mostrarla. Eso es Cross-Site Scripting (XSS).",
+        task:
+          "Inyectá un script: curl http://blog.yvoty.nande/?q=<script>alert(1)</script>",
+        hint:
+          "Escribí: curl http://blog.yvoty.nande/?q=<script>alert(1)</script>",
+        check: (cmd, out) =>
+          usedTool(cmd, "curl") &&
+          /xss_reflejado|xss reflejado/i.test(out),
+        debrief:
+          "¡Capturaste ND{xss_reflejado}! El sitio no 'escapó' tu texto, así que tu <script> corrió. Con esto un atacante roba sesiones o engaña usuarios. Defensa: escapar/filtrar TODO lo que el usuario escribe antes de mostrarlo.",
+      },
+    ],
+  },
+  {
+    id: "l-jwt",
+    title: "Romper un token JWT (clave débil)",
+    level: "avanzado",
+    summary: "Leer, crackear y forjar un token de sesión.",
+    concept:
+      "Muchos sitios te dan un 'token' (JWT) que dice quién sos y qué rol tenés. Está firmado con una clave secreta. Si esa clave es débil, se puede adivinar y entonces te fabricás un token de admin.",
+    reward: { xp: 200, coins: 160 },
+    steps: [
+      {
+        explain:
+          "Un JWT tiene 3 partes separadas por puntos: encabezado, datos y firma. 'jwt decode' te muestra qué dice adentro (no está cifrado, solo codificado).",
+        task:
+          "Leé el token: jwt decode eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c3VhcmlvIjoicm9jaW8iLCJyb2wiOiJjbGllbnRlIn0.tz0HEvkrWYXTlNMMkKy23z7R6SspncHkFJB_F7_5pCo",
+        hint: "Copiá: jwt decode <el token largo>",
+        check: (cmd, out) =>
+          usedTool(cmd, "jwt") &&
+          cmd.includes("decode") &&
+          /payload|rol|usuario/i.test(out),
+        debrief:
+          "Ves que el token dice rol:cliente. El servidor confía en esto… si la firma es válida. Ahora atacamos la firma.",
+      },
+      {
+        explain:
+          "'jwt crack' prueba miles de claves comunes contra la firma. Si el desarrollador usó una clave floja, la encuentra en segundos.",
+        task:
+          "Crackeá la clave: jwt crack eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c3VhcmlvIjoicm9jaW8iLCJyb2wiOiJjbGllbnRlIn0.tz0HEvkrWYXTlNMMkKy23z7R6SspncHkFJB_F7_5pCo",
+        hint: "Copiá: jwt crack <el token largo>",
+        check: (cmd, out) =>
+          usedTool(cmd, "jwt") &&
+          cmd.includes("crack") &&
+          /clave|encontrad|nande/i.test(out),
+        debrief:
+          "La clave era 'nande'. Con la clave en la mano, ya podés firmar tus propios tokens: el servidor los va a creer.",
+      },
+      {
+        explain:
+          "Ahora forjás un token nuevo diciendo que sos admin, firmado con la clave que encontraste. El servidor no puede distinguirlo del real.",
+        task: "Forjá un token admin: jwt forge nande rol=admin usuario=admin",
+        hint: "Escribí: jwt forge nande rol=admin usuario=admin",
+        check: (cmd, out) =>
+          usedTool(cmd, "jwt") && cmd.includes("forge") && out.includes("eyJ"),
+        debrief:
+          "Fabricaste un token de admin. Eso es una escalada de privilegios completa. Defensa: usar claves largas y aleatorias, algoritmos fuertes, y NUNCA aceptar alg:none. Firmar bien es todo.",
+      },
+    ],
+  },
+  {
+    id: "l-pivot",
+    title: "Pivoting: saltar a la red interna",
+    level: "avanzado",
+    summary: "Usar una máquina comprometida como puente hacia lo oculto.",
+    concept:
+      "Hay máquinas que no se ven desde afuera. El truco: entrás a una máquina de borde con credenciales robadas y, desde adentro, alcanzás la red interna. A eso se le dice 'pivotar'.",
+    reward: { xp: 220, coins: 180 },
+    steps: [
+      {
+        explain:
+          "Entramos al servidor de borde con credenciales de soporte (las mismas que se sniffean en el lab de tráfico). 'connect' abre una sesión adentro de esa máquina.",
+        task: "Entrá al server: connect server.nande soporte Verano2024",
+        hint: "Escribí: connect server.nande soporte Verano2024",
+        check: (cmd, out) =>
+          usedTool(cmd, "connect") && /conectad/i.test(out),
+        debrief:
+          "Estás DENTRO de server.nande. Ahora ves lo que ve esa máquina, no lo que ve tu compu. Muchos archivos guardan pistas de la red interna.",
+      },
+      {
+        explain:
+          "Adentro, los administradores dejan notas. Leé la nota de soporte: suele tener credenciales o direcciones internas 'para acordarse'.",
+        task: "Leé la nota: cat /home/soporte/notas.txt",
+        hint: "Escribí: cat /home/soporte/notas.txt",
+        check: (cmd, out) =>
+          usedTool(cmd, "cat") &&
+          /caja\.interna|10\.10\.66|girasol/i.test(out),
+        debrief:
+          "La nota revela caja.interna.nande (10.10.66.10), que SÓLO se ve desde este server, con usuario admin. Ese es el premio del pivoting: desde acá ya podés atacar la caja interna. Defensa: no guardar credenciales en archivos y segmentar bien la red.",
+      },
+    ],
+  },
 ];
 
 /** Motor de lecciones: mantiene el paso actual de la lección activa. */
