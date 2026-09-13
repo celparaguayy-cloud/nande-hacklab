@@ -5,6 +5,21 @@ import { RANKS, rankForLevel } from "../../core/game/Progression";
 import { DEFENSES } from "../../core/academy/Defenses";
 import { certificationsFor, flagLabel } from "../../core/game/Certifications";
 import { buildReport } from "../../core/game/Report";
+import { Glyph, type GlyphName } from "../ui/Glyph";
+
+/** Cada rango, con su glifo de línea (mismo lenguaje que el dock). */
+const RANK_GLYPH: Record<string, GlyphName> = {
+  Novato: "sprout",
+  Aprendiz: "book",
+  Auditor: "search",
+  Hacker: "mask",
+  Élite: "gem",
+  Elite: "gem",
+  Leyenda: "crown",
+};
+function rankGlyph(name: string): GlyphName {
+  return RANK_GLYPH[name] ?? "star";
+}
 
 interface LearnViewProps {
   kernel: VirtualKernel;
@@ -51,7 +66,9 @@ function LearnView({ kernel, onOpenApp }: LearnViewProps) {
       {tab === "inicio" && (
         <>
           <div style={hero}>
-            <div style={{ fontSize: 34 }}>🤖</div>
+            <div style={mascotBadge}>
+              <Glyph name="nandu" size={38} />
+            </div>
             <div>
               <div style={{ fontSize: 18, fontWeight: 700 }}>
                 ¡Hola, {player.name}!
@@ -63,14 +80,17 @@ function LearnView({ kernel, onOpenApp }: LearnViewProps) {
           </div>
 
           <div style={statRow}>
-            <Stat icon="⭐" value={`Nv.${player.level}`} label={rank.name} />
-            <Stat icon="🎯" value={`${done.size}`} label="completadas" />
-            <Stat icon="🔥" value={`${player.achievements.length}`} label="logros" />
+            <Stat glyph="star" value={`Nv.${player.level}`} label={rank.name} />
+            <Stat glyph="target" value={`${done.size}`} label="completadas" />
+            <Stat glyph="flame" value={`${player.achievements.length}`} label="logros" />
           </div>
 
           <div style={card}>
             <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <strong>{rank.icon} {rank.name}</strong>
+              <strong style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
+                <span style={{ color: accent }}><Glyph name={rankGlyph(rank.name)} size={18} /></span>
+                {rank.name}
+              </strong>
               <span style={{ color: accent }}>
                 {player.xp} / {kernel.player.xpToNext() + player.xp} XP
               </span>
@@ -90,7 +110,9 @@ function LearnView({ kernel, onOpenApp }: LearnViewProps) {
                     color: r.name === rank.name ? "#05070a" : "#8b98a5",
                   }}
                 >
-                  <div style={{ fontSize: 18 }}>{r.icon}</div>
+                  <div style={{ display: "flex", justifyContent: "center", marginBottom: 3 }}>
+                    <Glyph name={rankGlyph(r.name)} size={19} />
+                  </div>
                   <div style={{ fontSize: 10 }}>{r.name}</div>
                   <div style={{ fontSize: 9, opacity: 0.7 }}>Nv{r.minLevel}</div>
                 </div>
@@ -167,7 +189,9 @@ function LearnView({ kernel, onOpenApp }: LearnViewProps) {
       {tab === "perfil" && (
         <>
           <div style={hero}>
-            <div style={{ fontSize: 30 }}>{rank.icon}</div>
+            <div style={mascotBadge}>
+              <span style={{ color: "#e6edf3" }}><Glyph name={rankGlyph(rank.name)} size={26} /></span>
+            </div>
             <div>
               <div style={{ fontSize: 18, fontWeight: 700 }}>{player.name}</div>
               <div style={{ opacity: 0.85, fontSize: 13 }}>
@@ -176,9 +200,9 @@ function LearnView({ kernel, onOpenApp }: LearnViewProps) {
             </div>
           </div>
           <div style={statRow}>
-            <Stat icon="⭐" value={`${player.xp}`} label="XP total" />
-            <Stat icon="💰" value={`N$${player.wallet}`} label="saldo" />
-            <Stat icon="🏆" value={`${player.achievements.length}`} label="logros" />
+            <Stat glyph="star" value={`${player.xp}`} label="XP total" />
+            <Stat glyph="wallet" value={`N$${player.wallet}`} label="saldo" />
+            <Stat glyph="medal" value={`${player.achievements.length}`} label="logros" />
           </div>
           <h3 style={sectionTitle}>Habilidades</h3>
           <div style={card}>
@@ -201,7 +225,10 @@ function LearnView({ kernel, onOpenApp }: LearnViewProps) {
           ) : (
             player.achievements.map((a) => (
               <div key={a.id} style={card}>
-                <strong>🏆 {a.title}</strong>
+                <strong style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
+                  <span style={{ color: accent }}><Glyph name="medal" size={17} /></span>
+                  {a.title}
+                </strong>
                 <div style={{ fontSize: 12, opacity: 0.8 }}>{a.description}</div>
               </div>
             ))
@@ -370,10 +397,12 @@ function LessonCard({
   );
 }
 
-function Stat({ icon, value, label }: { icon: string; value: string; label: string }) {
+function Stat({ glyph, value, label }: { glyph: GlyphName; value: string; label: string }) {
   return (
     <div style={statCard}>
-      <div style={{ fontSize: 20 }}>{icon}</div>
+      <div style={{ color: accent }}>
+        <Glyph name={glyph} size={22} />
+      </div>
       <strong style={{ fontSize: 16 }}>{value}</strong>
       <div style={{ fontSize: 11, opacity: 0.75 }}>{label}</div>
     </div>
@@ -455,6 +484,12 @@ const container: CSSProperties = {
 const hero: CSSProperties = {
   display: "flex", gap: 12, alignItems: "center", padding: 16, borderRadius: 14,
   background: "linear-gradient(135deg, #2a4d63, #1b2f3e)", marginBottom: 14,
+};
+const mascotBadge: CSSProperties = {
+  flexShrink: 0, width: 52, height: 52, borderRadius: 14,
+  display: "flex", alignItems: "center", justifyContent: "center",
+  background: "rgba(61,174,233,0.16)", border: "1px solid rgba(61,174,233,0.3)",
+  color: "#7fd4ff",
 };
 const statRow: CSSProperties = {
   display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 14,

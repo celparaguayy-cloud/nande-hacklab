@@ -4,7 +4,7 @@ import type { VirtualKernel } from "../../core/VirtualKernel";
 import type { AIMessage } from "../../core/ai/AIProvider";
 import { Assistant, type AssistantReply } from "../../core/ai/Assistant";
 import { buildWorldContext, worldContextPrompt } from "../../core/ai/WorldContext";
-import { AppIcon } from "../desktop/AppIcon";
+import { Glyph, type GlyphName } from "../ui/Glyph";
 
 interface Props {
   kernel: VirtualKernel;
@@ -20,13 +20,13 @@ const SYSTEM: AIMessage = {
     "ficticio: nunca objetivos reales.",
 };
 
-const QUICK: { label: string; prompt: string }[] = [
-  { label: "🔍 Escaneá el objetivo", prompt: "escaneá objetivo.corp.nande" },
-  { label: "🎯 ¿Qué detectaron?", prompt: "mostrame las técnicas MITRE" },
-  { label: "🕵️ Investigá el incidente", prompt: "investigá el incidente" },
-  { label: "🩸 Ruta al dominio", prompt: "mostrame el dominio" },
-  { label: "🎲 Dame un reto", prompt: "dame un reto" },
-  { label: "🐍 Código en Python", prompt: "escribime un port scanner en python" },
+const QUICK: { glyph: GlyphName; label: string; prompt: string }[] = [
+  { glyph: "search", label: "Escaneá el objetivo", prompt: "escaneá objetivo.corp.nande" },
+  { glyph: "target", label: "¿Qué detectaron?", prompt: "mostrame las técnicas MITRE" },
+  { glyph: "eye", label: "Investigá el incidente", prompt: "investigá el incidente" },
+  { glyph: "drop", label: "Ruta al dominio", prompt: "mostrame el dominio" },
+  { glyph: "dice", label: "Dame un reto", prompt: "dame un reto" },
+  { glyph: "code", label: "Código en Python", prompt: "escribime un port scanner en python" },
 ];
 
 interface Msg { role: "user" | "assistant" | "tool"; text: string; action?: AssistantReply["action"]; openApp?: string; model?: string }
@@ -111,7 +111,9 @@ export function AsistenteView({ kernel, onOpenApp }: Props) {
     <div style={container}>
       <div style={header}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 20 }}>🤖</span>
+          <span style={{ color: "#c4b5fd", display: "flex" }}>
+            <Glyph name="nandu" size={26} />
+          </span>
           <div>
             <div style={{ fontWeight: 700 }}>Ñandú · Asistente que HACE</div>
             <div style={{ fontSize: 11, color: mode === "connected" ? "#86efac" : "#8b98a5" }}>
@@ -129,8 +131,8 @@ export function AsistenteView({ kernel, onOpenApp }: Props) {
       <div style={feed}>
         {msgs.length === 0 && (
           <div style={emptyState}>
-            <div style={{ opacity: 0.92 }}>
-              <AppIcon id="asistente" size={58} />
+            <div style={mascotBadge}>
+              <Glyph name="nandu" size={42} />
             </div>
             <div style={{ fontSize: 17, fontWeight: 700, color: "#e6edf3" }}>
               Ñandú, tu asistente que <span style={{ color: "#3daee9" }}>HACE</span>
@@ -142,6 +144,7 @@ export function AsistenteView({ kernel, onOpenApp }: Props) {
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "center", maxWidth: 460 }}>
               {QUICK.map((q) => (
                 <button key={q.label} style={quickBtn} onClick={() => send(q.prompt)}>
+                  <Glyph name={q.glyph} size={14} />
                   {q.label}
                 </button>
               ))}
@@ -197,12 +200,13 @@ const header: CSSProperties = { display: "flex", alignItems: "center", justifyCo
 const cfgBtn: CSSProperties = { background: "transparent", color: "#3daee9", border: "1px solid rgba(61,174,233,0.5)", borderRadius: 6, padding: "6px 10px", fontSize: 12, cursor: "pointer" };
 const feed: CSSProperties = { flex: 1, overflowY: "auto", padding: 12, display: "flex", flexDirection: "column", gap: 8 };
 const emptyState: CSSProperties = { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", gap: 12, padding: "24px 16px" };
+const mascotBadge: CSSProperties = { flexShrink: 0, width: 64, height: 64, borderRadius: 18, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(124,92,246,0.18)", border: "1px solid rgba(124,92,246,0.4)", color: "#c4b5fd" };
 const userRow: CSSProperties = { display: "flex", justifyContent: "flex-end" };
 const botRow: CSSProperties = { display: "flex", justifyContent: "flex-start" };
 const userBubble: CSSProperties = { maxWidth: "85%", background: "#1d4ed8", color: "#fff", borderRadius: "12px 12px 2px 12px", padding: "8px 12px", fontSize: 14, whiteSpace: "pre-wrap" };
 const botBubble: CSSProperties = { maxWidth: "88%", background: "#111820", border: "1px solid #1b2733", borderRadius: "12px 12px 12px 2px", padding: "8px 12px", fontSize: 14, whiteSpace: "pre-wrap" };
 const toolBubble: CSSProperties = { maxWidth: "92%", background: "#08110a", border: "1px solid #14532d", borderRadius: 8, padding: "8px 10px", fontSize: 11.5, whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "ui-monospace, monospace", color: "#b7f7c2", margin: 0 };
-const quickBtn: CSSProperties = { background: "#111820", color: "#3daee9", border: "1px solid #1b2733", borderRadius: 999, padding: "6px 12px", fontSize: 12, cursor: "pointer" };
+const quickBtn: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 6, background: "#111820", color: "#3daee9", border: "1px solid #1b2733", borderRadius: 999, padding: "6px 12px", fontSize: 12, cursor: "pointer" };
 const runBtn: CSSProperties = { background: "#15803d", color: "#fff", border: "none", borderRadius: 6, padding: "5px 10px", fontSize: 12, cursor: "pointer" };
 const openBtn: CSSProperties = { background: "#1b2733", color: "#3daee9", border: "1px solid #2a3a4a", borderRadius: 6, padding: "5px 10px", fontSize: 12, cursor: "pointer" };
 const inputRow: CSSProperties = { display: "flex", gap: 8, padding: 10, borderTop: "1px solid #1b2733" };

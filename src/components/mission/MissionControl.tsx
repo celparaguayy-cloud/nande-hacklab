@@ -109,17 +109,23 @@ export default function MissionControl({ kernel, onOpenApp }: Props) {
             </div>
           )}
 
-          <div className="mc__objectives">
-            {chapter.objectives.map((o) => {
-              const done = kernel.campaign.isObjectiveDone(o.id);
-              return (
-                <div key={o.id} className="mc__obj" data-done={done}>
-                  <span className="mc__check">{done ? "✓" : "○"}</span>
-                  <div className="mc__obj-text">{o.text}</div>
-                </div>
-              );
-            })}
-          </div>
+          {/* El objetivo actual ya se destaca arriba (Tu próximo paso), así que
+              acá mostramos el resto: lo hecho y lo que viene, sin repetirlo. */}
+          {chapter.objectives.some((o) => o.id !== firstUndone?.id) && (
+            <div className="mc__objectives">
+              {chapter.objectives
+                .filter((o) => o.id !== firstUndone?.id)
+                .map((o) => {
+                  const done = kernel.campaign.isObjectiveDone(o.id);
+                  return (
+                    <div key={o.id} className="mc__obj" data-done={done}>
+                      <span className="mc__check">{done ? "✓" : "○"}</span>
+                      <div className="mc__obj-text">{o.text}</div>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
 
           <div className="mc__actions">
             {primary && (

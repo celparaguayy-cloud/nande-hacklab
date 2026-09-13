@@ -67,8 +67,8 @@
   background: var(--nd-surface);
   /* Difumina el borde inferior para que el contenido nunca termine en un
      tajo recto: se lee como "hay más, seguí bajando". */
-  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 20px), transparent);
-  mask-image: linear-gradient(to bottom, #000 calc(100% - 20px), transparent);
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 46px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 46px), transparent);
 }
 
 .br__doc { padding: 20px 22px 46px; }

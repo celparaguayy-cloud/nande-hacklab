@@ -11,8 +11,8 @@
   gap: 14px;
   /* Difumina el borde inferior: si hay más contenido, se ve que sigue —
      nunca corta una tarjeta con un tajo recto. */
-  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 20px), transparent);
-  mask-image: linear-gradient(to bottom, #000 calc(100% - 20px), transparent);
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 46px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 46px), transparent);
 }
 .mc__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .mc__sub { color: var(--nd-text-dim); font-size: 12px; margin-top: 4px; }

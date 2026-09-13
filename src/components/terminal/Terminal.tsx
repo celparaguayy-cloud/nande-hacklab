@@ -25,8 +25,8 @@ interface Line {
  * carácter (no un vacío negro): quién sos, qué es esto y por dónde empezar.
  */
 const BANNER: Line[] = [
-  { text: "  ▄▄▄  ÑANDE OS", kind: "ok" },
-  { text: "       Terminal de hacking · 100% laboratorio, 0% daño real", kind: "muted" },
+  { text: "  ÑANDE OS", kind: "ok" },
+  { text: "  Terminal de hacking · 100% laboratorio, 0% daño real", kind: "muted" },
   { text: "", kind: "muted" },
   { text: "  Empezá con:", kind: "out" },
   { text: "   ▸ guia              — tu primera misión, paso a paso", kind: "ok" },
