@@ -59,19 +59,25 @@ export default function ObservatoryView({ kernel }: Props) {
   ];
 
   // Log de eventos: usa los eventos REALES del runtime; si el mundo recién
-  // arranca y todavía no hubo ninguno, muestra los hosts que ya están arriba
-  // (dato real igual) para que el panel no se vea vacío.
-  const logLines: { k: string; t: string; rest: string }[] =
+  // arranca y todavía no hubo ninguno, muestra el arranque de los servicios
+  // reales (dato real igual, y variado) para que el panel no se vea vacío.
+  const logLines: LogLine[] =
     ws.runtimeEvents.length > 0
       ? ws.runtimeEvents.slice(0, 14).map((e) => ({
           k: e.kind ?? "evento",
           t: String(e.at ?? ""),
           rest: e.host ?? e.message ?? "",
+          tone: kindTone(e.kind ?? ""),
         }))
       : ws.hosts
           .filter((h) => h.up)
           .slice(0, 14)
-          .map((h) => ({ k: "host.up", t: "boot", rest: h.hostname }));
+          .map((h) => {
+            const svc = h.services.find((s) => s.state === "running");
+            return svc
+              ? { k: "svc.listen", t: "boot", rest: `${h.hostname}:${svc.port} (${svc.name})`, tone: "good" as const }
+              : { k: "host.up", t: "boot", rest: `${h.hostname} ${h.ip}`, tone: "good" as const };
+          });
 
   const overall: Tone = socTone === "crit" ? "crit" : hostsUp < hostsTotal || socTone === "warn" ? "warn" : "ok";
   const statusText =
@@ -122,7 +128,7 @@ export default function ObservatoryView({ kernel }: Props) {
               logLines.map((e, i) => (
                 <div key={i} className="obs__log-line">
                   <span className="obs__log-t">[{e.t}]</span>{" "}
-                  <span className="obs__log-k">{e.k}</span> {e.rest}
+                  <span className="obs__log-k" data-tone={e.tone}>{e.k}</span> {e.rest}
                 </div>
               ))
             )}
@@ -153,7 +159,12 @@ function SegBar({
       <span className="obs__bar-label">{label}</span>
       <div className="obs__bar" style={{ ["--barcolor" as string]: color }}>
         {Array.from({ length: SEGMENTS }, (_, i) => (
-          <span key={i} className="obs__seg" data-on={i < on ? 1 : 0} />
+          <span
+            key={i}
+            className="obs__seg"
+            data-on={i < on ? 1 : 0}
+            data-base={on === 0 && i === 0 ? 1 : 0}
+          />
         ))}
       </div>
       <span className="obs__bar-num" style={{ color }}>{num}</span>
@@ -161,10 +172,27 @@ function SegBar({
   );
 }
 
+type LogTone = "good" | "bad" | "warn";
+interface LogLine {
+  k: string;
+  t: string;
+  rest: string;
+  tone: LogTone;
+}
+
+/** Clasifica un evento por su nombre: verde=bueno, rojo=malo, ámbar=neutral. */
+function kindTone(kind: string): LogTone {
+  const k = kind.toLowerCase();
+  if (/fail|block|deny|denied|bust|error|breach|down|kill|attack|alert/.test(k)) return "bad";
+  if (/warn|stop|filter|timeout|retry/.test(k)) return "warn";
+  return "good";
+}
+
 interface WSHost {
   hostname: string;
+  ip: string;
   up: boolean;
-  services: { state: string }[];
+  services: { name: string; port: number; state: string }[];
 }
 interface WS {
   clock: { tick: number; day?: number; hour?: number; minute?: number };

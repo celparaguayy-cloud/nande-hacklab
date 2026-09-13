@@ -25,32 +25,34 @@
   font-size: 19px;
   line-height: 1.15;
   image-rendering: pixelated;
+  /* Viñeta de tubo CRT: no se desplaza con el scroll (va en el borde). */
+  box-shadow: inset 0 0 120px 34px rgba(0, 0, 0, 0.62);
 }
-/* Barrido CRT con parpadeo muy leve. */
+/* Barrido CRT: líneas horizontales visibles + parpadeo muy leve. */
 .obs::before {
   content: "";
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: 5;
+  z-index: 6;
   background: repeating-linear-gradient(
     to bottom,
     rgba(0, 0, 0, 0) 0,
-    rgba(0, 0, 0, 0) 2px,
-    rgba(0, 0, 0, 0.28) 3px
+    rgba(0, 0, 0, 0) 1px,
+    rgba(0, 0, 0, 0.34) 2px,
+    rgba(0, 0, 0, 0.34) 3px
   );
-  mix-blend-mode: multiply;
   animation: obs-flicker 5s infinite steps(60);
 }
-@keyframes obs-flicker { 0%,97%,100% { opacity: 1; } 98% { opacity: 0.86; } }
-/* Viñeta: oscurece los bordes como una pantalla real. */
+@keyframes obs-flicker { 0%,96%,100% { opacity: 1; } 97% { opacity: 0.82; } }
+/* Segunda capa: brillo/curvatura sutil arriba (fósforo). */
 .obs::after {
   content: "";
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: 4;
-  background: radial-gradient(120% 120% at 50% 45%, transparent 55%, rgba(0, 0, 0, 0.55) 100%);
+  z-index: 5;
+  background: radial-gradient(120% 80% at 50% -10%, rgba(87, 240, 138, 0.06), transparent 55%);
 }
 @media (prefers-reduced-motion: reduce) {
   .obs::before { animation: none; }
@@ -180,6 +182,9 @@
 }
 .obs__seg { flex: 1; background: #14202e; }
 .obs__seg[data-on="1"] { background: var(--barcolor, var(--obs-green)); }
+/* Estado "nominal": si el valor es 0, un pip tenue del color marca la línea
+   base, así el cero comunica "sin señal, todo bien" y no "panel muerto". */
+.obs__seg[data-base="1"] { background: color-mix(in oklab, var(--barcolor, var(--obs-green)) 40%, #14202e); }
 .obs__bar-num { width: 58px; text-align: right; color: var(--obs-text); font-size: 17px; }
 
 .obs__log {
@@ -190,7 +195,10 @@
   flex-direction: column;
   gap: 3px;
 }
-.obs__log-line { color: var(--obs-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.obs__log-k { color: var(--obs-magenta); }
-.obs__log-t { color: var(--obs-dim); }
+.obs__log-line { color: #b9cfe4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.obs__log-k { color: var(--obs-green); }
+.obs__log-k[data-tone="good"] { color: var(--obs-green); }
+.obs__log-k[data-tone="bad"] { color: var(--obs-red); }
+.obs__log-k[data-tone="warn"] { color: var(--obs-amber); }
+.obs__log-t { color: #7f97ad; }
 .obs__log-empty { color: var(--obs-dim); }
