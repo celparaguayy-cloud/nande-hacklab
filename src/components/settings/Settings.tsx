@@ -25,6 +25,8 @@ export function Settings({ kernel }: SettingsProps) {
     setAiTest(null);
     try {
       setAiTest(await kernel.ai.testConnection());
+      // testConnection puede auto-corregir el modelo de Gemini; reflejarlo.
+      refreshAi();
     } catch (e) {
       setAiTest({ ok: false, message: e instanceof Error ? e.message : "error" });
     } finally {

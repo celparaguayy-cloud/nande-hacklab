@@ -23,6 +23,43 @@ import type {
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
+/**
+ * Lista los modelos de Gemini que la clave del jugador realmente tiene y que
+ * soportan generateContent. Sirve para NO adivinar un nombre de modelo que dé
+ * 404: preguntamos a la API cuáles existen y elegimos uno que ande.
+ */
+export async function listGeminiModels(apiKey: string): Promise<string[]> {
+  const res = await fetch(
+    `${GEMINI_BASE}?key=${encodeURIComponent(apiKey)}&pageSize=200`,
+  );
+  if (!res.ok) throw new Error(`Gemini list: HTTP ${res.status}`);
+  const data = (await res.json()) as {
+    models?: { name?: string; supportedGenerationMethods?: string[] }[];
+  };
+  return (data.models ?? [])
+    .filter((m) => m.supportedGenerationMethods?.includes("generateContent"))
+    .map((m) => (m.name ?? "").replace(/^models\//, ""))
+    .filter(Boolean);
+}
+
+/**
+ * Elige el mejor modelo de una lista: prioriza flash estables (rápidos y con
+ * cuota gratis generosa), evitando previews/experimentales cuando hay opción.
+ */
+export function pickGeminiModel(models: string[]): string | null {
+  if (models.length === 0) return null;
+  const score = (m: string): number => {
+    let s = 0;
+    if (/flash/.test(m)) s += 10;
+    if (/2\.5|2\.0/.test(m)) s += 5;
+    if (/latest/.test(m)) s += 3;
+    if (/exp|preview|thinking|vision|tts|image/.test(m)) s -= 8;
+    if (/1\.5/.test(m)) s += 1;
+    return s;
+  };
+  return [...models].sort((a, b) => score(b) - score(a))[0];
+}
+
 export class GroqProvider implements AIProvider {
   private apiKey: string;
   private model: string;

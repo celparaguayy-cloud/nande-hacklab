@@ -45,17 +45,41 @@ export class AIService {
       (e) => { this.lastError = errText(e); return null; },
     );
     if (!connected) return { ok: false, message: `No se pudo cargar el proveedor: ${this.lastError ?? "?"}` };
+    const ping = async (p: AIProvider) =>
+      (await p.generate([{ role: "user", content: "Respondé sólo con: OK" }], { maxTokens: 8 })).text;
     try {
-      const r = await connected.generate(
-        [{ role: "user", content: "Respondé sólo con: OK" }],
-        { maxTokens: 8 },
-      );
+      const text = await ping(connected);
       this.lastError = null;
-      return { ok: true, message: `Conexión OK (${this.settings.get().model}). Respuesta: ${r.text.slice(0, 40) || "(vacía)"}` };
+      return { ok: true, message: `Conexión OK (${this.settings.get().model}). Respuesta: ${text.slice(0, 40) || "(vacía)"}` };
     } catch (e) {
       this.lastError = errText(e);
-      return { ok: false, message: diagnose(this.lastError, this.settings.get().provider) };
+      const cfg = this.settings.get();
+      // Auto-recuperación de Gemini: si el modelo dio 404 (nombre inválido para
+      // la clave), preguntamos a la API qué modelos existen y elegimos uno que
+      // ande, lo guardamos y reintentamos. Así el jugador no adivina nombres.
+      if (cfg.provider === "gemini" && /404|not found|model/i.test(this.lastError)) {
+        const fixed = await this.autoFixGemini(cfg.apiKey).catch(() => null);
+        if (fixed) {
+          this.settings.setModel(fixed);
+          try {
+            const mod = await import("./net/ConnectedProviders");
+            const text = await ping(new mod.GeminiProvider(cfg.apiKey, fixed));
+            this.lastError = null;
+            return { ok: true, message: `Conexión OK. Ajusté el modelo a "${fixed}" (el anterior no existía). Respuesta: ${text.slice(0, 30)}` };
+          } catch (e2) {
+            this.lastError = errText(e2);
+          }
+        }
+      }
+      return { ok: false, message: diagnose(this.lastError, cfg.provider) };
     }
+  }
+
+  /** Descubre un modelo de Gemini válido para la clave (o null). */
+  private async autoFixGemini(apiKey: string): Promise<string | null> {
+    const mod = await import("./net/ConnectedProviders");
+    const models = await mod.listGeminiModels(apiKey);
+    return mod.pickGeminiModel(models);
   }
 
   config() {
