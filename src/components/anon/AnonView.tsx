@@ -30,11 +30,19 @@ export function AnonView({ kernel }: Props) {
   const newCircuit = () => { anon.newCircuit(); refresh(); };
 
   const openOnion = (addr: string) => {
+    // Si el circuito está apagado, lo activamos automáticamente (así el botón
+    // "Abrir" siempre abre) y avisamos que se prendió, como lección de OPSEC.
+    let auto = "";
+    if (!anon.isTorEnabled()) {
+      anon.enableTor();
+      auto = "🟢 Activé el circuito de anonimato por vos (los .onion sólo se alcanzan así).\n\n";
+      refresh();
+    }
     const r = kernel.onion.browse(addr);
     if (!r.ok) { setOnionOut(`⚠ ${r.message}`); return; }
     const notes = r.site!.flag ? kernel.scanForSignals(r.site!.content) : [];
     if (notes.length) setFlash(notes.join(" "));
-    setOnionOut(`🧅 ${r.site!.title}\n\n${r.site!.content}`);
+    setOnionOut(`${auto}🧅 ${r.site!.title}\n\n${r.site!.content}`);
   };
 
   return (

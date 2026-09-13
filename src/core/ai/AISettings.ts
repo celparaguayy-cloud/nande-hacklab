@@ -20,7 +20,9 @@ const STORAGE_KEY = "nande-ai-config";
 const DEFAULTS: Record<AIProviderName, string> = {
   offline: "nande-offline",
   groq: "llama-3.3-70b-versatile",
-  gemini: "gemini-1.5-flash",
+  // gemini-1.5-flash quedó descontinuado en varios proyectos nuevos; 2.0-flash
+  // es el modelo estable actual y funciona desde el navegador (CORS habilitado).
+  gemini: "gemini-2.0-flash",
 };
 
 export class AISettings {

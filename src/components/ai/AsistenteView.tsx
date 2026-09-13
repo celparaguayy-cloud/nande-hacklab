@@ -78,9 +78,15 @@ export function AsistenteView({ kernel, onOpenApp }: Props) {
         try {
           const aiMessages: AIMessage[] = [SYSTEM, { role: "user", content: clean }];
           const r = await kernel.ai.generate(aiMessages, { maxTokens: 400 });
-          setMsgs((m) => [...m, { role: "assistant", text: r.text, model: r.model }]);
+          if (r.model !== "nande-offline") {
+            setMsgs((m) => [...m, { role: "assistant", text: r.text, model: r.model }]);
+          } else {
+            // Cayó al offline: mostramos POR QUÉ falló la IA conectada.
+            const err = kernel.ai.getLastError();
+            if (err) setMsgs((m) => [...m, { role: "assistant", text: `⚠ Tu IA conectada no respondió (${err}). Probá "Configuración → Probar conexión". Igual te contesto local.`, model: "aviso" }]);
+          }
         } catch {
-          /* el agente ya respondió; no molestamos con un error */
+          /* el agente ya respondió */
         }
       }
       setMode(kernel.ai.mode());

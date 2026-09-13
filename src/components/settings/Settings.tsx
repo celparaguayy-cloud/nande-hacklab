@@ -18,6 +18,19 @@ export function Settings({ kernel }: SettingsProps) {
   );
   const [ai, setAi] = useState(() => kernel.ai.config());
   const refreshAi = () => setAi(kernel.ai.config());
+  const [aiTest, setAiTest] = useState<{ ok: boolean; message: string } | null>(null);
+  const [aiTesting, setAiTesting] = useState(false);
+  const testAi = async () => {
+    setAiTesting(true);
+    setAiTest(null);
+    try {
+      setAiTest(await kernel.ai.testConnection());
+    } catch (e) {
+      setAiTest({ ok: false, message: e instanceof Error ? e.message : "error" });
+    } finally {
+      setAiTesting(false);
+    }
+  };
 
   const chooseWallpaper = (id: string) => {
     kernel.appearance.setWallpaper(id);
@@ -122,12 +135,40 @@ export function Settings({ kernel }: SettingsProps) {
               placeholder="modelo"
               style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #2b3d4e", background: "#0b1016", color: "#e6edf3", fontSize: 13 }}
             />
-            <button
-              onClick={() => { kernel.ai.getSettings().reset(); refreshAi(); }}
-              style={{ alignSelf: "flex-start", padding: "5px 10px", borderRadius: 8, cursor: "pointer", border: "1px solid #2b3d4e", background: "transparent", color: "#fca5a5", fontSize: 12 }}
-            >
-              Borrar clave y volver a offline
-            </button>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", fontSize: 11, color: "#7f8995" }}>
+              Modelos sugeridos:
+              <button style={hintChip} onClick={() => { kernel.ai.getSettings().setModel(ai.provider === "groq" ? "llama-3.3-70b-versatile" : "gemini-2.0-flash"); refreshAi(); }}>
+                {ai.provider === "groq" ? "llama-3.3-70b-versatile" : "gemini-2.0-flash"}
+              </button>
+              {ai.provider === "gemini" && (
+                <button style={hintChip} onClick={() => { kernel.ai.getSettings().setModel("gemini-2.5-flash"); refreshAi(); }}>gemini-2.5-flash</button>
+              )}
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <button
+                onClick={testAi}
+                disabled={aiTesting}
+                style={{ padding: "7px 12px", borderRadius: 8, cursor: "pointer", border: "none", background: "#1d4ed8", color: "#fff", fontSize: 12.5, fontWeight: 600 }}
+              >
+                {aiTesting ? "Probando…" : "Probar conexión"}
+              </button>
+              <button
+                onClick={() => { kernel.ai.getSettings().reset(); refreshAi(); setAiTest(null); }}
+                style={{ padding: "6px 10px", borderRadius: 8, cursor: "pointer", border: "1px solid #2b3d4e", background: "transparent", color: "#fca5a5", fontSize: 12 }}
+              >
+                Borrar clave y volver a offline
+              </button>
+            </div>
+            {aiTest && (
+              <div style={{ fontSize: 12.5, padding: "8px 10px", borderRadius: 8, background: aiTest.ok ? "#052e1a" : "#2a1010", border: `1px solid ${aiTest.ok ? "#15803d" : "#7f1d1d"}`, color: aiTest.ok ? "#86efac" : "#fca5a5" }}>
+                {aiTest.ok ? "✅ " : "⚠ "}{aiTest.message}
+              </div>
+            )}
+            {ai.provider === "gemini" && (
+              <div style={{ fontSize: 11, color: "#7f8995" }}>
+                Clave gratis de Gemini: aistudio.google.com/apikey — anda desde el celu.
+              </div>
+            )}
           </div>
         )}
       </section>
@@ -286,6 +327,16 @@ const sectionStyle = {
   border: "1px solid #29303a",
   borderRadius: 9,
   background: "#151a21",
+};
+
+const hintChip = {
+  padding: "3px 8px",
+  borderRadius: 999,
+  cursor: "pointer",
+  border: "1px solid #2b3d4e",
+  background: "transparent",
+  color: "#7cc4ff",
+  fontSize: 11,
 };
 
 const titleStyle = {
