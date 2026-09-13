@@ -42,6 +42,7 @@ import { AppIcon } from "./AppIcon";
 import { Glyph } from "../ui/Glyph";
 import { Toaster } from "./Toaster";
 import Wallpaper from "./Wallpaper";
+import "../../styles/fonts.css";
 import "../../styles/theme.css";
 import "../../styles/pixel.css";
 

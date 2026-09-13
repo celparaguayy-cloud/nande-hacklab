@@ -224,4 +224,34 @@ describe("aislamiento del sandbox", () => {
 
     kernel.dispose();
   });
+
+  it("ni el HTML ni los estilos piden recursos externos (fuentes/CDN)", async () => {
+    // Antes el index.html cargaba las fuentes de píxeles desde Google Fonts:
+    // una petición externa por carga que rompía el aislamiento (y sin conexión
+    // la tipografía no aparecía). Ahora van inline (data-URI). Este barrido
+    // impide que vuelva a colarse una URL externa en el arranque o los estilos.
+    const { readdirSync, readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+
+    const ofensas: string[] = [];
+
+    const html = readFileSync("index.html", "utf-8");
+    for (const match of html.matchAll(/https?:\/\/[^"')\s]+/g)) {
+      ofensas.push(`index.html: ${match[0]}`);
+    }
+
+    for (const entry of readdirSync("src/styles")) {
+      if (!entry.endsWith(".css")) continue;
+      const css = readFileSync(join("src/styles", entry), "utf-8");
+      // url(http…) = recurso externo; los data: URI son locales y están bien.
+      for (const match of css.matchAll(/url\(\s*['"]?(https?:\/\/[^)'"]+)/g)) {
+        ofensas.push(`${entry}: ${match[1]}`);
+      }
+      if (css.includes("fonts.googleapis") || css.includes("fonts.gstatic")) {
+        ofensas.push(`${entry}: Google Fonts`);
+      }
+    }
+
+    expect(ofensas).toEqual([]);
+  });
 });
