@@ -51,12 +51,27 @@ export default function ObservatoryView({ kernel }: Props) {
     { name: "KERNEL", chip: "ACTIVO", value: "OK", sub: `uptime ${ws.clock.tick}`, tone: "ok" },
     { name: "RED", chip: "ONLINE", value: `${hostsUp}/${hostsTotal}`, sub: "hosts arriba", tone: hostsUp === hostsTotal ? "ok" : "warn" },
     { name: "SERVICIOS", chip: "RUNNING", value: String(servicesRunning), sub: "escuchando", tone: "ok" },
-    { name: "IA", chip: ws.ai === "connected" ? "CONECTADA" : "OFFLINE", value: ws.ai === "connected" ? "◆" : "○", sub: ws.ai === "connected" ? "proveedor propio" : "local determinista", tone: ws.ai === "connected" ? "idle" : "ok" },
-    { name: "MUNDO", chip: "VIVO", value: `${ws.online}`, sub: `en línea / ${ws.people}`, tone: "ok" },
+    { name: "IA", chip: ws.ai === "connected" ? "CONECTADA" : "LOCAL", value: ws.ai === "connected" ? "◆" : "◈", sub: ws.ai === "connected" ? "proveedor propio" : "IA local · offline", tone: "idle" },
+    { name: "MUNDO", chip: "VIVO", value: `${ws.online}`, sub: `en línea / ${ws.people}`, tone: "idle" },
     { name: "SOC", chip: (ws.alertTop || "sin alertas").toUpperCase(), value: String(alertsTotal), sub: "alertas totales", tone: socTone },
-    { name: "DATOS", chip: "SQL", value: String(ws.databases.length), sub: "bases + " + ws.tools.length + " tools", tone: "ok" },
-    { name: "PERSIST", chip: "SNAPSHOTS", value: String(ws.snapshots.length), sub: "fotos guardadas", tone: "ok" },
+    { name: "DATOS", chip: "SQL", value: String(ws.databases.length), sub: "bases + " + ws.tools.length + " tools", tone: "idle" },
+    { name: "PERSIST", chip: "SNAPSHOTS", value: String(ws.snapshots.length), sub: "fotos guardadas", tone: "idle" },
   ];
+
+  // Log de eventos: usa los eventos REALES del runtime; si el mundo recién
+  // arranca y todavía no hubo ninguno, muestra los hosts que ya están arriba
+  // (dato real igual) para que el panel no se vea vacío.
+  const logLines: { k: string; t: string; rest: string }[] =
+    ws.runtimeEvents.length > 0
+      ? ws.runtimeEvents.slice(0, 14).map((e) => ({
+          k: e.kind ?? "evento",
+          t: String(e.at ?? ""),
+          rest: e.host ?? e.message ?? "",
+        }))
+      : ws.hosts
+          .filter((h) => h.up)
+          .slice(0, 14)
+          .map((h) => ({ k: "host.up", t: "boot", rest: h.hostname }));
 
   const overall: Tone = socTone === "crit" ? "crit" : hostsUp < hostsTotal || socTone === "warn" ? "warn" : "ok";
   const statusText =
@@ -101,14 +116,13 @@ export default function ObservatoryView({ kernel }: Props) {
         <div className="obs__panel">
           <h3>EVENTOS DEL RUNTIME</h3>
           <div className="obs__log">
-            {ws.runtimeEvents.length === 0 ? (
+            {logLines.length === 0 ? (
               <div className="obs__log-empty">Silencio en el cable. Hacé algo y aparece acá.</div>
             ) : (
-              ws.runtimeEvents.slice(0, 14).map((e, i) => (
+              logLines.map((e, i) => (
                 <div key={i} className="obs__log-line">
-                  <span className="obs__log-t">[{String(e.at ?? "")}]</span>{" "}
-                  <span className="obs__log-k">{e.kind ?? "evento"}</span>{" "}
-                  {e.host ?? e.message ?? ""}
+                  <span className="obs__log-t">[{e.t}]</span>{" "}
+                  <span className="obs__log-k">{e.k}</span> {e.rest}
                 </div>
               ))
             )}
@@ -142,7 +156,7 @@ function SegBar({
           <span key={i} className="obs__seg" data-on={i < on ? 1 : 0} />
         ))}
       </div>
-      <span className="obs__bar-num">{num}</span>
+      <span className="obs__bar-num" style={{ color }}>{num}</span>
     </div>
   );
 }

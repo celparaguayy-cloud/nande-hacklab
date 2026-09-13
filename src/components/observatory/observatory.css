@@ -16,9 +16,9 @@
   height: 100%;
   overflow: auto;
   box-sizing: border-box;
-  padding: 16px;
+  padding: 16px 16px 84px;
   background:
-    radial-gradient(120% 90% at 50% -10%, rgba(63, 230, 214, 0.08), transparent 60%),
+    radial-gradient(120% 90% at 50% -10%, rgba(63, 230, 214, 0.1), transparent 60%),
     var(--obs-bg);
   color: var(--obs-text);
   font-family: "VT323", ui-monospace, monospace;
@@ -26,7 +26,7 @@
   line-height: 1.15;
   image-rendering: pixelated;
 }
-/* Barrido CRT. */
+/* Barrido CRT con parpadeo muy leve. */
 .obs::before {
   content: "";
   position: absolute;
@@ -37,9 +37,23 @@
     to bottom,
     rgba(0, 0, 0, 0) 0,
     rgba(0, 0, 0, 0) 2px,
-    rgba(0, 0, 0, 0.22) 3px
+    rgba(0, 0, 0, 0.28) 3px
   );
   mix-blend-mode: multiply;
+  animation: obs-flicker 5s infinite steps(60);
+}
+@keyframes obs-flicker { 0%,97%,100% { opacity: 1; } 98% { opacity: 0.86; } }
+/* Viñeta: oscurece los bordes como una pantalla real. */
+.obs::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+  background: radial-gradient(120% 120% at 50% 45%, transparent 55%, rgba(0, 0, 0, 0.55) 100%);
+}
+@media (prefers-reduced-motion: reduce) {
+  .obs::before { animation: none; }
 }
 
 .obs__head {
@@ -71,6 +85,10 @@
 .obs__status[data-tone="crit"] { color: var(--obs-red); animation: obs-blink 1s steps(2) infinite; }
 @keyframes obs-blink { 50% { opacity: 0.35; } }
 .obs__clock { margin-left: auto; color: var(--obs-dim); font-size: 18px; }
+@media (max-width: 720px) {
+  .obs__head { align-items: flex-start; }
+  .obs__clock { margin-left: 0; width: 100%; }
+}
 
 .obs__grid {
   display: grid;
@@ -115,12 +133,15 @@
   color: var(--tone, var(--obs-cyan));
 }
 .obs__tile-value {
-  font-size: 30px;
+  font-size: 32px;
   line-height: 1;
   margin-top: 10px;
-  color: var(--obs-text);
+  color: #eef7ff;
+  text-shadow:
+    0 0 10px color-mix(in oklab, var(--tone, var(--obs-cyan)) 70%, transparent),
+    0 0 22px color-mix(in oklab, var(--tone, var(--obs-cyan)) 35%, transparent);
 }
-.obs__tile-sub { color: var(--obs-dim); font-size: 16px; margin-top: 2px; }
+.obs__tile-sub { color: #90a8bf; font-size: 16px; margin-top: 3px; }
 
 .obs__row {
   display: grid;
