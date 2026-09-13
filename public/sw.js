@@ -6,7 +6,10 @@
  * Estrategia: red primero para navegación (para tomar versiones nuevas),
  * cache primero para el resto.
  */
-const CACHE = "nande-hacklab-v3";
+// Se BUMPEA en cada release (junto con src/version.ts): al cambiar los bytes
+// del SW, el navegador detecta "actualización", limpia el cache viejo en
+// activate() y dispara el reload. Sin esto, la app instalada quedaba pegada.
+const CACHE = "nande-hacklab-v5-6-3";
 const CORE = ["./", "./index.html", "./manifest.webmanifest", "./nande-icon.svg"];
 
 self.addEventListener("install", (event) => {
