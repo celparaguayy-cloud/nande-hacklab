@@ -53,9 +53,7 @@ export class BlogApp implements WebApp {
   <button type="submit">Buscar</button>
 </form>
 ${reflejo}
-${confirmado}
-<p class="lab-hint">Pista: lo que buscás se muestra tal cual, sin filtrar.
-Probá <code>&lt;script&gt;alert(1)&lt;/script&gt;</code> en la búsqueda.</p>`;
+${confirmado}`;
 
     return html(page(this.title, body));
   }
@@ -114,10 +112,7 @@ ${notice(`Álbum #${id} — de <strong>${escapeHtml(album.dueno)}</strong>`, "in
 <ul>
   <li><a href="/album?id=1">Álbum #1</a></li>
   <li><a href="/album?id=2">Álbum #2</a></li>
-</ul>
-<p class="lab-hint">Pista: los álbumes se ven por <code>?id=</code> y el
-servidor no comprueba de quién son. Probá con otros números —el del admin es el
-#7. Tocá para verlo: <code>/album?id=7</code></p>`;
+</ul>`;
 
     return html(page(this.title, body));
   }
@@ -179,11 +174,7 @@ ${notice(`Mostrando <code>${escapeHtml(resuelto)}</code>`, "info")}
 <ul>
   <li><a href="/ver?archivo=manual.txt">manual.txt</a></li>
   <li><a href="/ver?archivo=precios.txt">precios.txt</a></li>
-</ul>
-<p class="lab-hint">Pista: el visor abre <code>public/&lt;archivo&gt;</code>.
-¿Y si el archivo empieza con <code>../</code> para salir de esa carpeta? Hay un
-<code>config/secrets.env</code> afuera. Tocá para probarlo:
-<code>/ver?archivo=../config/secrets.env</code></p>`;
+</ul>`;
 
     return html(page(this.title, body));
   }
@@ -212,10 +203,7 @@ export class ToolsApp implements WebApp {
 
       const body = `
 ${this.form(host)}
-<pre class="lab-file">$ ${escapeHtml(comando)}\n${escapeHtml(salida)}</pre>
-<p class="lab-hint">Pista: el host se pasa a un comando de sistema sin
-filtrar. Encadená otro con <code>;</code> — probá
-<code>127.0.0.1; whoami</code> o <code>127.0.0.1; cat flag</code>.</p>`;
+<pre class="lab-file">$ ${escapeHtml(comando)}\n${escapeHtml(salida)}</pre>`;
 
       return html(page(this.title, body), { debug: { note: comando } });
     }
@@ -226,9 +214,6 @@ filtrar. Encadená otro con <code>;</code> — probá
   private form(value: string): string {
     return `
 <p>Verificá si un host responde.</p>
-<p class="lab-hint">Objetivo: el host se pasa a un comando del sistema sin
-filtrar. Encadená otro comando con <code>;</code> — probá
-<code>127.0.0.1; whoami</code> y después <code>127.0.0.1; cat flag</code>.</p>
 <form method="GET" action="/ping">
   ${field("Host", "host", "text", value)}
   <button type="submit">Ping</button>

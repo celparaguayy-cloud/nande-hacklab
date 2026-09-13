@@ -86,11 +86,7 @@ Bandera: ND{csrf_transferencia}</pre>
   ${field("Para", "para", "text", "")}
   ${field("Monto", "monto", "text", "")}
   <button type="submit">Transferir</button>
-</form>
-<p class="lab-hint">Pista: la transferencia no pide token anti-CSRF ni valida
-el origen. Se ejecuta con solo tu cookie. Probá:
-<code>/transferir?para=atacante&amp;monto=99999</code> — un sitio ajeno
-podría enviar exactamente eso por vos.</p>`;
+</form>`;
   }
 }
 
@@ -144,10 +140,7 @@ export class LfiApp implements WebApp {
 
     const body = `
 <nav><a href="/?pg=inicio">Inicio</a> · <a href="/?pg=contacto">Contacto</a></nav>
-${cuerpo}
-<p class="lab-hint">Pista: la página se arma incluyendo <code>?pg=</code> sin
-filtrar. Salí del directorio de vistas para leer un archivo de afuera. Tocá
-para probarlo: <code>/?pg=../../config/secretos.env</code></p>`;
+${cuerpo}`;
 
     return html(page(this.title, body), { debug: { note: `include ${pg}` } });
   }
@@ -222,10 +215,7 @@ Tu código corrió en el servidor. Bandera: ND{upload_webshell}</pre>`,
   ${field("Nombre", "nombre", "text", "")}
   ${field("Contenido", "contenido", "text", "")}
   <button type="submit">Subir</button>
-</form>
-<p class="lab-hint">Pista: no valida la extensión. Subí un
-<code>shell.php</code> con cualquier contenido y después abrilo en
-<code>/subidas/shell.php</code>: el server lo ejecuta.</p>`;
+</form>`;
   }
 }
 
@@ -266,17 +256,11 @@ export class DeserializeApp implements WebApp {
 usuario: ${escapeHtml(String(obj.usuario ?? "?"))}  ·  rol: admin
 Bandera: ND{deserializacion_insegura}</pre>`
       : notice(`Sesión de rol "${escapeHtml(rol)}". El panel es solo para admin.`, "info");
-
-    const ejemplo = btoa('{"usuario":"admin","rol":"admin"}');
     const body = `
 <p>Tu sesión viaja serializada (base64 de JSON) en el parámetro/cookie <code>sesion</code>.</p>
 <pre class="lab-file">sesión recibida: ${escapeHtml(raw || "—")}
 deserializada: ${escapeHtml(JSON.stringify(obj))}</pre>
-${panel}
-<p class="lab-hint">Pista: el server confía en el objeto que le mandes. Armá
-uno con <code>rol:admin</code> y pasalo en base64. Te dejo uno listo:
-<br><code>${escapeHtml(ejemplo)}</code>
-<br>Probalo: <a href="/?sesion=${encodeURIComponent(ejemplo)}">/?sesion=…</a></p>`;
+${panel}`;
 
     return html(page(this.title, body), { debug: { note: "deserializa sesión del cliente" } });
   }

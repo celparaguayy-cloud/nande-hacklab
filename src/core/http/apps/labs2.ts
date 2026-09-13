@@ -7,7 +7,7 @@ import {
   type WebApp,
 } from "../types";
 import { field, notice, page } from "./layout";
-import { signJwt, decodeJwt, verifyJwt, base64url, utf8Bytes } from "../../crypto/jwt";
+import { signJwt, decodeJwt, verifyJwt } from "../../crypto/jwt";
 
 /**
  * Segunda tanda de laboratorios web de ÑANDE. Cada uno es una vulnerabilidad
@@ -75,10 +75,7 @@ export class SsrfApp implements WebApp {
 
     const body = `
 ${this.form(url)}
-<pre class="lab-file">GET ${escapeHtml(url || "—")}\n\n${escapeHtml(resultado)}</pre>
-<p class="lab-hint">Pista: la busca el <b>servidor</b>, no vos. Apuntá a algo
-interno que él sí alcance: <code>http://169.254.169.254/latest/meta-data/</code>
-o <code>http://127.0.0.1/admin</code>.</p>`;
+<pre class="lab-file">GET ${escapeHtml(url || "—")}\n\n${escapeHtml(resultado)}</pre>`;
 
     return html(page(this.title, body), { debug: { note: `fetch ${url}` } });
   }
@@ -86,9 +83,6 @@ o <code>http://127.0.0.1/admin</code>.</p>`;
   private form(value: string): string {
     return `
 <p>Pegá un enlace y te muestro una vista previa.</p>
-<p class="lab-hint">Objetivo: la URL la pide el <b>servidor</b>, no tu
-navegador. Apuntá a un destino interno que solo él alcanza — probá
-<code>http://169.254.169.254/metadata</code>.</p>
 <form method="GET" action="/fetch">
   ${field("URL", "url", "text", value)}
   <button type="submit">Previsualizar</button>
@@ -102,12 +96,6 @@ navegador. Apuntá a un destino interno que solo él alcanza — probá
 
 const JWT_SECRET = "vortex-super-secreto-2024";
 
-/** Token malicioso ya forjado (alg:none, rol:admin, sin firma). */
-function forgeNoneToken(): string {
-  const h = base64url(utf8Bytes(JSON.stringify({ alg: "none", typ: "JWT" })));
-  const p = base64url(utf8Bytes(JSON.stringify({ usuario: "admin", rol: "admin" })));
-  return `${h}.${p}.`; // firma vacía
-}
 
 /**
  * Vortex API — laboratorio de JWT con alg:none.
@@ -166,16 +154,11 @@ Bandera: ND{jwt_alg_none}</pre>
 
   private home(token: string): string {
     const decoded = decodeJwt(token);
-    const forged = forgeNoneToken();
     return `
 <p>Bienvenido a la API. Tu sesión viaja en un JWT.</p>
 <pre class="lab-file">Tu token: ${escapeHtml(token || "—")}
 Decodificado: ${escapeHtml(JSON.stringify(decoded?.payload ?? {}))}</pre>
-<p><a href="/panel?token=${encodeURIComponent(token)}">Ir al panel de admin →</a></p>
-<p class="lab-hint">Pista: la API acepta tokens con <code>alg:none</code> sin
-verificar la firma. Forjá uno con <code>rol:admin</code>. Ya te dejo uno listo:
-<br><code>${escapeHtml(forged)}</code>
-<br>Probalo: <a href="/panel?token=${encodeURIComponent(forged)}">/panel?token=…</a></p>`;
+<p><a href="/panel?token=${encodeURIComponent(token)}">Ir al panel de admin →</a></p>`;
   }
 }
 
@@ -235,9 +218,6 @@ Bandera: ND{open_redirect}</pre>
 <form method="GET" action="/go">
   ${field("Destino (next)", "next", "text", value)}
   <button type="submit">Ir</button>
-</form>
-<p class="lab-hint">Pista: no valida el destino. Tocá este payload para
-probarlo: <code>/go?next=http://sitio-atacante.evil</code> — te manda afuera
-sin chequear.</p>`;
+</form>`;
   }
 }

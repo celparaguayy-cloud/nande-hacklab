@@ -38,9 +38,7 @@ export class NimbusCloud implements WebApp {
   <li><a href="/buckets">Almacenamiento (buckets) →</a></li>
   <li><a href="/iam">IAM · roles y políticas →</a></li>
   <li><a href="/contenedores">Contenedores →</a></li>
-</ul>
-<p class="lab-hint">Pista: los tres tienen un error de configuración clásico.
-Buscá lo que quedó "abierto de más".</p>`));
+</ul>`));
   }
 
   // ---- Almacenamiento ----
@@ -50,9 +48,7 @@ Buscá lo que quedó "abierto de más".</p>`));
 <table class="lab-table"><tr><th>Nombre</th><th>Acceso</th></tr>
 <tr><td><a href="/buckets/nimbus-privado">nimbus-privado</a></td><td>privado</td></tr>
 <tr><td><a href="/buckets/nimbus-backups">nimbus-backups</a></td><td style="color:#ff7b72">PÚBLICO</td></tr>
-</table>
-<p class="lab-hint">Un bucket marcado PÚBLICO lo lee cualquiera de Internet.
-Abrí <code>nimbus-backups</code>.</p>`));
+</table>`));
   }
 
   private bucket(name: string): HttpResponse {
@@ -62,9 +58,7 @@ ${notice("Bucket público: accesible sin credenciales.", "ok")}
 <pre class="lab-file">GET /buckets/nimbus-backups  (acceso anónimo)
 - clientes.csv
 - .env  (¡secretos!)  DB_PASS=nimbus2024  API_KEY=ND{cloud_bucket_publico}
-</pre>
-<p class="lab-hint">Defensa: los buckets deben ser privados por defecto; nunca
-subir secretos ahí.</p>`),
+</pre>`),
         { debug: { note: "bucket público" } });
     }
     if (name === "nimbus-privado") {
@@ -81,9 +75,7 @@ subir secretos ahí.</p>`),
 <tr><td>lector-reportes</td><td>s3:GetObject en reportes/*</td></tr>
 <tr><td>deploy-bot</td><td style="color:#ff7b72">Action: * · Resource: * (¡todo!)</td></tr>
 </table>
-<p>Asumir un rol: <a href="/iam/asumir?rol=deploy-bot">/iam/asumir?rol=deploy-bot</a></p>
-<p class="lab-hint">Una política con <code>*:*</code> da permisos sobre TODO.
-Si podés asumir ese rol, sos administrador de la cuenta.</p>`));
+<p>Asumir un rol: <a href="/iam/asumir?rol=deploy-bot">/iam/asumir?rol=deploy-bot</a></p>`));
   }
 
   private asumir(req: HttpRequest): HttpResponse {
@@ -93,9 +85,7 @@ Si podés asumir ese rol, sos administrador de la cuenta.</p>`));
 ${notice("Rol asumido: deploy-bot (Action:* Resource:*).", "ok")}
 <pre class="lab-file">Ahora podés hacer CUALQUIER cosa en la cuenta:
 crear usuarios, leer todos los buckets, borrar logs.
-Escalada por IAM permisivo. Bandera: ND{iam_permisivo}</pre>
-<p class="lab-hint">Defensa: mínimo privilegio. Nadie debería tener *:*; los
-permisos se dan justos para la tarea.</p>`),
+Escalada por IAM permisivo. Bandera: ND{iam_permisivo}</pre>`),
         { debug: { note: "IAM permisivo" } });
     }
     if (rol === "lector-reportes") {
@@ -111,9 +101,7 @@ permisos se dan justos para la tarea.</p>`),
 <table class="lab-table"><tr><th>ID</th><th>Imagen</th><th>Config</th></tr>
 <tr><td><a href="/contenedores/web-01">web-01</a></td><td>nimbus/web:1.4</td><td>estándar</td></tr>
 <tr><td><a href="/contenedores/job-07">job-07</a></td><td>nimbus/job:2.0</td><td style="color:#ff7b72">privilegiado</td></tr>
-</table>
-<p class="lab-hint">Un contenedor <code>privilegiado</code> con el socket de Docker
-montado es una fuga al host. Inspeccioná <code>job-07</code>.</p>`));
+</table>`));
   }
 
   private contenedor(id: string): HttpResponse {
@@ -124,9 +112,7 @@ ${notice("Contenedor mal configurado.", "ok")}
   Privileged: true
   Mounts: /var/run/docker.sock -> /var/run/docker.sock
   Env: AWS_SECRET=nimbus-... ADMIN_TOKEN=ND{contenedor_inseguro}
-Con el socket de Docker montado y privilegios, se escapa al host.</pre>
-<p class="lab-hint">Defensa: nada de --privileged, no montar docker.sock, y los
-secretos por gestor de secretos, no en variables de entorno.</p>`),
+Con el socket de Docker montado y privilegios, se escapa al host.</pre>`),
         { debug: { note: "contenedor inseguro" } });
     }
     if (id === "web-01") {

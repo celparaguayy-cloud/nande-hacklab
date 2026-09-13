@@ -36,10 +36,7 @@ export class PurpleTeam implements WebApp {
 - El WAF no estaba, y el login no bloqueaba por intentos.
 - En los logs quedaron los 401 repetidos y la consulta con UNION.</pre>
 <p>Cerralo como equipo morado: respondé las cinco preguntas.</p>
-${this.form({})}
-<p class="lab-hint">Pista: pensá la cadena — qué técnica, qué señal la delata,
-qué evidencia hay, qué control faltó y qué agregarías. Palabras clave, no
-ensayos.</p>`));
+${this.form({})}`));
   }
 
   private evaluar(req: HttpRequest): HttpResponse {

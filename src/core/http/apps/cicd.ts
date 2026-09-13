@@ -35,9 +35,7 @@ export class CicdLab implements WebApp {
   <li><a href="/repo">Repositorio e historial de git →</a></li>
   <li><a href="/dependencias">Dependencias →</a></li>
   <li><a href="/pipeline">Pipeline de despliegue →</a></li>
-</ul>
-<p class="lab-hint">Pista: revisá el historial de git (los secretos quedan
-aunque borres el archivo después) y las versiones de las dependencias.</p>`));
+</ul>`));
   }
 
   private repo(): HttpResponse {
@@ -47,9 +45,7 @@ aunque borres el archivo después) y las versiones de las dependencias.</p>`));
 9f8e7d  feat: agregar despliegue automatico
 4d5e6f  chore: subir config.env por error         &lt;-- sospechoso
 1122aa  init</pre>
-<p>Ver un commit: <a href="/repo/commit/4d5e6f">/repo/commit/4d5e6f</a></p>
-<p class="lab-hint">Borraron config.env en un commit posterior, pero en git
-NADA se borra: el secreto sigue en el commit donde se subió.</p>`));
+<p>Ver un commit: <a href="/repo/commit/4d5e6f">/repo/commit/4d5e6f</a></p>`));
   }
 
   private commit(hash: string): HttpResponse {
@@ -59,9 +55,7 @@ ${notice("Secreto encontrado en la historia de git.", "ok")}
 <pre class="lab-file">commit 4d5e6f  chore: subir config.env por error
 + config.env:
 +   DB_PASSWORD=nimbus2024
-+   DEPLOY_TOKEN=ND{devsecops_secreto_filtrado}</pre>
-<p class="lab-hint">Defensa: nunca commitear secretos (usar .gitignore +
-gestor de secretos). Si pasó, rotar la credencial y purgar la historia.</p>`),
++   DEPLOY_TOKEN=ND{devsecops_secreto_filtrado}</pre>`),
         { debug: { note: "secreto en git" } });
     }
     return html(page(this.title, notice("Ese commit no tiene nada interesante.", "info")));
@@ -73,10 +67,7 @@ gestor de secretos). Si pasó, rotar la credencial y purgar la historia.</p>`),
 <table class="lab-table"><tr><th>Paquete</th><th>Versión</th><th>Estado</th></tr>
 <tr><td>express</td><td>4.19.2</td><td style="color:#7ee787">ok</td></tr>
 <tr><td>left-pad-nimbus</td><td>1.0.1</td><td style="color:#ff7b72">CVE ÑND-2024-001 (crítica)</td></tr>
-</table>
-<p class="lab-hint">Una dependencia con una vulnerabilidad conocida crítica se
-está desplegando igual. Un escaneo de dependencias (SCA) en el pipeline la
-frenaría. Bandera: <code>ND{dependencia_vulnerable}</code> — reportala en el pipeline.</p>`));
+</table>`));
   }
 
   private pipeline(): HttpResponse {
@@ -90,9 +81,7 @@ jobs:
       - deploy   &lt;-- despliega SIN correr tests ni escaneo de seguridad
 Env: DEPLOY_TOKEN en texto plano</pre>
 <p class="lab-notice lab-notice--ok">Detectaste dos riesgos del pipeline:
-despliega sin tests/escaneo y expone el token. ND{dependencia_vulnerable}</p>
-<p class="lab-hint">Defensa: "shift left" — tests, SCA y escaneo de secretos
-como pasos que BLOQUEAN el despliegue si fallan; secretos por gestor.</p>`),
+despliega sin tests/escaneo y expone el token. ND{dependencia_vulnerable}</p>`),
       { debug: { note: "pipeline inseguro" } });
   }
 }

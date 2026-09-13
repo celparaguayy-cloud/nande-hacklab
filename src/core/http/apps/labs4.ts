@@ -65,10 +65,7 @@ export class SstiApp implements WebApp {
   ${field("Tu nombre", "nombre", "text", nombre)}
   <button type="submit">Saludar</button>
 </form>
-${nombre ? `<div class="lab-reflect">${escapeHtml(render)}</div>` : ""}
-<p class="lab-hint">Pista: tu nombre entra en la plantilla del servidor.
-Probá <code>{{7*7}}</code> (debería dar 49) y después
-<code>{{secreto}}</code> o <code>{{config}}</code>.</p>`;
+${nombre ? `<div class="lab-reflect">${escapeHtml(render)}</div>` : ""}`;
 
     return html(page(this.title, body), { debug: { note: `render: ${render}` } });
   }
@@ -116,19 +113,13 @@ export class XxeApp implements WebApp {
       salida = cuerpo ? cuerpo[1] : resuelto;
     }
 
-    const ejemplo = `<?xml version="1.0"?>
-<!DOCTYPE nota [<!ENTITY xxe SYSTEM "file:///etc/nova/secret">]>
-<nota>&xxe;</nota>`;
-
     const body = `
 <p>Pegá un XML con una nota para importar.</p>
 <form method="POST" action="/">
   ${field("XML", "xml", "text", xml)}
   <button type="submit">Importar</button>
 </form>
-${xml ? `<pre class="lab-file">Nota importada:\n${escapeHtml(salida)}</pre>` : ""}
-<p class="lab-hint">Pista: el parser resuelve entidades externas. Probá:
-<br><code>${escapeHtml(ejemplo)}</code></p>`;
+${xml ? `<pre class="lab-file">Nota importada:\n${escapeHtml(salida)}</pre>` : ""}`;
 
     return html(page(this.title, body), { debug: { note: "parse XML con entidades externas" } });
   }
@@ -197,10 +188,7 @@ Bandera: ND{nosql_auth_bypass}</pre>`,
   ${field("Usuario", "usuario", "text", "")}
   ${field("Contraseña", "password", "text", "")}
   <button type="submit">Entrar</button>
-</form>
-<p class="lab-hint">Pista: la contraseña se usa tal cual en una consulta
-tipo Mongo. Probá usuario <code>admin</code> y contraseña
-<code>{"$ne": null}</code>: el operador matchea cualquier valor.</p>`;
+</form>`;
   }
 }
 
@@ -263,9 +251,6 @@ ${explotado
 <form method="GET" action="/canjear">
   ${field("Peticiones simultáneas", "paralelo", "text", "1")}
   <button type="submit">Canjear</button>
-</form>
-<p class="lab-hint">Pista: el chequeo y el descuento no son atómicos. Mandá
-varias a la vez: <code>/canjear?paralelo=10</code> — todas ven el cupón
-disponible y lo canjean.</p>`;
+</form>`;
   }
 }

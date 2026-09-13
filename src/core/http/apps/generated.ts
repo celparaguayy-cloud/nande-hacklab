@@ -196,10 +196,7 @@ export class GeneratedSite implements WebApp {
   <label>Usuario<input name="usuario" placeholder="usuario" /></label>
   <label>Contraseña<input name="password" type="password" placeholder="••••••" /></label>
   <button type="submit">Entrar</button>
-</form>
-<p class="lab-hint">Pista: el usuario admin es <code>${escapeHtml(this.ownerUser)}</code>.
-Su contraseña sale de crackear el hash que expone el buscador con un
-<code>UNION SELECT</code>, o de husmear sus fugas en Pulso.</p>`;
+</form>`;
   }
 
   /** Panel privado del dueño: solo accesible con la sesión válida. */
@@ -263,9 +260,6 @@ Su contraseña sale de crackear el hash que expone el buscador con un
     <p class="panel-flag">${escapeHtml(this.flag)}</p>
   </div>
 </div>
-<p class="lab-hint">Reusar contraseñas es oro para vos: probá
-<code>${escapeHtml(otraClave)}</code> en otras cuentas de esta persona.
-Y robar deja rastro: te sube el calor y sale en las noticias.</p>
 <p class="site-foot"><a href="/salir">Cerrar sesión</a> ·
   <a href="/">Volver al sitio</a></p>`;
 
@@ -322,11 +316,7 @@ Y robar deja rastro: te sube el calor y sale en las noticias.</p>
       this.wrap(
         this.form(q) +
           `<ul>${list || "<li>Sin resultados.</li>"}</ul>` +
-          `<p class="lab-hint">Pista: el buscador arma la consulta con tu texto.
-          La tabla <code>usuarios</code> tiene id, usuario, password, rol. Tocá
-          este payload para sacar las contraseñas:
-          <code>%' UNION SELECT id, usuario, password FROM usuarios -- </code>
-          (también hay una tabla <code>secretos(id, dato)</code>).</p>` +
+          `` +
           `<p class="site-foot"><a href="/login">Acceso del propietario →</a> ·
           <a href="/">Volver al sitio</a></p>`,
       ),

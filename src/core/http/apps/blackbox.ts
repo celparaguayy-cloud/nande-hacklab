@@ -50,9 +50,7 @@ le pide un sitio a los buscadores…</p>`));
     return html(page(this.title, `<pre class="lab-file">User-agent: *
 Disallow: /api/clientes
 Disallow: /respaldos
-</pre>
-<p class="lab-hint">Eso que el sitio esconde de los buscadores suele ser lo
-más interesante. Probá <code>/api/clientes?id=1</code> y <code>/respaldos</code>.</p>`),
+</pre>`),
       { debug: { note: "robots.txt filtra rutas" } });
   }
 
@@ -64,16 +62,12 @@ más interesante. Probá <code>/api/clientes?id=1</code> y <code>/respaldos</cod
       "42": '{ "id":42, "nombre":"admin.interno", "rol":"admin", "nota":"reusa la clave del panel" }',
     };
     if (!id) {
-      return html(page(this.title, `<pre class="lab-file">Uso: /api/clientes?id=N</pre>
-<p class="lab-hint">Es una referencia directa: cambiá el número. ¿Hay ids que
-no deberías poder ver?</p>`));
+      return html(page(this.title, `<pre class="lab-file">Uso: /api/clientes?id=N</pre>`));
     }
     const reg = registros[id];
     return html(page(this.title, `<pre class="lab-file">GET /api/clientes?id=${escapeHtml(id)}
 ${reg ?? '{ "error": "no existe" }'}</pre>
-${id === "42" ? notice("Encontraste una cuenta interna expuesta por IDOR.", "ok") : ""}
-<p class="lab-hint">Anotá la vulnerabilidad: <b>IDOR</b>. Ahora seguí la
-evidencia en <code>/respaldos</code>.</p>`),
+${id === "42" ? notice("Encontraste una cuenta interna expuesta por IDOR.", "ok") : ""}`),
       { debug: { note: `IDOR id=${id}` } });
   }
 
@@ -81,9 +75,7 @@ evidencia en <code>/respaldos</code>.</p>`),
     return html(page(this.title, `<h2>Índice de /respaldos</h2>
 <pre class="lab-file">clientes-2024.sql        (2.1 MB)
 access.log               (14 KB)</pre>
-<p><a href="/respaldos/access.log">Ver access.log →</a></p>
-<p class="lab-hint">Los backups y logs expuestos son oro para un investigador
-—y una pésima idea para la empresa.</p>`));
+<p><a href="/respaldos/access.log">Ver access.log →</a></p>`));
   }
 
   private accessLog(): HttpResponse {
@@ -92,10 +84,7 @@ access.log               (14 KB)</pre>
 198.51.100.7 [02:11] GET /api/clientes?id=42 200   <-- accedió a la cuenta interna
 198.51.100.7 [02:12] POST /panel/login usuario=admin.interno 200
 198.51.100.7 [02:13] GET /respaldos/clientes-2024.sql 200   <-- exfiltró la base
-</pre>
-<p class="lab-hint">Reconstruí la historia: enumeró clientes por IDOR, llegó a
-una cuenta interna, entró al panel reusando la clave y se llevó el backup.
-Con eso ya podés escribir el <a href="/informe">informe</a>.</p>`),
+</pre>`),
       { debug: { note: "evidencia de intrusión" } });
   }
 
@@ -128,9 +117,7 @@ Veredicto: COMPETENTE. Bandera: ND{blackbox_aprobado}</pre>
         + this.form(req)));
     }
     return html(page(this.title, `<h2>Informe del incidente</h2>
-<p>Entregá tus conclusiones. Sé concreto en cada campo.</p>${this.form(req)}
-<p class="lab-hint">Vulnerabilidad (¿qué falla?), causa raíz (¿por qué?),
-impacto (¿qué se perdió?), mitigación (¿cómo se arregla?).</p>`));
+<p>Entregá tus conclusiones. Sé concreto en cada campo.</p>${this.form(req)}`));
   }
 
   private form(req: HttpRequest): string {

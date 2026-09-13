@@ -82,10 +82,7 @@ separá el incidente real, correlacioná en el SIEM y reconstruí qué pasó.</p
        <td>${a.sev}</td><td>${escapeHtml(a.texto)}</td></tr>`).join("");
     return html(page(this.title, `
 <h2>Cola de alertas</h2>
-<table class="lab-table"><tr><th>ID</th><th>Severidad</th><th>Detalle</th></tr>${filas}</table>
-<p class="lab-hint">Pista: la mayoría son falsos positivos (backups, chequeos,
-un usuario normal). Abrí la que muestra un ataque de verdad: muchos
-<code>401</code> seguidos de un <code>200</code> en <code>/admin</code>.</p>`));
+<table class="lab-table"><tr><th>ID</th><th>Severidad</th><th>Detalle</th></tr>${filas}</table>`));
   }
 
   private triage(req: HttpRequest): HttpResponse {
@@ -117,9 +114,7 @@ Bandera: ND{soc_triage}</pre>
   <button type="submit">Buscar</button>
 </form>
 ${q ? `<pre class="lab-file">${hits.length} eventos\n${hits.map(escapeHtml).join("\n") || "(sin resultados)"}</pre>` : ""}
-${correlado ? notice("Correlación lista: todos los eventos del atacante en una sola vista. Bandera: ND{siem_correlacion}", "ok") : ""}
-<p class="lab-hint">Pista: buscá por la IP sospechosa (<code>${this.atacante}</code>)
-para ver TODA su actividad junta, o por <code>UNION</code> para hallar la inyección.</p>`),
+${correlado ? notice("Correlación lista: todos los eventos del atacante en una sola vista. Bandera: ND{siem_correlacion}", "ok") : ""}`),
       { debug: { note: `siem q=${q}` } });
   }
 
@@ -153,9 +148,7 @@ Bandera: ND{dfir_timeline}</pre>`),
     return html(page(this.title, `
 <h2>DFIR · reconstrucción</h2>
 <p>Con los logs, decí cuál fue el <b>primer</b> paso del ataque y la <b>causa raíz</b>.</p>
-${this.incidenteForm()}
-<p class="lab-hint">Pista: primero vino la <code>fuerza bruta</code> de login;
-la causa raíz fue la <code>inyección SQL</code> del buscador.</p>`));
+${this.incidenteForm()}`));
   }
 
   private incidenteForm(): string {

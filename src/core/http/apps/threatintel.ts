@@ -79,9 +79,7 @@ export class ThreatIntel implements WebApp {
   <li><a href="/indicadores">Indicadores (IOCs) y su confianza →</a></li>
   <li><a href="/actores">Actores conocidos y su infraestructura →</a></li>
   <li><a href="/atribuir">Atribuir un incidente →</a></li>
-</ul>
-<p class="lab-hint">Pista: en el sandbox (comando <code>cuckoo factura.exe</code>)
-sacaste un dominio C2 y un mutex. Buscá qué actor usa esa infraestructura.</p>`));
+</ul>`));
   }
 
   private indicadores(): HttpResponse {
@@ -92,10 +90,7 @@ sacaste un dominio C2 y un mutex. Buscá qué actor usa esa infraestructura.</p>
     }).join("");
     return html(page(this.title, `
 <h2>Indicadores</h2>
-<table class="lab-table"><tr><th>Valor</th><th>Tipo</th><th>Confianza</th><th>Fuente</th></tr>${filas}</table>
-<p class="lab-hint">No todo vale igual: la IP <code>203.0.113.66</code> es un
-rumor sin confirmar (confianza baja) — no atribuyas nada con eso. Usá los de
-confianza alta del sandbox.</p>`));
+<table class="lab-table"><tr><th>Valor</th><th>Tipo</th><th>Confianza</th><th>Fuente</th></tr>${filas}</table>`));
   }
 
   private actores(): HttpResponse {
@@ -105,9 +100,7 @@ confianza alta del sandbox.</p>`));
   <div>${escapeHtml(a.motivacion)}</div>
   <div style="opacity:.8;font-size:12px">Infra: ${a.infra.map(escapeHtml).join(", ")}</div>
 </div>`).join("");
-    return html(page(this.title, `<h2>Actores</h2>${cards}
-<p class="lab-hint">Cruzá la infraestructura de cada actor con tus IOCs de
-confianza alta. ¿Quién usa <code>update.badcorp.invalid</code> y <code>NANDE_LOCK</code>?</p>`));
+    return html(page(this.title, `<h2>Actores</h2>${cards}`));
   }
 
   private atribuir(req: HttpRequest): HttpResponse {
@@ -135,8 +128,7 @@ Bandera: ND{ti_atribucion}</pre>`),
         "No cierra. Usá un IOC de confianza alta y el actor cuya infraestructura coincide.", "err") + this.form(req)));
     }
     return html(page(this.title, `<h2>Atribuir incidente</h2>
-<p>¿A qué actor pertenece el ataque? Fundamentá con un IOC.</p>${this.form(req)}
-<p class="lab-hint">IOC de confianza alta + el actor cuya infra coincide.</p>`));
+<p>¿A qué actor pertenece el ataque? Fundamentá con un IOC.</p>${this.form(req)}`));
   }
 
   private form(req: HttpRequest): string {

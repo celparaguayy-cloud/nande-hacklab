@@ -52,17 +52,15 @@ describe("sitios de NPC hackeables", () => {
     const t = new VirtualTerminal(k);
     const host = "arandu-software.nande";
 
-    // El login revela quién es el admin (usuario), no la clave.
-    const loginPage = k.browser.request("GET", host, "/login");
-    const user = loginPage.response.body.match(
-      /usuario admin es\s*<code>([^<]+)<\/code>/,
-    )?.[1];
-    expect(user).toBeTruthy();
-
-    // Sacar el hash del admin con UNION y crackearlo.
+    // La inyección UNION expone usuario + hash del admin (sin pistas).
     const inj = "%' UNION SELECT id, usuario, password FROM usuarios WHERE rol='admin' -- ";
     const res = k.browser.request("GET", host, `/buscar?q=${encodeURIComponent(inj)}`);
-    const hash = res.response.body.match(/[0-9a-f]{32}/)?.[0];
+    const row = res.response.body.match(
+      /<li>([^<]+?)\s*<span class="tag">([0-9a-f]{32})<\/span>/,
+    );
+    const user = row?.[1]?.trim();
+    const hash = row?.[2];
+    expect(user).toBeTruthy();
     expect(hash).toBeTruthy();
     const password = t.execute(`crack ${hash}`).match(/Contraseña:\s*([^\s\\]+)/)?.[1];
     expect(password).toBeTruthy();
@@ -90,14 +88,13 @@ describe("sitios de NPC hackeables", () => {
     const t = new VirtualTerminal(k);
     const host = "arandu-software.nande";
 
-    // Entrar al panel con la clave crackeada.
-    const user = k.browser
-      .request("GET", host, "/login")
-      .response.body.match(/usuario admin es\s*<code>([^<]+)<\/code>/)?.[1];
+    // Sacar usuario + hash del admin con la inyección UNION (sin pistas).
     const inj = "%' UNION SELECT id, usuario, password FROM usuarios WHERE rol='admin' -- ";
-    const hash = k.browser
+    const row = k.browser
       .request("GET", host, `/buscar?q=${encodeURIComponent(inj)}`)
-      .response.body.match(/[0-9a-f]{32}/)?.[0];
+      .response.body.match(/<li>([^<]+?)\s*<span class="tag">([0-9a-f]{32})<\/span>/);
+    const user = row?.[1]?.trim();
+    const hash = row?.[2];
     const password = t.execute(`crack ${hash}`).match(/Contraseña:\s*([^\s\\]+)/)?.[1];
     const entry = k.browser.request("POST", host, "/login", {
       usuario: user!,
