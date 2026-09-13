@@ -339,7 +339,7 @@ function LearnView({ kernel, onOpenApp }: LearnViewProps) {
             style={{
               ...tabBtn,
               color: tab === id ? accent : "#8b98a5",
-              background: tab === id ? "rgba(124,196,255,0.1)" : "transparent",
+              background: tab === id ? accentSoft : "transparent",
             }}
           >
             <div style={{ fontSize: 18 }}>{icon}</div>
@@ -389,7 +389,8 @@ function Progress({ value, max }: { value: number; max: number }) {
   );
 }
 
-const accent = "#7cc4ff";
+const accent = "#3daee9";
+const accentSoft = "rgba(61,174,233,0.14)";
 
 const levelHeader: CSSProperties = {
   display: "flex",
@@ -412,7 +413,7 @@ function levelBadge(level: string): CSSProperties {
 
 const container: CSSProperties = {
   width: "100%", height: "100%", overflow: "auto", boxSizing: "border-box",
-  padding: "14px 14px 70px", background: "#0b0f14", color: "#e6edf3",
+  padding: "14px 14px 10px", background: "#0b0f14", color: "#e6edf3",
   fontFamily: "system-ui, sans-serif", position: "relative",
 };
 const hero: CSSProperties = {
@@ -433,7 +434,7 @@ const sectionTitle: CSSProperties = { margin: "18px 0 10px", fontSize: 16 };
 const sevBadge: CSSProperties = { fontSize: 11.5, fontWeight: 700, padding: "3px 9px", borderRadius: 999 };
 const stdBadge: CSSProperties = {
   fontSize: 10.5, padding: "3px 7px", borderRadius: 6,
-  background: "rgba(124,196,255,0.12)", color: "#7cc4ff", whiteSpace: "nowrap",
+  background: "rgba(61,174,233,0.12)", color: "#3daee9", whiteSpace: "nowrap",
 };
 const codeLabel: CSSProperties = {
   fontSize: 11, fontWeight: 700, letterSpacing: "0.04em",
@@ -468,12 +469,15 @@ const rankChip: CSSProperties = {
   border: "1px solid #26313b",
 };
 const tabBar: CSSProperties = {
-  position: "sticky", bottom: 0, left: 0, right: 0, marginTop: 14,
-  display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 4, padding: 8,
-  background: "rgba(11,15,20,0.96)", borderTop: "1px solid #26313b",
+  position: "sticky", bottom: 0, left: 0, right: 0, marginTop: 16,
+  display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 4,
+  padding: "8px 6px",
+  background: "#0b0f14", borderTop: "1px solid #26313b",
+  boxShadow: "0 -10px 24px rgba(0,0,0,0.5)", zIndex: 5, isolation: "isolate",
 };
 const tabBtn: CSSProperties = {
-  border: "none", borderRadius: 10, padding: "6px", cursor: "pointer",
+  border: "none", borderRadius: 10, padding: "7px 4px", cursor: "pointer",
+  flex: "1 1 auto", minWidth: 62, maxWidth: 132,
   display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
 };
 

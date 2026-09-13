@@ -185,18 +185,18 @@ export function AsistenteView({ kernel, onOpenApp }: Props) {
 
 const container: CSSProperties = { height: "100%", display: "flex", flexDirection: "column", background: "#0b1016", color: "#e6edf3", fontFamily: "system-ui, sans-serif" };
 const header: CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "10px 12px", borderBottom: "1px solid #1b2733" };
-const cfgBtn: CSSProperties = { background: "#6d28d9", color: "#fff", border: "none", borderRadius: 6, padding: "6px 10px", fontSize: 12, cursor: "pointer" };
+const cfgBtn: CSSProperties = { background: "transparent", color: "#3daee9", border: "1px solid rgba(61,174,233,0.5)", borderRadius: 6, padding: "6px 10px", fontSize: 12, cursor: "pointer" };
 const feed: CSSProperties = { flex: 1, overflowY: "auto", padding: 12, display: "flex", flexDirection: "column", gap: 8 };
 const userRow: CSSProperties = { display: "flex", justifyContent: "flex-end" };
 const botRow: CSSProperties = { display: "flex", justifyContent: "flex-start" };
 const userBubble: CSSProperties = { maxWidth: "85%", background: "#1d4ed8", color: "#fff", borderRadius: "12px 12px 2px 12px", padding: "8px 12px", fontSize: 14, whiteSpace: "pre-wrap" };
 const botBubble: CSSProperties = { maxWidth: "88%", background: "#111820", border: "1px solid #1b2733", borderRadius: "12px 12px 12px 2px", padding: "8px 12px", fontSize: 14, whiteSpace: "pre-wrap" };
 const toolBubble: CSSProperties = { maxWidth: "92%", background: "#08110a", border: "1px solid #14532d", borderRadius: 8, padding: "8px 10px", fontSize: 11.5, whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "ui-monospace, monospace", color: "#b7f7c2", margin: 0 };
-const quickBtn: CSSProperties = { background: "#111820", color: "#7cc4ff", border: "1px solid #1b2733", borderRadius: 999, padding: "6px 12px", fontSize: 12, cursor: "pointer" };
+const quickBtn: CSSProperties = { background: "#111820", color: "#3daee9", border: "1px solid #1b2733", borderRadius: 999, padding: "6px 12px", fontSize: 12, cursor: "pointer" };
 const runBtn: CSSProperties = { background: "#15803d", color: "#fff", border: "none", borderRadius: 6, padding: "5px 10px", fontSize: 12, cursor: "pointer" };
-const openBtn: CSSProperties = { background: "#1b2733", color: "#7cc4ff", border: "1px solid #2a3a4a", borderRadius: 6, padding: "5px 10px", fontSize: 12, cursor: "pointer" };
+const openBtn: CSSProperties = { background: "#1b2733", color: "#3daee9", border: "1px solid #2a3a4a", borderRadius: 6, padding: "5px 10px", fontSize: 12, cursor: "pointer" };
 const inputRow: CSSProperties = { display: "flex", gap: 8, padding: 10, borderTop: "1px solid #1b2733" };
 const inputBox: CSSProperties = { flex: 1, background: "#0b1016", color: "#e6edf3", border: "1px solid #1b2733", borderRadius: 8, padding: "10px 12px", fontSize: 14 };
-const sendBtn: CSSProperties = { background: "#15803d", color: "#fff", border: "none", borderRadius: 8, padding: "0 16px", fontSize: 14, cursor: "pointer" };
+const sendBtn: CSSProperties = { background: "#3daee9", color: "#05070a", fontWeight: 700, border: "none", borderRadius: 8, padding: "0 16px", fontSize: 14, cursor: "pointer" };
 
 export default AsistenteView;

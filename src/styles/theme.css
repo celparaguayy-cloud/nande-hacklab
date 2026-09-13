@@ -185,24 +185,31 @@
   gap: 2px;
 }
 
-/* Botón genérico del panel (launcher, bandeja). */
-.nd-ver-pill {
+/* Sello de versión: discreto en la bandeja derecha, no un badge de "build
+   sin publicar". Mantiene la versión a la vista (para verificar frescura)
+   sin gritar. Abre Configuración al tocarlo. */
+.nd-ver-chip {
   display: inline-flex;
   align-items: center;
   height: 22px;
-  padding: 0 8px;
-  margin-left: 2px;
-  /* Chip pixel-art: esquinas duras, borde grueso, tipografía de píxeles. */
-  border-radius: 4px;
-  border: 2px solid rgba(255, 255, 255, 0.28);
-  background: linear-gradient(135deg, #7c3aed, #2563eb);
-  color: #fff;
-  font-family: "Press Start 2P", ui-monospace, monospace;
-  font-size: 8px;
-  letter-spacing: 0.3px;
+  padding: 0 7px;
+  border: none;
+  border-radius: var(--nd-r-sm);
+  background: transparent;
+  color: var(--nd-text-dim);
+  font-family: ui-monospace, "JetBrains Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.2px;
   white-space: nowrap;
   flex: 0 0 auto;
-  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+
+.nd-ver-chip:hover {
+  opacity: 1;
+  color: var(--nd-text);
 }
 
 .nd-panel-btn {

@@ -26,7 +26,20 @@
 .pulso__ago { color: var(--nd-text-faint); font-size: 11.5px; flex-shrink: 0; }
 .pulso__text { margin: 6px 0; line-height: 1.5; }
 .pulso__meta { display: flex; gap: 14px; align-items: center; font-size: 11.5px; color: var(--nd-text-dim); flex-wrap: wrap; }
-.pulso__leak { color: var(--nd-warn); }
+.pulso__leak {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--nd-warn);
+  background: rgba(251, 191, 36, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.32);
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.pulso__leak-k { opacity: 0.9; }
 .pulso__leak code, .pulso__osint code { background: #0f1319; color: #ffd479; padding: 1px 5px; border-radius: 3px; font-family: var(--nd-mono); }
 
 .pulso__search { display: flex; flex-direction: column; min-height: 0; flex: 1; }

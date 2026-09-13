@@ -251,8 +251,12 @@ function PostCard({
           💬 {comments.length + thread.length > 0 ? comments.length + thread.length : ""}
         </button>
         {post.leak && (
-          <span className="pulso__leak" title="Información aprovechable (OSINT)">
-            filtró {LEAK_LABEL[post.leak]}: <code>{post.leakValue}</code>
+          <span
+            className="pulso__leak"
+            title="Dato aprovechable para OSINT — lo que la persona dejó ver sin querer"
+          >
+            🔎 <span className="pulso__leak-k">{LEAK_LABEL[post.leak]}</span>
+            <code>{post.leakValue}</code>
           </span>
         )}
       </div>

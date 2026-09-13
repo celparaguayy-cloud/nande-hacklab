@@ -164,6 +164,88 @@ const GLYPHS: Record<string, ReactElement> = {
       <rect x={35} y={20.4} width={1.8} height={7.4} rx={0.9} opacity={0.85} />
     </g>
   ),
+  code: (
+    <g fill="none" stroke="#fff" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M19 18l-6 6 6 6" />
+      <path d="M29 18l6 6-6 6" />
+      <path d="M26 15l-4 18" />
+    </g>
+  ),
+  observatory: (
+    <g fill="none" stroke="#fff" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M13.5 30a10.5 10.5 0 0 1 21 0" />
+      <path d="M24 30l6.5-5.5" />
+      <circle cx={24} cy={30} r={2.1} fill="#fff" stroke="none" />
+      <path d="M14 30h1.6M32.4 30H34M18.4 22.4l1.1 1.1M28.5 23.5l1.1-1.1" />
+    </g>
+  ),
+  soc: (
+    <g fill="none" stroke="#fff" strokeWidth={2.3} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M24 13.5l9 3v6.2c0 6-4 9.6-9 11.3-5-1.7-9-5.3-9-11.3v-6.2z" />
+      <path d="M20 23.5l3 3 5.2-6" />
+    </g>
+  ),
+  shark: (
+    <g strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 27.5c1.4-7 6-11.2 11.2-12.3-1.5 5.2-1 9.4-4.2 12.3z" fill="#fff" />
+      <path
+        d="M12 31.5c2.6 0 2.6-2 5.2-2s2.6 2 5.2 2 2.6-2 5.2-2 2.6 2 5.2 2"
+        fill="none"
+        stroke="#fff"
+        strokeWidth={2.4}
+      />
+    </g>
+  ),
+  blood: (
+    <g stroke="#fff" strokeWidth={2.2} strokeLinecap="round" fill="none">
+      <path d="M17 17.5l6.4 6M31 17.5l-6.4 6M24 25v7.2" />
+      <g fill="#fff" stroke="none">
+        <circle cx={17} cy={16} r={2.7} />
+        <circle cx={31} cy={16} r={2.7} />
+        <circle cx={24} cy={24} r={2.7} />
+        <circle cx={24} cy={33} r={2.7} />
+      </g>
+    </g>
+  ),
+  containers: (
+    <g fill="none" stroke="#fff" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M24 13l10 5.5v11L24 35l-10-5.5v-11z" />
+      <path d="M14 18.5l10 5.5 10-5.5M24 24v11" />
+    </g>
+  ),
+  reverse: (
+    <g fill="none" stroke="#fff" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+      <rect x={18} y={18} width={12} height={12} rx={1.8} />
+      <path d="M22 14.5v3.5M26 14.5v3.5M22 30v3.5M26 30v3.5M14.5 22h3.5M14.5 26h3.5M30 22h3.5M30 26h3.5" />
+    </g>
+  ),
+  dfir: (
+    <g fill="none" stroke="#fff" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+      <circle cx={22} cy={22} r={7} />
+      <path d="M27 27l6.5 6.5" />
+    </g>
+  ),
+  anon: (
+    <g>
+      <path d="M14 18.5c4.5-1.6 15.5-1.6 20 0 .6 5.4-2.2 11.4-10 12.6-7.8-1.2-10.6-7.2-10-12.6z" fill="#fff" />
+      <g fill="#0f172a">
+        <circle cx={19.6} cy={23.6} r={1.9} />
+        <circle cx={28.4} cy={23.6} r={1.9} />
+      </g>
+    </g>
+  ),
+  arena: (
+    <g strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17 14v20" fill="none" stroke="#fff" strokeWidth={2.5} />
+      <path d="M18 15h12.5l-3 4 3 4H18z" fill="#fff" stroke="#fff" strokeWidth={1.4} />
+    </g>
+  ),
+  asistente: (
+    <g fill="#fff">
+      <path d="M23 13.5l2.5 6.8 6.8 2.5-6.8 2.5-2.5 6.8-2.5-6.8-6.8-2.5 6.8-2.5z" />
+      <circle cx={32.5} cy={31.5} r={2.1} />
+    </g>
+  ),
 };
 
 interface AppIconProps {

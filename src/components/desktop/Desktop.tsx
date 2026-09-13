@@ -362,13 +362,6 @@ function Desktop() {
           <span className="nd-only-wide">Aplicaciones</span>
         </button>
 
-        <span
-          className="nd-ver-pill"
-          title={`ÑANDE ${NANDE_VERSION} · ${NANDE_BUILD}`}
-        >
-          v{NANDE_VERSION}
-        </span>
-
         <div className="nd-topbar__center">
           <span style={{ color: "var(--nd-text-dim)" }}>
             día {clock.day} · {dayName}
@@ -432,6 +425,14 @@ function Desktop() {
             title="Configuración del sistema"
           >
             {player.name}
+          </button>
+
+          <button
+            className="nd-ver-chip nd-only-wide"
+            onClick={() => openWindow("settings")}
+            title={`ÑANDE OS ${NANDE_VERSION} · ${NANDE_BUILD} — abrí Configuración`}
+          >
+            v{NANDE_VERSION}
           </button>
         </div>
       </div>
