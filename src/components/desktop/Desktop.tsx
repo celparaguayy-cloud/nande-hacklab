@@ -3,6 +3,7 @@ import { sound } from "../../core/audio/Sound";
 import WindowManager from "../window/WindowManager";
 import Terminal from "../terminal/Terminal";
 import { CodeIDE } from "../code/CodeIDE";
+import ObservatoryView from "../observatory/ObservatoryView";
 import { SOCView } from "../soc/SOCView";
 import { SharkView } from "../shark/SharkView";
 import { BloodView } from "../ad/BloodView";
@@ -273,6 +274,7 @@ function Desktop() {
     () => ({
       terminal: <Terminal kernel={kernel} />,
       code: <CodeIDE kernel={kernel} />,
+      observatory: <ObservatoryView kernel={kernel} />,
       soc: <SOCView kernel={kernel} />,
       shark: <SharkView kernel={kernel} />,
       blood: <BloodView kernel={kernel} />,

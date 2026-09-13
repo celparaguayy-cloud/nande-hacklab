@@ -65,6 +65,16 @@ export const APPS: AppMeta[] = [
     dock: true,
   },
   {
+    id: "observatory",
+    name: "Observatory",
+    title: "ÑANDE Observatory — salud del runtime",
+    summary: "Diagnóstico en vivo: hosts, servicios, alertas, IA, mundo y eventos reales",
+    category: "ÑANDE 5.0",
+    from: "#57f08a",
+    to: "#0e7490",
+    dock: true,
+  },
+  {
     id: "soc",
     name: "SOC",
     title: "ÑANDE SOC — Blue Team",
