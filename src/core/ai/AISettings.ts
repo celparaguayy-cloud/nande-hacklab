@@ -1,29 +1,30 @@
+import { presetFor, isKnownProvider, OFFLINE_PRESET } from "./providers";
+
 /**
  * AISettings — configuración de IA del jugador, guardada SOLO en su navegador.
  *
  * Regla dura: la clave de API NUNCA está en el código (el repo es público).
  * Es del propio jugador y vive en localStorage de su dispositivo. Por defecto
- * el juego está en modo OFFLINE (sin clave, sin red). Si el jugador pega su
- * clave de Groq o Gemini, se habilita el "modo conectado".
+ * el juego está en modo OFFLINE (sin clave, sin red). Si el jugador elige un
+ * proveedor y pega su clave, se habilita el "modo conectado".
+ *
+ * El proveedor es cualquiera del catálogo (providers.ts): OpenAI, Anthropic,
+ * OpenRouter, Gemini, Groq, Mistral, DeepSeek, xAI, Together, Ollama local o un
+ * endpoint a medida compatible con OpenAI.
  */
 
-export type AIProviderName = "offline" | "groq" | "gemini";
+/** El id del proveedor es libre (viene del catálogo); "offline" es el especial. */
+export type AIProviderName = string;
 
 export interface AIConfig {
   provider: AIProviderName;
   apiKey: string;
   model: string;
+  /** URL base para proveedores a medida / locales (Ollama, proxy propio). */
+  baseUrl: string;
 }
 
 const STORAGE_KEY = "nande-ai-config";
-
-const DEFAULTS: Record<AIProviderName, string> = {
-  offline: "nande-offline",
-  groq: "llama-3.3-70b-versatile",
-  // gemini-1.5-flash quedó descontinuado en varios proyectos nuevos; 2.0-flash
-  // es el modelo estable actual y funciona desde el navegador (CORS habilitado).
-  gemini: "gemini-2.0-flash",
-};
 
 export class AISettings {
   private config: AIConfig;
@@ -37,18 +38,33 @@ export class AISettings {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const c = JSON.parse(raw) as Partial<AIConfig>;
-        const provider: AIProviderName =
-          c.provider === "groq" || c.provider === "gemini" ? c.provider : "offline";
+        const provider =
+          typeof c.provider === "string" && isKnownProvider(c.provider)
+            ? c.provider
+            : "offline";
+        const preset = presetFor(provider);
         return {
           provider,
           apiKey: typeof c.apiKey === "string" ? c.apiKey : "",
-          model: typeof c.model === "string" && c.model ? c.model : DEFAULTS[provider],
+          model:
+            typeof c.model === "string" && c.model
+              ? c.model
+              : preset.defaultModel,
+          baseUrl:
+            typeof c.baseUrl === "string" && c.baseUrl
+              ? c.baseUrl
+              : preset.baseUrl ?? "",
         };
       }
     } catch {
       /* sin storage: quedamos offline */
     }
-    return { provider: "offline", apiKey: "", model: DEFAULTS.offline };
+    return {
+      provider: "offline",
+      apiKey: "",
+      model: OFFLINE_PRESET.defaultModel,
+      baseUrl: "",
+    };
   }
 
   private save(): void {
@@ -63,16 +79,27 @@ export class AISettings {
     return { ...this.config };
   }
 
-  /** ¿Hay modo conectado usable? Necesita proveedor externo + clave. */
+  /**
+   * ¿Hay modo conectado usable? Necesita proveedor externo y, salvo los
+   * locales sin clave (Ollama/LM Studio), una clave. Los custom/locales
+   * necesitan además una URL base.
+   */
   isConnected(): boolean {
-    return this.config.provider !== "offline" && this.config.apiKey.trim().length > 0;
+    if (this.config.provider === "offline") return false;
+    const preset = presetFor(this.config.provider);
+    const hasKey = this.config.apiKey.trim().length > 0;
+    const hasBase =
+      !preset.customBaseUrl || this.config.baseUrl.trim().length > 0;
+    return (preset.noKey || hasKey) && hasBase;
   }
 
   setProvider(provider: AIProviderName): void {
-    this.config.provider = provider;
-    if (!this.config.model || this.config.model === "nande-offline" || provider === "offline") {
-      this.config.model = DEFAULTS[provider];
-    }
+    const preset = presetFor(provider);
+    this.config.provider = preset.id;
+    // Al cambiar de proveedor, adoptamos su modelo y base por defecto (a menos
+    // que sea un endpoint a medida, donde el jugador escribe la base).
+    this.config.model = preset.defaultModel;
+    this.config.baseUrl = preset.baseUrl ?? "";
     this.save();
   }
 
@@ -82,13 +109,24 @@ export class AISettings {
   }
 
   setModel(model: string): void {
-    this.config.model = model.trim() || DEFAULTS[this.config.provider];
+    const preset = presetFor(this.config.provider);
+    this.config.model = model.trim() || preset.defaultModel;
+    this.save();
+  }
+
+  setBaseUrl(baseUrl: string): void {
+    this.config.baseUrl = baseUrl.trim();
     this.save();
   }
 
   /** Borra la clave y vuelve a modo offline. */
   reset(): void {
-    this.config = { provider: "offline", apiKey: "", model: DEFAULTS.offline };
+    this.config = {
+      provider: "offline",
+      apiKey: "",
+      model: OFFLINE_PRESET.defaultModel,
+      baseUrl: "",
+    };
     this.save();
   }
 }

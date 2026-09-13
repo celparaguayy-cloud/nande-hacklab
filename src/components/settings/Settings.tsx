@@ -2,6 +2,7 @@ import { useState } from "react";
 import { VirtualKernel } from "../../core/VirtualKernel";
 import { WALLPAPERS, ACCENTS } from "../../core/desktop/Appearance";
 import { sound } from "../../core/audio/Sound";
+import { CONNECTED_PRESETS, OFFLINE_PRESET, presetFor } from "../../core/ai/providers";
 
 interface SettingsProps {
   kernel: VirtualKernel;
@@ -18,6 +19,7 @@ export function Settings({ kernel }: SettingsProps) {
   );
   const [ai, setAi] = useState(() => kernel.ai.config());
   const refreshAi = () => setAi(kernel.ai.config());
+  const aiPreset = presetFor(ai.provider);
   const [aiTest, setAiTest] = useState<{ ok: boolean; message: string } | null>(null);
   const [aiTesting, setAiTesting] = useState(false);
   const testAi = async () => {
@@ -97,55 +99,75 @@ export function Settings({ kernel }: SettingsProps) {
 
       <section style={sectionStyle}>
         <h3 style={titleStyle}>🤖 Inteligencia artificial (opcional)</h3>
-        <div style={{ color: "#7f8995", fontSize: 12, marginBottom: 8, lineHeight: 1.5 }}>
+        <div style={{ color: "#7f8995", fontSize: 12, marginBottom: 10, lineHeight: 1.5 }}>
           Por defecto el juego usa una IA local, offline. Si querés respuestas
-          más ricas, pegá <b>tu propia</b> clave de Groq o Gemini: queda sólo en
-          este dispositivo, nunca se sube a ningún lado. Sin clave, todo funciona igual.
+          más ricas, elegí <b>tu</b> proveedor y pegá <b>tu propia</b> clave:
+          queda sólo en este dispositivo, nunca se sube a ningún lado. Sin clave,
+          todo funciona igual.
         </div>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
-          {(["offline", "groq", "gemini"] as const).map((p) => (
-            <button
-              key={p}
-              onClick={() => { kernel.ai.getSettings().setProvider(p); refreshAi(); }}
-              style={{
-                padding: "6px 12px", borderRadius: 8, cursor: "pointer",
-                border: "1px solid #2b3d4e",
-                background: ai.provider === p ? "rgba(124,196,255,0.15)" : "transparent",
-                color: ai.provider === p ? "#7cc4ff" : "#8b98a5", fontWeight: 600,
-                textTransform: "capitalize",
-              }}
-            >
-              {p}
-            </button>
-          ))}
-          <span style={{ marginLeft: "auto", fontSize: 12, color: kernel.ai.mode() === "connected" ? "#86efac" : "#8b98a5" }}>
+
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
+          <select
+            value={ai.provider}
+            onChange={(e) => { kernel.ai.getSettings().setProvider(e.target.value); refreshAi(); setAiTest(null); }}
+            style={{ flex: 1, padding: "8px 10px", borderRadius: 8, border: "1px solid #2b3d4e", background: "#0b1016", color: "#e6edf3", fontSize: 13 }}
+          >
+            <option value="offline">{OFFLINE_PRESET.label}</option>
+            <optgroup label="Andan desde el navegador (celu incluido)">
+              {CONNECTED_PRESETS.filter((p) => p.browserOk).map((p) => (
+                <option key={p.id} value={p.id}>{p.label}</option>
+              ))}
+            </optgroup>
+            <optgroup label="Pueden requerir proxy / escritorio (CORS)">
+              {CONNECTED_PRESETS.filter((p) => !p.browserOk).map((p) => (
+                <option key={p.id} value={p.id}>{p.label}</option>
+              ))}
+            </optgroup>
+          </select>
+          <span style={{ fontSize: 12, whiteSpace: "nowrap", color: kernel.ai.mode() === "connected" ? "#86efac" : "#8b98a5" }}>
             {kernel.ai.mode() === "connected" ? "● conectado" : "○ offline"}
           </span>
         </div>
+
+        {aiPreset.note && (
+          <div style={{ fontSize: 12, color: aiPreset.browserOk === false ? "#fcd34d" : "#8b98a5", background: "#0b1016", border: "1px solid #22303f", borderRadius: 8, padding: "8px 10px", marginBottom: 8, lineHeight: 1.45 }}>
+            {aiPreset.browserOk === false ? "⚠ " : "ℹ️ "}{aiPreset.note}
+          </div>
+        )}
+
         {ai.provider !== "offline" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <input
-              type="password"
-              value={ai.apiKey}
-              onChange={(e) => { kernel.ai.getSettings().setApiKey(e.target.value); refreshAi(); }}
-              placeholder={`Tu clave de ${ai.provider}`}
-              style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #2b3d4e", background: "#0b1016", color: "#e6edf3", fontSize: 13 }}
-            />
+            {aiPreset.customBaseUrl && (
+              <input
+                value={ai.baseUrl}
+                onChange={(e) => { kernel.ai.getSettings().setBaseUrl(e.target.value); refreshAi(); }}
+                placeholder="URL base (ej. http://localhost:11434/v1)"
+                style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #2b3d4e", background: "#0b1016", color: "#e6edf3", fontSize: 13 }}
+              />
+            )}
+            {!aiPreset.noKey && (
+              <input
+                type="password"
+                value={ai.apiKey}
+                onChange={(e) => { kernel.ai.getSettings().setApiKey(e.target.value); refreshAi(); }}
+                placeholder={`Tu clave de ${aiPreset.label}`}
+                style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #2b3d4e", background: "#0b1016", color: "#e6edf3", fontSize: 13 }}
+              />
+            )}
             <input
               value={ai.model}
               onChange={(e) => { kernel.ai.getSettings().setModel(e.target.value); refreshAi(); }}
               placeholder="modelo"
               style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #2b3d4e", background: "#0b1016", color: "#e6edf3", fontSize: 13 }}
             />
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", fontSize: 11, color: "#7f8995" }}>
-              Modelos sugeridos:
-              <button style={hintChip} onClick={() => { kernel.ai.getSettings().setModel(ai.provider === "groq" ? "llama-3.3-70b-versatile" : "gemini-2.0-flash"); refreshAi(); }}>
-                {ai.provider === "groq" ? "llama-3.3-70b-versatile" : "gemini-2.0-flash"}
-              </button>
-              {ai.provider === "gemini" && (
-                <button style={hintChip} onClick={() => { kernel.ai.getSettings().setModel("gemini-2.5-flash"); refreshAi(); }}>gemini-2.5-flash</button>
-              )}
-            </div>
+            {aiPreset.suggestedModels && aiPreset.suggestedModels.length > 0 && (
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", fontSize: 11, color: "#7f8995" }}>
+                Modelos:
+                {aiPreset.suggestedModels.map((m) => (
+                  <button key={m} style={hintChip} onClick={() => { kernel.ai.getSettings().setModel(m); refreshAi(); }}>{m}</button>
+                ))}
+              </div>
+            )}
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
               <button
                 onClick={testAi}
@@ -158,17 +180,17 @@ export function Settings({ kernel }: SettingsProps) {
                 onClick={() => { kernel.ai.getSettings().reset(); refreshAi(); setAiTest(null); }}
                 style={{ padding: "6px 10px", borderRadius: 8, cursor: "pointer", border: "1px solid #2b3d4e", background: "transparent", color: "#fca5a5", fontSize: 12 }}
               >
-                Borrar clave y volver a offline
+                Borrar y volver a offline
               </button>
             </div>
             {aiTest && (
-              <div style={{ fontSize: 12.5, padding: "8px 10px", borderRadius: 8, background: aiTest.ok ? "#052e1a" : "#2a1010", border: `1px solid ${aiTest.ok ? "#15803d" : "#7f1d1d"}`, color: aiTest.ok ? "#86efac" : "#fca5a5" }}>
+              <div style={{ fontSize: 12.5, padding: "8px 10px", borderRadius: 8, background: aiTest.ok ? "#052e1a" : "#2a1010", border: `1px solid ${aiTest.ok ? "#15803d" : "#7f1d1d"}`, color: aiTest.ok ? "#86efac" : "#fca5a5", lineHeight: 1.45 }}>
                 {aiTest.ok ? "✅ " : "⚠ "}{aiTest.message}
               </div>
             )}
-            {ai.provider === "gemini" && (
+            {aiPreset.keyUrl && (
               <div style={{ fontSize: 11, color: "#7f8995" }}>
-                Clave gratis de Gemini: aistudio.google.com/apikey — anda desde el celu.
+                Conseguí tu clave: {aiPreset.keyUrl}
               </div>
             )}
           </div>

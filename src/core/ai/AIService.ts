@@ -6,13 +6,15 @@ import type {
 } from "./AIProvider";
 import { OfflineProvider } from "./OfflineProvider";
 import { AISettings } from "./AISettings";
+import { presetFor, type ProviderPreset } from "./providers";
 
 /**
  * AIService — la fachada de IA del juego. Decide qué proveedor usar:
  *
  *   - Sin clave (por defecto)  → OfflineProvider (determinista, sin red).
- *   - Con clave del jugador    → Groq o Gemini (modo conectado), cargados de
- *                                forma perezosa desde src/core/ai/net/.
+ *   - Con proveedor + clave    → OpenAI/Anthropic/Gemini/OpenRouter/… (modo
+ *                                conectado), cargados de forma perezosa desde
+ *                                src/core/ai/net/ para aislar la red.
  *
  * Si el modo conectado falla (sin red, clave inválida, CORS), cae al offline:
  * el juego nunca se rompe por la IA. Ese fallback es la garantía de que ÑANDE
@@ -39,47 +41,79 @@ export class AIService {
    */
   async testConnection(): Promise<{ ok: boolean; message: string }> {
     if (!this.settings.isConnected()) {
-      return { ok: false, message: "Sin clave: estás en modo offline. Pegá tu clave de Groq o Gemini." };
+      return {
+        ok: false,
+        message:
+          "Sin configurar: estás en modo offline. Elegí un proveedor y pegá tu clave (o una URL base para un endpoint local).",
+      };
     }
-    const connected = await this.connectedProvider().catch(
-      (e) => { this.lastError = errText(e); return null; },
-    );
-    if (!connected) return { ok: false, message: `No se pudo cargar el proveedor: ${this.lastError ?? "?"}` };
+    const cfg = this.settings.get();
+    const preset = presetFor(cfg.provider);
+    const connected = await this.connectedProvider().catch((e) => {
+      this.lastError = errText(e);
+      return null;
+    });
+    if (!connected)
+      return {
+        ok: false,
+        message: `No se pudo cargar el proveedor: ${this.lastError ?? "?"}`,
+      };
     const ping = async (p: AIProvider) =>
-      (await p.generate([{ role: "user", content: "Respondé sólo con: OK" }], { maxTokens: 8 })).text;
+      (
+        await p.generate([{ role: "user", content: "Respondé sólo con: OK" }], {
+          maxTokens: 8,
+        })
+      ).text;
     try {
       const text = await ping(connected);
       this.lastError = null;
-      return { ok: true, message: `Conexión OK (${this.settings.get().model}). Respuesta: ${text.slice(0, 40) || "(vacía)"}` };
+      return {
+        ok: true,
+        message: `Conexión OK (${preset.label} · ${cfg.model}). Respuesta: ${text.slice(0, 40) || "(vacía)"}`,
+      };
     } catch (e) {
       this.lastError = errText(e);
-      const cfg = this.settings.get();
-      // Auto-recuperación de Gemini: si el modelo dio 404 (nombre inválido para
-      // la clave), preguntamos a la API qué modelos existen y elegimos uno que
-      // ande, lo guardamos y reintentamos. Así el jugador no adivina nombres.
-      if (cfg.provider === "gemini" && /404|not found|model/i.test(this.lastError)) {
-        const fixed = await this.autoFixGemini(cfg.apiKey).catch(() => null);
-        if (fixed) {
+      // Auto-recuperación de modelo si dio 404 (nombre inválido para la clave).
+      if (/404|not found|model|does not exist|no such model/i.test(this.lastError)) {
+        const fixed = await this.autoFixModel(preset, cfg).catch(() => null);
+        if (fixed && fixed !== cfg.model) {
           this.settings.setModel(fixed);
-          try {
-            const mod = await import("./net/ConnectedProviders");
-            const text = await ping(new mod.GeminiProvider(cfg.apiKey, fixed));
-            this.lastError = null;
-            return { ok: true, message: `Conexión OK. Ajusté el modelo a "${fixed}" (el anterior no existía). Respuesta: ${text.slice(0, 30)}` };
-          } catch (e2) {
-            this.lastError = errText(e2);
+          const retry = await this.connectedProvider().catch(() => null);
+          if (retry) {
+            try {
+              const text = await ping(retry);
+              this.lastError = null;
+              return {
+                ok: true,
+                message: `Conexión OK. Ajusté el modelo a "${fixed}" (el anterior no existía). Respuesta: ${text.slice(0, 30)}`,
+              };
+            } catch (e2) {
+              this.lastError = errText(e2);
+            }
           }
         }
       }
-      return { ok: false, message: diagnose(this.lastError, cfg.provider) };
+      return { ok: false, message: diagnose(this.lastError, preset) };
     }
   }
 
-  /** Descubre un modelo de Gemini válido para la clave (o null). */
-  private async autoFixGemini(apiKey: string): Promise<string | null> {
+  /** Descubre un modelo válido para la clave/endpoint (o null). */
+  private async autoFixModel(
+    preset: ProviderPreset,
+    cfg: { apiKey: string; baseUrl: string },
+  ): Promise<string | null> {
     const mod = await import("./net/ConnectedProviders");
-    const models = await mod.listGeminiModels(apiKey);
-    return mod.pickGeminiModel(models);
+    if (preset.kind === "gemini") {
+      const models = await mod.listGeminiModels(cfg.apiKey);
+      return mod.pickGeminiModel(models);
+    }
+    if (preset.kind === "openai") {
+      const base = cfg.baseUrl || preset.baseUrl || "";
+      if (!base) return null;
+      const models = await mod.listOpenAIModels(base, cfg.apiKey);
+      return models[0] ?? null;
+    }
+    return null;
   }
 
   config() {
@@ -90,18 +124,42 @@ export class AIService {
     return this.settings;
   }
 
-  /** "conectado" si hay proveedor externo + clave; si no, "offline". */
+  /** "conectado" si hay proveedor externo configurado; si no, "offline". */
   mode(): "offline" | "connected" {
     return this.settings.isConnected() ? "connected" : "offline";
+  }
+
+  /** El preset del proveedor actual (para la UI). */
+  preset(): ProviderPreset {
+    return presetFor(this.settings.get().provider);
   }
 
   /** Carga perezosa del proveedor conectado (aísla la red en ai/net). */
   private async connectedProvider(): Promise<AIProvider | null> {
     const cfg = this.settings.get();
     if (!this.settings.isConnected()) return null;
+    const preset = presetFor(cfg.provider);
     const mod = await import("./net/ConnectedProviders");
-    if (cfg.provider === "groq") return new mod.GroqProvider(cfg.apiKey, cfg.model);
-    if (cfg.provider === "gemini") return new mod.GeminiProvider(cfg.apiKey, cfg.model);
+    if (preset.kind === "gemini") {
+      return new mod.GeminiProvider(cfg.apiKey, cfg.model);
+    }
+    if (preset.kind === "anthropic") {
+      return new mod.AnthropicProvider(
+        cfg.apiKey,
+        cfg.model,
+        cfg.baseUrl || preset.baseUrl,
+      );
+    }
+    if (preset.kind === "openai") {
+      const base = cfg.baseUrl || preset.baseUrl || "";
+      if (!base) return null;
+      // OpenRouter recomienda identificar la app; es opcional y no expone datos.
+      const extra: Record<string, string> =
+        preset.id === "openrouter"
+          ? { "HTTP-Referer": "https://nande-hacklab.local", "X-Title": "ÑANDE Hacklab" }
+          : {};
+      return new mod.OpenAICompatibleProvider(base, cfg.apiKey, cfg.model, extra);
+    }
     return null;
   }
 
@@ -109,13 +167,17 @@ export class AIService {
     messages: AIMessage[],
     options?: AIGenerateOptions,
   ): Promise<AIGenerateResult> {
-    const connected = await this.connectedProvider().catch(
-      (e) => { this.lastError = errText(e); return null; },
-    );
+    const connected = await this.connectedProvider().catch((e) => {
+      this.lastError = errText(e);
+      return null;
+    });
     if (connected) {
       try {
         const r = await connected.generate(messages, options);
-        if (r.text.trim()) { this.lastError = null; return r; }
+        if (r.text.trim()) {
+          this.lastError = null;
+          return r;
+        }
         this.lastError = "El modelo devolvió una respuesta vacía.";
       } catch (e) {
         // Guardamos el motivo para poder mostrarlo; caemos al offline para que
@@ -131,20 +193,21 @@ function errText(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
-/** Traduce un error crudo a algo accionable para el jugador. */
-function diagnose(err: string, provider: string): string {
+/** Traduce un error crudo a algo accionable para el jugador, según el proveedor. */
+function diagnose(err: string, preset: ProviderPreset): string {
   const e = err.toLowerCase();
-  if (e.includes("401") || e.includes("403") || e.includes("api key") || e.includes("unauthorized")) {
-    return `Clave inválida o sin permisos (${err}). Revisá tu clave de ${provider}.`;
+  if (e.includes("401") || e.includes("403") || e.includes("api key") || e.includes("unauthorized") || e.includes("permission")) {
+    return `Clave inválida o sin permisos (${err}). Revisá tu clave de ${preset.label}${preset.keyUrl ? ` (${preset.keyUrl})` : ""}.`;
   }
-  if (e.includes("404") || e.includes("not found") || e.includes("model")) {
-    return `Modelo no encontrado (${err}). Probá otro modelo en Configuración.`;
+  if (e.includes("404") || e.includes("not found") || e.includes("model") || e.includes("does not exist")) {
+    return `Modelo no encontrado (${err}). Probá otro modelo en Configuración${preset.suggestedModels?.length ? `, ej. ${preset.suggestedModels[0]}` : ""}.`;
   }
-  if (e.includes("429")) return `Límite de uso alcanzado (${err}). Esperá un rato.`;
-  if (e.includes("failed to fetch") || e.includes("networkerror") || e.includes("cors")) {
-    return provider === "groq"
-      ? "No se pudo conectar (posible CORS): Groq a veces bloquea el navegador. Probá Gemini, que sí anda desde el celu."
-      : "No se pudo conectar (red/CORS). Revisá tu internet y la clave.";
+  if (e.includes("429") || e.includes("rate")) return `Límite de uso alcanzado (${err}). Esperá un rato o revisá tu cuota en ${preset.label}.`;
+  if (e.includes("failed to fetch") || e.includes("networkerror") || e.includes("cors") || e.includes("load failed")) {
+    if (preset.browserOk === false) {
+      return `No se pudo conectar: ${preset.label} bloquea el navegador (CORS). Es esperable. Alternativas que SÍ andan desde el navegador: Gemini, OpenRouter (una clave llega a todos los modelos) o Anthropic. O corré ÑANDE con un proxy/escritorio.`;
+    }
+    return `No se pudo conectar (red/CORS): ${err}. Revisá tu internet${preset.customBaseUrl ? " y que la URL base + CORS del endpoint local estén bien (Ollama: OLLAMA_ORIGINS=*)" : " y la clave"}.`;
   }
-  return `Falló la conexión: ${err}`;
+  return `Falló la conexión con ${preset.label}: ${err}`;
 }

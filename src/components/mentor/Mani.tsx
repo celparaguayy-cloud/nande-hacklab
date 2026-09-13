@@ -99,25 +99,35 @@ export default function Mani({ kernel, onRunCommand }: ManiProps) {
   }, [kernel]);
 
   const ctfChallenge = kernel.ctf.current();
+  const currentSite = kernel.browser.currentSite();
 
   // La Mani AVANZADA: sabe en qué sitio estás y te acompaña ahí, aunque no
   // haya un CTF. Escalera propia: cada "necesito más" concreta la ayuda.
   const [siteLevel, setSiteLevel] = useState<HelpLevel>(0);
-  const currentSite = kernel.browser.currentSite();
+  const [prevSite, setPrevSite] = useState(currentSite);
+  const [prevCtfHost, setPrevCtfHost] = useState<string | undefined>(
+    ctfChallenge?.host,
+  );
+
+  // Reset de estado al cambiar de contexto — ajuste EN RENDER (el patrón que
+  // recomienda React: sin efecto y sin lag de un frame, en vez de un
+  // useEffect que dispara setState tras pintar).
+  let level = siteLevel;
+  if (currentSite !== prevSite) {
+    setPrevSite(currentSite);
+    setSiteLevel(0);
+    level = 0; // esta pasada ya usa el nivel reiniciado
+  }
+  // Al cambiar (o terminar) el reto CTF, olvidar la pista anterior.
+  if (ctfChallenge?.host !== prevCtfHost) {
+    setPrevCtfHost(ctfChallenge?.host);
+    setCtfHint(null);
+  }
+
   const siteAdvice =
     !ctfChallenge && kernel.mentor.knowsSite(currentSite)
-      ? kernel.mentor.adviseForSite(currentSite, siteLevel)
+      ? kernel.mentor.adviseForSite(currentSite, level)
       : null;
-
-  // Al cambiar (o terminar) el reto CTF, olvidar la pista anterior.
-  useEffect(() => {
-    setCtfHint(null);
-  }, [ctfChallenge?.host]);
-
-  // Al cambiar de sitio, la escalera de la Mani vuelve a empezar.
-  useEffect(() => {
-    setSiteLevel(0);
-  }, [currentSite]);
 
   if (muted) {
     return (
