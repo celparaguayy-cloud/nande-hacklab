@@ -103,7 +103,9 @@ export default function MissionControl({ kernel, onOpenApp }: Props) {
             <div className="mc__next">
               <div className="mc__next-label">Tu próximo paso</div>
               <div className="mc__next-text">{firstUndone.text}</div>
-              <div className="mc__next-hint">💡 {firstUndone.hint}</div>
+              <div className="mc__next-hint">
+                🥜 ¿No sabés cómo? Preguntale a La Mani (abajo a la derecha). Es la única que te da la técnica.
+              </div>
             </div>
           )}
 
