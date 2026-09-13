@@ -126,7 +126,7 @@ export class Assistant {
     }
     // Reversing.
     if (/\b(reversing|crackme|ingenier[ií]a inversa|xor|desensambl)\b/.test(u)) {
-      return { text: "Te resuelvo el crackme por fuerza bruta de la clave:", action: { command: "reverse brute", label: "▶ reverse brute" } };
+      return { text: "Te resuelvo el crackme por fuerza bruta de la clave:", action: { command: "reverse brute", label: "▶ reverse brute" }, openApp: "reverse" };
     }
     // Reto.
     if (/\b(reto|desaf[ií]o|ctf|pr[aá]ctica|practicar)\b/.test(u)) {

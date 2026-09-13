@@ -103,6 +103,16 @@ export const APPS: AppMeta[] = [
     dock: false,
   },
   {
+    id: "reverse",
+    name: "NandeReverse",
+    title: "NandeReverse — ingeniería inversa",
+    summary: "Un crackme real: hexdump y fuerza bruta de XOR para revelar la bandera",
+    category: "Sistema",
+    from: "#c4b5fd",
+    to: "#5b21b6",
+    dock: false,
+  },
+  {
     id: "arena",
     name: "Arena CTF",
     title: "Arena CTF — retos contrarreloj",
