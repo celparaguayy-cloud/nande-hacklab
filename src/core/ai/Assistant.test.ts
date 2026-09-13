@@ -50,6 +50,17 @@ describe("Assistant — un agente que HACE, no una vitrina", () => {
     expect(r.text).toContain("connect_ex");
   });
 
+  it("pedir código en C++ (u otro lenguaje) devuelve código real de ese lenguaje", () => {
+    const cpp = agent.respond("escribí un código en c++");
+    expect(cpp.kind).toBe("code");
+    expect(cpp.text).toContain("```cpp");
+    expect(cpp.text).toContain("socket");
+
+    const go = agent.respond("dame un ejemplo en go");
+    expect(go.kind).toBe("code");
+    expect(go.text).toContain("```go");
+  });
+
   it("una pregunta conceptual da una respuesta con contenido de verdad", () => {
     const r = agent.respond("qué es kerberoasting");
     expect(r.kind).toBe("knowledge");

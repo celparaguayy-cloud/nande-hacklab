@@ -32,9 +32,18 @@ const MIN_VISIBLE = 80;
 
 /** Por debajo de este ancho el escritorio se comporta como un teléfono. */
 const COMPACT_WIDTH = 760;
+const COMPACT_HEIGHT = 560;
 
+/**
+ * "Compacto" = teléfono/pantalla chica en CUALQUIER orientación. Antes sólo
+ * miraba el ancho, así que un celu en HORIZONTAL (ancho pero muy bajo) se
+ * trataba como escritorio: las ventanas abrían con tamaño fijo más altas que
+ * la pantalla y quedaban cortadas — no se podía jugar. Ahora también cuenta el
+ * alto: si la pantalla es baja, la ventana se maximiza igual que en vertical.
+ */
 function isCompact(): boolean {
-  return typeof window !== "undefined" && window.innerWidth < COMPACT_WIDTH;
+  if (typeof window === "undefined") return false;
+  return window.innerWidth < COMPACT_WIDTH || window.innerHeight < COMPACT_HEIGHT;
 }
 
 /** Geometria inicial adaptada al tamano real de la pantalla. */
@@ -45,14 +54,15 @@ function initialGeometry(offset: number) {
   const screenHeight =
     typeof window === "undefined" ? 768 : window.innerHeight;
 
-  // En telefonos la ventana ocupa casi todo: una de 700px en x=180
-  // quedaba practicamente fuera de una pantalla de 360px.
-  if (screenWidth < COMPACT_WIDTH) {
+  // En telefonos la ventana ocupa casi todo (vertical U horizontal): una de
+  // 700px en x=180 quedaba fuera de una pantalla de 360px, y en horizontal una
+  // de 560px de alto no entraba en 360px de alto.
+  if (screenWidth < COMPACT_WIDTH || screenHeight < COMPACT_HEIGHT) {
     return {
       x: 8,
       y: TOP_BAR + 8,
       width: Math.max(240, screenWidth - 16),
-      height: Math.max(280, screenHeight - TOP_BAR - DOCK_ZONE - 8),
+      height: Math.max(220, screenHeight - TOP_BAR - DOCK_ZONE - 8),
     };
   }
 

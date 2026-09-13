@@ -934,7 +934,7 @@
    comían casi toda la pantalla y no quedaba lugar para jugar. Se achica
    todo lo decorativo y se libera alto para el contenido.
    ------------------------------------------------------------------ */
-@media (max-height: 520px) and (orientation: landscape) {
+@media (max-height: 560px) and (orientation: landscape) {
   :root {
     --nd-topbar: 34px;
     --nd-dock: 52px;

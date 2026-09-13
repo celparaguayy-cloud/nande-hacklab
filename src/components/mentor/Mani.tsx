@@ -3,6 +3,32 @@ import type { VirtualKernel } from "../../core/VirtualKernel";
 import type { Advice } from "../../core/mentor/Mentor";
 import "./mani.css";
 
+/**
+ * Extrae SÓLO el comando de una pista en prosa. La Mani suele decir cosas
+ * como «Entrá a server.nande (connect server.nande soporte Verano2024) y
+ * escaneá», o «Comandos: connect X admin Y y luego cat Z». Copiamos el comando
+ * limpio, no la explicación.
+ */
+function extractCommand(hint: string): string {
+  const clean = hint.replace(/^🥜\s*/, "");
+  // 1) Si el comando viene entre paréntesis, ese es el comando.
+  const paren = clean.match(/\(([^)]*(?:curl|nmap|connect|cat|service-|sqlmap|hydra)[^)]*)\)/i);
+  if (paren) return paren[1].trim().replace(/^["']|["']$/g, "");
+  // 2) Si hay comillas alrededor del comando, tomamos lo entrecomillado.
+  const quoted = clean.match(/"([^"]*(?:curl|nmap|connect|cat)[^"]*)"/i);
+  if (quoted) return quoted[1].trim();
+  // 3) Desde el primer token de comando hasta un corte natural (« y », «.», « o »).
+  const m = clean.match(/((?:curl|nmap|connect|cat|service-\w+|sqlmap|hydra)\b[\s\S]*)/i);
+  if (m) {
+    return m[1]
+      .replace(/^Comando exacto:\s*/i, "")
+      .split(/\s+y\s+luego\s+|\s+y\s+desde\s+|\.\s|\s+o\s+bien\s+/i)[0]
+      .trim()
+      .replace(/[.\s]+$/, "");
+  }
+  return clean.replace(/^(Comando exacto:|Comandos:)\s*/i, "").trim();
+}
+
 interface ManiProps {
   kernel: VirtualKernel;
   /** Para ejecutar un comando en la terminal ("hacelo conmigo"). */
@@ -137,7 +163,7 @@ export default function Mani({ kernel, onRunCommand }: ManiProps) {
                 <button
                   className="mani__run"
                   onClick={() => {
-                    try { navigator.clipboard?.writeText(ctfHint.replace(/^🥜\s*(Comando exacto:|Comandos:)?\s*/, "")); } catch { /* sin portapapeles */ }
+                    try { navigator.clipboard?.writeText(extractCommand(ctfHint)); } catch { /* sin portapapeles */ }
                     setCopied(true);
                     setTimeout(() => setCopied(false), 1600);
                   }}

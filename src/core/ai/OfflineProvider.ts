@@ -63,20 +63,18 @@ export class OfflineProvider implements AIProvider {
       if (re.test(u)) return hint;
     }
 
-    // Preguntas generales.
+    // Preguntas generales: en vez de un "no sé", oriento hacia una acción.
     if (u.endsWith("?") || /\b(qu[eé]|c[oó]mo|por qu[eé]|cu[aá]ndo|d[oó]nde)\b/.test(u)) {
       return esTutor
         ? "Buena pregunta. Pensalo así: ¿qué dato controlás vos y el sistema confía sin validar? Ahí suele estar la falla."
-        : "Mmm, no estoy seguro. Preguntale a alguien del foro.";
+        : "Buena. Pensá qué querés lograr y probalo: escaneá con nmap, mirá el tráfico con sniff, o pedime 'dame un reto'. Si me decís el objetivo, te tiro el paso concreto.";
     }
 
-    // Respuesta por defecto, determinista según longitud del mensaje.
-    const cierres = [
-      "Dale, seguimos.",
-      "Anotado. ¿Algo más?",
-      "Entiendo. Contame cómo te fue.",
-      "Buenísimo. Probá y volvé.",
-    ];
-    return cierres[u.length % cierres.length];
+    // Respuesta por defecto: siempre útil, nunca relleno vacío.
+    return (
+      "Puedo hacerte cosas de verdad: escanear (nmap), ver el tráfico (sniff), " +
+      "el dominio (nandeblood), un reto ('dame un reto') o escribirte código. " +
+      "Decime qué querés y lo ejecuto."
+    );
   }
 }

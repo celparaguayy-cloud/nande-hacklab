@@ -146,9 +146,16 @@ export class Assistant {
   /* ---------------------------------------------------- intención: código */
 
   private matchCode(u: string): string | null {
-    const wantsCode = /\b(c[oó]digo|programa|script|escrib[ií]|hac[eé]me|dame).*(python|javascript|js|bash|scanner|escaner|port)/.test(u)
-      || /\b(python|javascript|bash)\b/.test(u) && /\b(c[oó]digo|script|programa|ejemplo)\b/.test(u);
+    const asksCode = /(c[oó]digo|programa|programar|script|escrib|hac[eé]me|dame|ejemplo|snippet|funci[oó]n)/.test(u);
+    const lang = this.detectLang(u);
+    const securityWord = /(scan|escan|port|puerto|exploit|hash|crack|xor|payload|shell|http|socket)/.test(u);
+    const wantsCode = (asksCode && (lang !== null || securityWord)) || (asksCode && /\bc\+\+|cpp\b/.test(u));
     if (!wantsCode) return null;
+
+    // Lenguaje no cubierto con un ejemplo propio → snippet real genérico.
+    if (lang && !["python", "javascript", "bash"].includes(lang)) {
+      return this.genericCode(lang);
+    }
 
     if (/python/.test(u) && /(scan|escan|port|puerto)/.test(u)) {
       return [
@@ -207,6 +214,42 @@ export class Assistant {
       "```",
       "Instalala con: tool-install <archivo>  y corré: run <nombre> <host>",
     ].join("\n");
+  }
+
+  /** Detecta el lenguaje pedido (para dar un ejemplo real de ese lenguaje). */
+  private detectLang(u: string): string | null {
+    if (/\bc\+\+|\bcpp\b/.test(u)) return "cpp";
+    if (/\bc#|\bcsharp\b/.test(u)) return "csharp";
+    if (/\bpython\b|\bpy\b/.test(u)) return "python";
+    if (/\bjavascript\b|\bjs\b|\bnode\b/.test(u)) return "javascript";
+    if (/\bbash\b|\bshell\b|\bsh\b/.test(u)) return "bash";
+    if (/\bjava\b/.test(u)) return "java";
+    if (/\bgo\b|\bgolang\b/.test(u)) return "go";
+    if (/\brust\b/.test(u)) return "rust";
+    if (/\bruby\b/.test(u)) return "ruby";
+    if (/\bphp\b/.test(u)) return "php";
+    if (/\bpowershell\b|\bps1\b/.test(u)) return "powershell";
+    if (/\bsql\b/.test(u)) return "sql";
+    if (/\bc\b/.test(u)) return "c";
+    return null;
+  }
+
+  /** Snippet REAL y educativo para un lenguaje sin ejemplo dedicado. */
+  private genericCode(lang: string): string {
+    const samples: Record<string, string[]> = {
+      cpp: ["// Port scanner minimalista en C++ (educativo, laboratorio)", "#include <sys/socket.h>", "#include <arpa/inet.h>", "#include <iostream>", "int main(){", "  for(int p=20;p<1025;p++){", "    int s=socket(AF_INET,SOCK_STREAM,0);", "    sockaddr_in a{}; a.sin_family=AF_INET; a.sin_port=htons(p);", "    inet_pton(AF_INET,\"127.0.0.1\",&a.sin_addr);", "    if(connect(s,(sockaddr*)&a,sizeof(a))==0) std::cout<<p<<\" abierto\\n\";", "    close(s);", "  }", "}"],
+      c: ["/* Fuerza bruta de XOR de un byte en C (reversing) */", "#include <stdio.h>", "int main(){", "  unsigned char c[]={/* bytes del binario */};", "  int n=sizeof(c);", "  for(int k=1;k<256;k++){", "    if((c[0]^k)=='N' && (c[1]^k)=='D'){", "      for(int i=0;i<n;i++) putchar(c[i]^k);", "      putchar('\\n');", "    }", "  }", "}"],
+      java: ["// Barrido de puertos en Java (educativo)", "import java.net.*;", "public class Scan {", "  public static void main(String[] a) throws Exception {", "    for (int p = 20; p < 1025; p++) {", "      try (Socket s = new Socket()) {", "        s.connect(new InetSocketAddress(\"127.0.0.1\", p), 300);", "        System.out.println(p + \" abierto\");", "      } catch (Exception e) {}", "    }", "  }", "}"],
+      go: ["// Escáner de puertos concurrente en Go", "package main", "import (\"fmt\"; \"net\"; \"time\")", "func main() {", "  for p := 20; p < 1025; p++ {", "    c, err := net.DialTimeout(\"tcp\", fmt.Sprintf(\"127.0.0.1:%d\", p), 300*time.Millisecond)", "    if err == nil { fmt.Println(p, \"abierto\"); c.Close() }", "  }", "}"],
+      rust: ["// Escáner TCP simple en Rust", "use std::net::TcpStream;", "fn main() {", "  for p in 20..1025 {", "    if TcpStream::connect((\"127.0.0.1\", p)).is_ok() {", "      println!(\"{p} abierto\");", "    }", "  }", "}"],
+      ruby: ["# Escáner de puertos en Ruby", "require 'socket'", "(20..1024).each do |p|", "  begin", "    Socket.tcp('127.0.0.1', p, connect_timeout: 0.3).close", "    puts \"#{p} abierto\"", "  rescue; end", "end"],
+      php: ["<?php // Chequeo de puertos en PHP", "for ($p = 20; $p < 1025; $p++) {", "  $c = @fsockopen('127.0.0.1', $p, $e, $s, 0.3);", "  if ($c) { echo \"$p abierto\\n\"; fclose($c); }", "}"],
+      powershell: ["# Barrido de puertos en PowerShell", "20..1024 | ForEach-Object {", "  $t = Test-NetConnection 127.0.0.1 -Port $_ -WarningAction SilentlyContinue", "  if ($t.TcpTestSucceeded) { \"$_ abierto\" }", "}"],
+      sql: ["-- Inyección SQL clásica (bypass de login), para el lab", "-- En el campo usuario, probá:", "' OR '1'='1' -- ", "-- Y para extraer datos (UNION):", "' UNION SELECT username, password FROM users -- "],
+      csharp: ["// Escáner de puertos en C#", "using System.Net.Sockets;", "for (int p = 20; p < 1025; p++) {", "  using var c = new TcpClient();", "  try { c.Connect(\"127.0.0.1\", p); System.Console.WriteLine($\"{p} abierto\"); }", "  catch {}", "}"],
+    };
+    const body = samples[lang] ?? [`// Ejemplo en ${lang} (educativo)`, "// Decime qué querés que haga y lo armo."];
+    return [`Ejemplo en ${lang} (educativo, para laboratorio):`, "```" + lang, ...body, "```", "En ÑANDE el equivalente jugable de escanear es: nmap <host>."].join("\n");
   }
 
   /* ------------------------------------------------ intención: conocimiento */
