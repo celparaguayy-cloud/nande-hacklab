@@ -13,10 +13,10 @@ interface Props {
 type Tab = "feed" | "buscar" | "perfil" | "notis";
 
 const LEAK_LABEL: Record<string, string> = {
-  password: "🔑 contraseña",
-  pet: "🐶 mascota",
-  work: "🏢 trabajo",
-  birthday: "🎂 cumpleaños",
+  password: "contraseña",
+  pet: "mascota",
+  work: "trabajo",
+  birthday: "cumpleaños",
 };
 
 /**
@@ -270,7 +270,8 @@ function PostCard({
             className="pulso__leak"
             title="Dato aprovechable para OSINT — lo que la persona dejó ver sin querer"
           >
-            🔎 <span className="pulso__leak-k">{LEAK_LABEL[post.leak]}</span>
+            <Glyph name="search" size={13} />
+            <span className="pulso__leak-k">{LEAK_LABEL[post.leak]}</span>
             <code>{post.leakValue}</code>
           </span>
         )}
