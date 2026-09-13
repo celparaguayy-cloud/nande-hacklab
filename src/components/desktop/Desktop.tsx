@@ -9,6 +9,7 @@ import { BloodView } from "../ad/BloodView";
 import { ContainersView } from "../cloud/ContainersView";
 import { ReverseView } from "../reversing/ReverseView";
 import { DfirView } from "../dfir/DfirView";
+import { AnonView } from "../anon/AnonView";
 import { AsistenteView } from "../ai/AsistenteView";
 import { ArenaView } from "../arena/ArenaView";
 import { Files } from "../files/Files";
@@ -265,6 +266,7 @@ function Desktop() {
       containers: <ContainersView kernel={kernel} />,
       reverse: <ReverseView kernel={kernel} />,
       dfir: <DfirView kernel={kernel} />,
+      anon: <AnonView kernel={kernel} />,
       asistente: <AsistenteView kernel={kernel} onOpenApp={openWindow} />,
       arena: <ArenaView kernel={kernel} onOpenApp={openWindow} />,
       files: <Files kernel={kernel} />,

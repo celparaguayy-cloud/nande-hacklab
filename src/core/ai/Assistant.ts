@@ -118,7 +118,7 @@ export class Assistant {
     }
     // OPSEC / anonimato.
     if (/\b(opsec|an[oó]nimo|anonimato|rastro|calor|tor)\b/.test(u)) {
-      return { text: "Tu rastro y exposición ahora mismo:", action: { command: "opsec", label: "▶ opsec" } };
+      return { text: "Tu rastro y exposición ahora mismo:", action: { command: "opsec", label: "▶ opsec" }, openApp: "anon" };
     }
     // Contenedores.
     if (/\b(contenedor|docker|kubernetes|k8s|pod|nandec)\b/.test(u)) {

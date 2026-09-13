@@ -123,6 +123,16 @@ export const APPS: AppMeta[] = [
     dock: false,
   },
   {
+    id: "anon",
+    name: "Anonimato",
+    title: "Anonimato · OPSEC · Dark Web",
+    summary: "Activá el circuito, mirá tu exposición y navegá servicios .onion",
+    category: "Sistema",
+    from: "#a78bfa",
+    to: "#4c1d95",
+    dock: false,
+  },
+  {
     id: "arena",
     name: "Arena CTF",
     title: "Arena CTF — retos contrarreloj",
