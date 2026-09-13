@@ -82,7 +82,7 @@ function LearnView({ kernel, onOpenApp }: LearnViewProps) {
           <div style={statRow}>
             <Stat glyph="star" value={`Nv.${player.level}`} label={rank.name} />
             <Stat glyph="target" value={`${done.size}`} label="completadas" />
-            <Stat glyph="flame" value={`${player.achievements.length}`} label="logros" />
+            <Stat glyph="medal" value={`${player.achievements.length}`} label="logros" />
           </div>
 
           <div style={card}>
@@ -544,7 +544,10 @@ const tabBar: CSSProperties = {
   display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 4,
   padding: "8px 6px",
   background: "#0b0f14", borderTop: "1px solid #26313b",
-  boxShadow: "0 -10px 24px rgba(0,0,0,0.5)", zIndex: 5, isolation: "isolate",
+  // Sombra del color del fondo: el contenido se desvanece al acercarse a la
+  // barra en vez de cortarse de golpe (se lee como diseño, no como bug).
+  boxShadow: "0 -8px 12px 2px #0b0f14, 0 -16px 20px rgba(11,15,20,0.7)",
+  zIndex: 5, isolation: "isolate",
 };
 const tabBtn: CSSProperties = {
   border: "none", borderRadius: 10, padding: "7px 3px", cursor: "pointer",

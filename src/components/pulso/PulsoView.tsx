@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import type { VirtualKernel } from "../../core/VirtualKernel";
 import type { PulsoPost, Profile } from "../../core/social/Pulso";
-import { avatarDataUri } from "../../core/art/Avatar";
+import { monogramDataUri } from "../../core/art/Avatar";
+import { Glyph } from "../ui/Glyph";
 import "./pulso.css";
 
 interface Props {
@@ -64,11 +65,20 @@ export default function PulsoView({ kernel }: Props) {
       <div className="pulso__tabs">
         <button data-on={tab === "feed"} onClick={() => setTab("feed")}>Feed</button>
         <button data-on={tab === "buscar"} onClick={() => setTab("buscar")}>Buscar gente</button>
-        <button data-on={tab === "perfil"} onClick={() => setTab("perfil")} disabled={!profile}>
+        <button
+          data-on={tab === "perfil"}
+          onClick={() => setTab("perfil")}
+          disabled={!profile}
+          title={profile ? "Tu perfil" : "Abrí un perfil desde el feed o la búsqueda"}
+        >
           Perfil
         </button>
-        <button data-on={tab === "notis"} onClick={() => setTab("notis")}>
-          🔔 Notis{kernel.pulso.unreadNotifications() > 0 ? ` (${kernel.pulso.unreadNotifications()})` : ""}
+        <button
+          data-on={tab === "notis"}
+          onClick={() => setTab("notis")}
+          style={{ display: "inline-flex", alignItems: "center", gap: 5 }}
+        >
+          <Glyph name="bell" size={14} /> Notis{kernel.pulso.unreadNotifications() > 0 ? ` (${kernel.pulso.unreadNotifications()})` : ""}
         </button>
         <span className="pulso__me">Seguís a {kernel.pulso.followingCount()}</span>
       </div>
@@ -105,7 +115,9 @@ export default function PulsoView({ kernel }: Props) {
 
           {trends.length > 0 && (
             <div style={trendWrap}>
-              <span style={trendTitle}>🔥 Tendencias</span>
+              <span style={{ ...trendTitle, display: "inline-flex", alignItems: "center", gap: 6 }}>
+                <Glyph name="trend" size={15} /> Tendencias
+              </span>
               {trends.map((t) => (
                 <button
                   key={t.tag}
@@ -213,7 +225,7 @@ function PostCard({
         <button className="pulso__author" onClick={onOpen}>
           <img
             className="pulso__avatar"
-            src={avatarDataUri(post.authorId || post.authorName, 40)}
+            src={monogramDataUri(post.authorId || post.authorName, post.authorName, 40)}
             alt=""
             width={36}
             height={36}
@@ -233,6 +245,9 @@ function PostCard({
           aria-pressed={liked}
           onClick={() => { kernel.pulso.toggleLike(post.id); bump(); }}
           style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 5,
             background: "none",
             border: "none",
             cursor: "pointer",
@@ -241,14 +256,14 @@ function PostCard({
             padding: 0,
           }}
         >
-          {liked ? "♥" : "♡"} {kernel.pulso.likeCountFor(post)}
+          <Glyph name="heart" size={15} /> {kernel.pulso.likeCountFor(post)}
         </button>
         <button
           className="pulso__like"
           onClick={() => setOpen((o) => !o)}
-          style={{ background: "none", border: "none", cursor: "pointer", color: "inherit", font: "inherit", padding: 0 }}
+          style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "none", border: "none", cursor: "pointer", color: "inherit", font: "inherit", padding: 0 }}
         >
-          💬 {comments.length + thread.length > 0 ? comments.length + thread.length : ""}
+          <Glyph name="comment" size={15} /> {comments.length + thread.length > 0 ? comments.length + thread.length : ""}
         </button>
         {post.leak && (
           <span
@@ -292,7 +307,7 @@ function PostCard({
 function ProfileRow({ p, onOpen }: { p: Profile; onOpen: () => void }) {
   return (
     <button className="pulso__row" onClick={onOpen}>
-      <img className="pulso__avatar" src={avatarDataUri(p.id || p.name, 40)} alt="" width={36} height={36} />
+      <img className="pulso__avatar" src={monogramDataUri(p.id || p.name, p.name, 40)} alt="" width={36} height={36} />
       <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
         <span><strong>{p.name}</strong> <span>{p.handle}</span></span>
         <span className="pulso__row-bio">{p.bio}</span>

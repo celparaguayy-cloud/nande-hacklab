@@ -6,6 +6,35 @@
  * no sólo texto y emojis.
  */
 
+/** Iniciales (1-2 letras) a partir de un nombre, para el avatar de monograma. */
+function initialsOf(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  const letters = words.slice(0, 2).map((w) => w[0] ?? "").join("");
+  return (letters || name.trim()[0] || "?").toUpperCase();
+}
+
+/**
+ * Avatar de MONOGRAMA: disco con degradado determinista + iniciales. Plano y
+ * cohesivo con el lenguaje de línea del resto de la interfaz (a diferencia del
+ * pixel-art). Lo usa Pulso para que el feed se vea de app moderna, no retro.
+ */
+export function monogramDataUri(seed: string, name: string, size = 64): string {
+  const h = hash(seed);
+  const hue = h % 360;
+  const c1 = `hsl(${hue} 52% 46%)`;
+  const c2 = `hsl(${(hue + 38) % 360} 54% 32%)`;
+  const initials = initialsOf(name);
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">` +
+    `<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">` +
+    `<stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient></defs>` +
+    `<rect width="${size}" height="${size}" rx="${size}" fill="url(#g)"/>` +
+    `<text x="50%" y="53%" font-family="system-ui, sans-serif" font-size="${size * 0.42}" ` +
+    `font-weight="600" fill="#fff" text-anchor="middle" dominant-baseline="central">${initials}</text>` +
+    `</svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
 /** Hash determinista simple (FNV-1a) para derivar la cara de un id. */
 function hash(seed: string): number {
   let h = 0x811c9dc5;

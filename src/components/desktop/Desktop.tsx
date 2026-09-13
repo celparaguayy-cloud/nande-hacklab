@@ -39,6 +39,7 @@ import { VirtualKernel } from "../../core/VirtualKernel";
 import { weatherFor } from "../../core/world/Weather";
 import { APPS, CATEGORIES, type AppCategory } from "./apps";
 import { AppIcon } from "./AppIcon";
+import { Glyph } from "../ui/Glyph";
 import Wallpaper from "./Wallpaper";
 import "../../styles/theme.css";
 import "../../styles/pixel.css";
@@ -400,7 +401,9 @@ function Desktop() {
             onClick={() => openWindow("mission")}
             title="Calor: cuánto te persigue el Blue Team"
           >
-            <span style={{ color: heatColor }}>🔥 {Math.round(noto.heat)}</span>
+            <span style={{ color: heatColor, display: "inline-flex", alignItems: "center", gap: 5 }}>
+              <Glyph name="flame" size={14} /> {Math.round(noto.heat)}
+            </span>
           </button>
 
           <button
@@ -408,7 +411,9 @@ function Desktop() {
             onClick={() => openWindow("mission")}
             title="Tu notoriedad como hacker"
           >
-            <span style={{ color: "var(--nd-accent)" }}>★ {noto.notoriety}</span>
+            <span style={{ color: "var(--nd-accent)", display: "inline-flex", alignItems: "center", gap: 5 }}>
+              <Glyph name="star" size={14} /> {noto.notoriety}
+            </span>
           </button>
 
           <span className="nd-tray-item" title="Tu nivel">
