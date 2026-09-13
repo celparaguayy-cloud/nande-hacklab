@@ -1029,7 +1029,7 @@ export class VirtualTerminal {
         case "adversario":
           return this.redteamCmd(commandArgs);
 
-        case "reto":
+        case "retos":
         case "ctf-gen":
           return this.retoCmd(commandArgs);
 
@@ -2429,8 +2429,8 @@ export class VirtualTerminal {
 
   /**
    * Retos procedurales — bandera real detrás de una app web real.
-   *   reto          → muestra el reto activo y su pista de recon.
-   *   reto nuevo    → fabrica un reto nuevo (otra falla, otra bandera).
+   *   retos         → muestra el reto activo y su pista de recon.
+   *   retos nuevo   → fabrica un reto nuevo (otra falla, otra bandera).
    */
   private retoCmd(args: string[]): { output: string; isError: boolean } {
     const forge = this.kernel.ctfForge;
@@ -2441,7 +2441,7 @@ export class VirtualTerminal {
     }
     const ch = forge.current();
     if (!ch) {
-      return { output: "No hay reto activo. Generá uno con: reto nuevo\n", isError: false };
+      return { output: "No hay reto activo. Generá uno con: retos nuevo\n", isError: false };
     }
     const solved = this.kernel.player.capturedFlags().includes(ch.flag);
     return { output: this.renderReto(ch, solved), isError: false };
@@ -4368,7 +4368,7 @@ export class VirtualTerminal {
       `   rival: ${rt.rival()} · fase: ${rt.currentPhase()}${rt.compromised() ? " (🔴)" : ""}`,
       "",
       "🎲 Retos procedurales — bandera real, rejugables",
-      "   reto · reto nuevo",
+      "   retos · retos nuevo",
       reto ? `   activo: ${reto.hostname} (${reto.clue})` : "   (sin reto activo)",
       "",
       "🕵️ OPSEC — el mundo te rastrea si atacás sin anonimato",
@@ -4494,7 +4494,8 @@ export class VirtualTerminal {
       "  kerberoast · crack-tgs · abuse   Escalada en el dominio virtual",
       "  mitre              Purple: técnicas ATT&CK detectadas por tus acciones",
       "  redteam [expulsar] Adversario NPC que ataca de verdad; defendé",
-      "  reto [nuevo]       Retos procedurales con bandera real (rejugables)",
+      "  reto               Te asignan un objetivo para vulnerar",
+      "  retos [nuevo]      Retos procedurales con bandera real (rejugables)",
       "  opsec              Tu rastro: exposición, calor y redadas",
       "  nandec ps          Contenedores/K8s: secretos filtrados y escape",
       "  dfir               Reconstruí un incidente desde los eventos reales",
