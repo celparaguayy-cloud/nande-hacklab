@@ -3,6 +3,7 @@ import type { CSSProperties } from "react";
 import type { VirtualKernel } from "../../core/VirtualKernel";
 import type { AIMessage } from "../../core/ai/AIProvider";
 import { Assistant, type AssistantReply } from "../../core/ai/Assistant";
+import { buildWorldContext, worldContextPrompt } from "../../core/ai/WorldContext";
 
 interface Props {
   kernel: VirtualKernel;
@@ -61,8 +62,11 @@ export function AsistenteView({ kernel, onOpenApp }: Props) {
     setBusy(true);
 
     try {
+      // Snapshot del mundo AHORA: Ñandú responde con la verdad del runtime.
+      const ctx = buildWorldContext(kernel);
+
       // 1) El agente decide qué hacer (acción / código / conocimiento / chat).
-      const reply = agent.respond(clean);
+      const reply = agent.respond(clean, ctx);
       setMsgs((m) => [...m, { role: "assistant", text: reply.text, action: reply.action, openApp: reply.openApp }]);
 
       // 2) Si es accionable, EJECUTO el comando real y muestro la salida.
@@ -76,7 +80,12 @@ export function AsistenteView({ kernel, onOpenApp }: Props) {
       //    agente ya respondió algo útil.
       if (reply.kind === "chat" && kernel.ai.mode() === "connected") {
         try {
-          const aiMessages: AIMessage[] = [SYSTEM, { role: "user", content: clean }];
+          // El modelo conectado responde GROUNDED en el estado real del mundo.
+          const aiMessages: AIMessage[] = [
+            SYSTEM,
+            { role: "system", content: worldContextPrompt(ctx) },
+            { role: "user", content: clean },
+          ];
           const r = await kernel.ai.generate(aiMessages, { maxTokens: 400 });
           if (r.model !== "nande-offline") {
             setMsgs((m) => [...m, { role: "assistant", text: r.text, model: r.model }]);

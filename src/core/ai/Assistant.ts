@@ -1,5 +1,10 @@
 import type { VirtualKernel } from "../VirtualKernel";
 import { VirtualTerminal } from "../terminal/VirtualTerminal";
+import {
+  type WorldContext,
+  describeHosts,
+  findHost,
+} from "./WorldContext";
 
 /**
  * Assistant — Ñandú deja de ser un chatbot que "muestra" para ser un AGENTE
@@ -43,14 +48,22 @@ export class Assistant {
 
   /**
    * Interpreta el mensaje y decide: acción ejecutable, código, o respuesta
-   * conceptual. Todo determinista; sin red.
+   * conceptual. Todo determinista; sin red. Si se le pasa el snapshot del
+   * mundo (ctx), responde preguntas de estado con la VERDAD del runtime y NO
+   * inventa hosts que no existan (anti-alucinación, Spec §57-59).
    */
-  respond(userText: string): AssistantReply {
+  respond(userText: string, ctx?: WorldContext): AssistantReply {
     const u = userText.toLowerCase().trim();
 
     // 1) Intenciones ACCIONABLES → comando real de un toque.
     const action = this.matchAction(u);
     if (action) return { ...action, kind: "action" };
+
+    // 1.5) Preguntas sobre el estado del mundo → responder desde el runtime.
+    if (ctx) {
+      const world = this.matchWorldQuery(u, ctx);
+      if (world) return world;
+    }
 
     // 2) Pedidos de código → código real.
     const code = this.matchCode(u);
@@ -141,6 +154,76 @@ export class Assistant {
       return { text: "Tus misiones activas:", action: { command: "missions", label: "▶ missions" } };
     }
     return null;
+  }
+
+  /* ---------------------------------------- intención: estado del mundo */
+
+  /**
+   * Preguntas sobre el estado real (qué hosts alcanzo, dónde estoy, info de un
+   * host). Se responden con el snapshot del runtime. Si preguntan por un host
+   * que NO existe, se dice claramente en vez de inventarlo (anti-alucinación).
+   */
+  private matchWorldQuery(u: string, ctx: WorldContext): AssistantReply | null {
+    // ¿Qué puedo alcanzar? → lista REAL de hosts públicos.
+    const asksList =
+      /(qu[eé]|cu[aá]les?)[^?]*(m[aá]quinas?|hosts?|servidores?|objetivos?|sitios?)[^?]*(alcanz|hay|veo|puedo|disponible|existen|listar?)/.test(u) ||
+      /(hosts?|m[aá]quinas?|servidores?)\s+(disponibles?|alcanzables?|activos?)/.test(u) ||
+      /(list[aá]|mostr[aá]me?|dec[ií]me)[^?]*(hosts?|m[aá]quinas?|servidores?|objetivos?)/.test(u);
+    if (asksList) {
+      return {
+        text: describeHosts(ctx),
+        kind: "knowledge",
+        action: { command: "nmap midc.nande", label: "▶ escanear para confirmar" },
+      };
+    }
+
+    // ¿Dónde estoy / mi estado?
+    if (/(d[oó]nde estoy|mi estado|mi situaci[oó]n|c[oó]mo voy|mi calor|mi notoriedad|qui[eé]n soy|mi nivel)/.test(u)) {
+      return { text: this.describeState(ctx), kind: "knowledge", action: { command: "opsec", label: "▶ opsec (tu rastro)" } };
+    }
+
+    // Pregunta por un host puntual: "info de X.nande", "existe 10.10.7.11", …
+    const ref = u.match(/([a-z0-9][a-z0-9.-]*\.nande)|(\b\d{1,3}(?:\.\d{1,3}){3}\b)/);
+    const asksAbout = /(existe|hay|info|informaci[oó]n|servicios?|puertos?|qu[eé] (es|hay|tiene)|conoc[eé]s|sab[eé]s de|contame de)/.test(u);
+    if (ref && asksAbout) {
+      const name = ref[1] ?? ref[2];
+      const h = findHost(ctx, name);
+      if (h) {
+        const ports = h.openPorts.length
+          ? h.openPorts.map((p) => `${p.port}/${p.service}`).join(", ")
+          : "sin puertos abiertos";
+        return {
+          text: `${h.hostname} (${h.ip}) está ${h.up ? "activo" : "caído"} — ${ports}. Escaneá para verlo vos mismo:`,
+          kind: "knowledge",
+          action: { command: `nmap ${h.hostname}`, label: `▶ nmap ${h.hostname}` },
+        };
+      }
+      // ANTI-ALUCINACIÓN: no está en el runtime → no lo invento.
+      return {
+        text:
+          `No tengo a "${name}" en el estado actual del mundo, así que no me lo invento. ` +
+          `Descubrí hosts reales con nmap o navegando. Te puedo listar los que sí veo.`,
+        kind: "knowledge",
+        action: { command: "nmap midc.nande", label: "▶ escanear algo real" },
+      };
+    }
+
+    return null;
+  }
+
+  /** Resumen honesto del estado del jugador (desde el runtime). */
+  private describeState(ctx: WorldContext): string {
+    const p = ctx.player;
+    const lines = [
+      `Sos ${p.name} · nivel ${p.level} · N$${p.wallet}.`,
+      `Notoriedad ${p.notoriety} · calor ${p.heat}/${p.heatMax} · perfil ${p.alignment}.`,
+      `Anonimato: ${ctx.position.anon ? "ACTIVO 🟢" : "apagado 🔴"}${ctx.position.site ? ` · navegando ${ctx.position.site}` : ""}.`,
+    ];
+    if (ctx.mission && !ctx.mission.finished) {
+      lines.push(`Misión: cap. ${ctx.mission.chapter} "${ctx.mission.title}".`);
+      if (ctx.mission.nextObjective) lines.push(`Próximo paso: ${ctx.mission.nextObjective}`);
+    }
+    return lines.join("\n");
   }
 
   /* ---------------------------------------------------- intención: código */
