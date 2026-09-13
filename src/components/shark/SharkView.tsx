@@ -45,6 +45,24 @@ export function SharkView({ kernel }: SharkViewProps) {
 
   const creds = kernel.shark.credentials();
 
+  /** Genera tráfico REAL desde la app (sin terminal): una petición de verdad. */
+  const genTraffic = (kind: "browse" | "login") => {
+    try {
+      if (kind === "browse") {
+        kernel.browser.request("GET", "banco.nande", "/");
+      } else {
+        // Un login por HTTP: la clave viaja en claro y NandeShark la caza.
+        kernel.browser.request("POST", "banco.nande", "/login", {
+          usuario: "cliente",
+          password: "Verano2024",
+        });
+      }
+    } catch {
+      /* si el servicio está caído, no pasa nada */
+    }
+    setPackets(kernel.shark.recent(200));
+  };
+
   return (
     <div style={container}>
       <div style={header}>
@@ -58,6 +76,12 @@ export function SharkView({ kernel }: SharkViewProps) {
         <button style={btn} onClick={() => { kernel.shark.clear(); setPackets([]); setSelected(null); }}>
           Limpiar
         </button>
+      </div>
+
+      <div style={{ display: "flex", gap: 6, padding: "8px 12px 0", flexWrap: "wrap" }}>
+        <span style={{ fontSize: 11, color: "#8b98a5", alignSelf: "center" }}>Generar tráfico real:</span>
+        <button style={genBtn} onClick={() => genTraffic("browse")}>🌐 Navegar banco.nande</button>
+        <button style={genBtn} onClick={() => genTraffic("login")}>🔑 Login por HTTP (mirá la fuga)</button>
       </div>
 
       {creds.length > 0 && (
@@ -132,6 +156,7 @@ const container: CSSProperties = { height: "100%", display: "flex", flexDirectio
 const header: CSSProperties = { display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderBottom: "1px solid #1b2733" };
 const search: CSSProperties = { flex: 1, background: "#0e141b", border: "1px solid #1b2733", borderRadius: 6, color: "#e6edf3", padding: "6px 10px", fontSize: 12, fontFamily: "ui-monospace, monospace" };
 const btn: CSSProperties = { background: "#111820", color: "#8b98a5", border: "1px solid #1b2733", borderRadius: 6, padding: "6px 10px", fontSize: 12, cursor: "pointer" };
+const genBtn: CSSProperties = { background: "#0e2233", color: "#67e8f9", border: "1px solid #164a5f", borderRadius: 999, padding: "5px 10px", fontSize: 12, cursor: "pointer" };
 const leakBanner: CSSProperties = { background: "#2a1010", border: "1px solid #7f1d1d", color: "#fca5a5", fontSize: 12, padding: "6px 12px", margin: "8px 12px 0", borderRadius: 8 };
 const body: CSSProperties = { flex: 1, display: "flex", minHeight: 0 };
 const listCol: CSSProperties = { flex: 1.4, overflowY: "auto", padding: "8px 8px 8px 12px", display: "flex", flexDirection: "column", gap: 4, minWidth: 0 };
