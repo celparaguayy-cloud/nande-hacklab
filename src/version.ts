@@ -3,5 +3,5 @@
  * qué build estás corriendo (y confirmar que tomaste la última actualización).
  * Subила el número cuando haya un cambio que el jugador deba poder distinguir.
  */
-export const NANDE_VERSION = "5.0.3";
-export const NANDE_BUILD = "solo-mani";
+export const NANDE_VERSION = "5.0.4";
+export const NANDE_BUILD = "mani-avanzada";

@@ -40,6 +40,8 @@ export class VirtualBrowser {
   private hosts?: HostRuntime;
   private onTraffic?: (t: TrafficRecord) => void;
   private now: () => number;
+  /** Último sitio que el jugador visitó (para que La Mani sepa dónde está). */
+  private lastHost = "";
   /** Cookies guardadas por host, como las guardaría un navegador real. */
   private cookieJar = new Map<string, Record<string, string>>();
 
@@ -118,6 +120,7 @@ export class VirtualBrowser {
     body: Record<string, string> = {},
   ): { response: HttpResponse; finalPath: string } {
     const host = hostname.toLowerCase();
+    this.lastHost = host;
 
     if (!this.server?.has(host)) {
       throw new Error(`No es una aplicación web: ${hostname}`);
@@ -176,8 +179,14 @@ export class VirtualBrowser {
     return { response: response!, finalPath: path };
   }
 
+  /** El último sitio visitado (para el contexto de La Mani). */
+  currentSite(): string {
+    return this.lastHost;
+  }
+
   open(hostname: string, path: string = "/"): VirtualPage {
     const cleanHostname = hostname.toLowerCase();
+    this.lastHost = cleanHostname;
 
     const address = this.dns.resolve(cleanHostname);
 

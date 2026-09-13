@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { VirtualKernel } from "../../core/VirtualKernel";
-import type { Advice } from "../../core/mentor/Mentor";
+import type { Advice, HelpLevel } from "../../core/mentor/Mentor";
 import "./mani.css";
 
 /**
@@ -100,10 +100,24 @@ export default function Mani({ kernel, onRunCommand }: ManiProps) {
 
   const ctfChallenge = kernel.ctf.current();
 
+  // La Mani AVANZADA: sabe en qué sitio estás y te acompaña ahí, aunque no
+  // haya un CTF. Escalera propia: cada "necesito más" concreta la ayuda.
+  const [siteLevel, setSiteLevel] = useState<HelpLevel>(0);
+  const currentSite = kernel.browser.currentSite();
+  const siteAdvice =
+    !ctfChallenge && kernel.mentor.knowsSite(currentSite)
+      ? kernel.mentor.adviseForSite(currentSite, siteLevel)
+      : null;
+
   // Al cambiar (o terminar) el reto CTF, olvidar la pista anterior.
   useEffect(() => {
     setCtfHint(null);
   }, [ctfChallenge?.host]);
+
+  // Al cambiar de sitio, la escalera de la Mani vuelve a empezar.
+  useEffect(() => {
+    setSiteLevel(0);
+  }, [currentSite]);
 
   if (muted) {
     return (
@@ -182,6 +196,43 @@ export default function Mani({ kernel, onRunCommand }: ManiProps) {
               >
                 🥜 Dame una pista
               </button>
+              <button className="mani__btn mani__btn--ghost" onClick={() => setOpen(false)}>
+                Dale, sigo solo
+              </button>
+            </div>
+          </>
+        ) : siteAdvice ? (
+          <>
+            <p className="mani__text">
+              Estás en <b>{currentSite}</b>. {siteAdvice.text}
+            </p>
+            {siteAdvice.command && (
+              <div className="mani__cmd">
+                <code>{siteAdvice.command}</code>
+                {isTerminalCommand(siteAdvice.command) && onRunCommand ? (
+                  <button className="mani__run" onClick={() => onRunCommand(siteAdvice.command!)}>
+                    Ejecutar
+                  </button>
+                ) : (
+                  <button
+                    className="mani__run"
+                    onClick={() => {
+                      try { navigator.clipboard?.writeText(siteAdvice.command!); } catch { /* sin portapapeles */ }
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 1600);
+                    }}
+                  >
+                    {copied ? "¡Copiado!" : "Copiar"}
+                  </button>
+                )}
+              </div>
+            )}
+            <div className="mani__actions">
+              {siteLevel < 3 && (
+                <button className="mani__btn" onClick={() => setSiteLevel((l) => Math.min(3, l + 1) as HelpLevel)}>
+                  No entiendo, ayudame más
+                </button>
+              )}
               <button className="mani__btn mani__btn--ghost" onClick={() => setOpen(false)}>
                 Dale, sigo solo
               </button>

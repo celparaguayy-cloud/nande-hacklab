@@ -208,6 +208,29 @@ export class Mentor {
   }
 
   /**
+   * La Mani AVANZADA: consejo según el SITIO que estás mirando ahora, aunque no
+   * haya un CTF activo. Ya no hay pistas en los laboratorios: la única ayuda es
+   * ella, y da una escalera técnica (qué falla parece, cómo confirmarla, y el
+   * comando exacto sólo si insistís). Determinista y offline.
+   */
+  adviseForSite(host: string, level: HelpLevel): Advice | null {
+    const kb = SITE_KB[host.toLowerCase()];
+    if (!kb) return null;
+    const step = kb.ladder[Math.min(level, kb.ladder.length - 1)];
+    return {
+      text: `🥜 ${step.text}`,
+      command: step.command,
+      level,
+      topic: kb.topic,
+    };
+  }
+
+  /** ¿La Mani sabe algo sobre este sitio? (para decidir si aparece). */
+  knowsSite(host: string): boolean {
+    return host.toLowerCase() in SITE_KB;
+  }
+
+  /**
    * El consejo actual de la Mani, según el objetivo de campaña vigente y
    * cuánta ayuda se pidió. Devuelve null si no hay nada que aconsejar o si
    * la Mani ya se graduó del tema (te dejó ir).
@@ -306,3 +329,71 @@ export class Mentor {
     return cmd ? cmd[0].trim() : hint;
   }
 }
+
+/**
+ * Base de conocimiento de La Mani AVANZADA por sitio. Cada laboratorio tiene
+ * una escalera de 4 pasos: pensamiento (qué mirar) → método (cómo confirmarlo)
+ * → técnica (el payload/idea) → comando exacto (sólo si insistís). Enseña el
+ * porqué, no sólo el qué.
+ */
+interface SiteHelp {
+  topic: Topic;
+  ladder: { text: string; command?: string }[];
+}
+
+const SITE_KB: Record<string, SiteHelp> = {
+  "blog.yvoty.nande": {
+    topic: "xss",
+    ladder: [
+      { text: "Un blog con buscador. Preguntate: ¿lo que escribís vuelve tal cual a la página? Eso es lo primero que prueba un atacante." },
+      { text: "Escribí algo raro con símbolos (< >) y fijate si la página los muestra sin escapar. Si el navegador los interpreta como HTML, hay XSS reflejado." },
+      { text: "Meté una etiqueta <script> en la búsqueda: si se ejecuta, confirmaste XSS. El truco es que el sitio confía en tu texto." },
+      { text: "Comando:", command: 'curl "http://blog.yvoty.nande/buscar?q=<script>alert(1)</script>"' },
+    ],
+  },
+  "fotos.arandu.nande": {
+    topic: "idor",
+    ladder: [
+      { text: "Una galería de álbumes. Mirá cómo se identifica cada álbum en la URL: ¿un número? Ese número es la puerta." },
+      { text: "Si el álbum se ve con ?id=<n> y el servidor no chequea de quién es, podés ver los de otros cambiando el número. Eso es IDOR." },
+      { text: "Probá varios id hasta caer en uno privado (el del admin suele ser bajo). El servidor referencia el objeto sin autorizar." },
+      { text: "Comando:", command: "curl http://fotos.arandu.nande/album?id=7" },
+    ],
+  },
+  "docs.tape.nande": {
+    topic: "traversal",
+    ladder: [
+      { text: "Un visor de documentos. Fijate qué parámetro elige el archivo: si vos controlás la ruta, controlás qué lee el servidor." },
+      { text: "Si abre public/<archivo>, ¿podés salir de esa carpeta? Con ../ subís de directorio. Eso es path traversal." },
+      { text: "Encadená ../ para llegar a un archivo de config con secretos fuera de public/. El server no valida la ruta." },
+      { text: "Comando:", command: 'curl "http://docs.tape.nande/ver?archivo=../config/secrets.env"' },
+    ],
+  },
+  "tools.pyta.nande": {
+    topic: "cmdi",
+    ladder: [
+      { text: "Una herramienta que hace ping. Ese host que ponés seguramente va a un comando del sistema. Peligroso si no lo filtran." },
+      { text: "Si el host va directo a un comando, podés agregar OTRO comando. En bash, ; separa comandos." },
+      { text: "Inyectá un segundo comando tuyo después del host, para leer la bandera. Eso es inyección de comandos." },
+      { text: "Comando:", command: 'curl "http://tools.pyta.nande/ping?host=127.0.0.1; cat flag"' },
+    ],
+  },
+  "api.vortex.nande": {
+    topic: "jwt",
+    ladder: [
+      { text: "Una API que te da un token (JWT). Un JWT tiene 3 partes: cabecera, datos y firma. La firma es lo que evita que lo falsifiques… si se valida." },
+      { text: "Mirá la cabecera del token. Si el algoritmo dice alg:none, la firma NO se verifica: podés forjar cualquier token." },
+      { text: "Forjá un token con rol:admin y alg:none (firma vacía) y usalo en el panel. La API confía en datos que vos controlás." },
+      { text: "Entrá a api.vortex.nande, copiá el token 'none' que te deja listo, y abrí /panel con él." },
+    ],
+  },
+  "banco.nande": {
+    topic: "sqli",
+    ladder: [
+      { text: "Un home banking. El login arma una consulta SQL con lo que tipeás. Si no lo sanitizan, vos escribís parte de la consulta." },
+      { text: "Probá una comilla ' en el usuario: si el login se rompe o cambia, es inyectable (SQLi)." },
+      { text: "Cerrá la condición y hacela siempre verdadera para saltar la validación: ' OR '1'='1' -- ." },
+      { text: "Payload en el usuario:", command: "admin' -- " },
+    ],
+  },
+};
