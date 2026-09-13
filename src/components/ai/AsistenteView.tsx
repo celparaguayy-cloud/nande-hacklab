@@ -72,14 +72,20 @@ export function AsistenteView({ kernel, onOpenApp }: Props) {
       }
 
       // 3) Para charla abierta con clave conectada, sumo la respuesta del modelo.
+      //    Si el modelo falla (CORS, red), NO muestro error: el texto del
+      //    agente ya respondió algo útil.
       if (reply.kind === "chat" && kernel.ai.mode() === "connected") {
-        const aiMessages: AIMessage[] = [SYSTEM, { role: "user", content: clean }];
-        const r = await kernel.ai.generate(aiMessages, { maxTokens: 400 });
-        setMsgs((m) => [...m, { role: "assistant", text: r.text, model: r.model }]);
+        try {
+          const aiMessages: AIMessage[] = [SYSTEM, { role: "user", content: clean }];
+          const r = await kernel.ai.generate(aiMessages, { maxTokens: 400 });
+          setMsgs((m) => [...m, { role: "assistant", text: r.text, model: r.model }]);
+        } catch {
+          /* el agente ya respondió; no molestamos con un error */
+        }
       }
       setMode(kernel.ai.mode());
     } catch {
-      setMsgs((m) => [...m, { role: "assistant", text: "Algo falló al ejecutar eso. Probá de nuevo." }]);
+      setMsgs((m) => [...m, { role: "assistant", text: "Uy, algo se trabó. Probá de nuevo o pedime otra cosa." }]);
     } finally {
       setBusy(false);
     }
