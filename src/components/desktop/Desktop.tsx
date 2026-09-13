@@ -32,6 +32,7 @@ import TeamView from "../team/TeamView";
 import CompanyView from "../company/CompanyView";
 import C2View from "../c2/C2View";
 import Boot from "../boot/Boot";
+import { NANDE_VERSION, NANDE_BUILD } from "../../version";
 import Mani from "../mentor/Mani";
 import { VirtualKernel } from "../../core/VirtualKernel";
 import { weatherFor } from "../../core/world/Weather";
@@ -358,6 +359,13 @@ function Desktop() {
           <GridIcon />
           <span className="nd-only-wide">Aplicaciones</span>
         </button>
+
+        <span
+          className="nd-ver-pill"
+          title={`ÑANDE ${NANDE_VERSION} · ${NANDE_BUILD}`}
+        >
+          v{NANDE_VERSION}
+        </span>
 
         <div className="nd-topbar__center">
           <span style={{ color: "var(--nd-text-dim)" }}>

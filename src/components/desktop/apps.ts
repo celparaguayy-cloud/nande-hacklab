@@ -7,6 +7,7 @@
  */
 
 export type AppCategory =
+  | "ÑANDE 5.0"
   | "Desarrollo"
   | "Educación"
   | "Internet"
@@ -16,6 +17,7 @@ export type AppCategory =
   | "Sistema";
 
 export const CATEGORIES: AppCategory[] = [
+  "ÑANDE 5.0",
   "Desarrollo",
   "Educación",
   "Internet",
@@ -67,7 +69,7 @@ export const APPS: AppMeta[] = [
     name: "SOC",
     title: "ÑANDE SOC — Blue Team",
     summary: "Alertas en vivo de eventos reales del sistema",
-    category: "Sistema",
+    category: "ÑANDE 5.0",
     from: "#38bdf8",
     to: "#1e3a8a",
     dock: false,
@@ -77,27 +79,27 @@ export const APPS: AppMeta[] = [
     name: "NandeShark",
     title: "NandeShark — análisis de tráfico",
     summary: "Capturá el tráfico real de la red: HTTP, logins, credenciales en claro",
-    category: "Sistema",
+    category: "ÑANDE 5.0",
     from: "#67e8f9",
     to: "#0e7490",
-    dock: false,
+    dock: true,
   },
   {
     id: "blood",
     name: "NandeBlood",
     title: "NandeBlood — rutas de ataque en el dominio",
     summary: "El grafo del Directorio Activo: kerberoast, abuso de ACL y camino a Domain Admins",
-    category: "Sistema",
+    category: "ÑANDE 5.0",
     from: "#fca5a5",
     to: "#7f1d1d",
-    dock: false,
+    dock: true,
   },
   {
     id: "containers",
     name: "NandeContainers",
     title: "NandeContainers — clúster K8s virtual",
     summary: "Contenedores con secretos filtrados y escape de contenedor privilegiado",
-    category: "Sistema",
+    category: "ÑANDE 5.0",
     from: "#93c5fd",
     to: "#1e40af",
     dock: false,
@@ -107,7 +109,7 @@ export const APPS: AppMeta[] = [
     name: "NandeReverse",
     title: "NandeReverse — ingeniería inversa",
     summary: "Un crackme real: hexdump y fuerza bruta de XOR para revelar la bandera",
-    category: "Sistema",
+    category: "ÑANDE 5.0",
     from: "#c4b5fd",
     to: "#5b21b6",
     dock: false,
@@ -117,7 +119,7 @@ export const APPS: AppMeta[] = [
     name: "DFIR",
     title: "DFIR — respuesta a incidentes",
     summary: "Reconstruí el ataque desde los eventos reales: timeline, veredicto y MITRE",
-    category: "Sistema",
+    category: "ÑANDE 5.0",
     from: "#7dd3fc",
     to: "#0369a1",
     dock: false,
@@ -127,7 +129,7 @@ export const APPS: AppMeta[] = [
     name: "Anonimato",
     title: "Anonimato · OPSEC · Dark Web",
     summary: "Activá el circuito, mirá tu exposición y navegá servicios .onion",
-    category: "Sistema",
+    category: "ÑANDE 5.0",
     from: "#a78bfa",
     to: "#4c1d95",
     dock: false,
