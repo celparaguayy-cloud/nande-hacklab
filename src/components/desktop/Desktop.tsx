@@ -40,6 +40,7 @@ import { weatherFor } from "../../core/world/Weather";
 import { APPS, CATEGORIES, type AppCategory } from "./apps";
 import { AppIcon } from "./AppIcon";
 import { Glyph } from "../ui/Glyph";
+import { Toaster } from "./Toaster";
 import Wallpaper from "./Wallpaper";
 import "../../styles/theme.css";
 import "../../styles/pixel.css";
@@ -562,6 +563,8 @@ function Desktop() {
         openerRef={openerRef}
         onOpenWindowsChange={setOpenWindows}
       />
+
+      <Toaster kernel={kernel} />
 
       {/* ---------------- Dock ---------------- */}
       <div className="nd-dock-wrap">

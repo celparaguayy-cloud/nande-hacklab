@@ -620,10 +620,32 @@
   border-radius: var(--nd-r-md);
   box-shadow: var(--nd-shadow-lg);
   overflow: hidden;
+  /* Aparición: la ventana entra con un pequeño zoom+fade, como un OS de verdad. */
+  animation: nd-window-in 0.17s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transform-origin: center 30%;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+@keyframes nd-window-in {
+  from {
+    opacity: 0;
+    transform: scale(0.965) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
 .nd-window[data-focused="true"] {
   border-color: var(--nd-border-strong);
+  box-shadow: var(--nd-shadow-lg), 0 0 0 1px var(--nd-accent-line);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nd-window {
+    animation: none;
+  }
 }
 
 .nd-titlebar {
@@ -756,12 +778,19 @@
   font: inherit;
   font-size: 12.5px;
   cursor: pointer;
-  transition: background 0.12s ease;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease,
+    transform 0.08s ease;
 }
 
 .nd-btn:hover {
   background: var(--nd-accent-soft);
   border-color: var(--nd-accent-line);
+}
+
+.nd-btn:active {
+  transform: translateY(1px) scale(0.985);
 }
 
 .nd-btn--primary {
@@ -773,6 +802,11 @@
 
 .nd-btn--primary:hover {
   filter: brightness(1.08);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nd-btn { transition: background 0.12s ease; }
+  .nd-btn:active { transform: none; }
 }
 
 /* ------------------------------------------------------------------
