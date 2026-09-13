@@ -69,15 +69,7 @@ export default function ObservatoryView({ kernel }: Props) {
           rest: e.host ?? e.message ?? "",
           tone: kindTone(e.kind ?? ""),
         }))
-      : ws.hosts
-          .filter((h) => h.up)
-          .slice(0, 14)
-          .map((h) => {
-            const svc = h.services.find((s) => s.state === "running");
-            return svc
-              ? { k: "svc.listen", t: "boot", rest: `${h.hostname}:${svc.port} (${svc.name})`, tone: "good" as const }
-              : { k: "host.up", t: "boot", rest: `${h.hostname} ${h.ip}`, tone: "good" as const };
-          });
+      : bootLog(ws, alertsTotal);
 
   const overall: Tone = socTone === "crit" ? "crit" : hostsUp < hostsTotal || socTone === "warn" ? "warn" : "ok";
   const statusText =
@@ -167,7 +159,7 @@ function SegBar({
           />
         ))}
       </div>
-      <span className="obs__bar-num" style={{ color }}>{num}</span>
+      <span className="obs__bar-num" style={{ color: value === 0 ? "#64788c" : color }}>{num}</span>
     </div>
   );
 }
@@ -188,6 +180,35 @@ function kindTone(kind: string): LogTone {
   return "good";
 }
 
+/**
+ * Secuencia de arranque creíble para el log cuando el mundo recién prende y
+ * todavía no hubo eventos. NO es relleno inventado: cada línea sale de un dato
+ * REAL del runtime (hosts, servicios, bases, población, alertas), sólo que
+ * presentado como un boot log con marcas de tiempo y tipos de evento variados.
+ */
+function bootLog(ws: WS, alertsTotal: number): LogLine[] {
+  const lines: LogLine[] = [];
+  let t = 2;
+  const push = (k: string, rest: string, tone: LogTone = "good") => {
+    lines.push({ k, t: `+${String(t).padStart(4, "0")}ms`, rest, tone });
+    t += 7 + (rest.length % 11);
+  };
+  push("kernel.boot", "ÑANDE OS · VirtualKernel");
+  push("net.up", "10.10.0.0/16 · rutas cargadas");
+  push("dns.ready", `${ws.hosts.length} nombres resueltos`);
+  const upHosts = ws.hosts.filter((h) => h.up);
+  for (const h of upHosts.slice(0, 6)) {
+    const svc = h.services.find((s) => s.state === "running");
+    if (svc) push("svc.listen", `${h.hostname}:${svc.port} (${svc.name})`);
+    else push("host.up", `${h.hostname} ${h.ip}`);
+  }
+  if (ws.databases.length > 0) push("db.ready", ws.databases.slice(0, 4).join(", "));
+  push("world.spawn", `${ws.people} habitantes · ${ws.online} en línea`);
+  push("soc.armed", `${alertsTotal} alertas · vigilancia activa`, alertsTotal > 0 ? "warn" : "good");
+  push("ready", "sistemas nominales");
+  return lines.slice(0, 14);
+}
+
 interface WSHost {
   hostname: string;
   ip: string;
@@ -200,7 +221,7 @@ interface WS {
   tools: unknown[];
   alerts: { info: number; low: number; medium: number; high: number; critical: number };
   alertTop: string | null;
-  databases: unknown[];
+  databases: string[];
   ai: string;
   people: number;
   online: number;

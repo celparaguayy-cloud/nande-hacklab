@@ -26,9 +26,9 @@
   line-height: 1.15;
   image-rendering: pixelated;
   /* Viñeta de tubo CRT: no se desplaza con el scroll (va en el borde). */
-  box-shadow: inset 0 0 120px 34px rgba(0, 0, 0, 0.62);
+  box-shadow: inset 0 0 150px 60px rgba(0, 0, 0, 0.78);
 }
-/* Barrido CRT: líneas horizontales visibles + parpadeo muy leve. */
+/* Barrido CRT: líneas horizontales BIEN visibles + parpadeo muy leve. */
 .obs::before {
   content: "";
   position: absolute;
@@ -38,9 +38,9 @@
   background: repeating-linear-gradient(
     to bottom,
     rgba(0, 0, 0, 0) 0,
-    rgba(0, 0, 0, 0) 1px,
-    rgba(0, 0, 0, 0.34) 2px,
-    rgba(0, 0, 0, 0.34) 3px
+    rgba(0, 0, 0, 0) 2px,
+    rgba(0, 0, 0, 0.5) 2px,
+    rgba(0, 0, 0, 0.5) 3px
   );
   animation: obs-flicker 5s infinite steps(60);
 }
