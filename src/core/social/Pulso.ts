@@ -1,5 +1,7 @@
 import type { VirtualPerson } from "../world/WorldEngine";
 import { weakPasswordFor } from "../crypto/cracker";
+import type { EventBus } from "../events/EventBus";
+import type { NewsArticle } from "../news/NewsEngine";
 
 /**
  * Pulso — la red social de ÑANDE (estilo Twitter/Instagram).
@@ -39,6 +41,29 @@ export interface Profile {
   posts: PulsoPost[];
   /** ¿Lo sigue el jugador? */
   following: boolean;
+}
+
+/** Un tema en tendencia (derivado de eventos reales del mundo y hashtags). */
+export interface TrendTopic {
+  tag: string;
+  count: number;
+}
+
+/** Una respuesta de un NPC en el hilo de un post (determinista). */
+export interface ThreadReply {
+  author: string;
+  handle: string;
+  text: string;
+}
+
+/** Post "vivo": nace de un evento REAL del mundo (noticia, hack, incidente). */
+interface LivePostRaw {
+  id: string;
+  authorId: string;
+  day: number;
+  text: string;
+  tag: string;
+  likes: number;
 }
 
 const STORAGE_KEY = "nande-pulso";
@@ -222,22 +247,116 @@ interface PulsoState {
   comments?: Record<string, PulsoComment[]>;
   /** Notificaciones: respuestas de NPC a tus comentarios. */
   notifications?: { postId: string; author: string; text: string; day: number }[];
+  /** Posts "vivos" nacidos de eventos reales del mundo (§87 causalidad). */
+  livePosts?: LivePostRaw[];
 }
 
 export class Pulso {
   private getPeople: () => VirtualPerson[];
   private currentDay: () => number;
   private state: PulsoState;
+  private latestNews?: () => readonly NewsArticle[];
+  private unsub: (() => void) | null = null;
+  /** Hay noticias sin volcar a posts vivos (se vuelca perezosamente). */
+  private pendingNews = false;
 
   constructor(
     getPeople: () => VirtualPerson[],
     currentDay: () => number,
+    opts?: { events?: EventBus; latestNews?: () => readonly NewsArticle[] },
   ) {
     this.getPeople = getPeople;
     this.currentDay = currentDay;
+    this.latestNews = opts?.latestNews;
     this.state = this.load() ?? { following: [], myPosts: [] };
     this.state.liked = this.state.liked ?? [];
     this.state.comments = this.state.comments ?? {};
+    this.state.livePosts = this.state.livePosts ?? [];
+
+    // El mundo se refleja en Pulso: cuando pasa algo (una noticia, un hack, un
+    // incidente), un habitante lo postea. Así el feed está VIVO y conectado al
+    // runtime, no es un tablón de plantillas fijas.
+    if (opts?.events) {
+      // O(1): sólo marcamos que hay noticias nuevas. El vuelco real a posts
+      // (getPeople + serializar) ocurre PEREZOSAMENTE al mirar el feed, no en
+      // cada evento — así los miles de eventos por segundo de la simulación no
+      // cuestan nada (antes esto disparaba getPeople+save por evento y hacía
+      // que los tests de mundo, que tickean miles de veces, se colgaran).
+      this.unsub = opts.events.subscribe("world.news.created", () => {
+        this.pendingNews = true;
+      });
+    }
+  }
+
+  /** Libera la suscripción a eventos. */
+  dispose(): void {
+    this.unsub?.();
+    this.unsub = null;
+  }
+
+  /**
+   * Vuelca las noticias pendientes a posts vivos, pero sólo si alguien está
+   * mirando (lo llaman feed()/trending()). Durante la simulación pura no se
+   * llama, así que ticka gratis.
+   */
+  private ensureSynced(): void {
+    if (!this.pendingNews) return;
+    this.pendingNews = false;
+    this.syncFromNews();
+  }
+
+  /**
+   * Sincroniza las noticias recientes del mundo a posts vivos: cada titular
+   * nuevo se vuelve el post de un habitante que "reacciona". Determinista por
+   * id de noticia; no duplica.
+   */
+  private syncFromNews(): void {
+    if (!this.latestNews) return;
+    const articles = this.latestNews();
+    if (articles.length === 0) return;
+    const live = this.state.livePosts ?? (this.state.livePosts = []);
+    const known = new Set(live.map((p) => p.id));
+
+    // Barato: ¿hay alguna noticia nueva? Si no, salimos SIN tocar la gente ni
+    // persistir (esto corre en cada evento de noticia, muchas veces por tick).
+    const fresh = articles.filter((a) => !known.has(`live-${a.id}`));
+    if (fresh.length === 0) return;
+
+    const people = this.getPeople();
+    if (people.length === 0) return;
+    const day = this.currentDay();
+
+    for (const a of fresh) {
+      const seed = seedOf(a.id + a.headline);
+      const author = people[seed % people.length];
+      const reaction = pick(NEWS_REACTIONS, seed);
+      const tag = `#${slug(a.category)}`;
+      live.unshift({
+        id: `live-${a.id}`,
+        authorId: author.id,
+        day,
+        text: `${reaction} ${a.headline} ${tag}`.trim(),
+        tag: a.category,
+        likes: 5 + (seed % 400),
+      });
+    }
+    this.state.livePosts = live.slice(0, 50);
+    this.save();
+  }
+
+  /** Convierte un post vivo (evento del mundo) al formato de feed. */
+  private liveToPost(lp: LivePostRaw): PulsoPost {
+    const person = this.getPeople().find((p) => p.id === lp.authorId);
+    const name = person?.name ?? "un vecino";
+    return {
+      id: lp.id,
+      authorId: lp.authorId,
+      authorName: name,
+      handle: handleOf(name, lp.authorId),
+      text: lp.text,
+      daysAgo: Math.max(0, this.currentDay() - lp.day),
+      likes: lp.likes,
+    };
   }
 
   private load(): PulsoState | null {
@@ -260,23 +379,86 @@ export class Pulso {
     }
   }
 
-  /** Feed principal: una muestra de posts recientes del mundo. */
-  feed(limit = 30): PulsoPost[] {
-    const people = this.getPeople();
+  /**
+   * Feed principal. `scope: "following"` muestra sólo a quienes seguís (más el
+   * mundo vivo de esa gente); "all" (por defecto) explora todo el mundo. Los
+   * posts nacidos de eventos reales (livePosts) van primero, por ser lo más
+   * fresco y conectado a lo que está pasando.
+   */
+  feed(limit = 30, scope: "all" | "following" = "all"): PulsoPost[] {
+    this.ensureSynced();
+    const following = new Set(this.state.following);
     const day = this.currentDay();
-    const posts: PulsoPost[] = [];
 
+    // Posts vivos (eventos del mundo). En "following", sólo de gente seguida.
+    const live = (this.state.livePosts ?? [])
+      .filter((lp) => scope === "all" || following.has(lp.authorId))
+      .map((lp) => this.liveToPost(lp));
+
+    const people = this.getPeople();
+    const pool =
+      scope === "following"
+        ? people.filter((p) => following.has(p.id))
+        : people;
+
+    const templated: PulsoPost[] = [];
     // Muestra determinista de personas, para no recorrer 2000 por render.
-    const step = Math.max(1, Math.floor(people.length / 40));
-    for (let i = 0; i < people.length; i += step) {
-      const p = people[i];
-      if (p) posts.push(...postsFor(p, day));
-      if (posts.length > limit * 3) break;
+    const step = Math.max(1, Math.floor(pool.length / 40));
+    for (let i = 0; i < pool.length; i += step) {
+      const p = pool[i];
+      if (p) templated.push(...postsFor(p, day));
+      if (templated.length > limit * 3) break;
     }
+    templated.sort((a, b) => a.daysAgo - b.daysAgo || b.likes - a.likes);
 
-    // Orden estable por "frescura" (menos daysAgo primero) y algo de mezcla.
-    posts.sort((a, b) => a.daysAgo - b.daysAgo || b.likes - a.likes);
-    return posts.slice(0, limit);
+    // Los vivos primero (frescos), después los del mundo.
+    return [...live, ...templated].slice(0, limit);
+  }
+
+  /**
+   * Temas en tendencia: se derivan de eventos REALES (las categorías de los
+   * posts vivos pesan más) y de los hashtags que circulan en el feed. No es
+   * una lista inventada: refleja lo que está pasando en el mundo ahora.
+   */
+  trending(limit = 6): TrendTopic[] {
+    this.ensureSynced();
+    const counts = new Map<string, number>();
+    const bump = (t: string, n = 1) => counts.set(t, (counts.get(t) ?? 0) + n);
+
+    for (const lp of this.state.livePosts ?? []) {
+      bump(`#${slug(lp.tag)}`, 3); // los eventos del mundo pesan más
+      for (const h of hashtags(lp.text)) bump(h);
+    }
+    for (const p of this.feed(40)) for (const h of hashtags(p.text)) bump(h);
+
+    return [...counts.entries()]
+      .filter(([t]) => t.length > 1)
+      .map(([tag, count]) => ({ tag, count }))
+      .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag))
+      .slice(0, limit);
+  }
+
+  /**
+   * Hilo de un post: respuestas de OTROS habitantes (determinista por post).
+   * Hace que el feed se sienta una conversación viva, no monólogos sueltos.
+   */
+  threadFor(post: PulsoPost, max = 2): ThreadReply[] {
+    const people = this.getPeople();
+    if (people.length === 0) return [];
+    const seed = seedOf(post.id + "thread");
+    const n = seed % (max + 1); // 0..max respuestas
+    const out: ThreadReply[] = [];
+    for (let i = 0; i < n; i += 1) {
+      const s = seedOf(`${post.id}-reply-${i}`);
+      const who = people[(s + i * 101) % people.length];
+      if (who.id === post.authorId) continue;
+      out.push({
+        author: who.name,
+        handle: handleOf(who.name, who.id),
+        text: pick(NPC_REPLIES, s),
+      });
+    }
+    return out;
   }
 
   /** Perfil de una persona por id, con sus posts y filtraciones. */
@@ -413,3 +595,42 @@ const COMMENT_BACKS = [
   "Dale, cualquier cosa te escribo por privado.",
   "Uh, buen punto. Lo voy a probar.",
 ];
+
+/** Con qué reacciona un habitante a una noticia del mundo. */
+const NEWS_REACTIONS = [
+  "¿Vieron esto?",
+  "Uf, se picó:",
+  "Me enteré recién:",
+  "Increíble lo que pasa 👀",
+  "No lo puedo creer:",
+  "Esto va a dar que hablar:",
+  "Recién salió:",
+  "Atención con esto:",
+];
+
+/** Respuestas de NPC en el hilo de un post. */
+const NPC_REPLIES = [
+  "jajaja tal cual",
+  "no me sorprende para nada",
+  "¿fuente? igual re creíble",
+  "esto es un desastre 😅",
+  "yo avisé que iba a pasar",
+  "me quedo sin palabras",
+  "lo comparto con todos",
+  "buenísimo el dato 🙌",
+  "uy, cuidado con eso",
+];
+
+/** Convierte un texto a un slug apto para hashtag. */
+function slug(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+/** Extrae los hashtags de un texto (en minúsculas). */
+function hashtags(text: string): string[] {
+  return (text.match(/#[\p{L}0-9_]+/gu) ?? []).map((h) => h.toLowerCase());
+}

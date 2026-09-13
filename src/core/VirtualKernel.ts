@@ -308,6 +308,13 @@ export class VirtualKernel {
     this.pulso = new Pulso(
       () => this.worldEngine.getPeople(),
       () => Math.floor(this.world.getState().clock.tick / 1440) + 1,
+      {
+        // Pulso escucha al mundo: cada noticia real se vuelve el post de un
+        // habitante. El feed queda VIVO y conectado al runtime (§87). Usamos
+        // peek() (sin clonar) porque esto corre en cada evento de noticia.
+        events: this.events,
+        latestNews: () => this.news.peek(8),
+      },
     );
     this.consequences = new Consequences({
       economy: this.economy,
@@ -897,6 +904,7 @@ export class VirtualKernel {
     this.shark.dispose();
     this.mitre.dispose();
     this.opsec.dispose();
+    this.pulso.dispose();
   }
 
   /**

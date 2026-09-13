@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import type { CSSProperties } from "react";
 import type { VirtualKernel } from "../../core/VirtualKernel";
 import type { PulsoPost, Profile } from "../../core/social/Pulso";
 import { avatarDataUri } from "../../core/art/Avatar";
@@ -30,8 +31,20 @@ export default function PulsoView({ kernel }: Props) {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
   const [, force] = useState(0);
+  const [scope, setScope] = useState<"all" | "following">("all");
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
 
-  const feed = useMemo(() => kernel.pulso.feed(30), [kernel]);
+  // El mundo vivo: cuando pasa una noticia, refrescamos el feed (posts nuevos).
+  useEffect(() => {
+    const bump = () => force((n) => n + 1);
+    const unsub = kernel.events.subscribe("world.news.created", bump);
+    return () => unsub();
+  }, [kernel]);
+
+  const trends = kernel.pulso.trending(8);
+  let feed = kernel.pulso.feed(40, scope);
+  if (tagFilter) feed = feed.filter((p) => p.text.toLowerCase().includes(tagFilter));
+  feed = feed.slice(0, 30);
   const results = query.trim() ? kernel.pulso.search(query) : [];
   const profile = selected ? kernel.pulso.profile(selected) : null;
 
@@ -76,17 +89,66 @@ export default function PulsoView({ kernel }: Props) {
       )}
 
       {tab === "feed" && (
-        <div className="pulso__list">
-          {feed.map((post) => (
-            <PostCard
-              key={post.id}
-              post={post}
-              kernel={kernel}
-              bump={() => force((n) => n + 1)}
-              onOpen={() => openProfile(post.authorId)}
-            />
-          ))}
-        </div>
+        <>
+          <div style={feedBar}>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button style={scope === "all" ? segOn : seg} onClick={() => setScope("all")}>Explorar</button>
+              <button
+                style={scope === "following" ? segOn : seg}
+                onClick={() => setScope("following")}
+                title={kernel.pulso.followingCount() === 0 ? "Todavía no seguís a nadie" : ""}
+              >
+                Siguiendo{kernel.pulso.followingCount() > 0 ? ` (${kernel.pulso.followingCount()})` : ""}
+              </button>
+            </div>
+          </div>
+
+          {trends.length > 0 && (
+            <div style={trendWrap}>
+              <span style={trendTitle}>🔥 Tendencias</span>
+              {trends.map((t) => (
+                <button
+                  key={t.tag}
+                  style={tagFilter === t.tag.replace(/^#/, "").toLowerCase() ? trendChipOn : trendChip}
+                  onClick={() => {
+                    const clean = t.tag.toLowerCase();
+                    setTagFilter((cur) => (cur === clean ? null : clean));
+                  }}
+                >
+                  {t.tag} <span style={{ opacity: 0.6 }}>{t.count}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {tagFilter && (
+            <div style={{ padding: "0 12px", marginBottom: 6, fontSize: 12.5, color: "#8b98a5" }}>
+              Filtrando por <strong style={{ color: "#7cc4ff" }}>{tagFilter}</strong>{" "}
+              <button style={clearBtn} onClick={() => setTagFilter(null)}>✕ limpiar</button>
+            </div>
+          )}
+
+          <div className="pulso__list">
+            {feed.length === 0 && (
+              <p className="pulso__empty">
+                {scope === "following"
+                  ? "No seguís a nadie todavía. Buscá gente y seguila para armar tu feed."
+                  : tagFilter
+                    ? "Nada con ese tema por ahora."
+                    : "El mundo está tranquilo. En un rato habrá movimiento."}
+              </p>
+            )}
+            {feed.map((post) => (
+              <PostCard
+                key={post.id}
+                post={post}
+                kernel={kernel}
+                bump={() => force((n) => n + 1)}
+                onOpen={() => openProfile(post.authorId)}
+              />
+            ))}
+          </div>
+        </>
       )}
 
       {tab === "buscar" && (
@@ -136,6 +198,7 @@ function PostCard({
   const [open, setOpen] = useState(false);
   const liked = kernel.pulso.hasLiked(post.id);
   const comments = kernel.pulso.commentsFor(post.id);
+  const thread = kernel.pulso.threadFor(post);
 
   const sendComment = () => {
     if (!draft.trim()) return;
@@ -185,7 +248,7 @@ function PostCard({
           onClick={() => setOpen((o) => !o)}
           style={{ background: "none", border: "none", cursor: "pointer", color: "inherit", font: "inherit", padding: 0 }}
         >
-          💬 {comments.length > 0 ? comments.length : ""}
+          💬 {comments.length + thread.length > 0 ? comments.length + thread.length : ""}
         </button>
         {post.leak && (
           <span className="pulso__leak" title="Información aprovechable (OSINT)">
@@ -195,6 +258,11 @@ function PostCard({
       </div>
       {open && (
         <div className="pulso__comments" style={{ marginTop: 8 }}>
+          {thread.map((r, i) => (
+            <div key={`t${i}`} style={{ fontSize: 13, padding: "2px 0", color: "#c3ccd6" }}>
+              <strong>{r.author}</strong> <span style={{ opacity: 0.6 }}>{r.handle}</span>: {r.text}
+            </div>
+          ))}
           {comments.map((c, i) => (
             <div key={i} style={{ fontSize: 13, padding: "2px 0" }}>
               <strong>{c.author}:</strong> {c.text}
@@ -288,3 +356,12 @@ function ProfileView({
     </div>
   );
 }
+
+const feedBar: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px 4px" };
+const seg: CSSProperties = { background: "transparent", color: "#8b98a5", border: "1px solid #2b3d4e", borderRadius: 999, padding: "5px 14px", fontSize: 13, cursor: "pointer", fontWeight: 600 };
+const segOn: CSSProperties = { ...seg, background: "rgba(124,196,255,0.15)", color: "#7cc4ff", borderColor: "#3a6ea5" };
+const trendWrap: CSSProperties = { display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", padding: "4px 12px 10px" };
+const trendTitle: CSSProperties = { fontSize: 12, fontWeight: 700, color: "#e8b04b", marginRight: 2 };
+const trendChip: CSSProperties = { background: "#111820", color: "#9fb0c0", border: "1px solid #1b2733", borderRadius: 999, padding: "4px 10px", fontSize: 12, cursor: "pointer" };
+const trendChipOn: CSSProperties = { ...trendChip, background: "rgba(124,196,255,0.15)", color: "#7cc4ff", borderColor: "#3a6ea5" };
+const clearBtn: CSSProperties = { background: "none", border: "none", color: "#fca5a5", cursor: "pointer", fontSize: 12, padding: 0 };

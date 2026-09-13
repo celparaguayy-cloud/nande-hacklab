@@ -218,6 +218,16 @@ export class NewsEngine {
     return recent;
   }
 
+  /**
+   * Vistazo barato a las últimas notas: devuelve referencias de sólo lectura
+   * (SIN clonar). Para consumidores que sólo leen (headline/category/id) muchas
+   * veces por segundo — clonar acá sería carísimo. No mutar el resultado.
+   */
+  peek(limit: number = 10): readonly NewsArticle[] {
+    const start = Math.max(0, this.articles.length - limit);
+    return this.articles.slice(start).reverse();
+  }
+
   get(id: string): NewsArticle | undefined {
     const article = this.articles.find((item) => item.id === id);
 
