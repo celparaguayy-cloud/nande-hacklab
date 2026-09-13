@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import type { VirtualKernel } from "../../core/VirtualKernel";
 import { RANKS, rankForLevel } from "../../core/game/Progression";
 import { DEFENSES } from "../../core/academy/Defenses";
@@ -325,14 +325,14 @@ function LearnView({ kernel, onOpenApp }: LearnViewProps) {
 
       <div style={tabBar}>
         {([
-          ["inicio", "🏠", "Inicio"],
-          ["rutas", "🚩", "Rutas"],
-          ["lecciones", "🖥️", "Lecciones"],
-          ["defensa", "🛡️", "Defensa"],
-          ["trofeos", "🏆", "Trofeos"],
-          ["informe", "📄", "Informe"],
-          ["perfil", "👤", "Perfil"],
-        ] as [Tab, string, string][]).map(([id, icon, label]) => (
+          ["inicio", "Inicio"],
+          ["rutas", "Rutas"],
+          ["lecciones", "Lecciones"],
+          ["defensa", "Defensa"],
+          ["trofeos", "Trofeos"],
+          ["informe", "Informe"],
+          ["perfil", "Perfil"],
+        ] as [Tab, string][]).map(([id, label]) => (
           <button
             key={id}
             onClick={() => setTab(id)}
@@ -342,8 +342,8 @@ function LearnView({ kernel, onOpenApp }: LearnViewProps) {
               background: tab === id ? accentSoft : "transparent",
             }}
           >
-            <div style={{ fontSize: 18 }}>{icon}</div>
-            <div style={{ fontSize: 11 }}>{label}</div>
+            <NavGlyph id={id} />
+            <div style={{ fontSize: 10 }}>{label}</div>
           </button>
         ))}
       </div>
@@ -391,6 +391,42 @@ function Progress({ value, max }: { value: number; max: number }) {
 
 const accent = "#3daee9";
 const accentSoft = "rgba(61,174,233,0.14)";
+
+/** Glifos de línea de la barra de navegación, al mismo estilo que el dock
+ *  (nada de emoji): toman el color del tab (acento si está activo). */
+const NAV_GLYPHS: Record<Tab, ReactNode> = {
+  inicio: <path d="M4 11l8-6 8 6M6.5 9.5V19h11V9.5M10 19v-5h4v5" />,
+  rutas: <path d="M6 21V4M6 5h11l-2.4 3.5L17 12H6" />,
+  lecciones: <path d="M12 6.5C10.5 5.2 8 4.8 5 5v12c3-.2 5.5.2 7 1.5 1.5-1.3 4-1.7 7-1.5V5c-3-.2-5.5.2-7 1.5zM12 6.5V18" />,
+  defensa: <path d="M12 3l7 3v5c0 4.2-3 7.3-7 8-4-.7-7-3.8-7-8V6z" />,
+  trofeos: <path d="M8 4h8v4.5a4 4 0 0 1-8 0zM8 5.5H5.5V7a3 3 0 0 0 3 3M16 5.5h2.5V7a3 3 0 0 1-3 3M10 20h4M9.5 20l.5-3h4l.5 3" />,
+  informe: <path d="M7 3h7l4 4v14H7zM14 3v4h4M9.5 12h5M9.5 16h5" />,
+  perfil: (
+    <>
+      <circle cx={12} cy={8} r={3.2} />
+      <path d="M6 20c0-3.3 2.7-6 6-6s6 2.7 6 6" />
+    </>
+  ),
+};
+
+function NavGlyph({ id }: { id: Tab }) {
+  return (
+    <svg
+      width={20}
+      height={20}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.9}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ display: "block" }}
+      aria-hidden
+    >
+      {NAV_GLYPHS[id]}
+    </svg>
+  );
+}
 
 const levelHeader: CSSProperties = {
   display: "flex",
@@ -476,8 +512,8 @@ const tabBar: CSSProperties = {
   boxShadow: "0 -10px 24px rgba(0,0,0,0.5)", zIndex: 5, isolation: "isolate",
 };
 const tabBtn: CSSProperties = {
-  border: "none", borderRadius: 10, padding: "7px 4px", cursor: "pointer",
-  flex: "1 1 auto", minWidth: 62, maxWidth: 132,
+  border: "none", borderRadius: 10, padding: "7px 3px", cursor: "pointer",
+  flex: "1 1 auto", minWidth: 44, maxWidth: 132,
   display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
 };
 

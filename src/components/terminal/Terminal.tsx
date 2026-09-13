@@ -14,18 +14,27 @@ interface TerminalProps {
   kernel: VirtualKernel;
 }
 
-/** Cabecera que ve el usuario al abrir o limpiar la terminal. */
-const BANNER = [
-  "ÑANDE OS Terminal",
-  "¿Recién empezás? Escribí 'guia'.  ·  Todos los comandos: 'help'.",
-  "",
-];
-
 /** Una línea ya impresa, con el tono con el que se dibuja. */
 interface Line {
   text: string;
   kind: "out" | "cmd" | "err" | "ok" | "muted";
 }
+
+/**
+ * Cabecera que ve el usuario al abrir o limpiar la terminal. Se dibuja con
+ * carácter (no un vacío negro): quién sos, qué es esto y por dónde empezar.
+ */
+const BANNER: Line[] = [
+  { text: "  ▄▄▄  ÑANDE OS", kind: "ok" },
+  { text: "       Terminal de hacking · 100% laboratorio, 0% daño real", kind: "muted" },
+  { text: "", kind: "muted" },
+  { text: "  Empezá con:", kind: "out" },
+  { text: "   ▸ guia              — tu primera misión, paso a paso", kind: "ok" },
+  { text: "   ▸ help              — todos los comandos", kind: "ok" },
+  { text: "   ▸ toolkit           — el arsenal de herramientas reales", kind: "ok" },
+  { text: "   ▸ scan banco.nande  — escaneá tu primer objetivo", kind: "ok" },
+  { text: "", kind: "muted" },
+];
 
 /** Marcas típicas de error en la salida de los comandos. */
 const ERROR_HINTS = [
@@ -55,9 +64,7 @@ function classify(text: string): Line["kind"] {
 export default function Terminal({ kernel }: TerminalProps) {
   const terminal = useMemo(() => new VirtualTerminal(kernel), [kernel]);
 
-  const [lines, setLines] = useState<Line[]>(() =>
-    BANNER.map((text) => ({ text, kind: "muted" as const })),
-  );
+  const [lines, setLines] = useState<Line[]>(() => [...BANNER]);
 
   const [input, setInput] = useState("");
   const [history, setHistory] = useState<string[]>([]);
@@ -99,7 +106,7 @@ export default function Terminal({ kernel }: TerminalProps) {
     setHistoryIndex(-1);
 
     if (output === "\x1b[CLEAR") {
-      setLines(BANNER.map((text) => ({ text, kind: "muted" as const })));
+      setLines([...BANNER]);
       setInput("");
 
       setTimeout(() => {

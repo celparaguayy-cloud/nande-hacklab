@@ -798,7 +798,10 @@
 }
 
 .nd-term__scroll {
-  flex: 1;
+  /* No estira para llenar la ventana: crece con la salida y, cuando ésta
+     supera el alto, se encoge y hace scroll. Así una terminal recién abierta
+     deja el prompt pegado al intro (no flotando sobre un vacío negro). */
+  flex: 0 1 auto;
   min-height: 0;
   overflow-y: auto;
   padding: 14px 16px 4px;

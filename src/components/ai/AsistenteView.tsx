@@ -4,6 +4,7 @@ import type { VirtualKernel } from "../../core/VirtualKernel";
 import type { AIMessage } from "../../core/ai/AIProvider";
 import { Assistant, type AssistantReply } from "../../core/ai/Assistant";
 import { buildWorldContext, worldContextPrompt } from "../../core/ai/WorldContext";
+import { AppIcon } from "../desktop/AppIcon";
 
 interface Props {
   kernel: VirtualKernel;
@@ -127,10 +128,18 @@ export function AsistenteView({ kernel, onOpenApp }: Props) {
 
       <div style={feed}>
         {msgs.length === 0 && (
-          <div style={{ color: "#8b98a5", fontSize: 13, lineHeight: 1.6 }}>
-            Pedime algo y lo <b>hago</b>: escaneo, investigo un incidente, te doy un reto,
-            escribo código. No sólo explico — ejecuto los comandos reales del juego.
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 12 }}>
+          <div style={emptyState}>
+            <div style={{ opacity: 0.92 }}>
+              <AppIcon id="asistente" size={58} />
+            </div>
+            <div style={{ fontSize: 17, fontWeight: 700, color: "#e6edf3" }}>
+              Ñandú, tu asistente que <span style={{ color: "#3daee9" }}>HACE</span>
+            </div>
+            <p style={{ color: "#8b98a5", fontSize: 13, lineHeight: 1.6, margin: 0, maxWidth: 420 }}>
+              Pedime algo y lo hago: escaneo, investigo un incidente, te doy un reto,
+              escribo código. No sólo explico — <b>ejecuto los comandos reales del juego</b>.
+            </p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "center", maxWidth: 460 }}>
               {QUICK.map((q) => (
                 <button key={q.label} style={quickBtn} onClick={() => send(q.prompt)}>
                   {q.label}
@@ -187,6 +196,7 @@ const container: CSSProperties = { height: "100%", display: "flex", flexDirectio
 const header: CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "10px 12px", borderBottom: "1px solid #1b2733" };
 const cfgBtn: CSSProperties = { background: "transparent", color: "#3daee9", border: "1px solid rgba(61,174,233,0.5)", borderRadius: 6, padding: "6px 10px", fontSize: 12, cursor: "pointer" };
 const feed: CSSProperties = { flex: 1, overflowY: "auto", padding: 12, display: "flex", flexDirection: "column", gap: 8 };
+const emptyState: CSSProperties = { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", gap: 12, padding: "24px 16px" };
 const userRow: CSSProperties = { display: "flex", justifyContent: "flex-end" };
 const botRow: CSSProperties = { display: "flex", justifyContent: "flex-start" };
 const userBubble: CSSProperties = { maxWidth: "85%", background: "#1d4ed8", color: "#fff", borderRadius: "12px 12px 2px 12px", padding: "8px 12px", fontSize: 14, whiteSpace: "pre-wrap" };
