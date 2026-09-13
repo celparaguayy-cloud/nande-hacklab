@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import type { VirtualKernel } from "../../core/VirtualKernel";
 import type { PulsoPost, Profile } from "../../core/social/Pulso";
+import { avatarDataUri } from "../../core/art/Avatar";
 import "./pulso.css";
 
 interface Props {
@@ -147,7 +148,16 @@ function PostCard({
     <div className={`pulso__post${post.leak ? " pulso__post--leak" : ""}`}>
       <div className="pulso__post-head">
         <button className="pulso__author" onClick={onOpen}>
-          <strong>{post.authorName}</strong> <span>{post.handle}</span>
+          <img
+            className="pulso__avatar"
+            src={avatarDataUri(post.authorId || post.authorName, 40)}
+            alt=""
+            width={36}
+            height={36}
+          />
+          <span>
+            <strong>{post.authorName}</strong> <span>{post.handle}</span>
+          </span>
         </button>
         <span className="pulso__ago">
           {post.daysAgo === 0 ? "hoy" : `hace ${post.daysAgo}d`}
@@ -210,8 +220,11 @@ function PostCard({
 function ProfileRow({ p, onOpen }: { p: Profile; onOpen: () => void }) {
   return (
     <button className="pulso__row" onClick={onOpen}>
-      <strong>{p.name}</strong> <span>{p.handle}</span>
-      <span className="pulso__row-bio">{p.bio}</span>
+      <img className="pulso__avatar" src={avatarDataUri(p.id || p.name, 40)} alt="" width={36} height={36} />
+      <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+        <span><strong>{p.name}</strong> <span>{p.handle}</span></span>
+        <span className="pulso__row-bio">{p.bio}</span>
+      </span>
     </button>
   );
 }

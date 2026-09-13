@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import type { VirtualKernel } from "../../core/VirtualKernel";
 import type { Conversation } from "../../core/chat/Chat";
+import { avatarDataUri } from "../../core/art/Avatar";
 
 interface ChatViewProps {
   kernel: VirtualKernel;
@@ -79,9 +80,11 @@ function ChatView({ kernel }: ChatViewProps) {
               fontWeight: c.unread > 0 ? 700 : 400,
             }}
           >
-            {c.unread > 0 ? "● " : ""}
-            {c.personName}
-            <div style={{ fontSize: 11, color: "#8b98a5" }}>{c.profession}</div>
+            <img src={avatarDataUri(c.personId, 36)} alt="" width={32} height={32} style={avatarImg} />
+            <span style={{ minWidth: 0 }}>
+              {c.unread > 0 ? "● " : ""}{c.personName}
+              <div style={{ fontSize: 11, color: "#8b98a5" }}>{c.profession}</div>
+            </span>
           </button>
         ))}
 
@@ -94,8 +97,11 @@ function ChatView({ kernel }: ChatViewProps) {
             onClick={() => openConvo(p.id)}
             style={{ ...contactBtn, background: "#0e151c" }}
           >
-            {p.name}
-            <div style={{ fontSize: 11, color: "#7ee2a8" }}>● {p.profession}</div>
+            <img src={avatarDataUri(p.id, 36)} alt="" width={32} height={32} style={avatarImg} />
+            <span style={{ minWidth: 0 }}>
+              {p.name}
+              <div style={{ fontSize: 11, color: "#7ee2a8" }}>● {p.profession}</div>
+            </span>
           </button>
         ))}
       </div>
@@ -161,7 +167,9 @@ const sidebar: CSSProperties = {
   overflow: "auto",
 };
 const contactBtn: CSSProperties = {
-  display: "block",
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
   width: "100%",
   textAlign: "left",
   padding: "8px 10px",
@@ -170,6 +178,14 @@ const contactBtn: CSSProperties = {
   borderRadius: 8,
   color: "#e6edf3",
   cursor: "pointer",
+};
+const avatarImg: CSSProperties = {
+  width: 32,
+  height: 32,
+  borderRadius: 8,
+  flex: "0 0 auto",
+  imageRendering: "pixelated",
+  boxShadow: "0 0 0 1px rgba(255,255,255,0.08)",
 };
 const panel: CSSProperties = {
   flex: 1,
