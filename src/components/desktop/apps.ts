@@ -113,6 +113,16 @@ export const APPS: AppMeta[] = [
     dock: false,
   },
   {
+    id: "dfir",
+    name: "DFIR",
+    title: "DFIR — respuesta a incidentes",
+    summary: "Reconstruí el ataque desde los eventos reales: timeline, veredicto y MITRE",
+    category: "Sistema",
+    from: "#7dd3fc",
+    to: "#0369a1",
+    dock: false,
+  },
+  {
     id: "arena",
     name: "Arena CTF",
     title: "Arena CTF — retos contrarreloj",

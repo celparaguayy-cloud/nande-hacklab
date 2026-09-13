@@ -106,7 +106,7 @@ export class Assistant {
     }
     // DFIR.
     if (/\b(dfir|incidente|investig|forense|reconstru)\b/.test(u)) {
-      return { text: "Reconstruyo el incidente desde los eventos reales:", action: { command: "dfir", label: "▶ dfir" } };
+      return { text: "Reconstruyo el incidente desde los eventos reales:", action: { command: "dfir", label: "▶ dfir" }, openApp: "dfir" };
     }
     // Red team.
     if (/\b(red\s?team|adversario|rival|atacante|bot)\b/.test(u)) {
