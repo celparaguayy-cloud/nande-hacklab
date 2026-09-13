@@ -255,6 +255,18 @@ function Desktop() {
     setQuery("");
   }
 
+  // Hook liviano para pruebas de humo (abrir apps por id sin depender del DOM
+  // del launcher). No expone nada sensible: sólo abre una ventana del juego.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const id = (e as CustomEvent<string>).detail;
+      if (typeof id === "string") openWindow(id);
+    };
+    window.addEventListener("nande:open-app", handler as EventListener);
+    return () => window.removeEventListener("nande:open-app", handler as EventListener);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Se memoiza para no recrear las aplicaciones en cada render.
   const apps = useMemo(
     () => ({
