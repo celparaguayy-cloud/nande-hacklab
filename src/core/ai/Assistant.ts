@@ -5,6 +5,25 @@ import {
   describeHosts,
   findHost,
 } from "./WorldContext";
+import { TOOL_CODEX, explainTool } from "../academy/toolCodex";
+
+/** Comando-demo seguro en ÑANDE para cada herramienta real del códice. */
+const TOOL_DEMO: Record<string, string> = {
+  nmap: "nmap banco.nande",
+  masscan: "nmap banco.nande",
+  gobuster: "gobuster banco.nande",
+  ffuf: "gobuster banco.nande",
+  sqlmap: "sqlmap http://banco.nande/login usuario",
+  wireshark: "sniff",
+  tcpdump: "sniff",
+  bloodhound: "nandeblood",
+  impacket: "nandeblood",
+  john: "crack 5f4dcc3b5aa765d61d8327deb882cf99",
+  hashcat: "crack 5f4dcc3b5aa765d61d8327deb882cf99",
+  jwt_tool: "jwt",
+  aircrack: "wifi",
+  metasploit: "reto",
+};
 
 /**
  * Assistant — Ñandú deja de ser un chatbot que "muestra" para ser un AGENTE
@@ -54,6 +73,12 @@ export class Assistant {
    */
   respond(userText: string, ctx?: WorldContext): AssistantReply {
     const u = userText.toLowerCase().trim();
+
+    // 0.5) "¿qué es / cómo uso <herramienta>?" → explicación real + demo. Va
+    // antes que las acciones para que preguntar por wireshark/nmap EXPLIQUE la
+    // herramienta (y ofrezca probarla), en vez de disparar la acción sin contexto.
+    const tool = this.matchTool(u);
+    if (tool) return tool;
 
     // 1) Intenciones ACCIONABLES → comando real de un toque.
     const action = this.matchAction(u);
@@ -224,6 +249,34 @@ export class Assistant {
       if (ctx.mission.nextObjective) lines.push(`Próximo paso: ${ctx.mission.nextObjective}`);
     }
     return lines.join("\n");
+  }
+
+  /* ------------------------------------------ intención: herramienta OSS */
+
+  /**
+   * Pregunta por una herramienta real (nmap, sqlmap, hydra, wireshark…): la
+   * explica de verdad y ofrece probar su equivalente jugable en ÑANDE.
+   */
+  private matchTool(u: string): AssistantReply | null {
+    const asksAbout =
+      /(qu[eé] es|para qu[eé]|c[oó]mo (se )?us[ao]|c[oó]mo uso|explic|sirve|qu[eé] hace|cont[aá]me de|herramienta)/.test(
+        u,
+      );
+    if (!asksAbout) return null;
+    for (const t of TOOL_CODEX) {
+      const name = t.name.toLowerCase();
+      if (u.includes(t.id) || u.includes(name)) {
+        const demo = TOOL_DEMO[t.id];
+        return {
+          text: explainTool(t),
+          kind: "knowledge",
+          ...(demo
+            ? { action: { command: demo, label: `▶ probar en ÑANDE: ${demo}` } }
+            : {}),
+        };
+      }
+    }
+    return null;
   }
 
   /* ---------------------------------------------------- intención: código */

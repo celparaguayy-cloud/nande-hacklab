@@ -1,4 +1,5 @@
 import { VirtualKernel } from "../VirtualKernel";
+import { TOOL_CODEX, findTool, explainTool } from "../academy/toolCodex";
 import { crack, WORDLIST } from "../crypto/cracker";
 import { decodeJwt, signJwt, verifyJwt, crackJwtSecret } from "../crypto/jwt";
 import { randomMac } from "../security/Anonymity";
@@ -939,6 +940,11 @@ export class VirtualTerminal {
         case "man":
         case "ayuda":
           return this.manCmd(commandArgs);
+
+        case "toolkit":
+        case "arsenal":
+        case "kit":
+          return this.toolkitCmd(commandArgs);
 
         case "guia":
         case "guía":
@@ -4462,6 +4468,41 @@ export class VirtualTerminal {
     ].join("\n");
   }
 
+  /** `toolkit [nombre]`: arsenal de herramientas OSS reales + su equivalente. */
+  private toolkitCmd(args: string[]): { output: string; isError: boolean } {
+    const q = args.join(" ").trim();
+    if (!q) {
+      const byCat = new Map<string, string[]>();
+      for (const t of TOOL_CODEX) {
+        const list = byCat.get(t.category) ?? [];
+        list.push(t.name);
+        byCat.set(t.category, list);
+      }
+      const CAT_LABEL: Record<string, string> = {
+        recon: "Reconocimiento", web: "Web", passwords: "Contraseñas",
+        network: "Redes", ad: "Directorio Activo", exploit: "Explotación",
+        wireless: "WiFi", forensics: "Forense",
+      };
+      const lines = [
+        "🧰 ARSENAL — herramientas reales del oficio, con su equivalente jugable en ÑANDE",
+        "",
+      ];
+      for (const [cat, names] of byCat) {
+        lines.push(`  ${CAT_LABEL[cat] ?? cat}: ${names.join(", ")}`);
+      }
+      lines.push("", "Detalle de una: toolkit <nombre>   (ej: toolkit sqlmap)");
+      return { output: lines.join("\n"), isError: false };
+    }
+    const t = findTool(q);
+    if (!t) {
+      return {
+        output: `No tengo "${q}" en el arsenal. Escribí 'toolkit' para ver la lista completa.`,
+        isError: true,
+      };
+    }
+    return { output: explainTool(t), isError: false };
+  }
+
   /** `man <cmd>`: manual de un comando (o la lista si no se da comando). */
   private manCmd(args: string[]): { output: string; isError: boolean } {
     const topic = (args[0] ?? "").toLowerCase().trim();
@@ -4526,6 +4567,7 @@ export class VirtualTerminal {
       "  ps               Procesos virtuales",
       "  clear            Limpia la terminal",
       "  man <comando>    Manual de un comando (ej: man nmap)",
+      "  toolkit [nombre] Arsenal de herramientas reales (nmap, sqlmap, hydra…)",
       "",
       "Redes y academia:",
       "  ping <ip>        Ver si una máquina responde",
