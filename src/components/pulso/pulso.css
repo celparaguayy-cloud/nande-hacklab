@@ -7,14 +7,20 @@
   flex-shrink: 0; display: flex; align-items: center; gap: 4px;
   padding: 8px 10px; border-bottom: 1px solid var(--nd-border);
   background: var(--nd-surface-2);
+  overflow-x: auto; scrollbar-width: none;
 }
+.pulso__tabs::-webkit-scrollbar { display: none; }
 .pulso__tabs button {
   border: none; background: transparent; color: var(--nd-text-dim);
   font: inherit; font-size: 12.5px; padding: 6px 12px; cursor: pointer;
+  white-space: nowrap; flex-shrink: 0;
 }
 .pulso__tabs button[data-on="true"] { color: var(--nd-accent); box-shadow: inset 0 -2px 0 var(--nd-accent); }
 .pulso__tabs button:disabled { opacity: 0.4; cursor: default; }
-.pulso__me { margin-left: auto; color: var(--nd-text-faint); font-size: 12px; }
+.pulso__me { margin-left: auto; color: var(--nd-text-faint); font-size: 12px; white-space: nowrap; flex-shrink: 0; }
+/* En el teléfono el contador secundario se apaga para que las pestañas
+   entren en una sola línea sin apretarse. */
+@media (max-width: 560px) { .pulso__me { display: none; } }
 
 .pulso__list { flex: 1; min-height: 0; overflow-y: auto; }
 .pulso__post { padding: 12px 14px; border-bottom: 1px solid var(--nd-border); }
@@ -40,6 +46,9 @@
   white-space: nowrap;
 }
 .pulso__leak-k { opacity: 0.9; }
+/* En el teléfono el chip OSINT no se pega a la derecha, para no quedar
+   debajo del botón flotante de La Mani. */
+@media (max-width: 640px) { .pulso__leak { margin-left: 0; } }
 .pulso__leak code, .pulso__osint code { background: #0f1319; color: #ffd479; padding: 1px 5px; border-radius: 3px; font-family: var(--nd-mono); }
 
 .pulso__search { display: flex; flex-direction: column; min-height: 0; flex: 1; }

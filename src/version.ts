@@ -3,5 +3,5 @@
  * qué build estás corriendo (y confirmar que tomaste la última actualización).
  * Subила el número cuando haya un cambio que el jugador deba poder distinguir.
  */
-export const NANDE_VERSION = "5.6.9";
-export const NANDE_BUILD = "cero-emoji-chrome";
+export const NANDE_VERSION = "5.7.0";
+export const NANDE_BUILD = "pulido-9";

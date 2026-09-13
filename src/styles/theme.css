@@ -962,6 +962,14 @@
     height: 42px;
   }
 
+  /* En el teléfono el dock no entra entero: se difumina el borde derecho
+     para que se lea "hay más, deslizá" en vez de un icono cortado. */
+  .nd-dock {
+    gap: 3px;
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 22px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 22px), transparent);
+  }
+
   /* En iOS, un input de menos de 16px hace que el navegador ZOOMEE solo al
      tocarlo, y el layout salta feo. Se fuerzan a 16px los campos donde se
      tipea (terminal, barra de direcciones, formularios de laboratorio). */
