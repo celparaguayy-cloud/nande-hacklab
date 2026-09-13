@@ -93,6 +93,16 @@ export const APPS: AppMeta[] = [
     dock: false,
   },
   {
+    id: "containers",
+    name: "NandeContainers",
+    title: "NandeContainers — clúster K8s virtual",
+    summary: "Contenedores con secretos filtrados y escape de contenedor privilegiado",
+    category: "Sistema",
+    from: "#93c5fd",
+    to: "#1e40af",
+    dock: false,
+  },
+  {
     id: "arena",
     name: "Arena CTF",
     title: "Arena CTF — retos contrarreloj",

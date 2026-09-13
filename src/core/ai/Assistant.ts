@@ -122,7 +122,7 @@ export class Assistant {
     }
     // Contenedores.
     if (/\b(contenedor|docker|kubernetes|k8s|pod|nandec)\b/.test(u)) {
-      return { text: "Listo los contenedores (buscá secretos y escape):", action: { command: "nandec ps", label: "▶ nandec ps" } };
+      return { text: "Listo los contenedores (buscá secretos y escape):", action: { command: "nandec ps", label: "▶ nandec ps" }, openApp: "containers" };
     }
     // Reversing.
     if (/\b(reversing|crackme|ingenier[ií]a inversa|xor|desensambl)\b/.test(u)) {
