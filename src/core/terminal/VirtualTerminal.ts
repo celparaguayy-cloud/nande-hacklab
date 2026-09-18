@@ -1123,7 +1123,7 @@ export class VirtualTerminal {
 
         case "dfir":
         case "investigar":
-          return this.dfirCmd();
+          return this.dfirCmd(commandArgs);
 
         case "reverse":
         case "crackme":
@@ -4290,12 +4290,66 @@ export class VirtualTerminal {
   }
 
   /**
-   * DFIR — respuesta a incidentes. Reconstruye lo que pasó desde los eventos
-   * REALES que el mundo recordó. Cierra el bucle Blue Team: detectar →
-   * investigar → responder.
+   * DFIR — respuesta a incidentes sobre la evidencia REAL del mundo.
+   *   dfir                    → reconstrucción del incidente.
+   *   dfir collect <host>     → recolección en vivo del host (triaje).
+   *   dfir hosts              → hosts que se pueden recolectar.
+   *   dfir iocs               → indicadores de compromiso extraídos.
+   *   dfir pivot <valor>      → toda la evidencia que menciona ese indicador.
+   *   dfir report             → informe del caso, listo para pegar.
    */
-  private dfirCmd(): { output: string; isError: boolean } {
-    const inc = this.kernel.dfir.reconstruct();
+  private dfirCmd(args: string[] = []): { output: string; isError: boolean } {
+    const d = this.kernel.dfir;
+    const sub = (args[0] ?? "").toLowerCase();
+
+    if (sub === "hosts") {
+      return { output: `Hosts recolectables:\n${d.collectable().map((h) => `  ${h}`).join("\n")}\n`, isError: false };
+    }
+    if (sub === "collect" || sub === "recolectar") {
+      const ref = args[1];
+      if (!ref) return { output: "uso: dfir collect <host>\n", isError: true };
+      const a = d.collect(ref);
+      if (!a) return { output: `No conozco el host '${ref}'. Probá 'dfir hosts'.\n`, isError: true };
+      return {
+        output:
+          `═══ Recolección · ${a.host} (${a.ip}) ═══\n` +
+          `SO: ${a.os} · estado: ${a.up ? "encendido" : "apagado"} · t=${a.collectedAtTick}\n` +
+          `Huella de la evidencia: ${a.digest}  (verificable con 'dfir'…)\n\n` +
+          `Procesos (${a.processes.length}):\n` +
+          a.processes.map((p) => `  ${String(p.pid).padStart(5)}  ${p.owner.padEnd(10)} ${p.name}${p.service ? ` (servicio ${p.service})` : ""}`).join("\n") +
+          `\n\nServicios (${a.services.length}):\n` +
+          a.services.map((sv) => `  ${String(sv.port).padStart(5)}/tcp  ${sv.state.padEnd(8)} ${sv.name} ${sv.version}`).join("\n") +
+          `\n\nFirewall bloquea: ${a.blockedPorts.join(", ") || "nada"}\n` +
+          `Cuentas: ${a.accounts.join(", ") || "—"}\n` +
+          `Archivos: ${a.files.join(", ") || "—"}\n`,
+        isError: false,
+      };
+    }
+    if (sub === "iocs" || sub === "ioc") {
+      const list = d.iocs();
+      if (list.length === 0) return { output: "Sin indicadores: todavía no hay evidencia.\n", isError: false };
+      return {
+        output: `═══ Indicadores de compromiso (${list.length}) ═══\n` +
+          list.map((i) => `  [${i.kind.padEnd(10)}] ${i.value.padEnd(28)} ×${i.hits}  t=${i.firstTick}→${i.lastTick}  — ${i.why}`).join("\n") + "\n",
+        isError: false,
+      };
+    }
+    if (sub === "pivot" || sub === "pivotear") {
+      const v = args.slice(1).join(" ");
+      if (!v) return { output: "uso: dfir pivot <indicador>\n", isError: true };
+      const hits = d.pivot(v);
+      if (hits.length === 0) return { output: `Sin evidencia que mencione '${v}'.\n`, isError: false };
+      return {
+        output: `Evidencia que menciona '${v}' (${hits.length}):\n` +
+          hits.map((e) => `  t=${String(e.tick).padStart(5)}  ${e.host.padEnd(20)} ${e.kind}${e.mitreId ? ` [${e.mitreId}]` : ""}  ${e.detail}`).join("\n") + "\n",
+        isError: false,
+      };
+    }
+    if (sub === "report" || sub === "informe") {
+      return { output: `${d.report()}\n`, isError: false };
+    }
+
+    const inc = d.reconstruct();
     if (!inc) {
       return {
         output:
@@ -4317,7 +4371,8 @@ export class VirtualTerminal {
         `Ventana: t=${inc.firstTick} → t=${inc.lastTick}\n` +
         `Técnicas MITRE: ${inc.techniques.join(", ") || "(ninguna aún)"}\n\n` +
         `Veredicto del analista:\n  ${inc.verdict}\n\n` +
-        `Línea de tiempo (evidencia real del mundo):\n${tl.join("\n")}\n`,
+        `Línea de tiempo (evidencia real del mundo):\n${tl.join("\n")}\n\n` +
+        `Más: dfir collect <host> · dfir iocs · dfir pivot <valor> · dfir report\n`,
       isError: false,
     };
   }

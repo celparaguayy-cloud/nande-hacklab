@@ -1,6 +1,7 @@
 import type { EventStore } from "../runtime/EventStore";
 import type { MitreCorrelator, Detection } from "./Mitre";
-import type { RuntimeEvent } from "../net/HostRuntime";
+import type { HostRuntime, RuntimeEvent } from "../net/HostRuntime";
+import type { PacketCapture } from "../net/PacketCapture";
 
 /**
  * Investigator (DFIR) — la respuesta a incidentes del universo. No inventa una
@@ -33,13 +34,54 @@ export interface Incident {
   severity: "info" | "low" | "medium" | "high" | "critical";
 }
 
+/** Un indicador de compromiso extraído de la evidencia real. */
+export interface Ioc {
+  kind: "ip" | "host" | "usuario" | "puerto" | "credencial";
+  value: string;
+  /** Cuántas veces aparece en la evidencia. */
+  hits: number;
+  firstTick: number;
+  lastTick: number;
+  /** Por qué se considera indicador. */
+  why: string;
+}
+
+/** Recolección en vivo de un host: lo que un respondedor saca primero. */
+export interface HostArtifacts {
+  host: string;
+  ip: string;
+  os: string;
+  up: boolean;
+  collectedAtTick: number;
+  processes: { pid: number; name: string; owner: string; service?: string }[];
+  services: { name: string; port: number; state: string; version: string }[];
+  blockedPorts: number[];
+  files: string[];
+  accounts: string[];
+  /**
+   * Huella de integridad de la recolección (cadena de custodia). Si alguien
+   * toca la evidencia después, deja de coincidir — y `verify` lo dice.
+   */
+  digest: string;
+}
+
 export class Investigator {
   private store: EventStore;
   private mitre: MitreCorrelator;
+  private hosts?: HostRuntime;
+  private shark?: PacketCapture;
+  private clock?: () => number;
 
-  constructor(store: EventStore, mitre: MitreCorrelator) {
+  constructor(
+    store: EventStore,
+    mitre: MitreCorrelator,
+    deps: { hosts?: HostRuntime; shark?: PacketCapture; clock?: () => number } = {},
+  ) {
     this.store = store;
     this.mitre = mitre;
+    this.hosts = deps.hosts;
+    this.shark = deps.shark;
+    this.clock = deps.clock;
   }
 
   /**
@@ -101,6 +143,157 @@ export class Investigator {
     };
   }
 
+  /* ------------------------------------------------ recolección en vivo */
+
+  /** Hosts que se pueden recolectar (los que el mundo tiene registrados). */
+  collectable(): string[] {
+    return (this.hosts?.all() ?? []).map((h) => h.hostname).sort();
+  }
+
+  /**
+   * Recolección de triaje de un host: procesos, servicios, firewall, archivos
+   * y cuentas, tal como están AHORA. No es una foto inventada: sale del estado
+   * vivo del host. Se le calcula una huella para la cadena de custodia.
+   */
+  collect(ref: string): HostArtifacts | null {
+    const h = this.hosts?.resolve(ref);
+    if (!h) return null;
+    const art: Omit<HostArtifacts, "digest"> = {
+      host: h.hostname,
+      ip: h.ip,
+      os: h.os,
+      up: h.up,
+      collectedAtTick: this.clock?.() ?? 0,
+      processes: h.processes.map((p) => ({ pid: p.pid, name: p.name, owner: p.owner, service: p.service })),
+      services: h.services.map((sv) => ({ name: sv.name, port: sv.port, state: sv.state, version: sv.version })),
+      blockedPorts: [...h.firewall],
+      files: Object.keys(h.files).sort(),
+      accounts: h.creds.map((c) => c.user).sort(),
+    };
+    return { ...art, digest: digestOf(art) };
+  }
+
+  /**
+   * Verifica la cadena de custodia: recalcula la huella sobre el contenido y
+   * la compara con la que traía. Si alguien alteró la evidencia, no coincide.
+   */
+  verify(art: HostArtifacts): boolean {
+    const { digest, ...rest } = art;
+    return digestOf(rest) === digest;
+  }
+
+  /* ---------------------------------------------------- indicadores (IOC) */
+
+  /**
+   * Extrae indicadores de compromiso de la evidencia real: los hosts y las IP
+   * que aparecen en el incidente, los usuarios de los intentos de login y las
+   * credenciales que viajaron en claro por la red.
+   */
+  iocs(): Ioc[] {
+    const inc = this.reconstruct();
+    const map = new Map<string, Ioc>();
+    const bump = (kind: Ioc["kind"], value: string, tick: number, why: string) => {
+      if (!value) return;
+      const k = `${kind}:${value}`;
+      const prev = map.get(k);
+      if (prev) {
+        prev.hits += 1;
+        prev.firstTick = Math.min(prev.firstTick, tick);
+        prev.lastTick = Math.max(prev.lastTick, tick);
+        return;
+      }
+      map.set(k, { kind, value, hits: 1, firstTick: tick, lastTick: tick, why });
+    };
+
+    for (const e of inc?.timeline ?? []) {
+      bump("host", e.host, e.tick, "aparece en la línea de tiempo del incidente");
+      // Los eventos del mundo dicen "intento fallido de soporte@server.nande",
+      // "usuario ana" o "user=ana": las tres formas nombran a la misma persona.
+      const user = e.detail.match(/\bde ([\w.-]+)@/i)
+        ?? e.detail.match(/usuario ['"]?([\w.-]+)['"]?/i)
+        ?? e.detail.match(/\buser[=:] ?([\w.-]+)/i);
+      if (user) {
+        bump("usuario", user[1].toLowerCase(), e.tick,
+          e.kind === "login.failure" ? "usuario de intentos de acceso fallidos" : "usuario visto en el incidente");
+      }
+      // "nginx se detuvo (80/tcp)", "puerto 22", "server.nande:3306".
+      const port = e.detail.match(/\b(\d{1,5})\/(?:tcp|udp)\b/i)
+        ?? e.detail.match(/puerto (\d{1,5})\b/i)
+        ?? e.detail.match(/:(\d{2,5})\b/);
+      if (port) bump("puerto", port[1], e.tick, "puerto tocado durante el incidente");
+    }
+
+    for (const p of this.shark?.all() ?? []) {
+      if (p.leak) {
+        bump("credencial", `${p.leak.field}=${p.leak.value}`, p.tick, "viajó en claro por la red (HTTP)");
+        // El sniffer guarda la IP resuelta como destino, no el nombre.
+        bump("ip", p.dst, p.tick, "destino de tráfico con credenciales en claro");
+        if (p.host) bump("host", p.host, p.tick, "sitio al que se le mandó una credencial en claro");
+      }
+    }
+
+    for (const h of this.hosts?.all() ?? []) {
+      const seen = map.get(`host:${h.hostname}`);
+      if (seen) bump("ip", h.ip, seen.firstTick, `IP de ${h.hostname}`);
+    }
+
+    return [...map.values()].sort((a, b) => b.hits - a.hits || a.value.localeCompare(b.value));
+  }
+
+  /**
+   * Pivotea sobre un indicador: toda la evidencia que lo menciona. Es el gesto
+   * central de una investigación — encontrás algo y preguntás dónde más está.
+   */
+  pivot(value: string): TimelineEntry[] {
+    const needle = value.toLowerCase();
+    const inc = this.reconstruct();
+    return (inc?.timeline ?? []).filter(
+      (e) => e.host.toLowerCase().includes(needle) || e.detail.toLowerCase().includes(needle),
+    );
+  }
+
+  /** Filtra la línea de tiempo por host, tipo de evento o texto libre. */
+  timeline(filter: { host?: string; kind?: string; text?: string } = {}): TimelineEntry[] {
+    const inc = this.reconstruct();
+    const t = (filter.text ?? "").toLowerCase();
+    return (inc?.timeline ?? []).filter((e) =>
+      (!filter.host || e.host === filter.host) &&
+      (!filter.kind || e.kind === filter.kind) &&
+      (!t || e.detail.toLowerCase().includes(t) || e.kind.toLowerCase().includes(t)),
+    );
+  }
+
+  /**
+   * Paciente cero: la primera evidencia del incidente. Responde la pregunta
+   * con la que arranca toda investigación — ¿por dónde entró y cuándo?
+   */
+  patientZero(): TimelineEntry | null {
+    const inc = this.reconstruct();
+    return inc?.timeline[0] ?? null;
+  }
+
+  /** Informe del caso, listo para leer o pegar en un reporte. */
+  report(): string {
+    const inc = this.reconstruct();
+    if (!inc) return "Sin caso: el mundo no registró actividad para investigar.";
+    const z = inc.timeline[0];
+    const iocs = this.iocs();
+    return [
+      `INFORME DE INCIDENTE — severidad ${inc.severity.toUpperCase()}`,
+      `Veredicto: ${inc.verdict}`,
+      `Ventana: t=${inc.firstTick} → t=${inc.lastTick}`,
+      `Hosts afectados: ${inc.hostsAffected.join(", ") || "—"}`,
+      `Técnicas ATT&CK: ${inc.techniques.join(", ") || "—"}`,
+      `Paciente cero: t=${z.tick} ${z.host} — ${z.kind}: ${z.detail}`,
+      "",
+      `INDICADORES (${iocs.length})`,
+      ...iocs.slice(0, 12).map((i) => `  [${i.kind}] ${i.value}  ×${i.hits}  (t=${i.firstTick}→${i.lastTick})`),
+      "",
+      `LÍNEA DE TIEMPO (${inc.timeline.length} entradas)`,
+      ...inc.timeline.map((e) => `  t=${e.tick}  ${e.host}  ${e.kind}${e.mitreId ? ` [${e.mitreId}]` : ""} — ${e.detail}`),
+    ].join("\n");
+  }
+
   /** Detección MITRE del mismo host cercana en el tiempo (ventana ±5 ticks). */
   private matchDetection(dets: Detection[], host: string, tick: number): Detection | undefined {
     return dets.find((d) => d.host === host && Math.abs(d.tick - tick) <= 5);
@@ -128,4 +321,21 @@ export class Investigator {
     if (techniques.length === 1) return "medium";
     return "low";
   }
+}
+
+/**
+ * Huella determinista del contenido (FNV-1a de 64 bits, en dos mitades). No es
+ * criptográfica y no pretende serlo: alcanza para detectar que la evidencia
+ * cambió, que es lo que la cadena de custodia necesita demostrar.
+ */
+function digestOf(value: unknown): string {
+  const text = JSON.stringify(value);
+  let a = 0x811c9dc5;
+  let b = 0x01000193;
+  for (let i = 0; i < text.length; i += 1) {
+    const c = text.charCodeAt(i);
+    a = Math.imul(a ^ c, 0x01000193) >>> 0;
+    b = Math.imul(b + c + i, 0x85ebca6b) >>> 0;
+  }
+  return `${a.toString(16).padStart(8, "0")}${b.toString(16).padStart(8, "0")}`;
 }

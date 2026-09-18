@@ -365,7 +365,11 @@ export class VirtualKernel {
     // (hosts, dns, red, navegador, bases, filesystem, eventos, reloj).
     this.runtime = new CyberRuntime(this);
     // DFIR lee la memoria del mundo (EventStore del runtime) y las detecciones.
-    this.dfir = new Investigator(this.runtime.events, this.mitre);
+    this.dfir = new Investigator(this.runtime.events, this.mitre, {
+      hosts: this.hosts,
+      shark: this.shark,
+      clock: () => this.runtime.clock.tick(),
+    });
 
     // academy.nande y tools.nande: la biblioteca y la ruta de aprendizaje,
     // navegables como cualquier otro sitio del mundo virtual.
