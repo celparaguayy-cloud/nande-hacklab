@@ -27,8 +27,15 @@ jobs:
           distribution: temurin
           java-version: 21
 
+      # setup-android instala por defecto el paquete legado 'tools', que ya no
+      # existe en las cmdline-tools actuales: sdkmanager corta con "Failed to
+      # find package 'tools'" y el job muere antes de compilar nada. Se piden
+      # explícitamente los paquetes vigentes; lo que falte lo baja Gradle solo
+      # (la acción ya acepta las licencias).
       - name: Configurar Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
 
       - run: npm ci
 
