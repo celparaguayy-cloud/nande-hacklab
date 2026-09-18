@@ -288,6 +288,152 @@ export class Directory {
     }
     return steps;
   }
+
+  /* ------------------------------------------------- grafo y análisis ----- */
+
+  /**
+   * El grafo listo para dibujar, al estilo BloodHound: cada nodo con su "rango"
+   * = distancia mínima (en saltos) hasta Domain Admins. Eso permite un layout
+   * por capas — atacante a la izquierda, el objetivo a la derecha — en vez de
+   * una lista de texto.
+   */
+  graph(target = DA_GROUP): { nodes: GraphNode[]; edges: Edge[] } {
+    const goal = target.toUpperCase();
+    // BFS hacia atrás desde el objetivo para saber a cuántos saltos está cada nodo.
+    const dist = new Map<string, number>([[goal, 0]]);
+    const queue: string[] = [goal];
+    while (queue.length > 0) {
+      const cur = queue.shift()!;
+      const d = dist.get(cur)!;
+      for (const e of this.edges) {
+        if (e.to !== cur || dist.has(e.from)) continue;
+        dist.set(e.from, d + 1);
+        queue.push(e.from);
+      }
+    }
+    const maxRank = Math.max(0, ...[...dist.values()]);
+    const nodes: GraphNode[] = this.all().map((p) => {
+      const d = dist.get(p.name);
+      return {
+        principal: p,
+        // Capa 0 = lo más lejos del objetivo; capa máxima = el objetivo.
+        // Un nodo sin ruta al objetivo no está en ningún camino: va al margen
+        // izquierdo (capa 0), nunca a la derecha del objetivo.
+        rank: d === undefined ? 0 : maxRank - d,
+        distanceToTarget: d,
+      };
+    });
+    return { nodes, edges: this.allEdges() };
+  }
+
+  /** Detalle de un nodo: quién lo controla y sobre qué tiene control. */
+  nodeDetail(name: string): NodeDetail | null {
+    const principal = this.get(name);
+    if (!principal) return null;
+    const upper = principal.name;
+    return {
+      principal,
+      outbound: this.edges.filter((e) => e.from === upper),
+      inbound: this.edges.filter((e) => e.to === upper),
+    };
+  }
+
+  /** Miembros (directos) de Domain Admins. */
+  domainAdmins(target = DA_GROUP): Principal[] {
+    const goal = target.toUpperCase();
+    return this.edges
+      .filter((e) => e.to === goal && e.type === "MemberOf")
+      .map((e) => this.get(e.from))
+      .filter((p): p is Principal => Boolean(p));
+  }
+
+  /** Las consultas prearmadas (la pestaña "Analysis" de BloodHound). */
+  analysisList(): { id: AnalysisId; name: string; description: string }[] {
+    return [
+      { id: "shortest-path", name: "Ruta más corta a Domain Admins",
+        description: "Desde lo que ya poseés hasta el control total del dominio." },
+      { id: "domain-admins", name: "Encontrar Domain Admins",
+        description: "Quiénes son miembros del grupo más privilegiado." },
+      { id: "kerberoastable", name: "Cuentas kerberoasteables",
+        description: "Usuarios con SPN: se les puede pedir un ticket y crackearlo offline." },
+      { id: "owned", name: "Lo que ya poseés",
+        description: "Tus nodos y el control que ejercen sobre otros." },
+      { id: "all", name: "Todo el dominio", description: "El grafo completo." },
+    ];
+  }
+
+  /** Corre una consulta prearmada y devuelve el subgrafo que resalta. */
+  runAnalysis(id: AnalysisId, target = DA_GROUP): AnalysisResult {
+    const goal = target.toUpperCase();
+    const nameSet = (names: string[]) => new Set(names.map((n) => n.toUpperCase()));
+
+    if (id === "shortest-path") {
+      const steps = this.pathToDomainAdmins(goal);
+      if (!steps || steps.length === 0) {
+        return { nodes: new Set(), edges: [], note: this.domainOwned()
+          ? "Ya controlás el dominio: no queda ruta."
+          : "Sin ruta todavía: conseguí un foothold." };
+      }
+      const names = nameSet([...steps.map((s) => s.from), ...steps.map((s) => s.to)]);
+      const edges = steps.map((s) => ({ from: s.from, to: s.to, type: s.type }));
+      return { nodes: names, edges, note: `${steps.length} salto(s) hasta ${goal}.` };
+    }
+    if (id === "domain-admins") {
+      const das = this.domainAdmins(goal);
+      return {
+        nodes: nameSet([goal, ...das.map((d) => d.name)]),
+        edges: this.edges.filter((e) => e.to === goal && e.type === "MemberOf"),
+        note: `${das.length} miembro(s) de Domain Admins.`,
+      };
+    }
+    if (id === "kerberoastable") {
+      const k = this.kerberoastable();
+      return {
+        nodes: nameSet(k.map((p) => p.name)),
+        edges: [],
+        note: k.length ? `${k.length} cuenta(s) con SPN.` : "Ninguna cuenta con SPN.",
+      };
+    }
+    if (id === "owned") {
+      const own = this.owned();
+      const names = nameSet(own.map((p) => p.name));
+      return {
+        nodes: names,
+        edges: this.edges.filter((e) => names.has(e.from)),
+        note: `${own.length} nodo(s) poseído(s).`,
+      };
+    }
+    return {
+      nodes: nameSet(this.all().map((p) => p.name)),
+      edges: this.allEdges(),
+      note: `${this.all().length} principales · ${this.edges.length} aristas.`,
+    };
+  }
+}
+
+/** Un nodo del grafo, con su capa para el layout. */
+export interface GraphNode {
+  principal: Principal;
+  /** Capa para dibujar (0 = más lejos del objetivo). */
+  rank: number;
+  /** Saltos hasta el objetivo (undefined = no llega). */
+  distanceToTarget?: number;
+}
+
+export interface NodeDetail {
+  principal: Principal;
+  outbound: Edge[];
+  inbound: Edge[];
+}
+
+export type AnalysisId = "shortest-path" | "domain-admins" | "kerberoastable" | "owned" | "all";
+
+export interface AnalysisResult {
+  /** Nodos resaltados por la consulta. */
+  nodes: Set<string>;
+  /** Aristas resaltadas. */
+  edges: Edge[];
+  note: string;
 }
 
 /** Mapea el abuso de un borde a su técnica MITRE. */
