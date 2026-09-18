@@ -35,11 +35,17 @@ export default function PulsoView({ kernel }: Props) {
   const [scope, setScope] = useState<"all" | "following">("all");
   const [tagFilter, setTagFilter] = useState<string | null>(null);
 
-  // El mundo vivo: cuando pasa una noticia, refrescamos el feed (posts nuevos).
+  // El mundo vivo empuja noticias muy seguido; refrescar en CADA una hacía
+  // re-render (y recálculo del feed) sin parar y trababa la vista. Se coalescen
+  // las ráfagas: como mucho un refresco cada 2 s, y siempre uno al final.
   useEffect(() => {
-    const bump = () => force((n) => n + 1);
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const bump = () => {
+      if (timer) return;
+      timer = setTimeout(() => { timer = null; force((n) => n + 1); }, 2000);
+    };
     const unsub = kernel.events.subscribe("world.news.created", bump);
-    return () => unsub();
+    return () => { if (timer) clearTimeout(timer); unsub(); };
   }, [kernel]);
 
   const trends = kernel.pulso.trending(8);

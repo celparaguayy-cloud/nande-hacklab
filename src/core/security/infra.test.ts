@@ -23,12 +23,17 @@ describe("labs de red e infraestructura (tanda 5)", () => {
     expect(t.execute(`arpspoof ${ip}`)).toContain("ND{arp_mitm}");
   });
 
-  it("aircrack-ng crackea una clave débil pero no una fuerte", () => {
+  it("la suite WiFi crackea un WPA2 débil pero no un WPA3", () => {
     resetStorage(); seedRandom();
     const k = new VirtualKernel();
     const t = new VirtualTerminal(k);
-    expect(t.execute("aircrack-ng Vecino-2G")).toContain("ND{wifi_wpa_crackeada}");
-    expect(t.execute("aircrack-ng Corp-Secure")).not.toContain("ND{wifi_wpa_crackeada}");
+    t.execute("airmon-ng start wlan0");
+    // Débil: se captura el handshake y cae al diccionario.
+    t.execute("aireplay-ng --deauth 5 -a E8:94:F6:77:88:04 wlan0mon");
+    expect(t.execute("aircrack-ng -w rockyou.txt Vecino-2G")).toContain("ND{wifi_wpa_crackeada}");
+    // WPA3 (SAE): aunque captures, el diccionario offline no aplica.
+    t.execute("aireplay-ng --deauth 5 -a B0:BE:76:99:AA:05 wlan0mon");
+    expect(t.execute("aircrack-ng -w rockyou.txt Corp-Secure")).not.toContain("ND{wifi_wpa_crackeada}");
   });
 
   it("proxychains llega a la red interna por pivoting", () => {

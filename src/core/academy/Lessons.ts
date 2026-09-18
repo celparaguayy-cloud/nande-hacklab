@@ -803,9 +803,27 @@ export const LESSONS: Lesson[] = [
       },
       {
         explain:
-          "Contra una red con handshake capturado y clave de diccionario, aircrack-ng la rompe probando claves.",
-        task: "Escribí: aircrack-ng Vecino-2G",
-        hint: "aircrack-ng Vecino-2G",
+          "Para capturar el handshake hay que poner la placa en 'modo espía' (monitor). Ese es el primer paso real de la suite aircrack-ng.",
+        task: "Escribí: airmon-ng start wlan0",
+        hint: "airmon-ng start wlan0",
+        check: (cmd, out) => usedTool(cmd, "airmon-ng") && /wlan0mon|monitor/i.test(out),
+        debrief:
+          "Ahora la interfaz wlan0mon escucha TODO el aire, no solo tu red. Sin esto, airodump y aireplay no funcionan.",
+      },
+      {
+        explain:
+          "El handshake solo viaja cuando alguien se conecta. Un ataque de deauth expulsa a un cliente para que, al reconectarse, lo capturemos.",
+        task: "Escribí: aireplay-ng --deauth 5 -a E8:94:F6:77:88:04 wlan0mon",
+        hint: "aireplay-ng --deauth 5 -a E8:94:F6:77:88:04 wlan0mon",
+        check: (cmd, out) => usedTool(cmd, "aireplay-ng") && /handshake/i.test(out),
+        debrief:
+          "El deauth SÍ se detecta (es una firma clásica). WPA3 y 802.11w lo bloquean: por eso son la defensa.",
+      },
+      {
+        explain:
+          "Con el handshake capturado, aircrack-ng prueba un diccionario (rockyou.txt) contra él. Si la clave es débil, cae.",
+        task: "Escribí: aircrack-ng -w rockyou.txt Vecino-2G",
+        hint: "aircrack-ng -w rockyou.txt Vecino-2G",
         check: (cmd, out) => usedTool(cmd, "aircrack-ng") && /KEY FOUND/i.test(out),
         debrief:
           "La clave estaba en el diccionario. Defensa: clave larga y aleatoria (12+ caracteres), WPA3 y no reusar la contraseña del router.",

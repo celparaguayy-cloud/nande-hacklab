@@ -75,6 +75,7 @@ import { renderGroupsFront, renderGroup } from "./groups/groupsSite";
 import { WorldMap } from "./world/WorldMap";
 import { VirtualHardware } from "./hardware/VirtualHardware";
 import { VirtualWiFi } from "./hardware/VirtualWiFi";
+import { WirelessRadio } from "./hardware/WirelessRadio";
 import {
   renderCommunitiesFront,
   renderCommunity,
@@ -135,6 +136,8 @@ export class VirtualKernel {
   public map: WorldMap;
   public hardware: VirtualHardware;
   public wifi: VirtualWiFi;
+  /** Radio 802.11: la cadena real de la suite aircrack-ng (monitor→captura→crack). */
+  public radio: WirelessRadio;
   /** Sandbox de ejecución de código y registro de herramientas funcionales. */
   public sandbox: CodeExecutionSandbox;
   public toolRuntime: ToolRuntime;
@@ -294,7 +297,8 @@ export class VirtualKernel {
     );
 
     this.news = new NewsEngine();
-    this.tools = new SecurityTools(this.network, this.dns, this.hosts);
+    this.radio = new WirelessRadio();
+    this.tools = new SecurityTools(this.network, this.dns, this.hosts, this.radio);
     this.academy = new Academy();
     this.lessons = new LessonEngine();
     this.player = new Progression(this.events);

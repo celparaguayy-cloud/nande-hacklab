@@ -2968,9 +2968,11 @@ export class VirtualTerminal {
     const current = this.kernel.wifi.current();
 
     return {
-      output: current
-        ? `📶 Conectado a "${current}" (wlan0 activa).\n`
-        : `WiFi desconectado. Escaneá con 'wifi scan'.\n`,
+      output:
+        (current
+          ? `📶 Conectado a "${current}" (wlan0 activa).\n`
+          : `WiFi desconectado. Escaneá con 'wifi scan'.\n`) +
+        `Auditoría WiFi (suite aircrack-ng): airmon-ng start wlan0 → airodump-ng → aireplay-ng --deauth → aircrack-ng.\n`,
       isError: false,
     };
   }
@@ -4789,7 +4791,11 @@ export class VirtualTerminal {
       "  neofetch         Muestra tu PC virtual (specs)",
       "  wifi scan        Redes WiFi virtuales a la vista",
       "  wifi connect X   Conectarse a una red",
-      "  wifi status      Estado de la conexión",
+      "  Auditoría WiFi (suite aircrack-ng, en orden):",
+      "    airmon-ng start wlan0            Modo monitor",
+      "    airodump-ng wlan0mon             Escuchar el aire (APs y clientes)",
+      "    aireplay-ng --deauth 5 -a <BSSID> wlan0mon   Capturar el handshake",
+      "    aircrack-ng -w rockyou.txt <ESSID>           Crackear con diccionario",
       "  help             Muestra esta ayuda",
       "",
     ].join("\n");

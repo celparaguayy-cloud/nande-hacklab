@@ -68,10 +68,15 @@ describe("Anonimato / OPSEC — comandos reales y lecciones completables", () =>
     expect(steps[1].check("sherlock kamba", term.execute("sherlock kamba"))).toBe(true);
   });
 
-  it("l-wifi: escanear y crackear un WPA2 débil", () => {
+  it("l-wifi: la cadena real airmon → deauth → aircrack crackea un WPA2 débil", () => {
     const steps = lesson("l-wifi").steps;
     expect(steps[0].check("wifi scan", term.execute("wifi scan"))).toBe(true);
-    expect(steps[1].check("aircrack-ng Vecino-2G", term.execute("aircrack-ng Vecino-2G"))).toBe(true);
+    const s1 = "airmon-ng start wlan0";
+    expect(steps[1].check(s1, term.execute(s1))).toBe(true);
+    const s2 = "aireplay-ng --deauth 5 -a E8:94:F6:77:88:04 wlan0mon";
+    expect(steps[2].check(s2, term.execute(s2))).toBe(true);
+    const s3 = "aircrack-ng -w rockyou.txt Vecino-2G";
+    expect(steps[3].check(s3, term.execute(s3))).toBe(true);
   });
 
   it("l-reversing: strings encuentra una credencial quemada", () => {

@@ -1,4 +1,5 @@
 import { TOOL_CATALOG } from "./toolCatalog";
+import type { WirelessRadio } from "../hardware/WirelessRadio";
 import type { ToolCategory, ToolDef, ToolLevel } from "./toolCatalog";
 import { LabNetwork } from "./LabNetwork";
 import type { VirtualNetwork } from "../network/VirtualNetwork";
@@ -16,6 +17,8 @@ export interface ToolRunResult {
 
 /** Dependencias que necesitan las herramientas ejecutables. */
 interface ToolContext {
+  /** Radio 802.11 para la suite aircrack-ng (airmon/airodump/aireplay/aircrack). */
+  radio?: WirelessRadio;
   lab: LabNetwork;
   network: VirtualNetwork;
   dns: VirtualDNS;
@@ -37,13 +40,14 @@ export class SecurityTools {
   private tools: Map<string, ToolDef>;
   private context: ToolContext;
 
-  constructor(network: VirtualNetwork, dns: VirtualDNS, hosts?: HostRuntime) {
+  constructor(network: VirtualNetwork, dns: VirtualDNS, hosts?: HostRuntime, radio?: WirelessRadio) {
     this.tools = new Map(TOOL_CATALOG.map((tool) => [tool.id, tool]));
     this.context = {
       lab: new LabNetwork(),
       network,
       dns,
       hosts,
+      radio,
     };
   }
 
@@ -127,6 +131,47 @@ export class SecurityTools {
 
     return runner(args, this.context);
   }
+}
+
+/** Puertos "top" que nmap escanea por defecto (los más comunes, resumido). */
+const TOP_PORTS = [
+  21, 22, 23, 25, 53, 80, 110, 111, 135, 139, 143, 443, 445, 993, 995,
+  1723, 3306, 3389, 5432, 5900, 6379, 8000, 8080, 8443, 9000, 27017,
+];
+
+/** Nombres de servicio por puerto (fallback cuando el host no lo declara). */
+const SERVICE_NAMES: Record<number, string> = {
+  21: "ftp", 22: "ssh", 23: "telnet", 25: "smtp", 53: "domain", 80: "http",
+  110: "pop3", 135: "msrpc", 139: "netbios-ssn", 143: "imap", 443: "https",
+  445: "microsoft-ds", 3306: "mysql", 3389: "ms-wbt-server", 5432: "postgresql",
+  5900: "vnc", 6379: "redis", 8080: "http-proxy", 8443: "https-alt",
+  27017: "mongodb",
+};
+
+/** Rango [a, b] inclusive. */
+function range(a: number, b: number): number[] {
+  const out: number[] = [];
+  for (let i = a; i <= b; i += 1) out.push(i);
+  return out;
+}
+
+/** Parsea la sintaxis de -p de nmap: "22", "22,80,443", "1-1024", combinada. */
+function parsePorts(spec: string): number[] {
+  const set = new Set<number>();
+  for (const part of spec.split(",")) {
+    const p = part.trim();
+    if (!p) continue;
+    if (p.includes("-")) {
+      const [lo, hi] = p.split("-").map((n) => parseInt(n, 10));
+      if (!Number.isNaN(lo) && !Number.isNaN(hi)) {
+        for (const n of range(Math.max(1, lo), Math.min(65535, hi))) set.add(n);
+      }
+    } else {
+      const n = parseInt(p, 10);
+      if (!Number.isNaN(n) && n >= 1 && n <= 65535) set.add(n);
+    }
+  }
+  return [...set].sort((a, b) => a - b);
 }
 
 /** Rechaza objetivos que no viven en la red virtual de ÑANDE. */
@@ -234,103 +279,133 @@ const RUNNERS: Record<string, Runner> = {
   },
 
   nmap(args, ctx) {
-    const target = args.find((a) => !a.startsWith("-")) ?? "";
-    const err = requireVirtualTarget(target);
+    const flags = args.filter((a) => a.startsWith("-"));
+    const has = (f: string) => flags.includes(f);
+    const wantsVersion = has("-sV") || has("-A");
+    const wantsOs = has("-O") || has("-A");
+    const skipDiscovery = has("-Pn");
 
-    if (err) {
-      return { output: `nmap: ${err}\n`, isError: true };
+    // -p22 (pegado) o -p 22 (separado); -p- = todos los puertos.
+    const pIdx = args.findIndex((a) => a === "-p" || (a.startsWith("-p") && a !== "-p-"));
+    let portSpec = "";
+    let pValueIdx = -1; // índice del operando de -p (para no confundirlo con el objetivo)
+    if (args.includes("-p-")) {
+      portSpec = "-";
+    } else if (pIdx >= 0) {
+      const a = args[pIdx];
+      if (a === "-p") { portSpec = args[pIdx + 1] ?? ""; pValueIdx = pIdx + 1; }
+      else { portSpec = a.slice(2); }
+    }
+    const topIdx = args.indexOf("--top-ports");
+    const topN = topIdx >= 0 ? parseInt(args[topIdx + 1] ?? "0", 10) : 0;
+    const topValueIdx = topIdx >= 0 ? topIdx + 1 : -1;
+
+    // El objetivo es el primer argumento que NO es una bandera ni el operando
+    // de -p / --top-ports (si no, "22,80,443" se tomaría como host).
+    const target =
+      args.find((a, i) => !a.startsWith("-") && i !== pValueIdx && i !== topValueIdx) ?? "";
+    const err = requireVirtualTarget(target);
+    if (err) return { output: `nmap: ${err}\n`, isError: true };
+
+    // Puertos a escanear. Sin -p: los "top ports" habituales. -p-: todo el rango.
+    let requested: number[];
+    let scannedLabel: string;
+    if (portSpec === "-" || portSpec === "1-65535") {
+      requested = range(1, 65535);
+      scannedLabel = "65535";
+    } else if (portSpec) {
+      requested = parsePorts(portSpec);
+      scannedLabel = String(requested.length);
+    } else if (topN > 0) {
+      requested = TOP_PORTS.slice(0, topN);
+      scannedLabel = String(requested.length);
+    } else {
+      requested = TOP_PORTS;
+      scannedLabel = String(TOP_PORTS.length);
     }
 
-    // Fuente de verdad viva: si el host está en el HostRuntime, el escaneo
-    // refleja el estado REAL de ahora (servicios apagados = puerto cerrado,
-    // firewall = filtrado). nmap no sabe la respuesta; el mundo la sabe.
-    if (ctx.hosts?.has(target)) {
-      const host = ctx.hosts.resolve(target)!;
+    // Estado real de cada puerto, tomado del mundo vivo cuando existe.
+    const live = ctx.hosts?.has(target) ? ctx.hosts.resolve(target)! : null;
+    const lab = live ? null : ctx.lab.resolve(target);
+    const ip = live?.ip ?? lab?.ip ?? ctx.dns.resolve(target) ?? target;
+    const hostname = live?.hostname ?? lab?.hostname ?? target;
+    const os = live?.os ?? lab?.os ?? "desconocido";
+    const up = live ? live.up : lab ? lab.up : true;
 
-      if (!host.up) {
-        return { output: `nmap: ${target} (${host.ip}) parece caído.\n`, isError: false };
-      }
-
-      const running = new Set(
-        host.services.filter((s) => s.state === "running").map((s) => s.port),
-      );
-      const rows = host.services
-        .map((s) => {
-          const estado = host.firewall.includes(s.port)
-            ? "filtered"
-            : running.has(s.port)
-              ? "open"
-              : "closed";
-          return (
-            `${s.port}/${s.protocol}`.padEnd(10) +
-            `${estado}`.padEnd(10) +
-            `${s.name}`.padEnd(10) +
-            s.version
-          );
-        })
-        .join("\n");
-
-      const abiertos = host.services.filter(
-        (s) => s.state === "running" && !host.firewall.includes(s.port),
-      ).length;
-
+    if (!up && !skipDiscovery) {
       return {
         output:
-          `Nmap scan para ${host.hostname} (${host.ip})\n` +
-          `Sistema: ${host.os}\n\n` +
-          `PUERTO    ESTADO    SERVICIO  VERSIÓN\n` +
-          rows +
-          `\n\n${abiertos} puerto(s) abierto(s). ` +
-          `El estado es el real: apagá un servicio y volvé a escanear.\n`,
+          `Starting Nmap 7.94 ( https://nmap.org )\n` +
+          `Nota: Host parece caído (${hostname}). Si estás seguro de que está, usá -Pn.\n` +
+          `Nmap done: 1 IP address (0 hosts up) scanned\n`,
         isError: false,
       };
     }
 
-    const machine = ctx.lab.resolve(target);
-
-    if (!machine) {
-      const ip = ctx.dns.resolve(target);
-
-      if (ip) {
-        return {
-          output:
-            `Nmap scan para ${target} (${ip})\n` +
-            `Host activo. Servicio web virtual en 80/tcp.\n` +
-            `Sugerencia: probá una máquina de laboratorio (nmap 10.10.5.10).\n`,
-          isError: false,
-        };
+    // Servicios conocidos del objetivo (puerto -> {estado, servicio, versión}).
+    const services = new Map<number, { name: string; version: string; running: boolean }>();
+    const firewall = new Set<number>(live?.firewall ?? []);
+    if (live) {
+      for (const s of live.services) {
+        services.set(s.port, { name: s.name, version: s.version, running: s.state === "running" });
       }
-
-      return {
-        output: `nmap: ${target} no está en la red de laboratorio.\n`,
-        isError: false,
-      };
+    } else if (lab) {
+      for (const s of lab.services) {
+        services.set(s.port, { name: s.name, version: s.version, running: true });
+      }
     }
 
-    if (!machine.up) {
-      return { output: `nmap: ${target} parece caído.\n`, isError: false };
-    }
-
-    const rows = machine.services
-      .map(
-        (s) =>
-          `${s.port}/${s.protocol}`.padEnd(10) +
-          `open`.padEnd(8) +
-          `${s.name}`.padEnd(10) +
-          s.version,
-      )
-      .join("\n");
-
-    return {
-      output:
-        `Nmap scan para ${machine.hostname} (${machine.ip})\n` +
-        `Sistema: ${machine.os}\n\n` +
-        `PUERTO    ESTADO  SERVICIO  VERSIÓN\n` +
-        rows +
-        `\n\n${machine.services.length} puertos abiertos. ` +
-        `Siguiente paso: identificá los servicios y buscá fallos conocidos.\n`,
-      isError: false,
+    const stateOf = (port: number): "open" | "closed" | "filtered" => {
+      if (firewall.has(port)) return "filtered";
+      const s = services.get(port);
+      if (s && s.running) return "open";
+      return "closed"; // sin servicio, o servicio detenido
     };
+
+    // Con -p explícito, nmap MUESTRA cada puerto pedido (abierto o no); en un
+    // escaneo amplio colapsa lo cerrado en "Not shown". Se replica esa conducta.
+    const explicitPorts = portSpec !== "" && portSpec !== "-" && requested.length <= 64;
+    const rows: string[] = [];
+    let openCount = 0;
+    const closedOrFiltered = { closed: 0, filtered: 0 };
+    for (const port of requested) {
+      const st = stateOf(port);
+      if (st === "open") openCount += 1;
+      else closedOrFiltered[st] += 1;
+      if (st === "open" || explicitPorts) {
+        const svc = services.get(port);
+        const name = svc?.name ?? SERVICE_NAMES[port] ?? "unknown";
+        const ver = wantsVersion && st === "open" ? svc?.version ?? "" : "";
+        rows.push(
+          `${`${port}/tcp`.padEnd(10)}${st.padEnd(9)}${name.padEnd(wantsVersion ? 14 : 0)}${ver}`.trimEnd(),
+        );
+      }
+    }
+
+    // nmap colapsa lo que no es interesante: "Not shown: N closed/filtered ports".
+    const notShown: string[] = [];
+    if (!explicitPorts && closedOrFiltered.closed) notShown.push(`${closedOrFiltered.closed} closed tcp ports`);
+    if (!explicitPorts && closedOrFiltered.filtered) notShown.push(`${closedOrFiltered.filtered} filtered tcp ports`);
+
+    const header =
+      `Starting Nmap 7.94 ( https://nmap.org )\n` +
+      `Nmap scan report for ${hostname} (${ip})\n` +
+      `Host is up (0.0012s latency).\n` +
+      (notShown.length ? `Not shown: ${notShown.join(", ")}\n` : "");
+
+    const table = rows.length
+      ? `PORT      STATE    SERVICE${wantsVersion ? "       VERSION" : ""}\n` + rows.join("\n") + "\n"
+      : `Todos los ${scannedLabel} puertos escaneados están cerrados/filtrados.\n`;
+
+    const osLine = wantsOs
+      ? `\nDevice type: general purpose\nRunning: ${os}\nOS details: ${os}\n`
+      : "";
+
+    const footer =
+      `\nNmap done: 1 IP address (1 host up) scanned in ${(0.6 + requested.length / 20000).toFixed(2)}s\n` +
+      (wantsVersion ? "" : `\n(Consejo: -sV detecta versiones, -O el sistema, -p- escanea los 65535 puertos.)\n`);
+
+    return { output: header + table + osLine + footer, isError: false };
   },
 
   masscan(args, ctx) {
@@ -752,50 +827,153 @@ const RUNNERS: Record<string, Runner> = {
     };
   },
 
-  "aircrack-ng"(args) {
-    const objetivo = (args[0] ?? "").trim();
-    if (!objetivo) {
+  "airmon-ng"(args, ctx) {
+    const radio = ctx.radio;
+    if (!radio) return { output: "airmon-ng: la radio no está disponible.\n", isError: true };
+    const sub = (args[0] ?? "").toLowerCase();
+    if (sub === "start") {
+      const r = radio.startMonitor();
       return {
         output:
-          `aircrack-ng: falta la red. Redes con handshake capturado:\n` +
-          `  Vecino-2G (WPA2)   CaféÑandé-Free (abierta)   Corp-Secure (WPA2)\n` +
-          `Uso: aircrack-ng Vecino-2G\n`,
+          `PHY\tInterface\tDriver\t\tChipset\n` +
+          `phy0\twlan0\t\tmac80211\tÑANDE Wireless\n\n` +
+          `\t\t(${r.message})\n` +
+          `\t\tInterfaz de monitoreo: wlan0mon\n\n` +
+          `Siguiente: airodump-ng wlan0mon  (escuchar el aire)\n`,
         isError: false,
       };
     }
-    // Handshakes capturados (ficticios). Claves débiles = de diccionario.
-    const capturas: Record<string, string | null> = {
-      "vecino-2g": "invitado",
-      "ñande-home": "nande1234",
-      "nande-home": "nande1234",
-      "café ñandé-free": null, // abierta, no hay clave
-      "cafe ñande-free": null,
-      "corp-secure": null, // clave fuerte: no está en el diccionario
-    };
-    const key = objetivo.toLowerCase();
-    if (!(key in capturas)) {
-      return { output: `aircrack-ng: no hay handshake capturado de "${objetivo}".\n`, isError: false };
-    }
-    const clave = capturas[key];
-    if (clave === null) {
-      return {
-        output:
-          `aircrack-ng: probando diccionario contra ${objetivo}...\n` +
-          `[00:00:19] 4913/4913 claves probadas\n` +
-          `KEY NOT FOUND. La clave no está en el diccionario (o la red es abierta).\n` +
-          `Lección: una clave larga y aleatoria resiste el diccionario.\n`,
-        isError: false,
-      };
+    if (sub === "stop") {
+      const r = radio.stopMonitor();
+      return { output: `${r.message}\n`, isError: !r.ok };
     }
     return {
       output:
-        `aircrack-ng: probando diccionario contra ${objetivo}...\n` +
-        `[00:00:03] handshake WPA validado\n` +
-        `KEY FOUND! [ ${clave} ]\n` +
-        `Clave WiFi crackeada. Bandera: ND{wifi_wpa_crackeada}\n`,
+        `airmon-ng — modo monitor de la placa WiFi\n` +
+        `  airmon-ng start wlan0   Activar modo monitor (necesario para capturar)\n` +
+        `  airmon-ng stop wlan0mon Volver a modo normal\n` +
+        `Estado: ${radio.isMonitor() ? "MONITOR (wlan0mon)" : "managed (wlan0)"}\n`,
       isError: false,
-      flag: "ND{wifi_wpa_crackeada}",
     };
+  },
+
+  "airodump-ng"(args, ctx) {
+    const radio = ctx.radio;
+    if (!radio) return { output: "airodump-ng: la radio no está disponible.\n", isError: true };
+    if (!radio.isMonitor()) {
+      return {
+        output: `airodump-ng: wlan0 no está en modo monitor. Corré primero: airmon-ng start wlan0\n`,
+        isError: true,
+      };
+    }
+    const target = args.find(
+      (a) => !a.startsWith("-") && a.toLowerCase() !== "wlan0mon" && a.toLowerCase() !== "wlan0",
+    );
+    if (target) {
+      const ap = radio.resolve(target);
+      if (!ap) return { output: `airodump-ng: no veo el AP "${target}" en el aire.\n`, isError: false };
+      const clients = ap.clients.length
+        ? ap.clients.map((c) => ` ${ap.bssid}  ${c}  ${ap.power - 4}   0 - 1      54`).join("\n")
+        : " (sin clientes asociados)";
+      const hs = radio.hasHandshake(ap.bssid) ? `  [ WPA handshake: ${ap.bssid} ]` : "";
+      return {
+        output:
+          `CH ${String(ap.channel).padStart(2)} ][ Escuchando ${ap.essid}${hs}\n\n` +
+          ` BSSID              PWR  CH  ENC   ESSID\n` +
+          ` ${ap.bssid}  ${ap.power}  ${String(ap.channel).padStart(2)}  ${ap.encryption.padEnd(4)}  ${ap.essid}\n\n` +
+          ` BSSID              STATION            PWR   Frames  Rate\n` +
+          `${clients}\n\n` +
+          (ap.encryption === "OPN"
+            ? `Red ABIERTA: no hay handshake que capturar. El tráfico va en claro (usá NandeShark).\n`
+            : radio.hasHandshake(ap.bssid)
+              ? `Handshake capturado. Crackealo: aircrack-ng -w rockyou.txt ${ap.essid}\n`
+              : `Forzá el handshake: aireplay-ng --deauth 5 -a ${ap.bssid} wlan0mon\n`),
+        isError: false,
+      };
+    }
+    const rows = radio
+      .accessPoints()
+      .map(
+        (a) =>
+          ` ${a.bssid}  ${String(a.power).padStart(4)}  ${String(a.channel).padStart(2)}  ${a.encryption.padEnd(4)}  ${a.clients.length}     ${a.essid}`,
+      )
+      .join("\n");
+    return {
+      output:
+        `CH  6 ][ Elapsed: 12 s ][ ${radio.accessPoints().length} APs a la vista\n\n` +
+        ` BSSID              PWR   CH  ENC   #CLI  ESSID\n` +
+        rows +
+        `\n\n` +
+        `Enfocá un objetivo: airodump-ng --bssid <BSSID> -c <canal> wlan0mon\n` +
+        `(o simplemente: airodump-ng <ESSID>)\n`,
+      isError: false,
+    };
+  },
+
+  "aireplay-ng"(args, ctx) {
+    const radio = ctx.radio;
+    if (!radio) return { output: "aireplay-ng: la radio no está disponible.\n", isError: true };
+    const aIdx = args.indexOf("-a");
+    const target =
+      aIdx >= 0
+        ? args[aIdx + 1]
+        : args.find((a) => !a.startsWith("-") && !/^\d+$/.test(a) && a.toLowerCase() !== "wlan0mon");
+    if (!target) {
+      return {
+        output:
+          `aireplay-ng — ataque de deautenticación (fuerza el handshake)\n` +
+          `  aireplay-ng --deauth 5 -a <BSSID> wlan0mon\n` +
+          `  (o: aireplay-ng --deauth 5 <ESSID>)\n`,
+        isError: false,
+      };
+    }
+    const r = radio.deauth(target);
+    if (!r.ok) return { output: `${r.message}\n`, isError: true };
+    const ap = radio.resolve(target)!;
+    return {
+      output:
+        `Waiting for beacon frame (BSSID: ${ap.bssid}) on channel ${ap.channel}\n` +
+        `Sending 64 directed DeAuth (code 7). STMAC: [${ap.clients[0] ?? "--"}]\n` +
+        `${r.message}\n`,
+      isError: false,
+    };
+  },
+
+  "aircrack-ng"(args, ctx) {
+    const radio = ctx.radio;
+    if (!radio) return { output: "aircrack-ng: la radio no está disponible.\n", isError: true };
+    const wIdx = args.indexOf("-w");
+    const wordlist = wIdx >= 0 ? args[wIdx + 1] ?? "rockyou.txt" : "rockyou.txt";
+    const target =
+      args.find((a, i) => !a.startsWith("-") && i !== wIdx + 1 && !a.endsWith(".cap")) ??
+      args.find((a) => a.endsWith(".cap"))?.replace(/\.cap$/, "");
+    if (!target) {
+      return {
+        output:
+          `aircrack-ng — crackea un handshake WPA con diccionario\n` +
+          `  aircrack-ng -w rockyou.txt <ESSID|captura.cap>\n` +
+          `Antes: airmon-ng start wlan0 · airodump-ng · aireplay-ng --deauth\n`,
+        isError: false,
+      };
+    }
+    const r = radio.crack(target, wordlist);
+    if (!r.ok) return { output: `${r.message}\n`, isError: false };
+    const ap = radio.resolve(target)!;
+    const secs = Math.max(1, Math.round(r.keysTested / Math.max(1, r.rate)));
+    const header =
+      `                              Aircrack-ng 1.7\n\n` +
+      `      [00:00:${String(secs).padStart(2, "0")}] ${r.keysTested}/${r.keysTested} claves probadas (${r.rate} k/s)\n\n`;
+    if (r.found) {
+      return {
+        output:
+          header +
+          `      KEY FOUND! [ ${r.key} ]\n\n` +
+          `      Handshake de ${ap.essid} roto.${r.flag ? ` Bandera: ${r.flag}` : ""}\n`,
+        isError: false,
+        flag: r.flag,
+      };
+    }
+    return { output: header + `      ${r.message}\n`, isError: false };
   },
 
   proxychains(args, ctx) {

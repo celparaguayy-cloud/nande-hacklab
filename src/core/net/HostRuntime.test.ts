@@ -67,7 +67,7 @@ describe("Experimento A/B — service-stop propaga a curl, navegador y nmap", ()
     const curl = term.execute("curl http://server.nande");
     expect(curl).toContain("HTTP 200");
 
-    const nmap = term.execute("nmap server.nande");
+    const nmap = term.execute("nmap -p 80 server.nande");
     expect(nmap).toContain("80/tcp");
     expect(nmap).toContain("open");
   });
@@ -84,7 +84,7 @@ describe("Experimento A/B — service-stop propaga a curl, navegador y nmap", ()
     expect(() => kernel.browser.request("GET", "server.nande", "/")).toThrow();
 
     // nmap refleja el estado real: 80 cerrado.
-    const nmap = term.execute("nmap server.nande");
+    const nmap = term.execute("nmap -p 80 server.nande");
     expect(nmap).toContain("80/tcp");
     expect(nmap).toContain("closed");
 
