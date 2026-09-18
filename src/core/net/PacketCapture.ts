@@ -1,6 +1,7 @@
 import type { EventBus } from "../events/EventBus";
 import type { TrafficRecord } from "../browser/VirtualBrowser";
 import type { RuntimeEvent } from "./HostRuntime";
+import { applyFilter, compileFilter } from "./DisplayFilter";
 
 /**
  * NandeShark — el analizador de tráfico del universo. NO inventa paquetes:
@@ -25,6 +26,15 @@ export interface Packet {
   summary: string;
   /** Detalles legibles (método, ruta, estado, credenciales vistas…). */
   detail: string;
+  /** Bytes tal cual viajaron por el cable (para el volcado hexadecimal). */
+  wire: string;
+  /** Tamaño del paquete en bytes (columna Length de Wireshark). */
+  length: number;
+  /** Campos disecados (como el árbol de protocolos de Wireshark). */
+  method?: string;
+  host?: string;
+  path?: string;
+  status?: number;
   /** Marca educativa: este paquete lleva una credencial en claro. */
   leak?: { field: string; value: string };
 }
@@ -79,6 +89,15 @@ export class PacketCapture {
     const bodyStr = Object.entries(t.reqBody)
       .map(([k, v]) => `${k}=${v}`)
       .join("&");
+    // Bytes reales del pedido HTTP tal cual salen al cable.
+    const wire =
+      `${t.method} ${t.path} HTTP/1.1\r\n` +
+      `Host: ${t.host}\r\n` +
+      `User-Agent: nande-browser/5\r\n` +
+      (bodyStr
+        ? `Content-Type: application/x-www-form-urlencoded\r\n` +
+          `Content-Length: ${bodyStr.length}\r\n\r\n${bodyStr}`
+        : `\r\n`);
     this.push({
       tick: t.tick,
       src: this.myIp,
@@ -89,6 +108,12 @@ export class PacketCapture {
         `${t.method} ${t.path} HTTP/1.1  Host: ${t.host}` +
         (bodyStr ? `  ${bodyStr}` : "") +
         `  ⇐ ${t.status}`,
+      wire,
+      length: wire.length,
+      method: t.method,
+      host: t.host,
+      path: t.path,
+      status: t.status,
       leak,
     });
   }
@@ -96,6 +121,7 @@ export class PacketCapture {
   /** Materializa un paquete a partir de un evento del HostRuntime. */
   private fromRuntime(ev: RuntimeEvent): void {
     if (ev.kind === "login.success" || ev.kind === "login.failure") {
+      const wire = `AUTH ${ev.host} ${ev.kind === "login.success" ? "ACCEPTED" : "REJECTED"}\r\n${ev.detail}`;
       this.push({
         tick: ev.tick,
         src: this.myIp,
@@ -103,10 +129,14 @@ export class PacketCapture {
         proto: "AUTH",
         summary: `${ev.kind === "login.success" ? "Login OK" : "Login FAIL"} → ${ev.host}`,
         detail: ev.detail,
+        wire,
+        length: wire.length,
+        host: ev.host,
       });
       return;
     }
     if (ev.kind === "connection.refused") {
+      const wire = `TCP ${ev.host}:${ev.port ?? "?"} [RST, ACK]\r\n${ev.detail}`;
       this.push({
         tick: ev.tick,
         src: this.myIp,
@@ -114,6 +144,9 @@ export class PacketCapture {
         proto: "TCP",
         summary: `RST ${ev.host}:${ev.port ?? "?"} (rechazada)`,
         detail: ev.detail,
+        wire,
+        length: wire.length,
+        host: ev.host,
       });
     }
     // service.* / port.* no son paquetes: son cambios de estado del host, y
@@ -134,31 +167,77 @@ export class PacketCapture {
     return this.packets.slice(-n);
   }
 
-  /** Filtro estilo Wireshark: por protocolo, host o texto libre. */
+  /**
+   * Filtro de visualización estilo Wireshark, de verdad: soporta el lenguaje
+   * completo (campos, operadores, and/or/not, paréntesis). Si la sintaxis está
+   * mal, no tira: devuelve lista vacía (la UI pinta la barra en rojo).
+   */
   filter(expr: string): Packet[] {
-    const q = expr.trim().toLowerCase();
-    if (!q) return this.all();
-    const protoMatch = q.match(/^(http|ssh|tcp|auth|icmp)$/);
-    if (protoMatch) {
-      const p = protoMatch[1].toUpperCase() as L7;
-      return this.packets.filter((pk) => pk.proto === p);
+    return applyFilter(this.packets, expr);
+  }
+
+  /** Valida una expresión de filtro: {ok, error} (para la barra roja/verde). */
+  validateFilter(expr: string): { ok: boolean; error?: string } {
+    const c = compileFilter(expr);
+    return { ok: c.ok, error: c.error };
+  }
+
+  /** Volcado hexadecimal + ASCII de los bytes del paquete (panel de Wireshark). */
+  hexdump(p: Packet): string {
+    const bytes = p.wire ?? p.detail;
+    const lines: string[] = [];
+    for (let off = 0; off < bytes.length; off += 16) {
+      const chunk = bytes.slice(off, off + 16);
+      const hex: string[] = [];
+      let ascii = "";
+      for (let i = 0; i < 16; i += 1) {
+        if (i < chunk.length) {
+          const code = chunk.charCodeAt(i) & 0xff;
+          hex.push(code.toString(16).padStart(2, "0"));
+          ascii += code >= 32 && code < 127 ? chunk[i] : ".";
+        } else {
+          hex.push("  ");
+          ascii += " ";
+        }
+        if (i === 7) hex.push("");
+      }
+      lines.push(`${off.toString(16).padStart(4, "0")}  ${hex.join(" ")}  ${ascii}`);
     }
-    const hostMatch = q.match(/^host==(.+)$/) ?? q.match(/^ip\.addr==(.+)$/);
-    if (hostMatch) {
-      const h = hostMatch[1];
-      // Coincide por IP (src/dst) o por nombre (que viaja en el resumen HTTP).
-      return this.packets.filter(
-        (pk) =>
-          pk.src.includes(h) ||
-          pk.dst.includes(h) ||
-          pk.summary.toLowerCase().includes(h),
-      );
+    return lines.join("\n");
+  }
+
+  /** Jerarquía de protocolos (Statistics → Protocol Hierarchy de Wireshark). */
+  protocolHierarchy(): { proto: L7; count: number; bytes: number; pct: number }[] {
+    const by = new Map<L7, { count: number; bytes: number }>();
+    for (const p of this.packets) {
+      const e = by.get(p.proto) ?? { count: 0, bytes: 0 };
+      e.count += 1;
+      e.bytes += p.length;
+      by.set(p.proto, e);
     }
-    return this.packets.filter(
-      (pk) =>
-        pk.summary.toLowerCase().includes(q) ||
-        pk.detail.toLowerCase().includes(q),
+    const total = this.packets.length || 1;
+    return [...by.entries()]
+      .map(([proto, e]) => ({ proto, count: e.count, bytes: e.bytes, pct: Math.round((e.count / total) * 100) }))
+      .sort((a, b) => b.count - a.count);
+  }
+
+  /**
+   * Sigue el "stream" de un paquete: reensambla toda la conversación entre sus
+   * dos extremos, en orden, con la dirección de cada tramo (Follow TCP Stream).
+   */
+  followStream(pkt: Packet): { packets: Packet[]; text: string } {
+    const a = pkt.src;
+    const b = pkt.dst;
+    const inStream = this.packets.filter(
+      (p) => (p.src === a && p.dst === b) || (p.src === b && p.dst === a),
     );
+    const text = inStream
+      .map((p) => {
+        const arrow = p.src === a ? "→" : "←";
+        return `${arrow} ${p.wire ?? p.detail}`;
+      })
+      .join("\n\n");
+    return { packets: inStream, text };
   }
 
   /** Sigue un "stream" con un host: todos los paquetes de/hacia él, en orden. */
