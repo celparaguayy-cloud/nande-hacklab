@@ -4323,23 +4323,94 @@ export class VirtualTerminal {
   }
 
   /**
-   * NandeReverse — ingeniería inversa. La bandera está cifrada con XOR de un
-   * byte; el XOR se ejecuta de verdad.
-   *   reverse          → info del crackme y cómo empezar.
-   *   reverse hexdump  → los bytes cifrados reales.
-   *   reverse disasm   → pistas del "check" de la bandera.
-   *   reverse brute    → fuerza bruta de las 256 claves (la técnica).
-   *   reverse xor <k>  → aplica XOR con la clave <k> (0..255 o 0x..).
+   * NandeReverse — ingeniería inversa sobre un binario REAL de la ÑVM-8.
+   *   reverse             → info del crackme y cómo empezar.
+   *   reverse hexdump     → bytes del código (o `reverse hexdump data`).
+   *   reverse disasm      → desensamblado de esos bytes (barrido lineal).
+   *   reverse strings     → cadenas legibles dentro de los datos.
+   *   reverse xrefs       → quién apunta a cada dirección.
+   *   reverse run <ser>   → EJECUTA el binario con ese serial.
+   *   reverse patch <o> <b> → escribe un byte del código (editor hexadecimal).
+   *   reverse restore     → deshace los parches.
+   *   reverse brute       → fuerza bruta de las 256 claves del cifrado.
+   *   reverse xor <k>     → aplica XOR con la clave <k> (0..255 o 0x..).
    */
   private reverseCmd(args: string[]): { output: string; isError: boolean } {
     const cm = this.kernel.crackme;
+    /** Acepta 0x1f o 31, como cualquier herramienta de reversing. */
+    const parseNum = (raw: string | undefined): number | null => {
+      if (!raw) return null;
+      const n = raw.startsWith("0x") || raw.startsWith("0X") ? parseInt(raw.slice(2), 16) : parseInt(raw, 10);
+      return Number.isNaN(n) ? null : n;
+    };
     const sub = args[0] ?? "info";
 
     if (sub === "hexdump" || sub === "hex") {
-      return { output: `Binario ${cm.name} (cifrado):\n${cm.hexdump()}\n`, isError: false };
+      const which = (args[1] ?? "code").toLowerCase();
+      if (which === "data" || which === "datos") {
+        return { output: `Sección de datos de ${cm.name}:\n${cm.hexdumpData()}\n`, isError: false };
+      }
+      return {
+        output: `Código de ${cm.name} (${cm.codeBytes().length} bytes):\n${cm.hexdump()}\n` +
+          `(los datos, con la bandera cifrada: 'reverse hexdump data')\n`,
+        isError: false,
+      };
     }
     if (sub === "disasm" || sub === "dis") {
-      return { output: `${cm.disasm()}\n`, isError: false };
+      return {
+        output: `Desensamblado de ${cm.name}${cm.patched() ? " (PARCHEADO)" : ""}:\n${cm.disasm()}\n`,
+        isError: false,
+      };
+    }
+    if (sub === "strings" || sub === "str") {
+      const found = cm.strings();
+      if (found.length === 0) return { output: "No hay cadenas legibles en los datos.\n", isError: false };
+      return {
+        output: `Cadenas en los datos:\n` +
+          found.map((f) => `  0x${f.addr.toString(16).padStart(4, "0")}  ${f.text}`).join("\n") + "\n",
+        isError: false,
+      };
+    }
+    if (sub === "xrefs" || sub === "xref") {
+      const refs = cm.xrefs();
+      return {
+        output: `Referencias cruzadas:\n` + refs.map((r) =>
+          `  ${r.kind === "code" ? "código" : "datos "} 0x${r.to.toString(16).padStart(4, "0")}  ←  ` +
+          r.from.map((f) => `0x${f.toString(16).padStart(4, "0")}`).join(", ")).join("\n") + "\n",
+        isError: false,
+      };
+    }
+    if (sub === "run" || sub === "ejecutar") {
+      const serial = args.slice(1).join(" ");
+      if (!serial) return { output: "uso: reverse run <serial>\n", isError: true };
+      const r = cm.run(serial);
+      const notes = r.revealedFlag ? this.kernel.scanForSignals(r.output) : [];
+      return {
+        output:
+          `$ ./${cm.name} "${serial}"\n${r.output}\n` +
+          `[${r.steps} instrucciones · R1=0x${r.regs[1].toString(16).padStart(2, "0")}]\n` +
+          (r.revealedFlag ? "✔ El binario reveló la bandera.\n" : "") +
+          (r.accepted && !r.revealedFlag
+            ? "⚠ Pasaste el control, pero la bandera salió en basura: la clave de\n" +
+              "  descifrado ERA el serial correcto. Parchear entra, no recupera datos.\n"
+            : "") +
+          (notes.length ? notes.join("\n") + "\n" : ""),
+        isError: false,
+      };
+    }
+    if (sub === "patch" || sub === "parche") {
+      const off = parseNum(args[1]);
+      const val = parseNum(args[2]);
+      if (off === null || val === null) {
+        return { output: "uso: reverse patch <offset> <byte>   (ej: reverse patch 0x18 0x41)\n", isError: true };
+      }
+      const r = cm.patch(off, val);
+      if (!r.ok) return { output: `${r.message}\n`, isError: true };
+      return { output: `Parche aplicado — ${r.message}\nMirá el cambio con 'reverse disasm'.\n`, isError: false };
+    }
+    if (sub === "restore" || sub === "restaurar") {
+      cm.restore();
+      return { output: "Binario restaurado a su versión original.\n", isError: false };
     }
     if (sub === "brute" || sub === "bruteforce") {
       const hits = cm.bruteforce();
@@ -4374,9 +4445,13 @@ export class VirtualTerminal {
     return {
       output:
         `═══ NandeReverse · ${cm.name} ═══\n` +
-        `Una bandera está cifrada con XOR de un solo byte dentro del binario.\n` +
-        `Pasos: 1) 'reverse hexdump'  2) 'reverse disasm'  3) 'reverse brute'\n` +
-        `La técnica: probar las 256 claves y quedarte con la que da ND{...}.\n`,
+        `Un binario de verdad (ÑVM-8) pide un serial. Si es el correcto, descifra\n` +
+        `una bandera y la imprime. Los bytes, el desensamblado y la ejecución son\n` +
+        `el mismo programa: si parcheás un byte, se nota en los tres.\n\n` +
+        `Camino corto:  reverse disasm   → buscá el CMP con la constante\n` +
+        `               reverse run <s>  → probá un serial\n` +
+        `Otras vistas:  hexdump [data] · strings · xrefs · patch <off> <byte> · restore\n` +
+        `Sin leer nada: reverse brute    → las 256 claves del cifrado\n`,
       isError: false,
     };
   }
