@@ -7,6 +7,7 @@ import { certificationsFor, flagLabel } from "../../core/game/Certifications";
 import { buildReport } from "../../core/game/Report";
 import { Glyph, type GlyphName } from "../ui/Glyph";
 import CoursePlayer from "./CoursePlayer";
+import ChallengesView from "./ChallengesView";
 
 /** Cada rango, con su glifo de línea (mismo lenguaje que el dock). */
 const RANK_GLYPH: Record<string, GlyphName> = {
@@ -27,7 +28,7 @@ interface LearnViewProps {
   onOpenApp?: (id: string) => void;
 }
 
-type Tab = "inicio" | "cursos" | "rutas" | "lecciones" | "defensa" | "trofeos" | "informe" | "perfil";
+type Tab = "inicio" | "cursos" | "rutas" | "retos" | "lecciones" | "defensa" | "trofeos" | "informe" | "perfil";
 
 /**
  * ÑANDE Learn: la app para aprender hacking, ordenada de lo básico a lo
@@ -49,8 +50,8 @@ function LearnView({ kernel, onOpenApp }: LearnViewProps) {
     };
   }, [kernel]);
 
-  const courses = kernel.academy.all();
   const cursos = kernel.curriculum.all();
+  const tracks = kernel.tracks.all();
   const lessons = kernel.lessons.all();
   const rank = rankForLevel(player.level);
   const done = new Set(player.completedCourses);
@@ -198,68 +199,98 @@ function LearnView({ kernel, onOpenApp }: LearnViewProps) {
 
       {tab === "rutas" && (
         <>
-          <h3 style={sectionTitle}>Ruta completa · de cero a experto</h3>
-          {courses.map((c) => {
-            const routeLessons = kernel.academy.lessonsFor(c.id);
-            const total = routeLessons.length;
-            const hechas = routeLessons.filter((id) => done.has(`lesson:${id}`)).length;
+          <div style={{ ...card, background: "linear-gradient(135deg,#1c2f3f,#141d27)", borderColor: "#274b5f" }}>
+            <strong style={{ fontSize: 15 }}>🗺️ Itinerarios · de cero a experto</strong>
+            <p style={{ fontSize: 13, opacity: 0.88, margin: "6px 0 0", lineHeight: 1.5 }}>
+              Un camino ordenado, no cursos sueltos. Terminá los cursos de una ruta
+              y se desbloquea su <strong>Reto final</strong>: aplicás todo capturando
+              una bandera real.
+            </p>
+          </div>
+          {tracks.map((t) => {
+            const total = t.courseIds.length;
+            const hechas = t.courseIds.filter((id) => done.has(`curso:${id}`)).length;
             const pct = total ? Math.round((hechas / total) * 100) : 0;
-            const blocked = kernel.academy.missingRequirements(c.id, player.completedCourses);
+            const reqTrack = t.requires ? kernel.tracks.get(t.requires) : undefined;
+            const reqDone = !reqTrack || reqTrack.courseIds.every((id) => done.has(`curso:${id}`));
+            const cursosDone = t.courseIds.every((id) => done.has(`curso:${id}`));
+            const reto = t.finalChallenge ? kernel.tracks.challenge(t.finalChallenge) : undefined;
+            const retoDone = reto ? flags.includes(reto.flag) : false;
+            const bg = `linear-gradient(135deg, hsl(${t.hue} 55% 24%), hsl(${(t.hue + 28) % 360} 45% 14%))`;
             return (
-              <div key={c.id} style={card}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-                  <strong>{c.title}</strong>
-                  <span style={levelBadge(c.level)}>{c.level}</span>
+              <div key={t.id} style={{ ...card, padding: 0, overflow: "hidden", opacity: reqDone ? 1 : 0.72 }}>
+                <div style={{ ...courseBanner, background: bg }}>
+                  <div style={courseBannerGlyph}><Glyph name={t.glyph as GlyphName} size={26} /></div>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontSize: 15, fontWeight: 700 }}>{t.title}</div>
+                    <div style={{ fontSize: 11.5, opacity: 0.85 }}>{t.subtitle}</div>
+                  </div>
                 </div>
-                <p style={{ fontSize: 13, opacity: 0.85, margin: "8px 0" }}>{c.simple}</p>
-
-                {total > 0 && (
-                  <>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "2px 0 8px" }}>
-                      <div style={progressTrack}>
-                        <div style={{ ...progressFill, width: `${pct}%`, background: accent }} />
-                      </div>
-                      <span style={{ fontSize: 11, opacity: 0.7, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
-                        {hechas}/{total}
-                      </span>
+                <div style={{ padding: 14 }}>
+                  {!reqDone && reqTrack && (
+                    <div style={{ fontSize: 12, color: "#ffd479", marginBottom: 8 }}>
+                      🔒 Primero completá “{reqTrack.title}”.
                     </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                      {routeLessons.map((id, i) => {
-                        const lesson = kernel.lessons.get(id);
-                        if (!lesson) return null;
-                        const isDone = done.has(`lesson:${id}`);
-                        const inProgress = player.lessonProgress?.id === id;
-                        return (
-                          <button
-                            key={id}
-                            style={routeLessonRow}
-                            onClick={() => startLesson(id)}
-                          >
-                            <span style={{ width: 18, textAlign: "center" }}>
-                              {isDone ? "✅" : inProgress ? "⏸️" : `${i + 1}`}
-                            </span>
-                            <span style={{ flex: 1, minWidth: 0, textAlign: "left" }}>{lesson.title}</span>
-                            <span style={{ fontSize: 11, color: accent }}>
-                              {isDone ? "repasar" : inProgress ? "seguir" : "empezar"}
-                            </span>
-                          </button>
-                        );
-                      })}
+                  )}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "0 0 10px" }}>
+                    <div style={progressTrack}>
+                      <div style={{ ...progressFill, width: `${pct}%`, background: cursosDone ? "#6ee787" : accent }} />
                     </div>
-                  </>
-                )}
-
-                <div style={{ fontSize: 12, opacity: 0.7, marginTop: total ? 8 : 0 }}>
-                  {blocked.length
-                    ? `🔒 Conviene completar antes: ${blocked.join(", ")}`
-                    : total === 0
-                      ? `Temas: ${c.topics.slice(0, 4).join(" · ")}`
-                      : "Requisitos cumplidos ✓"}
+                    <span style={{ fontSize: 11, opacity: 0.7, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
+                      {hechas}/{total}
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    {t.courseIds.map((id, i) => {
+                      const curso = kernel.curriculum.get(id);
+                      if (!curso) return null;
+                      const isDone = done.has(`curso:${id}`);
+                      const seen = kernel.player.getCourseProgress(id);
+                      return (
+                        <button key={id} style={routeLessonRow} onClick={() => setActiveCourse(id)}>
+                          <span style={{ width: 18, textAlign: "center" }}>
+                            {isDone ? "✅" : seen > 0 ? "⏸️" : `${i + 1}`}
+                          </span>
+                          <span style={{ flex: 1, minWidth: 0, textAlign: "left" }}>{curso.title}</span>
+                          <span style={{ fontSize: 11, color: accent }}>
+                            {isDone ? "repasar" : seen > 0 ? "seguir" : "empezar"}
+                          </span>
+                        </button>
+                      );
+                    })}
+                    {reto && (
+                      <button
+                        style={{
+                          ...routeLessonRow,
+                          borderColor: retoDone ? "#6ee787" : cursosDone ? "#f5b544" : "#1b2733",
+                          background: retoDone ? "rgba(110,231,135,0.10)" : "#0e141b",
+                        }}
+                        onClick={() => setTab("retos")}
+                      >
+                        <span style={{ width: 18, textAlign: "center" }}>{retoDone ? "🏆" : "🚩"}</span>
+                        <span style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
+                          Reto final: {reto.title}
+                        </span>
+                        <span style={{ fontSize: 11, color: retoDone ? "#6ee787" : cursosDone ? "#f5b544" : "#8b98a5" }}>
+                          {retoDone ? "logrado" : cursosDone ? "¡a jugar!" : "bloqueado"}
+                        </span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             );
           })}
         </>
+      )}
+
+      {tab === "retos" && (
+        <ChallengesView
+          kernel={kernel}
+          flags={flags}
+          onOpenApp={onOpenApp}
+          onOpenCourse={(id) => setActiveCourse(id)}
+        />
       )}
 
       {tab === "lecciones" && (
@@ -465,6 +496,7 @@ function LearnView({ kernel, onOpenApp }: LearnViewProps) {
           ["inicio", "Inicio"],
           ["cursos", "Cursos"],
           ["rutas", "Rutas"],
+          ["retos", "Retos"],
           ["lecciones", "Lecciones"],
           ["defensa", "Defensa"],
           ["trofeos", "Trofeos"],
@@ -575,6 +607,7 @@ const NAV_GLYPHS: Record<Tab, ReactNode> = {
   inicio: <path d="M4 11l8-6 8 6M6.5 9.5V19h11V9.5M10 19v-5h4v5" />,
   cursos: <path d="M5 5.5A2.5 2.5 0 0 1 7.5 3H19v15H7.5A2.5 2.5 0 0 0 5 20.5zM5 20.5A2.5 2.5 0 0 1 7.5 18H19M9.5 7.5h6M9.5 11h4" />,
   rutas: <path d="M6 21V4M6 5h11l-2.4 3.5L17 12H6" />,
+  retos: <path d="M6 21V4M6 4h9l-1.5 3 1.5 3H6M8 4V2.5M8 21v-3" />,
   lecciones: <path d="M12 6.5C10.5 5.2 8 4.8 5 5v12c3-.2 5.5.2 7 1.5 1.5-1.3 4-1.7 7-1.5V5c-3-.2-5.5.2-7 1.5zM12 6.5V18" />,
   defensa: <path d="M12 3l7 3v5c0 4.2-3 7.3-7 8-4-.7-7-3.8-7-8V6z" />,
   trofeos: <path d="M8 4h8v4.5a4 4 0 0 1-8 0zM8 5.5H5.5V7a3 3 0 0 0 3 3M16 5.5h2.5V7a3 3 0 0 1-3 3M10 20h4M9.5 20l.5-3h4l.5 3" />,

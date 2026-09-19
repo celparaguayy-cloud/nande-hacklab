@@ -55,6 +55,7 @@ import { SecurityTools } from "./security/SecurityTools";
 import { Academy } from "./academy/Academy";
 import { LessonEngine } from "./academy/Lessons";
 import { Curriculum } from "./academy/Curriculum";
+import { Tracks } from "./academy/Tracks";
 import { Progression } from "./game/Progression";
 import { PlayerCompany } from "./game/PlayerCompany";
 import { Notoriety } from "./game/Notoriety";
@@ -114,6 +115,7 @@ export class VirtualKernel {
   public academy: Academy;
   public lessons: LessonEngine;
   public curriculum: Curriculum;
+  public tracks: Tracks;
   public player: Progression;
   public company: PlayerCompany;
   private lastCompanyDay = 0;
@@ -304,6 +306,7 @@ export class VirtualKernel {
     this.academy = new Academy();
     this.lessons = new LessonEngine();
     this.curriculum = new Curriculum();
+    this.tracks = new Tracks();
     this.player = new Progression(this.events);
     this.company = new PlayerCompany();
     this.missions = new MissionEngine(this.player, this.events);
