@@ -314,6 +314,37 @@ const PASS_HYDRA: Curso = {
     },
     {
       kind: "concept",
+      title: "hydra no es solo SSH: también rompe logins web",
+      body:
+        "hydra ataca muchísimos servicios, no solo SSH. Uno clave es el LOGIN WEB (http-post-form): en vez de la puerta 22, golpea el formulario de una página. Y trae banderas para afinar el ataque:\n\n• -f : parar apenas encuentra una válida (no seguir gastando intentos).\n• -t N : cuántos intentos en paralelo (más rápido = más ruidoso).\n• -s <puerto> : si el servicio está en un puerto no estándar.\n\nMismo concepto (probar el diccionario), distinto objetivo. Saber elegir el servicio y las banderas es lo que hace a hydra una herramienta seria, no un botón.",
+      diagram: "fuerzabruta",
+      bullets: [
+        "http-post-form = fuerza bruta contra un login de página web.",
+        "-f para al primer acierto · -t controla la velocidad/ruido.",
+        "El mismo diccionario sirve para SSH, web, FTP, bases de datos…",
+      ],
+    },
+    {
+      kind: "build",
+      goal: "Forzar el login WEB del banco para la cuenta 'sofia' usando el diccionario rockyou",
+      pieces: ["hydra", "-l", "sofia", "-P", "rockyou.txt", "banco.nande", "http-post-form", "ssh://", "-O"],
+      answer: ["hydra", "-l", "sofia", "-P", "rockyou.txt", "banco.nande", "http-post-form"],
+      hint: "-l fija el usuario (sofia), -P la lista de claves (rockyou.txt), después el host y el servicio http-post-form.",
+      explain:
+        "hydra -l sofia -P rockyou.txt banco.nande http-post-form prueba cada clave del diccionario contra el formulario de /login del banco, para el usuario sofia. Como su clave ('qwerty') es débil y está en la lista, cae.",
+    },
+    {
+      kind: "lab",
+      title: "Practicá: rompé un login web real",
+      body:
+        "Forzá el login del banco para la cuenta sofia. Después probá lo mismo contra 'admin' y compará: una clave fuerte cambia todo.",
+      command: "hydra -l sofia -P rockyou.txt banco.nande http-post-form",
+      explain:
+        "hydra encontró sofia/qwerty: una clave débil cae contra el formulario igual que contra el SSH. Probá 'hydra -l admin -P rockyou.txt banco.nande http-post-form': admin usa una clave fuerte (M8arete-2024!) que NO está en el diccionario, así que resiste. Esa es la lección: la fuerza de la clave es lo que decide. Defensa del lado web: bloqueo por intentos, captcha y MFA.",
+      diagram: "fuerzabruta",
+    },
+    {
+      kind: "concept",
       title: "Cómo se tapa (la otra mitad del oficio)",
       body:
         "Saber romperlo obliga a saber frenarlo. Contra la fuerza bruta:\n\n• Claves largas y fuera de todo diccionario (que el ataque no las tenga).\n• Bloqueo por intentos: tras N fallos, la cuenta o la IP se frenan (fail2ban).\n• MFA / segundo factor: aunque adivinen la clave, falta el código.\n• Mejor aún: SSH con clave criptográfica en vez de contraseña.",

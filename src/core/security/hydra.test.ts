@@ -52,4 +52,26 @@ describe("hydra — fuerza bruta real contra credenciales del mundo", () => {
   it("rechaza objetivos fuera del sandbox", () => {
     expect(term.execute("hydra ssh://github.com")).toContain("fuera del sandbox");
   });
+
+  it("fuerza bruta de FORMULARIO web (http-post-form) contra el login del banco", () => {
+    // sofia/qwerty: la clave débil está en el diccionario → cae.
+    const ok = term.execute("hydra -l sofia -P rockyou.txt banco.nande http-post-form");
+    expect(ok).toContain("http-post-form");
+    expect(ok).toContain("login: sofia");
+    expect(ok).toContain("password: qwerty");
+  });
+
+  it("un login con contraseña fuerte resiste la fuerza bruta web", () => {
+    // admin usa M8arete-2024!, que NO está en el diccionario → 0 encontradas.
+    const no = term.execute("hydra -l admin -P rockyou.txt banco.nande http-post-form");
+    expect(no).toMatch(/0 de \d+ combinaciones/);
+    expect(no).not.toContain("password:");
+  });
+
+  it("-f detiene en la primera credencial válida (menos intentos)", () => {
+    const out = term.execute("hydra -f -l soporte -P rockyou.txt ssh://server.nande");
+    expect(out).toContain("login: soporte");
+    // Verano2024 está antes del final de la lista: con -f corta antes de agotarla.
+    expect(out).toMatch(/= [1-9] intentos/);
+  });
 });

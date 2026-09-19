@@ -1046,21 +1046,94 @@ const RUNNERS: Record<string, Runner> = {
   },
 
   hydra(args, ctx) {
-    // Objetivo: "ssh://host", "host ssh", o "host" (ssh por defecto).
-    const svcArg = args.find((a) => /^(ssh|ftp):\/\//.test(a));
-    const service = svcArg ? svcArg.split("://")[0] : args.find((a) => a === "ssh" || a === "ftp") ?? "ssh";
+    // Objetivo y servicio: "ssh://host", "host ssh", "host http-post-form", o
+    // "host" (ssh por defecto). Se aceptan servicios de red y de formulario web.
+    const SVC_WORDS = ["ssh", "ftp", "http", "https", "http-post-form", "http-get-form", "http-form", "mysql"];
+    const svcArg = args.find((a) => /:\/\//.test(a) && SVC_WORDS.includes(a.split("://")[0]));
+    const service = svcArg
+      ? svcArg.split("://")[0]
+      : args.find((a) => SVC_WORDS.includes(a)) ?? "ssh";
     // Los valores de -l/-L/-p/-P/-s son operandos, no el objetivo.
     const operandIdx = new Set<number>();
-    args.forEach((a, i) => { if (["-l", "-L", "-p", "-P", "-s", "-t", "-C", "-e", "-o"].includes(a)) operandIdx.add(i + 1); });
+    args.forEach((a, i) => { if (["-l", "-L", "-p", "-P", "-s", "-t", "-C", "-e", "-o", "-m"].includes(a)) operandIdx.add(i + 1); });
     // -s <puerto>: puerto no estándar (hydra -s 2222 ... ssh).
     const sIdx = args.indexOf("-s");
     const customPort = sIdx >= 0 ? parseInt(args[sIdx + 1] ?? "", 10) : NaN;
     const target = svcArg
       ? svcArg.split("://")[1]
-      : args.find((a, i) => !a.startsWith("-") && a !== "ssh" && a !== "ftp" && !operandIdx.has(i)) ?? "";
+      : args.find((a, i) => !a.startsWith("-") && !SVC_WORDS.includes(a) && !operandIdx.has(i)) ?? "";
     const guard = requireVirtualTarget(target);
     if (guard) return { output: `hydra: ${guard}\n`, isError: true };
 
+    // Listas: -l/-L usuarios, -p/-P claves. Sin flags, usa las de laboratorio.
+    const lIdx = args.indexOf("-l");
+    const bigLIdx = args.indexOf("-L");
+    const pIdx = args.indexOf("-p");
+    const bigPIdx = args.indexOf("-P");
+    const users = lIdx >= 0 ? [args[lIdx + 1]].filter(Boolean)
+      : bigLIdx >= 0 ? (WORDLIST_USERS[args[bigLIdx + 1]?.toLowerCase() ?? ""] ?? HYDRA_USERS)
+        : HYDRA_USERS;
+    const passes = pIdx >= 0 ? [args[pIdx + 1]].filter(Boolean)
+      : bigPIdx >= 0 ? (WORDLIST_PASS[args[bigPIdx + 1]?.toLowerCase() ?? ""] ?? HYDRA_PASS)
+        : HYDRA_PASS;
+    const stopFirst = args.includes("-f"); // -f: parar en la primera válida
+    const tIdx = args.indexOf("-t");
+    const tasks = tIdx >= 0 ? parseInt(args[tIdx + 1] ?? "16", 10) || 16 : 16;
+
+    // ---- Fuerza bruta de FORMULARIO WEB (http-post-form / http-get-form) ----
+    // Golpea el login de la app web real (ej. banco.nande /login con los campos
+    // usuario/password) y detecta el éxito por el redirect 302 al panel.
+    const isWeb = /^http/.test(service) || service.includes("form");
+    if (isWeb) {
+      if (!ctx.web?.has(target)) {
+        return {
+          output: `hydra: ${target} no expone un formulario web en :80. Escaneá con nmap primero (nmap -sV ${target}).\n`,
+          isError: false,
+        };
+      }
+      const wfound: { user: string; pass: string }[] = [];
+      let wattempts = 0;
+      outer:
+      for (const u of users) {
+        for (const p of passes) {
+          wattempts += 1;
+          const r = ctx.web.request("POST", target, "/login", "", { usuario: u, password: p });
+          const ok = r.status === 302 || /sesi[oó]n iniciada|ADMINISTRADOR/i.test(r.body ?? "");
+          if (ok) {
+            wfound.push({ user: u, pass: p });
+            if (stopFirst) break outer;
+          }
+        }
+      }
+      const whead =
+        `Hydra v9.5 (c) — sólo para pruebas autorizadas\n\n` +
+        `[DATA] max ${tasks} tasks per host\n` +
+        `[DATA] atacando http-post-form://${target}:80/login\n` +
+        `[DATA] ${users.length} usuario(s) × ${passes.length} clave(s) = ${wattempts} intentos\n`;
+      if (wfound.length === 0) {
+        return {
+          output:
+            whead +
+            `\n0 de ${wattempts} combinaciones válidas contra el formulario.\n` +
+            `Lección: un login con contraseñas fuertes (y bloqueo por intentos / captcha) resiste.\n` +
+            `Ojo: estos ${wattempts} intentos fallidos quedaron en los logs del servidor web (miralos en el SOC).\n`,
+          isError: false,
+        };
+      }
+      const wlines = wfound.map(
+        (f) => `[80][http-post-form] host: ${target}   login: ${f.user}   password: ${f.pass}`,
+      );
+      return {
+        output:
+          whead +
+          `\n${wlines.join("\n")}\n\n` +
+          `${wfound.length} credencial(es) de formulario encontrada(s). Entrá por el navegador (http://${target}/) con esos datos.\n` +
+          `Lección: el login web también se fuerza. Defensa: contraseñas fuertes, bloqueo por intentos, captcha y MFA.\n`,
+        isError: false,
+      };
+    }
+
+    // ---- Fuerza bruta de SERVICIO (SSH/FTP) contra el host ----
     if (!ctx.hosts?.has(target)) {
       return { output: `hydra: no encuentro el host "${target}" en la red.\n`, isError: false };
     }
@@ -1076,27 +1149,19 @@ const RUNNERS: Record<string, Runner> = {
       };
     }
 
-    // Listas: -l/-L usuarios, -p/-P claves. Sin flags, usa las de laboratorio.
-    const lIdx = args.indexOf("-l");
-    const bigLIdx = args.indexOf("-L");
-    const pIdx = args.indexOf("-p");
-    const bigPIdx = args.indexOf("-P");
-    const users = lIdx >= 0 ? [args[lIdx + 1]].filter(Boolean)
-      : bigLIdx >= 0 ? (WORDLIST_USERS[args[bigLIdx + 1]?.toLowerCase() ?? ""] ?? HYDRA_USERS)
-        : HYDRA_USERS;
-    const passes = pIdx >= 0 ? [args[pIdx + 1]].filter(Boolean)
-      : bigPIdx >= 0 ? (WORDLIST_PASS[args[bigPIdx + 1]?.toLowerCase() ?? ""] ?? HYDRA_PASS)
-        : HYDRA_PASS;
-
     // Fuerza bruta REAL: cada intento golpea la autenticación del host, que
     // deja evidencia (login.failure/success) que el SOC y DFIR ven de verdad.
     const found: { user: string; pass: string }[] = [];
     let attempts = 0;
+    outerSsh:
     for (const u of users) {
       for (const p of passes) {
         attempts += 1;
         const r = ctx.hosts.authenticate(host.hostname, u, p);
-        if (r.ok) found.push({ user: u, pass: p });
+        if (r.ok) {
+          found.push({ user: u, pass: p });
+          if (stopFirst) break outerSsh;
+        }
       }
     }
 
@@ -1105,6 +1170,7 @@ const RUNNERS: Record<string, Runner> = {
     );
     const header =
       `Hydra v9.5 (c) — sólo para pruebas autorizadas\n\n` +
+      `[DATA] max ${tasks} tasks per host\n` +
       `[DATA] atacando ${service}://${host.hostname}:${port}\n` +
       `[DATA] ${users.length} usuario(s) × ${passes.length} clave(s) = ${attempts} intentos\n`;
 
