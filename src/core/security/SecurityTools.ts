@@ -133,6 +133,27 @@ export class SecurityTools {
   }
 }
 
+/** Diccionarios de laboratorio para hydra (usuarios y claves comunes). Incluyen
+ *  las credenciales débiles/filtradas del mundo para que la fuerza bruta las
+ *  encuentre — y deje su rastro ruidoso en los logs, como en la realidad. */
+const HYDRA_USERS = [
+  "root", "admin", "administrator", "user", "test", "guest",
+  "soporte", "svc-backup", "ana", "student", "postgres", "oracle",
+];
+const HYDRA_PASS = [
+  "123456", "password", "admin", "root", "toor", "changeme", "qwerty",
+  "Verano2024", "Backup#2024", "Password1", "welcome", "letmein",
+];
+const WORDLIST_USERS: Record<string, string[]> = {
+  "users.txt": HYDRA_USERS,
+  "userlist.txt": HYDRA_USERS,
+};
+const WORDLIST_PASS: Record<string, string[]> = {
+  "rockyou.txt": HYDRA_PASS,
+  "passwords.txt": HYDRA_PASS,
+  "top12.txt": HYDRA_PASS.slice(0, 8),
+};
+
 /** Puertos "top" que nmap escanea por defecto (los más comunes, resumido). */
 const TOP_PORTS = [
   21, 22, 23, 25, 53, 80, 110, 111, 135, 139, 143, 443, 445, 993, 995,
@@ -654,35 +675,84 @@ const RUNNERS: Record<string, Runner> = {
   },
 
   hydra(args, ctx) {
-    const target = args[0] ?? "";
+    // Objetivo: "ssh://host", "host ssh", o "host" (ssh por defecto).
+    const svcArg = args.find((a) => /^(ssh|ftp):\/\//.test(a));
+    const service = svcArg ? svcArg.split("://")[0] : args.find((a) => a === "ssh" || a === "ftp") ?? "ssh";
+    // Los valores de -l/-L/-p/-P/-s son operandos, no el objetivo.
+    const operandIdx = new Set<number>();
+    args.forEach((a, i) => { if (["-l", "-L", "-p", "-P", "-s", "-t"].includes(a)) operandIdx.add(i + 1); });
+    const target = svcArg
+      ? svcArg.split("://")[1]
+      : args.find((a, i) => !a.startsWith("-") && a !== "ssh" && a !== "ftp" && !operandIdx.has(i)) ?? "";
     const guard = requireVirtualTarget(target);
+    if (guard) return { output: `hydra: ${guard}\n`, isError: true };
 
-    if (guard) {
-      return { output: `hydra: ${guard}\n`, isError: true };
+    if (!ctx.hosts?.has(target)) {
+      return { output: `hydra: no encuentro el host "${target}" en la red.\n`, isError: false };
     }
+    const host = ctx.hosts.resolve(target)!;
+    if (!host.up) return { output: `hydra: ${host.hostname} está caído.\n`, isError: false };
 
-    const machine = ctx.lab.resolve(target);
-
-    if (!machine) {
-      return { output: `hydra: objetivo no válido.\n`, isError: false };
-    }
-
-    const hasSsh = machine.services.some((s) => s.name === "ssh");
-
-    if (!hasSsh) {
+    const port = service === "ftp" ? 21 : 22;
+    const svc = host.services.find((s) => s.port === port && s.state === "running");
+    if (!svc) {
       return {
-        output: `hydra: ${machine.hostname} no expone SSH.\n`,
+        output: `hydra: ${host.hostname} no expone ${service} (${port}/tcp) abierto. Escaneá con nmap primero.\n`,
         isError: false,
       };
     }
 
+    // Listas: -l/-L usuarios, -p/-P claves. Sin flags, usa las de laboratorio.
+    const lIdx = args.indexOf("-l");
+    const bigLIdx = args.indexOf("-L");
+    const pIdx = args.indexOf("-p");
+    const bigPIdx = args.indexOf("-P");
+    const users = lIdx >= 0 ? [args[lIdx + 1]].filter(Boolean)
+      : bigLIdx >= 0 ? (WORDLIST_USERS[args[bigLIdx + 1]?.toLowerCase() ?? ""] ?? HYDRA_USERS)
+        : HYDRA_USERS;
+    const passes = pIdx >= 0 ? [args[pIdx + 1]].filter(Boolean)
+      : bigPIdx >= 0 ? (WORDLIST_PASS[args[bigPIdx + 1]?.toLowerCase() ?? ""] ?? HYDRA_PASS)
+        : HYDRA_PASS;
+
+    // Fuerza bruta REAL: cada intento golpea la autenticación del host, que
+    // deja evidencia (login.failure/success) que el SOC y DFIR ven de verdad.
+    const found: { user: string; pass: string }[] = [];
+    let attempts = 0;
+    for (const u of users) {
+      for (const p of passes) {
+        attempts += 1;
+        const r = ctx.hosts.authenticate(host.hostname, u, p);
+        if (r.ok) found.push({ user: u, pass: p });
+      }
+    }
+
+    const lines = found.map(
+      (f) => `[${port}][${service}] host: ${host.ip}   login: ${f.user}   password: ${f.pass}`,
+    );
+    const header =
+      `Hydra v9.5 (c) — sólo para pruebas autorizadas\n\n` +
+      `[DATA] atacando ${service}://${host.hostname}:${port}\n` +
+      `[DATA] ${users.length} usuario(s) × ${passes.length} clave(s) = ${attempts} intentos\n`;
+
+    if (found.length === 0) {
+      return {
+        output:
+          header +
+          `\n0 de ${attempts} combinaciones válidas. Ninguna clave de la lista funcionó.\n` +
+          `Lección: una clave fuerte fuera del diccionario resiste la fuerza bruta.\n` +
+          `Ojo: estos ${attempts} intentos fallidos quedaron registrados (miralos en el SOC).\n`,
+        isError: false,
+      };
+    }
     return {
       output:
-        `hydra contra ${machine.hostname}:22 (ssh)\n` +
-        `[intentando lista de contraseñas comunes...]\n` +
-        `[22][ssh] login: student  password: (débil, de laboratorio)\n` +
-        `1 credencial encontrada. Lección: contraseñas fuertes + bloqueo por intentos.\n`,
+        header +
+        `\n${lines.join("\n")}\n\n` +
+        `${found.length} de ${attempts} credencial(es) encontrada(s). Entrá con: connect ${host.hostname} <usuario> <clave>\n` +
+        `Lección: contraseñas fuertes + bloqueo por intentos + MFA. La fuerza bruta es RUIDOSA:\n` +
+        `dejó ${attempts - found.length} fallos en los logs (el SOC ya lo está viendo).\n`,
       isError: false,
+      flag: "ND{ssh_fuerza_bruta}",
     };
   },
 

@@ -116,6 +116,15 @@ const REACTIONS: Record<string, Reaction> = {
     notoriety: 10,
     heat: 8,
   },
+  "ND{ssh_fuerza_bruta}": {
+    headline: {
+      title: "Servidor comprometido por fuerza bruta de SSH",
+      body: "Miles de intentos automatizados dieron con una contraseña débil reutilizada.",
+      category: "Seguridad",
+    },
+    notoriety: 12,
+    heat: 14,
+  },
   "ND{pivot_interno}": {
     stock: { ticker: "ÑND", factor: -0.1 },
     headline: {

@@ -125,6 +125,8 @@ export class BlueTeamSOC {
   private alerts: Alert[] = [];
   private seq = 0;
   private failuresByHost = new Map<string, number[]>();
+  /** Alerta de fuerza bruta activa por host: se ACTUALIZA, no se duplica. */
+  private bruteAlertByHost = new Map<string, { id: string; count: number; lastTick: number }>();
   private unsub: () => void;
 
   constructor(events: EventBus) {
@@ -166,7 +168,12 @@ export class BlueTeamSOC {
     }
   }
 
-  /** Varios login fallidos al mismo host en poco tiempo = fuerza bruta. */
+  /**
+   * Varios login fallidos al mismo host en poco tiempo = fuerza bruta. Un SIEM
+   * real NO crea una alerta por cada intento: CORRELACIONA la ráfaga en UNA
+   * sola alerta que va subiendo su contador. Eso es lo que hacemos acá — así
+   * 143 intentos son una alerta crítica legible, no 143 líneas de ruido.
+   */
   private trackBruteForce(e: RuntimeEvent): void {
     const hits = (this.failuresByHost.get(e.host) ?? []).filter(
       (t) => e.tick - t <= BRUTE_WINDOW,
@@ -174,11 +181,33 @@ export class BlueTeamSOC {
     hits.push(e.tick);
     this.failuresByHost.set(e.host, hits);
 
-    if (hits.length >= BRUTE_THRESHOLD) {
-      this.raise("ND-005", e, `${hits.length} intentos de acceso fallidos a ${e.host} en poco tiempo.`);
-    } else {
+    const active = this.bruteAlertByHost.get(e.host);
+    // ¿Sigue viva la ráfaga anterior? (dentro de la ventana).
+    const stillActive = active && e.tick - active.lastTick <= BRUTE_WINDOW;
+
+    if (hits.length < BRUTE_THRESHOLD && !stillActive) {
+      // Todavía no es fuerza bruta: intento aislado.
       this.raise("ND-004", e, `${e.detail}.`);
+      return;
     }
+
+    if (stillActive) {
+      // Ya hay una alerta de fuerza bruta abierta: la actualizamos en lugar de
+      // crear otra. El contador refleja el total real de la ráfaga.
+      active.count += 1;
+      active.lastTick = e.tick;
+      const alert = this.alerts.find((a) => a.id === active.id);
+      if (alert) {
+        alert.detail = `${active.count} intentos de acceso fallidos a ${e.host} en poco tiempo (ráfaga en curso).`;
+        alert.tick = e.tick;
+      }
+      return;
+    }
+
+    // Cruza el umbral por primera vez: se levanta UNA alerta correlacionada.
+    this.raise("ND-005", e, `${hits.length} intentos de acceso fallidos a ${e.host} en poco tiempo.`);
+    const raised = this.alerts[this.alerts.length - 1];
+    this.bruteAlertByHost.set(e.host, { id: raised.id, count: hits.length, lastTick: e.tick });
   }
 
   private raise(ruleId: string, e: RuntimeEvent, detail: string): void {

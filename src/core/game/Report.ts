@@ -41,6 +41,7 @@ const SEVERITY: Record<string, Severity> = {
   "ND{open_redirect}": "media",
   "ND{race_condition_toctou}": "media",
   "ND{wifi_wpa_crackeada}": "media",
+  "ND{ssh_fuerza_bruta}": "alta",
   "ND{dependencia_vulnerable}": "media",
   "ND{malware_iocs}": "media",
 };
