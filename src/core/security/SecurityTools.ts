@@ -224,6 +224,101 @@ function requireVirtualTarget(target: string): string | null {
   return null;
 }
 
+/* ------------------------------------------------------------------ *
+ *  NSE — motor de scripts de nmap (-sC / --script).                   *
+ *  Hace que el escaneo sea de verdad accionable: los scripts default   *
+ *  enumeran (hostkeys, títulos, cabeceras) y la categoría 'vuln'       *
+ *  APUNTA a las fallas reales de cada app del laboratorio.             *
+ * ------------------------------------------------------------------ */
+
+/** Vulnerabilidades web reales por host (lo que un --script vuln delata). */
+const NSE_WEB_VULNS: Record<string, string[]> = {
+  "banco.nande": [
+    "| http-sql-injection:",
+    "|   Posible SQLi en POST /login (parámetro 'usuario')",
+    "|_  Posible SQLi en GET /movimientos (parámetro 'q') — UNION-based",
+  ],
+  "fotos.arandu.nande": [
+    "| http-idor:",
+    "|_  GET /album?id= usa referencia directa insegura (IDOR): cambiá el id",
+  ],
+  "docs.tape.nande": [
+    "| http-path-traversal:",
+    "|_  GET /ver?archivo=../ permite salir del directorio (LFI/traversal)",
+  ],
+  "tools.pyta.nande": [
+    "| http-cmd-injection:",
+    "|_  GET /ping?host= concatena la entrada en un comando del sistema",
+  ],
+  "blog.yvoty.nande": [
+    "| http-stored-xss:",
+    "|_  GET /buscar?q= refleja HTML sin escapar (XSS reflejado)",
+  ],
+};
+
+/** Título HTTP conocido por host (para http-title, sin salir a la red). */
+const NSE_HTTP_TITLES: Record<string, string> = {
+  "banco.nande": "Banco Mbarete — Home Banking",
+  "server.nande": "ÑANDE nginx — it works",
+  "blog.yvoty.nande": "Blog de Yvoty",
+  "fotos.arandu.nande": "Fotos Arandú",
+  "docs.tape.nande": "Documentos Tapé",
+  "tools.pyta.nande": "Pytã Tools",
+  "soc.nande": "ÑANDE SOC",
+};
+
+/** Huella de clave pseudo-determinista a partir del hostname (ssh-hostkey). */
+function nseFakeKey(host: string): string {
+  // Math.imul preserva los 32 bits bajos; con '*' normal se pierde precisión y
+  // el hash colapsa (salía "AAAA..."). Es sólo una huella pseudo-determinista.
+  let h = 0x811c9dc5;
+  for (const c of host) h = (Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0);
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  let s = "";
+  for (let i = 0; i < 12; i += 1) {
+    h = (Math.imul(h, 1103515245) + 12345) >>> 0;
+    s += chars[(h >>> 9) % 64];
+  }
+  return s;
+}
+
+/** Líneas de script NSE para un servicio abierto (formato real: | y |_). */
+function nseForService(
+  name: string,
+  port: number,
+  hostname: string,
+  scriptSpec: string,
+): string[] {
+  const cat = scriptSpec === "" ? "default" : scriptSpec.toLowerCase();
+  const vuln = /vuln/.test(cat);
+  const isSsh = /ssh/i.test(name) || port === 22;
+  const isHttp = /http|nginx|apache/i.test(name) || port === 80 || port === 8080;
+  const isHttps = /https/i.test(name) || port === 443 || port === 8443;
+  const out: string[] = [];
+
+  if (isSsh) {
+    if (vuln) {
+      out.push("|_ssh-auth-methods: password habilitado → expuesto a fuerza bruta (probá hydra)");
+    } else {
+      out.push("| ssh-hostkey:");
+      out.push(`|_  3072 SHA256:${nseFakeKey(hostname)} (RSA)`);
+      out.push("|_ssh-auth-methods: publickey, password");
+    }
+  }
+  if (isHttp || isHttps) {
+    if (vuln) {
+      const findings = NSE_WEB_VULNS[hostname];
+      if (findings) out.push(...findings);
+      else out.push("|_http-vuln: sin vulnerabilidades conocidas en el diccionario para este host");
+    } else {
+      out.push(`|_http-server-header: ${isHttps ? "nginx/1.24 (TLS)" : "nginx/1.24"}`);
+      out.push(`|_http-title: ${NSE_HTTP_TITLES[hostname] ?? "Sitio ÑANDE"}`);
+      out.push("|_http-methods: GET POST HEAD OPTIONS");
+    }
+  }
+  return out;
+}
+
 type Runner = (args: string[], ctx: ToolContext) => ToolRunResult;
 
 const RUNNERS: Record<string, Runner> = {
@@ -317,6 +412,10 @@ const RUNNERS: Record<string, Runner> = {
     const wantsVersion = has("-sV") || has("-A");
     const wantsOs = has("-O") || has("-A");
     const skipDiscovery = has("-Pn");
+    const udp = has("-sU");
+    const scriptIdx = args.indexOf("--script");
+    const scriptSpec = scriptIdx >= 0 ? (args[scriptIdx + 1] ?? "") : "";
+    const wantsScripts = has("-sC") || has("-A") || scriptSpec !== "";
 
     // -p22 (pegado) o -p 22 (separado); -p- = todos los puertos.
     const pIdx = args.findIndex((a) => a === "-p" || (a.startsWith("-p") && a !== "-p-"));
@@ -406,6 +505,33 @@ const RUNNERS: Record<string, Runner> = {
       };
     }
 
+    // Escaneo UDP (-sU): protocolo sin conexión, LENTO y ambiguo. Cuando no
+    // hay respuesta, nmap no puede distinguir abierto de filtrado: "open|filtered".
+    if (udp) {
+      const udpCommon: { p: number; svc: string; open: boolean }[] = [
+        { p: 53, svc: "domain", open: /dns|resolver|server/i.test(hostname) },
+        { p: 123, svc: "ntp", open: true },
+        { p: 161, svc: "snmp", open: false },
+        { p: 500, svc: "isakmp", open: false },
+      ];
+      const urows = udpCommon.map((u) => {
+        const state = u.open ? "open|filtered" : "closed";
+        return `${`${u.p}/udp`.padEnd(10)}${state.padEnd(15)}${u.svc}`;
+      });
+      return {
+        output:
+          `Starting Nmap 7.94 ( https://nmap.org )\n` +
+          `Nmap scan report for ${hostname} (${ip})\n` +
+          `Host is up (0.0013s latency).\n` +
+          `PORT      STATE          SERVICE\n` +
+          urows.join("\n") + "\n" +
+          `\nNmap done: 1 IP address (1 host up) scanned in 4.21s\n` +
+          `\n(UDP es lento y ambiguo: 'open|filtered' significa que NO hubo ` +
+          `respuesta —lo normal en UDP—. Confirmá con -sUV o pruebas específicas.)\n`,
+        isError: false,
+      };
+    }
+
     // Servicios conocidos del objetivo (puerto -> {estado, servicio, versión}).
     const services = new Map<number, { name: string; version: string; running: boolean }>();
     const firewall = new Set<number>(live?.firewall ?? []);
@@ -443,6 +569,13 @@ const RUNNERS: Record<string, Runner> = {
         rows.push(
           `${`${port}/tcp`.padEnd(10)}${st.padEnd(9)}${name.padEnd(wantsVersion ? 14 : 0)}${ver}`.trimEnd(),
         );
+        // Scripts NSE (-sC / --script): salen indentados bajo su puerto, como
+        // en nmap real. La categoría 'vuln' delata las fallas reales del host.
+        if (wantsScripts && st === "open") {
+          for (const line of nseForService(name, port, hostname, scriptSpec)) {
+            rows.push(line);
+          }
+        }
       }
     }
 

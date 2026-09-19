@@ -207,12 +207,12 @@ const FUNDAMENTOS: Curso = {
 const RECON_NMAP: Curso = {
   id: "c-recon-nmap",
   title: "Reconocimiento con nmap",
-  subtitle: "Encontrá las puertas abiertas de una máquina, como los profesionales.",
+  subtitle: "De ping sweep a NSE: tipos de escaneo, versiones, SO, scripts y sigilo.",
   level: "intermedio",
   skill: "pentesting",
   hue: 145,
   glyph: "search",
-  reward: { xp: 180, coins: 140 },
+  reward: { xp: 260, coins: 200 },
   slides: [
     {
       kind: "concept",
@@ -270,6 +270,97 @@ const RECON_NMAP: Curso = {
       explain:
         "Lo que ves es real: nmap consultó el estado real de cada servicio del host virtual. Anotá los puertos abiertos (por ejemplo 22/SSH y 80/HTTP). El SSH abierto te habilita el próximo curso: fuerza bruta con hydra.",
       diagram: "escaneo",
+    },
+    {
+      kind: "concept",
+      title: "Tipos de escaneo: SYN, connect y UDP",
+      body:
+        "No hay un solo 'escaneo'. Los que más se usan:\n\n• -sS (SYN scan): manda el primer paso del saludo TCP y corta antes de completarlo. Rápido y más sigiloso; es el default cuando tenés privilegios.\n• -sT (connect): completa el saludo TCP entero. Más ruidoso, pero no necesita privilegios.\n• -sU (UDP): revisa servicios UDP (DNS, DHCP, SNMP). Es LENTO y ambiguo: muchas veces sale 'open|filtered' porque UDP no siempre contesta.\n\nElegir el tipo según lo que buscás (rapidez, sigilo, o servicios UDP) es lo que separa a un profesional de alguien que solo escribe 'nmap ip'.",
+      diagram: "handshake",
+      bullets: [
+        "-sS = SYN, rápido y sigiloso (default con privilegios).",
+        "-sT = connect, completo pero ruidoso.",
+        "-sU = UDP, lento y ambiguo (open|filtered).",
+      ],
+    },
+    {
+      kind: "build",
+      goal: "Hacer un escaneo AGRESIVO de server.nande: versión de servicios, sistema operativo y scripts, todo junto",
+      pieces: ["nmap", "-A", "server.nande", "-sN", "10.10.0.0/24"],
+      answer: ["nmap", "-A", "server.nande"],
+      hint: "-A es el 'todo junto': equivale a -sV (versión) + -O (sistema) + -sC (scripts default). Después, el objetivo.",
+      explain:
+        "nmap -A server.nande es el escaneo agresivo: detecta versiones (-sV), adivina el sistema operativo (-O) y corre los scripts por defecto (-sC), todo en un comando. Es ruidoso (un defensor lo nota), pero te da el retrato completo de la máquina de una.",
+    },
+    {
+      kind: "concept",
+      title: "La versión exacta es oro (y por qué)",
+      body:
+        "Cuando -sV te dice 'OpenSSH 9.6' o 'nginx 1.24', no es un dato decorativo: con la versión EXACTA se buscan vulnerabilidades conocidas (CVE) de ESE software y ESA versión. Media hora de un pentester es: escanear → anotar versiones → buscar si alguna tiene un fallo público. -O (sistema operativo) suma contexto: no se ataca igual un Linux que un Windows.",
+      diagram: "escaneo",
+      bullets: [
+        "Versión + servicio → buscar CVE conocidos de esa versión.",
+        "-O revela el sistema: cambia todo el plan de ataque.",
+        "Software viejo y sin parche = la entrada más fácil.",
+      ],
+    },
+    {
+      kind: "concept",
+      title: "NSE: el superpoder de nmap (los scripts)",
+      body:
+        "nmap no solo lista puertos: trae un MOTOR DE SCRIPTS (NSE) que interroga cada servicio. Los que más vas a usar:\n\n• -sC : corre los scripts por defecto (títulos web, cabeceras, claves SSH, métodos HTTP…).\n• --script vuln : busca VULNERABILIDADES conocidas en lo que encontró.\n• --script <nombre> : corre uno específico (ej. http-title).\n\nEsto convierte a nmap en un mini-escáner de vulnerabilidades: no solo te dice qué puerta hay, sino qué le pasa a esa puerta.",
+      diagram: "escaneo",
+      bullets: [
+        "-sC = scripts default (enumeración rica).",
+        "--script vuln = busca fallas conocidas.",
+        "NSE es lo que hace a nmap una navaja suiza, no un simple 'ping de puertos'.",
+      ],
+    },
+    {
+      kind: "lab",
+      title: "Practicá: corré los scripts default (-sC)",
+      body:
+        "Escaneá server.nande con los scripts por defecto y mirá cuánta info extra sale: la clave del host SSH, los métodos y el título de la web… Esa enumeración es la que alimenta el resto del ataque.",
+      command: "nmap -sC -sV server.nande",
+      explain:
+        "Bajo cada puerto abierto ves líneas con '|' y '|_': son los scripts NSE. En el 22 sale la huella SSH y los métodos de autenticación; en el 80, la cabecera del servidor, el título y los métodos HTTP. Todo eso es real y te ahorra pasos manuales.",
+      diagram: "escaneo",
+    },
+    {
+      kind: "lab",
+      title: "Practicá: que nmap te DELATE la vulnerabilidad",
+      body:
+        "Ahora lo potente: apuntá los scripts de vulnerabilidades contra el banco. nmap va a revisar la web y señalar dónde está el problema, antes de que toques nada.",
+      command: "nmap --script vuln banco.nande",
+      explain:
+        "El script http-sql-injection marca /login y /movimientos como posibles inyecciones SQL. Eso es reconocimiento que se convierte directo en plan de ataque: en el curso de SQLi vas a explotar EXACTAMENTE esos dos puntos que nmap te encontró. Del lado defensor, ese mismo reporte es tu lista de arreglos.",
+      diagram: "inyeccion",
+    },
+    {
+      kind: "quiz",
+      prompt: "¿Qué te da 'nmap --script vuln banco.nande'?",
+      options: [
+        "Un reporte que señala vulnerabilidades conocidas del sitio (dónde atacar)",
+        "Apaga el sitio para siempre",
+        "La contraseña del administrador, ya descifrada",
+        "Una copia de seguridad del servidor",
+      ],
+      correct: 0,
+      explain:
+        "Los scripts de la categoría 'vuln' prueban fallas conocidas y te dicen cuáles parecen presentes. No explotan solos: te dan el mapa. Después vos decidís (con permiso) cómo seguir. Y el defensor usa el mismo reporte para tapar cada agujero.",
+      diagram: "inyeccion",
+    },
+    {
+      kind: "concept",
+      title: "Timing y sigilo: no todo es a lo bruto",
+      body:
+        "Escanear fuerte y rápido hace RUIDO, y un defensor (o un IDS) te detecta. nmap tiene plantillas de velocidad -T0 a -T5:\n\n• -T4 / -T5: rápido, ruidoso (labs, redes propias).\n• -T0 / -T1: lentísimo, para pasar desapercibido.\n\nEn una prueba real, el sigilo importa tanto como encontrar el puerto: un ataque detectado a los 2 minutos no sirve. Parte del oficio es elegir cuánto ruido hacés.",
+      diagram: "escaneo",
+      bullets: [
+        "-T4/-T5 = rápido y ruidoso; -T0/-T1 = lento y sigiloso.",
+        "Más velocidad = más chance de que te detecten.",
+        "El escaneo también deja huellas: el SOC las ve (lo practicás en Blue Team).",
+      ],
     },
     {
       kind: "quiz",
