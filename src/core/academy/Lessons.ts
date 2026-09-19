@@ -1347,6 +1347,127 @@ export const LESSONS: Lesson[] = [
       },
     ],
   },
+  {
+    id: "l-eng-host",
+    title: "ENGAGEMENT: tomá el servidor y pivotá a la red interna",
+    level: "avanzado",
+    summary:
+      "Una intrusión completa: escanear, romper el SSH por fuerza bruta, entrar, enumerar adentro y saltar a una máquina oculta.",
+    concept:
+      "Otra auditoría real, esta vez contra un servidor. La cadena: recon → fuerza bruta del acceso → entrar → enumerar DESDE ADENTRO → pivotar a lo que no se ve desde afuera. Cada máquina comprometida es un trampolín a la siguiente. Leé cada salida: las pistas para el próximo salto están ahí.",
+    reward: { xp: 340, coins: 280 },
+    steps: [
+      {
+        explain:
+          "Paso 1 — RECONOCIMIENTO. Escaneá server.nande con detección de versión para ver qué servicios expone.",
+        task: "Escaneá: nmap -sV server.nande",
+        hints: ["nmap -sV muestra el servicio y su versión.", "Escribí: nmap -sV server.nande"],
+        hint: "Escribí: nmap -sV server.nande",
+        check: (cmd, out) =>
+          usedTool(cmd, "nmap") &&
+          /server\.nande/i.test(cmd) &&
+          /22\/tcp/.test(out) &&
+          /open/i.test(out),
+        debrief:
+          "Dos puertas: 22 (SSH, acceso remoto por consola) y 80 (web). El SSH abierto es una invitación a probar credenciales.",
+      },
+      {
+        explain: "Leé el escaneo y respondé.",
+        task: "Respondé con 'responder ...'",
+        hint: "SSH, el acceso remoto, corre en el puerto clásico 22.",
+        question: "¿Qué puerto usarías para intentar entrar por consola remota (SSH)?",
+        answers: ["22", "22/tcp", "puerto 22", "el 22", "ssh 22"],
+        answerContains: true,
+        debrief: "El 22, SSH. Vamos a probar contraseñas contra ese servicio.",
+      },
+      {
+        explain:
+          "Paso 2 — FUERZA BRUTA. hydra prueba muchas combinaciones de usuario y contraseña contra el SSH hasta que una entra. (En la vida real: solo con autorización.)",
+        task: "Atacá el SSH: hydra ssh://server.nande",
+        hints: [
+          "hydra ssh://<objetivo> usa las listas de usuarios y claves por defecto.",
+          "Escribí: hydra ssh://server.nande",
+        ],
+        hint: "Escribí: hydra ssh://server.nande",
+        check: (_cmd, out) =>
+          (/soporte/.test(out) && /Verano2024/.test(out)) ||
+          out.includes("ND{ssh_fuerza_bruta}"),
+        debrief:
+          "hydra encontró credenciales válidas: soporte / Verano2024 (bandera ND{ssh_fuerza_bruta}). Ojo: dejó 143 intentos fallidos en los logs. La fuerza bruta es RUIDOSA — el SOC ya lo está viendo.",
+      },
+      {
+        explain: "Leé lo que reportó hydra y respondé.",
+        task: "Respondé con 'responder ...'",
+        hint: "Mirá la línea 'login: soporte  password: ...'.",
+        question: "¿Qué contraseña encontró hydra para el usuario soporte?",
+        answers: ["Verano2024"],
+        answerContains: true,
+        debrief: "Esa clave débil (una estación + un año) es exactamente lo que un diccionario prueba primero.",
+      },
+      {
+        explain:
+          "Paso 3 — ACCESO. Usá las credenciales para abrir una sesión dentro del servidor.",
+        task: "Entrá: connect server.nande soporte Verano2024",
+        hints: ["connect <host> <usuario> <clave> abre la sesión.", "connect server.nande soporte Verano2024"],
+        hint: "Escribí: connect server.nande soporte Verano2024",
+        check: (cmd, out) => usedTool(cmd, "connect") && /conectad/i.test(out),
+        debrief:
+          "Estás DENTRO de server.nande como soporte. Ahora ves lo que ve esa máquina. Toca enumerar: buscar credenciales y caminos a otras máquinas.",
+      },
+      {
+        explain:
+          "Paso 4 — ENUMERACIÓN INTERNA. Los administradores dejan notas con recordatorios. Leé la nota de soporte.",
+        task: "Leé la nota: cat /home/soporte/notas.txt",
+        hints: ["Escribí: cat /home/soporte/notas.txt"],
+        hint: "Escribí: cat /home/soporte/notas.txt",
+        check: (cmd, out) =>
+          usedTool(cmd, "cat") && /caja\.interna|10\.10\.66/i.test(out),
+        debrief:
+          "La nota revela una máquina que NO se ve desde afuera: caja.interna.nande (10.10.66.10), con usuario admin / clave GiraSol#2024. Ese es el próximo salto.",
+      },
+      {
+        explain: "Leé la nota que encontraste y respondé.",
+        task: "Respondé con 'responder ...'",
+        hint: "Es el host 'interno' que menciona la nota (empieza con caja...).",
+        question: "¿Qué máquina interna descubriste que solo se ve desde el servidor?",
+        answers: ["caja.interna.nande", "caja.interna", "caja", "10.10.66.10", "10.10.66"],
+        answerContains: true,
+        debrief: "caja.interna.nande. Como solo se alcanza desde server.nande, vas a PIVOTAR: saltar a ella usando este servidor como puente.",
+      },
+      {
+        explain:
+          "Paso 5 — PIVOTING. Desde adentro del servidor, conectate a la máquina interna con las credenciales que encontraste.",
+        task: "Pivotá: connect caja.interna.nande admin GiraSol#2024",
+        hints: ["connect caja.interna.nande admin GiraSol#2024"],
+        hint: "Escribí: connect caja.interna.nande admin GiraSol#2024",
+        check: (cmd, out) =>
+          usedTool(cmd, "connect") && /conectad/i.test(out) && /caja\.interna/i.test(out),
+        debrief:
+          "¡Pivote logrado! Estás en caja.interna.nande, una máquina que era invisible desde tu compu. Este es el corazón del post-explotación: moverse lateralmente por la red.",
+      },
+      {
+        explain:
+          "Paso 6 — BOTÍN. Leé la bandera de la máquina interna para probar que llegaste.",
+        task: "Sacá la bandera: cat /root/flag.txt",
+        hints: ["Escribí: cat /root/flag.txt (o simplemente: flag)"],
+        hint: "Escribí: cat /root/flag.txt",
+        check: (_cmd, out) => out.includes("ND{pivoting_red_interna}"),
+        debrief:
+          "Bandera ND{pivoting_red_interna}: comprometiste la red interna partiendo de una sola contraseña débil en la web. Así se encadena una intrusión real.",
+      },
+      {
+        explain:
+          "Cierre — DEFENSA. Toda la cadena arrancó por un SSH con clave débil. Una palabra sobre cómo cortarla.",
+        task: "Respondé con 'responder ...'",
+        hint: "Frenás la fuerza bruta bloqueando tras varios intentos, o usando llaves/MFA. Bloqueo por ___.",
+        question: "¿Qué defensa corta de raíz la fuerza bruta de contraseñas? (una palabra)",
+        answers: ["intentos", "fail2ban", "mfa", "2fa", "llaves", "bloqueo", "clave fuerte", "claves fuertes"],
+        answerContains: true,
+        debrief:
+          "Bloqueo por intentos (fail2ban), llaves SSH en vez de contraseñas y MFA cortan la fuerza bruta; y segmentar la red hace que un pivote como este NO llegue a la caja. Cerraste una intrusión completa con post-explotación. Recordá: esto es solo con permiso, y el hacker ético reporta el camino entero para que lo tapen.",
+      },
+    ],
+  },
 ];
 
 /** Motor de lecciones: mantiene el paso actual de la lección activa. */

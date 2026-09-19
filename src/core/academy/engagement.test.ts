@@ -48,6 +48,29 @@ describe("Engagement web — auditá el banco de punta a punta", () => {
     expect(flags).toContain("ND{sqli_union_dump}");
   });
 
+  it("l-eng-host se completa: recon → fuerza bruta → acceso → pivot → botín", () => {
+    const flow = [
+      "learn l-eng-host",
+      "nmap -sV server.nande",
+      "responder 22",
+      "hydra ssh://server.nande",
+      "responder Verano2024",
+      "connect server.nande soporte Verano2024",
+      "cat /home/soporte/notas.txt",
+      "responder caja.interna.nande",
+      "connect caja.interna.nande admin GiraSol#2024",
+      "cat /root/flag.txt",
+      "responder intentos",
+    ];
+    let last = "";
+    for (const cmd of flow) last = term.execute(cmd);
+    expect(last, "el último paso debería cerrar la lección").toMatch(/Lección completada/i);
+    expect(kernel.player.completedCourses()).toContain("lesson:l-eng-host");
+    const flags = kernel.player.capturedFlags();
+    expect(flags).toContain("ND{ssh_fuerza_bruta}");
+    expect(flags).toContain("ND{pivoting_red_interna}");
+  });
+
   it("no avanza si respondés cualquier cosa a una pregunta", () => {
     term.execute("learn l-eng-web");
     term.execute("nmap -sV banco.nande");

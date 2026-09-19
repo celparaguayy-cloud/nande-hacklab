@@ -324,6 +324,16 @@ const PASS_HYDRA: Curso = {
         "Un hacker ético reporta la credencial débil y explica el arreglo; no roba.",
       ],
     },
+    {
+      kind: "lab",
+      title: "Capstone: intrusión completa y pivote",
+      body:
+        "Uní todo en una intrusión real: escaneá server.nande, rompé su SSH por fuerza bruta, entrá, enumerá desde adentro y PIVOTÁ a una máquina interna que no se ve desde afuera. Es guiada y te pregunta qué encontrás en cada etapa. Tocá para arrancar el engagement en la terminal.",
+      command: "learn l-eng-host",
+      explain:
+        "Metodología completa: recon (nmap) → fuerza bruta (hydra) → acceso (connect) → enumeración interna → pivoting → botín (ND{pivoting_red_interna}). Todo arranca por UNA contraseña débil: por eso las claves importan tanto.",
+      diagram: "capas",
+    },
   ],
 };
 

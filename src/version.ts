@@ -3,5 +3,5 @@
  * qué build estás corriendo (y confirmar que tomaste la última actualización).
  * Subí el número cuando haya un cambio que el jugador deba poder distinguir.
  */
-export const NANDE_VERSION = "5.15.0";
-export const NANDE_BUILD = "engagement-web";
+export const NANDE_VERSION = "5.16.0";
+export const NANDE_BUILD = "engagement-host";
