@@ -37,3 +37,8 @@ node_modules/
 dist/
 .env
 .DS_Store
+
+# Tests de scratch (evaluaciones/pruebas temporales de subagentes y depuración)
+src/**/_grade_*.ts
+src/**/_*tmp*.test.ts
+src/**/__*.test.ts
