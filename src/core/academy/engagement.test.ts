@@ -114,6 +114,26 @@ describe("Engagement web — auditá el banco de punta a punta", () => {
     expect(kernel.player.capturedFlags()).toContain("ND{wifi_wpa_crackeada}");
   });
 
+  it("l-eng-osint se completa: metadatos → limpiar → exposición → anonimato → onion", () => {
+    const flow = [
+      "learn l-eng-osint",
+      "exiftool foto.jpg",
+      "responder gps",
+      "exiftool -all= foto.jpg",
+      "responder metadatos",
+      "anon status",
+      "responder 10.10.0.10",
+      "anon on",
+      "onion biblioteca7k2fx.onion",
+      "responder no",
+    ];
+    let last = "";
+    for (const cmd of flow) last = term.execute(cmd);
+    expect(last, "el último paso debería cerrar la lección").toMatch(/Lección completada/i);
+    expect(kernel.player.completedCourses()).toContain("lesson:l-eng-osint");
+    expect(kernel.player.capturedFlags()).toContain("ND{onion_alcanzada_con_circuito}");
+  });
+
   it("no avanza si respondés cualquier cosa a una pregunta", () => {
     term.execute("learn l-eng-web");
     term.execute("nmap -sV banco.nande");

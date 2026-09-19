@@ -321,6 +321,16 @@ const OPSEC_ANON: Curso = {
         "macchanger wlan0 random cambia tu MAC; aun así, cuidá tus costumbres.",
       ],
     },
+    {
+      kind: "lab",
+      title: "Capstone: investigá y operá sin rastro",
+      body:
+        "Uní las dos caras en una operación guiada: sacá quién y DÓNDE de una foto (OSINT), aprendé a limpiar tu propia huella, revisá tu exposición y anonimizate para alcanzar un servicio oculto sin mostrar tu IP. Tocá para arrancar en la terminal.",
+      command: "learn l-eng-osint",
+      explain:
+        "OSINT (metadatos/GPS con exiftool) + OPSEC (limpiar huella, anon on, circuito → ND{onion_alcanzada_con_circuito}). Todo para PROTEGER privacidad: la herramienta es neutral, el uso es tu responsabilidad.",
+      diagram: "vpn",
+    },
   ],
 };
 

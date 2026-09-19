@@ -1688,6 +1688,110 @@ export const LESSONS: Lesson[] = [
       },
     ],
   },
+  {
+    id: "l-eng-osint",
+    title: "ENGAGEMENT: investigá con datos públicos y operá sin rastro",
+    level: "avanzado",
+    summary:
+      "OSINT + OPSEC de punta a punta: sacar dónde y quién de una foto, limpiar tu propia huella, y llegar a un servicio oculto sin mostrar tu IP.",
+    concept:
+      "Dos caras del mismo oficio. OSINT: cuánto se puede averiguar de alguien con datos PÚBLICOS (una foto ya delata dónde vive). OPSEC: cómo NO dejar vos esa huella. La secuencia: (1) extraer metadatos de una foto, (2) leer lo que delatan, (3) aprender a limpiarlos, (4) revisar tu propia exposición, (5) anonimizarte y (6) alcanzar un servicio oculto sin mostrar tu IP real. Todo con fines de privacidad y ética.",
+    reward: { xp: 300, coins: 240 },
+    steps: [
+      {
+        explain:
+          "Paso 1 — OSINT. Las fotos guardan METADATOS invisibles (cámara, fecha y, peor, GPS). Extraé los de una foto con exiftool.",
+        task: "Leé los metadatos: exiftool foto.jpg",
+        hints: ["Escribí: exiftool foto.jpg"],
+        hint: "Escribí: exiftool foto.jpg",
+        check: (cmd, out) =>
+          usedTool(cmd, "exiftool") && /GPS/i.test(out) && /-25\.2985|Kamba/i.test(out),
+        debrief:
+          "La foto delata al autor (Kamba Ríos), el equipo y —lo grave— las coordenadas GPS exactas donde se tomó. Con eso, cualquiera sabe dónde vive esa persona. Eso es OSINT: armar el perfil con lo que la gente sube sin darse cuenta.",
+      },
+      {
+        explain: "Mirá los metadatos y respondé.",
+        task: "Respondé con 'responder ...'",
+        hint: "El dato más peligroso son las coordenadas: el ___ de la foto.",
+        question: "¿Qué dato de la foto revela DÓNDE se tomó?",
+        answers: ["gps", "coordenadas", "ubicacion", "ubicación", "el gps", "las coordenadas", "-25.2985"],
+        answerContains: true,
+        debrief: "El GPS. Una sola foto puede poner tu casa en un mapa. Por eso importa saber limpiar eso.",
+      },
+      {
+        explain:
+          "Paso 2 — DEFENSA (limpiar tu huella). Antes de publicar una foto se le quitan los metadatos. exiftool -all= los borra.",
+        task: "Limpiá la foto: exiftool -all= foto.jpg",
+        hints: ["Escribí: exiftool -all= foto.jpg"],
+        hint: "Escribí: exiftool -all= foto.jpg",
+        check: (cmd, out) =>
+          usedTool(cmd, "exiftool") && /(eliminad|removid)/i.test(out),
+        debrief:
+          "Metadatos eliminados: ahora la foto no delata autor, GPS ni equipo. Regla OPSEC de oro: limpiá SIEMPRE los metadatos antes de subir algo.",
+      },
+      {
+        explain: "Pensá en la defensa que acabás de aplicar y respondé.",
+        task: "Respondé con 'responder ...'",
+        hint: "Lo invisible que borraste con exiftool -all=.",
+        question: "¿Qué hay que borrar SIEMPRE de una foto antes de publicarla?",
+        answers: ["metadatos", "los metadatos", "metadata", "el gps", "gps"],
+        answerContains: true,
+        debrief: "Los metadatos. Ahora pasemos a tu propia exposición en la red.",
+      },
+      {
+        explain:
+          "Paso 3 — TU EXPOSICIÓN. Antes de tocar nada sensible, mirá qué IP mostrás. 'anon status' te dice cómo salís a la red.",
+        task: "Revisá tu estado: anon status",
+        hints: ["Escribí: anon status"],
+        hint: "Escribí: anon status",
+        check: (cmd, out) =>
+          usedTool(cmd, "anon") && /(10\.10\.0\.10|real)/i.test(out),
+        debrief:
+          "El anonimato está apagado: el destino ve tu IP REAL (10.10.0.10). Cualquier cosa que hagas queda atada a vos. Hay que taparlo antes de seguir.",
+      },
+      {
+        explain: "Leé tu estado y respondé.",
+        task: "Respondé con 'responder ...'",
+        hint: "Con el anonimato apagado, el destino ve tu IP real: 10.10.0.10.",
+        question: "Con el anonimato apagado, ¿qué IP ve el destino?",
+        answers: ["10.10.0.10", "la real", "mi ip real", "la mia", "la mía", "real", "la tuya"],
+        answerContains: true,
+        debrief: "Tu IP real. Es como firmar todo con tu nombre. Vamos a cambiarlo.",
+      },
+      {
+        explain:
+          "Paso 4 — ANONIMIZARSE. Encendé la red de anonimato: tu tráfico va a salir por un nodo intermedio, así el destino ve OTRA IP, no la tuya.",
+        task: "Encendé el anonimato: anon on",
+        hints: ["Escribí: anon on"],
+        hint: "Escribí: anon on",
+        check: (cmd, out) =>
+          usedTool(cmd, "anon") && /activ/i.test(out),
+        debrief:
+          "Circuito activo: ahora salís por un nodo (Suiza, 51.0.44.19). El destino ve esa IP. Recién ahora conviene alcanzar servicios sensibles.",
+      },
+      {
+        explain:
+          "Paso 5 — SERVICIO OCULTO. Los .onion no se resuelven por DNS normal: solo se alcanzan por el circuito. Conectate a uno (una biblioteca libre).",
+        task: "Alcanzá el servicio: onion biblioteca7k2fx.onion",
+        hints: ["Escribí: onion biblioteca7k2fx.onion"],
+        hint: "Escribí: onion biblioteca7k2fx.onion",
+        check: (_cmd, out) => out.includes("ND{onion_alcanzada_con_circuito}"),
+        debrief:
+          "Llegaste al servicio oculto por el circuito, sin mostrar tu IP (bandera ND{onion_alcanzada_con_circuito}). Muchos .onion son legítimos: privacidad, prensa, esquivar censura.",
+      },
+      {
+        explain:
+          "Cierre — ÉTICA. El anonimato es una herramienta neutral: la usan periodistas y también delincuentes. Una última.",
+        task: "Respondé con 'responder ...'",
+        hint: "Con el circuito activo, el destino ve la IP del nodo, NO la tuya.",
+        question: "Con el anonimato activo, ¿el destino ve tu IP real? (sí/no)",
+        answers: ["no"],
+        answerContains: true,
+        debrief:
+          "No: ve la del nodo de salida. Cerraste una investigación OSINT y una operación OPSEC completas. Lo importante: usá esto para PROTEGER tu privacidad y la de otros, no para dañar. Investigar a alguien sin motivo legítimo, o esconderte para hacer daño, no es hacking ético — es delito.",
+      },
+    ],
+  },
 ];
 
 /** Motor de lecciones: mantiene el paso actual de la lección activa. */
