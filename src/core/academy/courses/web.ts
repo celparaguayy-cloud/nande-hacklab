@@ -358,6 +358,16 @@ const WEB_SQLI_UNION: Curso = {
         "Si sabés romperlo, sabés arreglarlo. Reportá y explicá el arreglo.",
       ],
     },
+    {
+      kind: "lab",
+      title: "Capstone: la auditoría COMPLETA, vos solo",
+      body:
+        "Viste las piezas por separado. Ahora unilas como un pentester de verdad: una auditoría de punta a punta a banco.nande — reconocer, enumerar, explotar, saquear e interpretar lo que sacás. Es guiada y te va a preguntar qué encontraste en cada etapa. Tocá el botón para arrancar el engagement en la terminal.",
+      command: "learn l-eng-web",
+      explain:
+        "Esto es la metodología real, no un truco suelto: nmap → gobuster → SQLi de login → volcado por UNION → lectura de los datos → informe. Terminarla demuestra que sabés HACER una auditoría web, no solo repetir un comando.",
+      diagram: "capas",
+    },
   ],
 };
 

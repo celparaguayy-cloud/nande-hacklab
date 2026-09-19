@@ -20,7 +20,10 @@ describe("catálogo de lecciones", () => {
         expect(step.task).not.toBe("");
         expect(step.hint).not.toBe("");
         expect(step.debrief).not.toBe("");
-        expect(typeof step.check).toBe("function");
+        // Un paso es de ACCIÓN (check) o de PREGUNTA (question + answers), nunca vacío.
+        const isAction = typeof step.check === "function";
+        const isQuestion = typeof step.question === "string" && (step.answers?.length ?? 0) > 0;
+        expect(isAction || isQuestion, `paso sin check ni pregunta en ${lesson.id}`).toBe(true);
       }
     }
   });

