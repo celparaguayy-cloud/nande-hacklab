@@ -32,6 +32,7 @@ export const CERTIFICATIONS: Certification[] = [
     description: "Fallos web clásicos: inyección, control de acceso y ejecución.",
     pool: [
       "ND{sqli_login_bypass}",
+      "ND{sqli_union_dump}",
       "ND{idor_album_ajeno}",
       "ND{cmd_injection_pwned}",
       "ND{path_traversal_secreto}",
@@ -134,6 +135,7 @@ export function certificationsFor(flags: string[]): CertProgress[] {
 /** Nombre legible y defensa breve de cada bandera, para la sala de trofeos. */
 export const FLAG_INFO: Record<string, { tecnica: string; defensa: string }> = {
   "ND{sqli_login_bypass}": { tecnica: "Bypass de login (SQLi)", defensa: "Consultas parametrizadas." },
+  "ND{sqli_union_dump}": { tecnica: "Exfiltración de datos con UNION SQLi", defensa: "Consultas parametrizadas; cifrar/hashear contraseñas." },
   "ND{idor_album_ajeno}": { tecnica: "IDOR", defensa: "Chequear el dueño del objeto en el server." },
   "ND{cmd_injection_pwned}": { tecnica: "Inyección de comandos", defensa: "Sin shell; argumentos como lista." },
   "ND{path_traversal_secreto}": { tecnica: "Path traversal", defensa: "Normalizar y confinar la ruta." },

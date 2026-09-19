@@ -26,6 +26,16 @@ interface Reaction {
 
 /** Qué provoca en el mundo cada bandera conocida. */
 const REACTIONS: Record<string, Reaction> = {
+  "ND{sqli_union_dump}": {
+    stock: { ticker: "MBA", factor: -0.15 },
+    headline: {
+      title: "Roban la base de clientes de un banco con inyección SQL",
+      body: "Un atacante extrajo la tabla de usuarios completa vía UNION SELECT.",
+      category: "Seguridad",
+    },
+    notoriety: 14,
+    heat: 18,
+  },
   "ND{sqli_login_bypass}": {
     stock: { ticker: "MBA", factor: -0.12 },
     headline: {

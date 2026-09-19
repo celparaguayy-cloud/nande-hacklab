@@ -29,6 +29,25 @@ describe("sqlmap — inyección real contra el motor SQL del mundo", () => {
     expect(out).not.toContain("ND{sqli_login_bypass}");
   });
 
+  it("--dump extrae la tabla usuarios de verdad vía UNION (con sesión)", () => {
+    // Sesión real por bypass, como haría un atacante.
+    const login = kernel.web.request("POST", "banco.nande", "/login", "", { usuario: "admin' -- ", password: "x" });
+    const cookie = `sesion=${login.setCookies.sesion}`;
+    const out = term.execute(`sqlmap -u "http://banco.nande/movimientos?q=a" --cookie "${cookie}" --dump`);
+    expect(out).toContain("4 columnas"); // detectadas por ORDER BY, no hardcodeado
+    expect(out).toContain("usuarios");
+    expect(out).toContain("M8arete-2024!"); // contraseña REAL extraída del motor SQL
+    expect(kernel.player.capturedFlags()).toContain("ND{sqli_union_dump}");
+  });
+
+  it("--tables enumera tablas por diccionario sin volcar", () => {
+    const login = kernel.web.request("POST", "banco.nande", "/login", "", { usuario: "admin' -- ", password: "x" });
+    const cookie = `sesion=${login.setCookies.sesion}`;
+    const out = term.execute(`sqlmap -u "http://banco.nande/movimientos?q=a" --cookie "${cookie}" --tables`);
+    expect(out).toContain("usuarios");
+    expect(out).not.toContain("M8arete-2024!"); // --tables no vuelca contenido
+  });
+
   it("pide parámetros y respeta el sandbox", () => {
     expect(term.execute("sqlmap -u http://banco.nande/")).toContain("no hay parámetros");
     expect(term.execute("sqlmap -u http://evil.com/?x=1")).toContain("fuera del sandbox");
