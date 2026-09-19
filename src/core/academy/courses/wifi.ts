@@ -364,6 +364,16 @@ const WIFI_AIRCRACK: Curso = {
         "Encontraste una red débil (con permiso): reportala y ayudá a arreglarla.",
       ],
     },
+    {
+      kind: "lab",
+      title: "Capstone: operación WiFi completa",
+      body:
+        "Uní toda la cadena en una sola operación guiada contra una red autorizada (Vecino-2G): modo monitor → escuchar el aire → capturar el handshake con un deauth → crackearlo con diccionario. Te va a preguntar qué ves en cada etapa. Tocá para arrancar en la terminal. (Solo en tu red o con permiso escrito.)",
+      command: "learn l-eng-wifi",
+      explain:
+        "Cadena real de aircrack-ng: airmon-ng → airodump-ng → aireplay-ng (deauth) → aircrack-ng, culminando en ND{wifi_wpa_crackeada}. Entenderla te muestra por qué WPA3 y una frase larga cambian todo.",
+      diagram: "wifi",
+    },
   ],
 };
 

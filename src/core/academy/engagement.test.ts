@@ -94,6 +94,26 @@ describe("Engagement web — auditá el banco de punta a punta", () => {
     }
   });
 
+  it("l-eng-wifi se completa: monitor → escucha → captura → deauth → crackeo", () => {
+    const flow = [
+      "learn l-eng-wifi",
+      "airmon-ng start wlan0",
+      "airodump-ng wlan0mon",
+      "responder 6",
+      "airodump-ng --bssid E8:94:F6:77:88:04 -c 6 -w captura wlan0mon",
+      "aireplay-ng --deauth 5 -a E8:94:F6:77:88:04 wlan0mon",
+      "responder handshake",
+      "aircrack-ng -w rockyou.txt captura-01.cap",
+      "responder invitado",
+      "responder wpa3",
+    ];
+    let last = "";
+    for (const cmd of flow) last = term.execute(cmd);
+    expect(last, "el último paso debería cerrar la lección").toMatch(/Lección completada/i);
+    expect(kernel.player.completedCourses()).toContain("lesson:l-eng-wifi");
+    expect(kernel.player.capturedFlags()).toContain("ND{wifi_wpa_crackeada}");
+  });
+
   it("no avanza si respondés cualquier cosa a una pregunta", () => {
     term.execute("learn l-eng-web");
     term.execute("nmap -sV banco.nande");
