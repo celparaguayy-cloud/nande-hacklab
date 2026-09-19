@@ -1,6 +1,8 @@
 {
   "name": "nande-hacklab",
   "private": true,
+  "license": "SEE LICENSE IN LICENSE",
+  "author": "ÑANDE HACKLAB",
   "version": "0.0.0",
   "type": "module",
   "scripts": {

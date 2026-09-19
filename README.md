@@ -99,6 +99,10 @@ mediante [`.github/workflows`](.github/workflows).
 
 ## Licencia y uso
 
+**© 2026 ÑANDE HACKLAB. Todos los derechos reservados.** Software propietario:
+ver [`LICENSE`](LICENSE). No está permitido copiar, distribuir ni crear obras
+derivadas sin autorización expresa y por escrito del Titular.
+
 Material educativo. Las técnicas que se enseñan acá se practican sobre el
 mundo simulado; aplicarlas contra sistemas ajenos sin autorización expresa
 es un delito en Paraguay y en casi todos lados.
