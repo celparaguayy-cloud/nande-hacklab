@@ -66,6 +66,30 @@ function LearnView({ kernel, onOpenApp }: LearnViewProps) {
 
   const cursoActivo = activeCourse ? kernel.curriculum.get(activeCourse) : undefined;
 
+  // Tarjeta de curso interactivo con su progreso real (se usa en Inicio y Cursos).
+  const courseCardFor = (c: (typeof cursos)[number]) => {
+    const seen = kernel.player.getCourseProgress(c.id);
+    const total = c.slides.length;
+    const isDone = done.has(`curso:${c.id}`);
+    const pct = isDone ? 100 : Math.round((Math.min(seen, total) / total) * 100);
+    const state = isDone ? "Repasar" : seen > 0 ? "Continuar" : "Empezar";
+    return (
+      <CourseCard
+        key={c.id}
+        title={c.title}
+        subtitle={c.subtitle}
+        level={c.level}
+        glyph={c.glyph as GlyphName}
+        hue={c.hue}
+        pct={pct}
+        slides={total}
+        stateLabel={state}
+        done={isDone}
+        onStart={() => setActiveCourse(c.id)}
+      />
+    );
+  };
+
   return (
     <div style={container}>
       {cursoActivo && (
@@ -138,8 +162,14 @@ function LearnView({ kernel, onOpenApp }: LearnViewProps) {
             </div>
           </div>
 
-          <h3 style={sectionTitle}>Empezá acá</h3>
-          {lessons.slice(0, 3).map((l) => (
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "18px 0 10px" }}>
+            <h3 style={{ ...sectionTitle, margin: 0 }}>Cursos interactivos</h3>
+            <button onClick={() => setTab("cursos")} style={linkBtn}>ver todos →</button>
+          </div>
+          {cursos.slice(0, 2).map((c) => courseCardFor(c))}
+
+          <h3 style={sectionTitle}>Practicá en la terminal</h3>
+          {lessons.slice(0, 2).map((l) => (
             <LessonCard
               key={l.id}
               title={l.title}
@@ -162,28 +192,7 @@ function LearnView({ kernel, onOpenApp }: LearnViewProps) {
               "escribí un comando y listo": es entender de verdad.
             </p>
           </div>
-          {cursos.map((c) => {
-            const seen = kernel.player.getCourseProgress(c.id);
-            const total = c.slides.length;
-            const isDone = done.has(`curso:${c.id}`);
-            const pct = isDone ? 100 : Math.round((Math.min(seen, total) / total) * 100);
-            const state = isDone ? "Repasar" : seen > 0 ? "Continuar" : "Empezar";
-            return (
-              <CourseCard
-                key={c.id}
-                title={c.title}
-                subtitle={c.subtitle}
-                level={c.level}
-                glyph={c.glyph as GlyphName}
-                hue={c.hue}
-                pct={pct}
-                slides={total}
-                stateLabel={state}
-                done={isDone}
-                onStart={() => setActiveCourse(c.id)}
-              />
-            );
-          })}
+          {cursos.map((c) => courseCardFor(c))}
         </>
       )}
 
@@ -656,6 +665,10 @@ const courseBannerGlyph: CSSProperties = {
   background: "rgba(255,255,255,0.14)", border: "1px solid rgba(255,255,255,0.22)",
 };
 const sectionTitle: CSSProperties = { margin: "18px 0 10px", fontSize: 16 };
+const linkBtn: CSSProperties = {
+  border: "none", background: "transparent", color: accent, cursor: "pointer",
+  fontSize: 12.5, fontWeight: 600, padding: 4,
+};
 const progressTrack: CSSProperties = { flex: 1, height: 6, borderRadius: 999, background: "#26313b", overflow: "hidden" };
 const progressFill: CSSProperties = { height: "100%", borderRadius: 999, transition: "width .3s ease" };
 const routeLessonRow: CSSProperties = {
