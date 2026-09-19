@@ -410,11 +410,52 @@ export const COURSES: Course[] = [
   },
 ];
 
+/**
+ * Lecciones prácticas ("learn <id>") que componen cada ruta, en orden. Es lo
+ * que convierte un itinerario de texto en una secuencia jugable: la UI de la
+ * Academia muestra estas lecciones, su progreso y un botón para empezarlas.
+ */
+export const COURSE_LESSONS: Record<string, string[]> = {
+  computacion: ["l-cero-consola", "l-cero-mirar", "l-cero-moverse"],
+  linux: ["l-cero-consola", "l-cero-mirar", "l-cero-moverse", "l-servicios", "l-codigo"],
+  redes: ["l-dns"],
+  reconocimiento: ["l-nmap", "l-gobuster", "l-osint"],
+  "web-basics": ["l-dns", "l-http-xss"],
+  "web-security": ["l-sqli", "l-web-sqli-login", "l-web-sqli-union", "l-web-idor", "l-web-cmdi", "l-http-xss", "l-jwt"],
+  owasp: ["l-owasp-cmdi", "l-owasp-ssrf", "l-owasp-misconf", "l-owasp-auth"],
+  passwords: ["l-cripto", "l-jwt"],
+  phishing: ["l-phishing"],
+  pentesting: ["l-nmap", "l-gobuster", "l-sqli", "l-privesc", "l-pivoting"],
+  privesc: ["l-privesc"],
+  "blue-team": ["l-blue", "l-blueteam"],
+  forense: ["l-reversing", "l-threatintel"],
+  cripto: ["l-cripto"],
+  reversing: ["l-reversing"],
+  "red-team": ["l-pivoting", "l-pivot", "l-privesc"],
+  "blue-team-track": ["l-blue", "l-blueteam"],
+  "purple-team": ["l-blueteam", "l-blue", "l-threatintel"],
+  anonimato: ["l-anonimato", "l-opsec"],
+  advanced: ["l-cloud", "l-devsecops"],
+  nandeshark: ["l-blueteam"],
+  "active-directory": ["l-pivoting"],
+  "purple-mitre": ["l-threatintel", "l-blueteam"],
+  "opsec-5": ["l-opsec", "l-anonimato"],
+  "ctf-procedural": [],
+  "web-basics-5": [],
+  pagos: [],
+  "web-security-5": [],
+};
+
 export class Academy {
   private courses: Map<string, Course>;
 
   constructor() {
     this.courses = new Map(COURSES.map((course) => [course.id, course]));
+  }
+
+  /** Lecciones prácticas de una ruta, en orden (ids de `learn`). */
+  lessonsFor(id: string): string[] {
+    return [...(COURSE_LESSONS[id] ?? [])];
   }
 
   all(): Course[] {

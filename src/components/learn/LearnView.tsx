@@ -138,19 +138,66 @@ function LearnView({ kernel, onOpenApp }: LearnViewProps) {
       {tab === "rutas" && (
         <>
           <h3 style={sectionTitle}>Ruta completa · de cero a experto</h3>
-          {courses.map((c) => (
-            <div key={c.id} style={card}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-                <strong>{c.title}</strong>
-                <span style={levelBadge(c.level)}>{c.level}</span>
+          {courses.map((c) => {
+            const routeLessons = kernel.academy.lessonsFor(c.id);
+            const total = routeLessons.length;
+            const hechas = routeLessons.filter((id) => done.has(`lesson:${id}`)).length;
+            const pct = total ? Math.round((hechas / total) * 100) : 0;
+            const blocked = kernel.academy.missingRequirements(c.id, player.completedCourses);
+            return (
+              <div key={c.id} style={card}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                  <strong>{c.title}</strong>
+                  <span style={levelBadge(c.level)}>{c.level}</span>
+                </div>
+                <p style={{ fontSize: 13, opacity: 0.85, margin: "8px 0" }}>{c.simple}</p>
+
+                {total > 0 && (
+                  <>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "2px 0 8px" }}>
+                      <div style={progressTrack}>
+                        <div style={{ ...progressFill, width: `${pct}%`, background: accent }} />
+                      </div>
+                      <span style={{ fontSize: 11, opacity: 0.7, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
+                        {hechas}/{total}
+                      </span>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                      {routeLessons.map((id, i) => {
+                        const lesson = kernel.lessons.get(id);
+                        if (!lesson) return null;
+                        const isDone = done.has(`lesson:${id}`);
+                        const inProgress = player.lessonProgress?.id === id;
+                        return (
+                          <button
+                            key={id}
+                            style={routeLessonRow}
+                            onClick={() => startLesson(id)}
+                          >
+                            <span style={{ width: 18, textAlign: "center" }}>
+                              {isDone ? "✅" : inProgress ? "⏸️" : `${i + 1}`}
+                            </span>
+                            <span style={{ flex: 1, minWidth: 0, textAlign: "left" }}>{lesson.title}</span>
+                            <span style={{ fontSize: 11, color: accent }}>
+                              {isDone ? "repasar" : inProgress ? "seguir" : "empezar"}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+
+                <div style={{ fontSize: 12, opacity: 0.7, marginTop: total ? 8 : 0 }}>
+                  {blocked.length
+                    ? `🔒 Conviene completar antes: ${blocked.join(", ")}`
+                    : total === 0
+                      ? `Temas: ${c.topics.slice(0, 4).join(" · ")}`
+                      : "Requisitos cumplidos ✓"}
+                </div>
               </div>
-              <p style={{ fontSize: 13, opacity: 0.85, margin: "8px 0" }}>{c.simple}</p>
-              <div style={{ fontSize: 12, opacity: 0.7 }}>
-                {c.requires.length ? `Antes: ${c.requires.join(", ")}` : "Sin requisitos"}
-                {" · "}{c.topics.slice(0, 4).join(" · ")}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </>
       )}
 
@@ -509,6 +556,13 @@ const card: CSSProperties = {
   padding: 14, borderRadius: 12, background: "#111820", border: "1px solid #26313b", marginBottom: 12,
 };
 const sectionTitle: CSSProperties = { margin: "18px 0 10px", fontSize: 16 };
+const progressTrack: CSSProperties = { flex: 1, height: 6, borderRadius: 999, background: "#26313b", overflow: "hidden" };
+const progressFill: CSSProperties = { height: "100%", borderRadius: 999, transition: "width .3s ease" };
+const routeLessonRow: CSSProperties = {
+  display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "6px 8px",
+  background: "#0e141b", border: "1px solid #1b2733", borderRadius: 7, cursor: "pointer",
+  color: "#e6edf3", fontSize: 12.5,
+};
 const sevBadge: CSSProperties = { fontSize: 11.5, fontWeight: 700, padding: "3px 9px", borderRadius: 999 };
 const stdBadge: CSSProperties = {
   fontSize: 10.5, padding: "3px 7px", borderRadius: 6,
