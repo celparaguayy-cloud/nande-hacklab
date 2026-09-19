@@ -1468,6 +1468,111 @@ export const LESSONS: Lesson[] = [
       },
     ],
   },
+  {
+    id: "l-eng-blue",
+    title: "ENGAGEMENT: cazá al atacante (Blue Team)",
+    level: "avanzado",
+    summary:
+      "La otra mitad del oficio: sos el analista del SOC y tenés que detectar, correlacionar y reconstruir el MISMO ataque que aprendiste a hacer.",
+    concept:
+      "Ahora estás del lado que defiende. Alguien atacó web-prod-01 y dejó rastros en los logs. Tu trabajo de analista SOC: (1) leer los registros, (2) hacer TRIAGE (¿es real o falso positivo?), (3) correlacionar en el SIEM, (4) reconstruir el timeline (DFIR) y (5) reportar. Vas a reconocer las técnicas: son la fuerza bruta y la SQLi que vos mismo practicaste. Atacar te enseñó a defender.",
+    reward: { xp: 340, coins: 280 },
+    steps: [
+      {
+        explain:
+          "Paso 1 — LEER LOS LOGS. Todo incidente deja huellas. Mirá los registros de acceso crudos del servidor atacado.",
+        task: "Leé los logs: curl http://soc.nande/logs",
+        hints: ["Escribí: curl http://soc.nande/logs"],
+        hint: "Escribí: curl http://soc.nande/logs",
+        check: (cmd, out) =>
+          usedTool(cmd, "curl") && /10\.10\.66\.13/.test(out) && /401/.test(out),
+        debrief:
+          "Una IP salta: 10.10.66.13 hizo varios POST /login con 401 (fallos) y después un UNION SELECT y acceso a /admin. El resto del tráfico es normal. Esa IP es tu sospechosa.",
+      },
+      {
+        explain: "Leé los logs y respondé.",
+        task: "Respondé con 'responder ...'",
+        hint: "Es la IP que repite POST /login con 401.",
+        question: "¿Qué IP hizo los intentos fallidos (401) contra /login?",
+        answers: ["10.10.66.13"],
+        answerContains: true,
+        debrief: "Esa IP concentra toda la actividad sospechosa. Ahora hay que decidir si es un incidente real.",
+      },
+      {
+        explain:
+          "Paso 2 — TRIAGE. No toda alerta es un ataque; muchas son ruido (falsos positivos). Clasificá la alerta A3 para decidir si escala.",
+        task: "Hacé triage: curl http://soc.nande/triage?id=A3",
+        hints: ["Escribí: curl http://soc.nande/triage?id=A3"],
+        hint: "Escribí: curl http://soc.nande/triage?id=A3",
+        check: (_cmd, out) => out.includes("ND{soc_triage}"),
+        debrief:
+          "Triage correcto: 401 repetidos y LUEGO un 200 en /admin tras un UNION SELECT no es ruido — es un incidente real. Lo escalaste (bandera ND{soc_triage}).",
+      },
+      {
+        explain: "Pensá en lo que viste y respondé.",
+        task: "Respondé con 'responder ...'",
+        hint: "Hubo fallos y después acceso al panel: no es ruido.",
+        question: "¿La alerta es un incidente real o un falso positivo?",
+        answers: ["incidente", "real", "incidente real", "es real"],
+        answerContains: true,
+        debrief: "Real. Un buen analista separa lo real del ruido antes de gastar tiempo. Vamos a juntar todo en el SIEM.",
+      },
+      {
+        explain:
+          "Paso 3 — CORRELACIÓN (SIEM). Un SIEM junta eventos sueltos de muchas fuentes en una sola historia. Buscá todos los eventos de la IP atacante.",
+        task: "Correlacioná: curl http://soc.nande/siem?q=10.10.66.13",
+        hints: ["Escribí: curl http://soc.nande/siem?q=10.10.66.13"],
+        hint: "Escribí: curl http://soc.nande/siem?q=10.10.66.13",
+        check: (_cmd, out) => out.includes("ND{siem_correlacion}"),
+        debrief:
+          "El SIEM te muestra los 7 eventos del atacante en orden: reconocimiento, 3 fallos de login, la inyección UNION, y el acceso + exportación de /admin (bandera ND{siem_correlacion}). Ya ves la película completa.",
+      },
+      {
+        explain: "Mirá la secuencia correlacionada y respondé.",
+        task: "Respondé con 'responder ...'",
+        hint: "Después de los 401 aparece un 'UNION SELECT ... FROM usuarios': es una inyección ___.",
+        question: "¿Qué técnica usó el atacante para robar las credenciales tras los fallos de login?",
+        answers: ["sql", "sqli", "union", "inyeccion sql", "inyección sql", "inyeccion"],
+        answerContains: true,
+        debrief: "Inyección SQL (UNION), la misma que practicaste atacando. Reconocerla en un log es medio trabajo del defensor.",
+      },
+      {
+        explain:
+          "Paso 4 — RECONSTRUCCIÓN (DFIR). Armá la línea de tiempo del incidente indicando qué pasó primero y cuál fue la causa raíz.",
+        task:
+          "Reconstruí: curl \"http://soc.nande/incidente?primero=fuerza+bruta&causa=inyeccion+sql\"",
+        hints: [
+          "El primer evento fue la fuerza bruta; la causa que dejó entrar fue la inyección SQL.",
+          "curl \"http://soc.nande/incidente?primero=fuerza+bruta&causa=inyeccion+sql\"",
+        ],
+        hint: "curl \"http://soc.nande/incidente?primero=fuerza+bruta&causa=inyeccion+sql\"",
+        check: (_cmd, out) => out.includes("ND{dfir_timeline}"),
+        debrief:
+          "Timeline reconstruido: fuerza bruta → SQLi → acceso a /admin → exfiltración de la tabla clientes. Causa raíz: buscador vulnerable a SQLi y sin bloqueo por intentos (bandera ND{dfir_timeline}).",
+      },
+      {
+        explain:
+          "Paso 5 — INFORME. Cerrá el caso reportando el atacante y la técnica.",
+        task: "Reportá: curl \"http://soc.nande/reportar?ip=10.10.66.13&tecnica=sql\"",
+        hints: ["curl \"http://soc.nande/reportar?ip=10.10.66.13&tecnica=sql\""],
+        hint: "curl \"http://soc.nande/reportar?ip=10.10.66.13&tecnica=sql\"",
+        check: (_cmd, out) => out.includes("ND{forense_intrusion}"),
+        debrief:
+          "Incidente confirmado y documentado (bandera ND{forense_intrusion}). Un informe claro es lo que permite arreglar la falla y que no se repita.",
+      },
+      {
+        explain:
+          "Cierre — LA CURA. El atacante entró por el buscador. Una palabra sobre cómo se tapa esa puerta.",
+        task: "Respondé con 'responder ...'",
+        hint: "Separan la orden del dato para que el UNION no funcione: consultas ___.",
+        question: "¿Qué arreglo en el buscador habría evitado el robo de credenciales?",
+        answers: ["preparadas", "parametrizadas", "prepared", "consultas preparadas"],
+        answerContains: true,
+        debrief:
+          "Consultas preparadas cierran la SQLi, y el bloqueo por intentos (fail2ban) corta la fuerza bruta. Cerraste una investigación completa: logs → triage → correlación → DFIR → informe. El atacante y el defensor estudian lo MISMO; por eso saber atacar te hace mejor defensor.",
+      },
+    ],
+  },
 ];
 
 /** Motor de lecciones: mantiene el paso actual de la lección activa. */

@@ -71,6 +71,29 @@ describe("Engagement web — auditá el banco de punta a punta", () => {
     expect(flags).toContain("ND{pivoting_red_interna}");
   });
 
+  it("l-eng-blue se completa: logs → triage → SIEM → DFIR → informe", () => {
+    const flow = [
+      "learn l-eng-blue",
+      "curl http://soc.nande/logs",
+      "responder 10.10.66.13",
+      "curl http://soc.nande/triage?id=A3",
+      "responder incidente",
+      "curl http://soc.nande/siem?q=10.10.66.13",
+      "responder sql",
+      "curl \"http://soc.nande/incidente?primero=fuerza+bruta&causa=inyeccion+sql\"",
+      "curl \"http://soc.nande/reportar?ip=10.10.66.13&tecnica=sql\"",
+      "responder preparadas",
+    ];
+    let last = "";
+    for (const cmd of flow) last = term.execute(cmd);
+    expect(last, "el último paso debería cerrar la lección").toMatch(/Lección completada/i);
+    expect(kernel.player.completedCourses()).toContain("lesson:l-eng-blue");
+    const flags = kernel.player.capturedFlags();
+    for (const f of ["ND{soc_triage}", "ND{siem_correlacion}", "ND{dfir_timeline}", "ND{forense_intrusion}"]) {
+      expect(flags, `falta ${f}`).toContain(f);
+    }
+  });
+
   it("no avanza si respondés cualquier cosa a una pregunta", () => {
     term.execute("learn l-eng-web");
     term.execute("nmap -sV banco.nande");

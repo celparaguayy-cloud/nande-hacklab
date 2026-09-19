@@ -490,6 +490,16 @@ const BLUE_DFIR: Curso = {
         "El hacker ético reporta, documenta y ayuda a arreglar; no roba.",
       ],
     },
+    {
+      kind: "lab",
+      title: "Capstone: investigación completa en el SOC",
+      body:
+        "Ponete el sombrero de analista y resolvé un incidente real de punta a punta en el SOC: leé los logs, hacé triage, correlacioná en el SIEM, reconstruí el timeline (DFIR) y reportá. Vas a reconocer las técnicas — son la fuerza bruta y la SQLi que aprendiste a atacar, ahora vistas desde la defensa. Tocá para arrancar en la terminal.",
+      command: "learn l-eng-blue",
+      explain:
+        "Metodología azul completa: logs → triage → SIEM → DFIR → informe (ND{soc_triage}, ND{siem_correlacion}, ND{dfir_timeline}, ND{forense_intrusion}). El atacante y el defensor estudian lo mismo: por eso saber atacar te hace mejor defensor.",
+      diagram: "capas",
+    },
   ],
 };
 
