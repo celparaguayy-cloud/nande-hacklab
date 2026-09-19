@@ -107,7 +107,7 @@ const FUNDAMENTOS: Curso = {
     {
       kind: "build",
       goal: "Preguntarle al DNS qué IP tiene el dominio banco.nande",
-      pieces: ["nslookup", "banco.nande", "ping", "google.com"],
+      pieces: ["nslookup", "banco.nande", "dig", "10.10.5.20"],
       answer: ["nslookup", "banco.nande"],
       hint: "La herramienta que 'busca el número' se llama nslookup. Después va el nombre que querés resolver.",
       explain:

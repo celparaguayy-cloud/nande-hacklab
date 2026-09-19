@@ -127,9 +127,9 @@ const PASS_BASICO: Curso = {
     {
       kind: "build",
       goal: "Armar el comando de hydra que prueba un diccionario de claves contra el SSH de server.nande (el servidor autorizado del laboratorio)",
-      pieces: ["hydra", "ssh://server.nande", "nmap", "https://google.com"],
+      pieces: ["hydra", "ssh://server.nande", "nmap", "ftp://server.nande", "http://server.nande"],
       answer: ["hydra", "ssh://server.nande"],
-      hint: "La herramienta de fuerza bruta se llama hydra. Después va el servicio y el objetivo, juntos: ssh://server.nande.",
+      hint: "La herramienta de fuerza bruta se llama hydra (no nmap, que solo escanea). Después va el SERVICIO correcto y el objetivo, juntos: ssh://server.nande (no ftp ni http).",
       explain:
         "hydra ssh://server.nande le dice a hydra: probá el diccionario contra el servicio SSH de server.nande. Así se ve, de verdad, un ataque de diccionario. En el próximo curso vas a afinar este comando; acá primero conocés su forma.",
     },

@@ -493,8 +493,132 @@ const BLUE_DFIR: Curso = {
   ],
 };
 
+/* ------------------------------------------------------------------ *
+ *  Reconocé el engaño — phishing e ingeniería social (defensa personal) *
+ * ------------------------------------------------------------------ */
+
+const PHISHING: Curso = {
+  id: "c-phishing",
+  title: "Reconocé el engaño (phishing)",
+  subtitle: "El ataque más común no rompe la máquina: te engaña a vos.",
+  level: "principiante",
+  skill: "blue-team",
+  hue: 15,
+  glyph: "mask",
+  reward: { xp: 110, coins: 80 },
+  slides: [
+    {
+      kind: "concept",
+      title: "El eslabón más fácil sos vos",
+      body:
+        "La mayoría de los hackeos reales no empiezan rompiendo un servidor: empiezan con un mensaje que te convence de entregar tu contraseña o hacer clic donde no debías. Eso es INGENIERÍA SOCIAL, y su forma más común es el PHISHING: un mensaje que se disfraza de algo confiable (tu banco, un premio, tu escuela, un amigo) para robarte.",
+      diagram: "phishing",
+      bullets: [
+        "No te atacan a la máquina: te atacan a la confianza.",
+        "Ningún antivirus te salva si vos mismo entregás la clave.",
+      ],
+    },
+    {
+      kind: "concept",
+      title: "Las 4 señales de un anzuelo",
+      body:
+        "Casi todo phishing tiene al menos una de estas señales:\n\n1. URGENCIA: '¡tu cuenta se cierra en 24h!' (te apuran para que no pienses).\n2. REMITENTE RARO: el nombre dice 'Banco' pero el correo es banco-seguro@correo-raro.com.\n3. LINK QUE NO COINCIDE: el texto dice banco.nande pero el link real va a otro lado.\n4. TE PIDE DATOS: contraseña, código, número de tarjeta. Nadie serio los pide por mensaje.",
+      diagram: "phishing",
+      bullets: [
+        "Urgencia + remitente raro + link tramposo + pide datos = anzuelo.",
+        "Con una sola señal ya conviene desconfiar.",
+      ],
+    },
+    {
+      kind: "quiz",
+      prompt:
+        "Te llega: 'BANCO: detectamos un acceso raro. Confirmá tu clave en este link en 1 hora o bloqueamos tu cuenta.' ¿Qué es?",
+      options: [
+        "Phishing: usa urgencia y te pide la clave por un link",
+        "Un aviso normal del banco, hay que apurarse",
+        "Spam inofensivo, nada que ver con seguridad",
+        "Un antivirus avisando de un virus",
+      ],
+      correct: 0,
+      explain:
+        "Urgencia ('1 hora'), pide la clave, y manda a un link. Un banco de verdad NUNCA te pide la contraseña por mensaje. Ante la duda, entrá vos escribiendo la dirección a mano, no por el link.",
+      diagram: "phishing",
+    },
+    {
+      kind: "concept",
+      title: "Mirá el link ANTES de tocar",
+      body:
+        "El texto de un link y su destino real pueden ser distintos. En la compu, pasá el mouse por encima (sin hacer clic) y mirá abajo a dónde va. En el celu, mantené apretado para ver la URL. Fijate SIEMPRE en el dominio real: en http://banco.nande.premios-gratis.com el dominio de verdad es premios-gratis.com, NO banco.nande. Lo que manda es lo que está justo antes de la primera barra.",
+      diagram: "url",
+      bullets: [
+        "El dominio real es lo que está pegado antes de la primera '/'.",
+        "banco.nande.otracosa.com NO es banco.nande.",
+      ],
+    },
+    {
+      kind: "quiz",
+      prompt: "¿Cuál de estas direcciones es realmente del banco banco.nande?",
+      options: [
+        "https://banco.nande/login",
+        "http://banco.nande.seguro-cuenta.com/login",
+        "http://banco-nande.com/login",
+        "https://login.banco.nande.premios.net/",
+      ],
+      correct: 0,
+      explain:
+        "Solo la primera tiene a banco.nande como dominio real (antes de la primera barra). Las otras usan el nombre 'banco.nande' como carnada dentro de otro dominio (seguro-cuenta.com, premios.net) o lo cambian (banco-nande.com con guion).",
+      diagram: "url",
+    },
+    {
+      kind: "build",
+      goal: "Armá la dirección VERDADERA y segura del banco (protocolo con candado + dominio real)",
+      pieces: ["https://", "banco.nande", "http://", "banco.nande.premios.com", "/login"],
+      answer: ["https://", "banco.nande", "/login"],
+      hint: "Querés el candado (https://), el dominio REAL (banco.nande, no uno que lo use de carnada) y la ruta del login.",
+      explain:
+        "https://banco.nande/login: https por el candado (cifrado), banco.nande como dominio real, y /login la página. Aprender a leer una URL parte por parte es tu mejor defensa contra el phishing.",
+    },
+    {
+      kind: "concept",
+      title: "Si ya picaste (y cómo blindarte)",
+      body:
+        "Si diste tu clave en un sitio falso: cambiala YA en el sitio real, y en todo otro lado donde la repetías. Para blindarte antes de que pase:\n\n• 2FA (segundo factor): aunque roben tu clave, sin el código de tu celu no entran.\n• Contraseñas distintas por sitio (un gestor las recuerda).\n• Desconfiá de la urgencia: parar y pensar es la defensa.\n• Verificá por otro canal: llamá al banco al número oficial, no al del mensaje.",
+      diagram: "escudo",
+      bullets: [
+        "2FA es tu mejor escudo: convierte una clave robada en algo inútil.",
+        "Reportá el intento (a la escuela, al banco): ayudás a los demás.",
+      ],
+    },
+    {
+      kind: "quiz",
+      prompt: "¿Por qué el 2FA (segundo factor) te protege aunque te roben la contraseña?",
+      options: [
+        "Porque hace falta también un código de tu celular, que el atacante no tiene",
+        "Porque cambia tu contraseña sola cada día",
+        "Porque borra los correos de phishing",
+        "Porque esconde tu dirección IP",
+      ],
+      correct: 0,
+      explain:
+        "El 2FA pide algo que TENÉS (tu celu) además de algo que SABÉS (la clave). Con la clave robada no alcanza: falta el código. Por eso activarlo en tus cuentas importantes es la defensa más grande por el menor esfuerzo.",
+      diagram: "escudo",
+    },
+    {
+      kind: "concept",
+      title: "Repaso: pensá antes de tocar",
+      body:
+        "El phishing no le gana a tu máquina, le gana a tu apuro. Ya sabés detectarlo:\n\n1. ¿Me apuran o me asustan? (urgencia)\n2. ¿El remitente y el link son los reales? (mirá el dominio)\n3. ¿Me piden datos que nadie debería pedir? (clave, código)\n4. Ante la duda: entrá vos a mano y verificá por otro canal.\n\nY blindate con 2FA y claves distintas. Un buen hacker ético también enseña esto a su familia: es la defensa que más gente necesita.",
+      diagram: "phishing",
+      bullets: [
+        "Urgencia → dominio → datos pedidos → verificá aparte.",
+        "2FA + claves únicas + desconfiar del apuro.",
+      ],
+    },
+  ],
+};
+
 /**
  * Cursos del módulo "blue". Se completa con cursos interactivos completos
  * (concept + quiz + build + lab) ligados a las herramientas reales de ÑANDE.
  */
-export const BLUE_COURSES: Curso[] = [BLUE_INTRO, BLUE_SIEM, BLUE_DFIR];
+export const BLUE_COURSES: Curso[] = [BLUE_INTRO, BLUE_SIEM, BLUE_DFIR, PHISHING];

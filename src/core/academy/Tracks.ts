@@ -288,7 +288,7 @@ export const TRACKS: LearningTrack[] = [
     subtitle: "La base de todo: la terminal, los archivos y cómo funciona Internet.",
     glyph: "sprout",
     hue: 205,
-    courseIds: ["c-linux-terminal", "c-linux-archivos", "c-fundamentos", "c-linux-buscar"],
+    courseIds: ["c-linux-terminal", "c-linux-archivos", "c-fundamentos", "c-linux-buscar", "c-phishing"],
   },
   {
     id: "t-redes",
