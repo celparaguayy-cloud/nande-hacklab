@@ -237,15 +237,48 @@ export const LESSONS: Lesson[] = [
     steps: [
       {
         explain:
-          "gobuster prueba una lista de nombres de carpeta contra la web y te dice cuáles existen.",
+          "gobuster prueba una lista de nombres de carpeta contra la web y te dice cuáles existen (código 200), sin necesidad de que estén enlazadas.",
         task: "Buscá rutas ocultas: gobuster 10.10.5.10",
         hint: "Escribí: gobuster 10.10.5.10",
+        hints: [
+          "La herramienta se llama gobuster y necesita el objetivo.",
+          "El objetivo es la máquina 10.10.5.10.",
+          "Escribí exactamente: gobuster 10.10.5.10",
+        ],
         check: (cmd, out) =>
-          usedTool(cmd, "gobuster") &&
-          cmd.includes("10.10.5.10") &&
-          out.includes("/admin"),
+          usedTool(cmd, "gobuster") && cmd.includes("10.10.5.10") && out.includes("/admin"),
         debrief:
-          "Apareció /admin, una ruta que no estaba a la vista. Los paneles ocultos son un blanco típico. Defensa: no dejar paneles sin proteger y vigilar los 404 masivos.",
+          "Apareció /admin y /robots.txt: rutas que no estaban a la vista. Los paneles ocultos son un blanco típico.",
+      },
+      {
+        explain:
+          "Encontrar una ruta no es entrar: hay que pedirla. Con curl le hacés la petición HTTP directamente y ves qué responde.",
+        task: "Abrí la ruta oculta: curl http://10.10.5.10/admin",
+        hint: "Escribí: curl http://10.10.5.10/admin",
+        hints: [
+          "Usá curl contra la URL completa.",
+          "La URL es http://10.10.5.10/admin",
+          "Escribí: curl http://10.10.5.10/admin",
+        ],
+        check: (cmd, out) =>
+          usedTool(cmd, "curl") && cmd.includes("/admin") && /200|admin/i.test(out),
+        debrief:
+          "El servidor te devolvió la página del panel: estaba ahí, sólo que sin enlace. 'Oculto' no es 'protegido'.",
+      },
+      {
+        explain:
+          "robots.txt le pide a los buscadores que NO indexen ciertas rutas… lo que a un atacante le sirve justo para descubrirlas. Es lo primero que se mira.",
+        task: "Leé el mapa que el sitio regala: curl http://10.10.5.10/robots.txt",
+        hint: "Escribí: curl http://10.10.5.10/robots.txt",
+        hints: [
+          "Pedí el archivo robots.txt con curl.",
+          "La URL es http://10.10.5.10/robots.txt",
+          "Escribí: curl http://10.10.5.10/robots.txt",
+        ],
+        check: (cmd, out) =>
+          usedTool(cmd, "curl") && cmd.includes("robots.txt") && /200|robots|disallow|admin/i.test(out),
+        debrief:
+          "robots.txt suele listar justo las rutas 'privadas'. Defensa: no confiar en robots para esconder nada, proteger los paneles con autenticación y vigilar los 404 masivos de un gobuster.",
       },
     ],
   },
@@ -1019,12 +1052,45 @@ export const LESSONS: Lesson[] = [
           "Preguntémosle al DNS qué número (IP) tiene un nombre. Es como buscar un contacto en la agenda: ponés el nombre y te da el teléfono.",
         task: "Traducí el nombre a IP: nslookup banco.nande",
         hint: "Escribí: nslookup banco.nande",
+        hints: [
+          "La herramienta se llama nslookup.",
+          "Pedile la IP de banco.nande.",
+          "Escribí: nslookup banco.nande",
+        ],
         check: (cmd, out) =>
-          usedTool(cmd, "nslookup") &&
-          /address|10\.10\./i.test(out) &&
-          out.includes("10.10.7.10"),
+          usedTool(cmd, "nslookup") && out.includes("10.10.7.10"),
         debrief:
-          "banco.nande vive en 10.10.7.10. Todo nombre en internet se traduce así antes de conectarse. Para un hacker esto importa: a veces el nombre lindo esconde una IP interna que no debería verse, y el DNS te la revela.",
+          "banco.nande vive en 10.10.7.10. Todo nombre se traduce así antes de conectarse.",
+      },
+      {
+        explain:
+          "Cada nombre tiene su propio número. Probá otro host del mundo y compará: el DNS te va armando el mapa de la red.",
+        task: "Traducí otro nombre: nslookup server.nande",
+        hint: "Escribí: nslookup server.nande",
+        hints: [
+          "Mismo comando, otro nombre.",
+          "El host es server.nande.",
+          "Escribí: nslookup server.nande",
+        ],
+        check: (cmd, out) =>
+          usedTool(cmd, "nslookup") && cmd.includes("server.nande") && out.includes("10.10.0.42"),
+        debrief:
+          "server.nande está en 10.10.0.42, otra subred. Mapear nombre→IP es el primer paso del reconocimiento.",
+      },
+      {
+        explain:
+          "dig es la herramienta pro para consultar DNS: muestra el 'registro A' (el que liga nombre → IPv4) con más detalle que nslookup.",
+        task: "Consultá el registro A: dig banco.nande",
+        hint: "Escribí: dig banco.nande",
+        hints: [
+          "La herramienta se llama dig.",
+          "Consultá banco.nande.",
+          "Escribí: dig banco.nande",
+        ],
+        check: (cmd, out) =>
+          usedTool(cmd, "dig") && cmd.includes("banco.nande") && /\bA\b|10\.10\.7\.10/.test(out),
+        debrief:
+          "El registro A es el que traduce a IPv4. Para un atacante, el DNS revela nombres internos y a veces IPs que no deberían verse desde afuera. Defensa: separar el DNS interno del público (split-horizon).",
       },
     ],
   },

@@ -22,9 +22,11 @@ describe("lecciones nuevas — verificadas contra la terminal real", () => {
     term = new VirtualTerminal(kernel);
   });
 
-  it("l-dns: nslookup traduce nombre a IP", () => {
+  it("l-dns: nslookup + dig completan el lab de 3 pasos", () => {
     term.execute("learn l-dns");
-    const done = term.execute("nslookup banco.nande");
+    term.execute("nslookup banco.nande");
+    term.execute("nslookup server.nande");
+    const done = term.execute("dig banco.nande");
     expect(done).toContain("Lección completada");
   });
 
