@@ -1181,6 +1181,10 @@ const RUNNERS: Record<string, Runner> = {
     if (target) {
       const ap = radio.resolve(target);
       if (!ap) return { output: `airodump-ng: no veo el AP "${target}" en el aire.\n`, isError: false };
+      // -w <nombre>: airodump escribe <nombre>-01.cap; lo mapeamos a este AP.
+      const wIdx = args.indexOf("-w");
+      const capName = wIdx >= 0 ? args[wIdx + 1] : undefined;
+      if (capName) radio.recordCaptureFile(capName, ap.bssid);
       const clients = ap.clients.length
         ? ap.clients.map((c) => ` ${ap.bssid}  ${c}  ${ap.power - 4}   0 - 1      54`).join("\n")
         : " (sin clientes asociados)";
@@ -1253,9 +1257,11 @@ const RUNNERS: Record<string, Runner> = {
     if (!radio) return { output: "aircrack-ng: la radio no está disponible.\n", isError: true };
     const wIdx = args.indexOf("-w");
     const wordlist = wIdx >= 0 ? args[wIdx + 1] ?? "rockyou.txt" : "rockyou.txt";
-    const target =
-      args.find((a, i) => !a.startsWith("-") && i !== wIdx + 1 && !a.endsWith(".cap")) ??
-      args.find((a) => a.endsWith(".cap"))?.replace(/\.cap$/, "");
+    const capArg = args.find((a) => a.endsWith(".cap"));
+    const essidTarget = args.find((a, i) => !a.startsWith("-") && i !== wIdx + 1 && !a.endsWith(".cap"));
+    // Un .cap se resuelve al AP cuyo handshake capturó airodump/aireplay.
+    const capAp = capArg ? radio.resolveCaptureFile(capArg) : undefined;
+    const target = essidTarget ?? capAp?.essid ?? "";
     if (!target) {
       return {
         output:

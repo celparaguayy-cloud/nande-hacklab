@@ -107,6 +107,10 @@ export class WirelessRadio {
   private aps: AccessPoint[];
   private monitor = false;
   private captures = new Map<string, Capture>();
+  /** Archivos .cap escritos por airodump (nombre base → BSSID). */
+  private captureFiles = new Map<string, string>();
+  /** Último AP cuyo handshake se capturó (para resolver un .cap suelto). */
+  private lastCaptured: string | null = null;
 
   constructor() {
     this.aps = seedAccessPoints();
@@ -168,6 +172,21 @@ export class WirelessRadio {
     return c;
   }
 
+  /** airodump -w <nombre>: registra el archivo de captura de un AP enfocado. */
+  recordCaptureFile(name: string, ref: string): void {
+    const ap = this.resolve(ref);
+    if (ap) this.captureFiles.set(name.replace(/\.cap$/i, "").replace(/-\d+$/, ""), ap.bssid);
+  }
+
+  /** Resuelve un archivo .cap (captura-01.cap) al AP correspondiente. */
+  resolveCaptureFile(filename: string): AccessPoint | undefined {
+    const base = filename.replace(/\.cap$/i, "").replace(/-\d+$/, "");
+    const bssid = this.captureFiles.get(base);
+    if (bssid) return this.aps.find((a) => a.bssid === bssid);
+    // Si no hay mapeo explícito, el .cap es el del último handshake capturado.
+    return this.lastCaptured ? this.aps.find((a) => a.bssid === this.lastCaptured) : undefined;
+  }
+
   hasHandshake(ref: string): boolean {
     const ap = this.resolve(ref);
     return ap ? !!this.captures.get(ap.bssid)?.handshake : false;
@@ -209,6 +228,7 @@ export class WirelessRadio {
     const cap = this.captureOf(ap.bssid);
     cap.handshake = true;
     cap.data += 1;
+    this.lastCaptured = ap.bssid;
     return {
       ok: true,
       captured: true,
@@ -286,5 +306,7 @@ export class WirelessRadio {
     this.aps = seedAccessPoints();
     this.monitor = false;
     this.captures.clear();
+    this.captureFiles.clear();
+    this.lastCaptured = null;
   }
 }
