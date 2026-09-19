@@ -298,7 +298,7 @@ export class VirtualKernel {
 
     this.news = new NewsEngine();
     this.radio = new WirelessRadio();
-    this.tools = new SecurityTools(this.network, this.dns, this.hosts, this.radio);
+    this.tools = new SecurityTools(this.network, this.dns, this.hosts, this.radio, this.web);
     this.academy = new Academy();
     this.lessons = new LessonEngine();
     this.player = new Progression(this.events);

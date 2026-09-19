@@ -1,5 +1,6 @@
 import { TOOL_CATALOG } from "./toolCatalog";
 import type { WirelessRadio } from "../hardware/WirelessRadio";
+import type { WebServer } from "../http/WebServer";
 import type { ToolCategory, ToolDef, ToolLevel } from "./toolCatalog";
 import { LabNetwork } from "./LabNetwork";
 import type { VirtualNetwork } from "../network/VirtualNetwork";
@@ -19,6 +20,8 @@ export interface ToolRunResult {
 interface ToolContext {
   /** Radio 802.11 para la suite aircrack-ng (airmon/airodump/aireplay/aircrack). */
   radio?: WirelessRadio;
+  /** Servidor web REAL del mundo: sqlmap/gobuster/curl atacan estas apps de verdad. */
+  web?: WebServer;
   lab: LabNetwork;
   network: VirtualNetwork;
   dns: VirtualDNS;
@@ -40,7 +43,7 @@ export class SecurityTools {
   private tools: Map<string, ToolDef>;
   private context: ToolContext;
 
-  constructor(network: VirtualNetwork, dns: VirtualDNS, hosts?: HostRuntime, radio?: WirelessRadio) {
+  constructor(network: VirtualNetwork, dns: VirtualDNS, hosts?: HostRuntime, radio?: WirelessRadio, web?: WebServer) {
     this.tools = new Map(TOOL_CATALOG.map((tool) => [tool.id, tool]));
     this.context = {
       lab: new LabNetwork(),
@@ -48,6 +51,7 @@ export class SecurityTools {
       dns,
       hosts,
       radio,
+      web,
     };
   }
 
@@ -132,6 +136,14 @@ export class SecurityTools {
     return runner(args, this.context);
   }
 }
+
+/** Diccionario de rutas para gobuster/ffuf (subconjunto de directory-list). */
+const DIRB_WORDLIST = [
+  "login", "admin", "panel", "dashboard", "movimientos", "cuenta", "cuentas",
+  "api", "config", "config.php", ".git", "backup", "backups", "uploads",
+  "files", "download", "search", "buscar", "user", "users", "perfil",
+  "robots.txt", ".env", "test", "debug", "status", "info", "phpinfo.php",
+];
 
 /** Diccionarios de laboratorio para hydra (usuarios y claves comunes). Incluyen
  *  las credenciales débiles/filtradas del mundo para que la fuerza bruta las
@@ -549,63 +561,56 @@ const RUNNERS: Record<string, Runner> = {
   },
 
   gobuster(args, ctx) {
-    const target = args[0] ?? "";
-    const guard = requireVirtualTarget(target);
+    const target = args.find((a) => !a.startsWith("-")) ?? args[args.indexOf("-u") + 1] ?? "";
+    const host = target.replace(/^https?:\/\//, "").split("/")[0];
+    const guard = requireVirtualTarget(host);
+    if (guard) return { output: `gobuster: ${guard}\n`, isError: true };
 
-    if (guard) {
-      return { output: `gobuster: ${guard}\n`, isError: true };
-    }
-
-    const machine = ctx.lab.resolve(target);
-
-    if (!machine) {
+    // Contra una app REAL del mundo: probamos un diccionario de rutas y
+    // reportamos el STATUS real que devuelve el servidor a cada una.
+    if (ctx.web?.has(host)) {
+      const hits: string[] = [];
+      for (const word of DIRB_WORDLIST) {
+        const res = ctx.web.request("GET", host, `/${word}`, "", {});
+        if (res.status === 404) continue;
+        const size = res.body.length;
+        const tag = res.status === 302 ? `[--> ${res.headers.Location ?? "?"}]` : "";
+        const note = res.status === 401 || res.status === 403 ? "  (protegida)" : "";
+        hits.push(`/${word.padEnd(18)} (Status: ${res.status}) [Size: ${size}] ${tag}${note}`);
+      }
       return {
-        output: `gobuster: ${target} no es una máquina de laboratorio.\n`,
+        output:
+          `===============================================================\n` +
+          `Gobuster (edición ÑANDE) — dir mode\n` +
+          `[+] Url:      http://${host}\n` +
+          `[+] Words:    ${DIRB_WORDLIST.length}   Status codes: 200,204,301,302,401,403\n` +
+          `===============================================================\n` +
+          (hits.length ? hits.join("\n") : "(sin rutas encontradas con este diccionario)") +
+          `\n===============================================================\n` +
+          `${hits.length} ruta(s). Las 401/403 (protegidas) y los redirects suelen ser lo jugoso.\n`,
         isError: false,
       };
     }
 
+    // Fallback: catálogo estático de laboratorio (máquinas lab-*).
+    const machine = ctx.lab.resolve(host);
+    if (!machine) {
+      return { output: `gobuster: ${host} no responde. Probá una app del mundo (banco.nande) o una máquina lab.\n`, isError: false };
+    }
     const found = machine.webRoutes
-      .map(
-        (r) =>
-          `/${r.path.replace(/^\//, "").padEnd(20)} (Status: 200)` +
-          (r.hidden ? "  <- oculta" : ""),
-      )
+      .map((r) => `/${r.path.replace(/^\//, "").padEnd(20)} (Status: 200)` + (r.hidden ? "  <- oculta" : ""))
       .join("\n");
-
     return {
-      output:
-        `gobuster sobre ${machine.hostname}\n${found}\n` +
-        `${machine.webRoutes.length} rutas encontradas. Las ocultas suelen ser lo interesante.\n`,
+      output: `gobuster sobre ${machine.hostname}\n${found}\n${machine.webRoutes.length} rutas encontradas.\n`,
       isError: false,
     };
   },
 
   ffuf(args, ctx) {
-    const target = args[0] ?? "";
-    const guard = requireVirtualTarget(target);
-
-    if (guard) {
-      return { output: `ffuf: ${guard}\n`, isError: true };
-    }
-
-    const machine = ctx.lab.resolve(target);
-
-    if (!machine) {
-      return { output: `ffuf: objetivo no válido.\n`, isError: false };
-    }
-
-    const hidden = machine.webRoutes.filter((r) => r.hidden);
-
-    return {
-      output:
-        `ffuf sobre ${machine.hostname}\n` +
-        (hidden.length
-          ? hidden.map((r) => `${r.path}  [Status: 200]`).join("\n")
-          : "sin rutas ocultas") +
-        `\n`,
-      isError: false,
-    };
+    // ffuf fuzzea rutas igual que gobuster: mismo diccionario, contra la app
+    // REAL. Reusa el motor de gobuster y sólo cambia la cabecera.
+    const r = RUNNERS.gobuster(args, ctx);
+    return { ...r, output: r.output.replace(/Gobuster \(edición ÑANDE\) — dir mode/, 'ffuf (edición ÑANDE) — fuzzing de rutas') };
   },
 
   nikto(args, ctx) {
@@ -638,40 +643,131 @@ const RUNNERS: Record<string, Runner> = {
 
   sqlmap(args, ctx) {
     const url = args.find((a) => a.startsWith("http")) ?? "";
-    const host = url.match(/^https?:\/\/([^/]+)/i)?.[1] ?? "";
+    const m = url.match(/^https?:\/\/([^/]+)(\/[^?]*)?(?:\?(.*))?$/i);
+    if (!m) return { output: `sqlmap: falta la URL. Ej: sqlmap -u http://banco.nande/login --data "usuario=a&password=b"\n`, isError: true };
+    const host = m[1];
+    const path = m[2] ?? "/";
+    const queryStr = m[3] ?? "";
     const guard = requireVirtualTarget(host);
+    if (guard) return { output: `sqlmap: ${guard}\n`, isError: true };
 
-    if (guard) {
-      return { output: `sqlmap: ${guard}\n`, isError: true };
+    // --data => POST (parámetros en el cuerpo); si no, GET con los de la URL.
+    const dataIdx = args.indexOf("--data");
+    const dataStr = dataIdx >= 0 ? (args[dataIdx + 1] ?? "") : "";
+    const method: "GET" | "POST" = dataStr ? "POST" : "GET";
+    const parseKV = (raw: string): Record<string, string> => {
+      const o: Record<string, string> = {};
+      for (const pair of raw.split("&")) {
+        if (!pair) continue;
+        const i = pair.indexOf("=");
+        o[i < 0 ? pair : pair.slice(0, i)] = i < 0 ? "" : pair.slice(i + 1);
+      }
+      return o;
+    };
+    const params = dataStr ? parseKV(dataStr) : parseKV(queryStr);
+    const paramNames = Object.keys(params);
+
+    if (!ctx.web?.has(host)) {
+      // Fallback: máquinas del laboratorio (lab-*) con su catálogo de vulns.
+      const machine = ctx.lab.resolve(host);
+      const sqli = machine?.vulns.find((v) => v.id.includes("SQLI"));
+      if (machine && sqli) {
+        return {
+          output:
+            `sqlmap sobre ${machine.hostname}\n` +
+            `[!] parámetro VULNERABLE a inyección SQL\n` +
+            `[*] tipo: boolean-based blind\n` +
+            `[*] se pudo leer la tabla de usuarios (laboratorio)\n` +
+            `bandera: ${machine.flag}\n` +
+            `Lección: esto se evita con consultas parametrizadas.\n`,
+          isError: false,
+          flag: machine.flag,
+        };
+      }
+      if (machine) {
+        return { output: `sqlmap sobre ${machine.hostname}\nEl parámetro no parece inyectable.\n`, isError: false };
+      }
+      return {
+        output: `sqlmap: ${host} no responde como aplicación web en este mundo. Probá banco.nande.\n`,
+        isError: false,
+      };
     }
-
-    const machine = ctx.lab.resolve(host);
-    const sqli = machine?.vulns.find((v) => v.id.includes("SQLI"));
-
-    if (!machine) {
-      return { output: `sqlmap: objetivo no válido.\n`, isError: false };
-    }
-
-    if (!sqli) {
+    if (paramNames.length === 0) {
       return {
         output:
-          `sqlmap sobre ${machine.hostname}\n` +
-          `El parámetro no parece inyectable. Probá otra máquina (lab-web-01).\n`,
+          `sqlmap: no hay parámetros que probar en ${url}.\n` +
+          `Para un login: sqlmap -u http://${host}${path} --data "usuario=admin&password=x"\n`,
         isError: false,
       };
     }
 
-    return {
-      output:
-        `sqlmap sobre ${machine.hostname}\n` +
-        `[!] parámetro VULNERABLE a inyección SQL\n` +
-        `[*] tipo: boolean-based blind\n` +
-        `[*] se pudo leer la tabla de usuarios (laboratorio)\n` +
-        `bandera: ${machine.flag}\n` +
-        `Lección: esto se evita con consultas parametrizadas.\n`,
-      isError: false,
-      flag: machine.flag,
+    // Petición REAL contra la app + su motor SQL. Nada está pre-calculado:
+    // sqlmap manda payloads y observa cómo responde la app de verdad.
+    const send = (over: Record<string, string>) => {
+      const body = { ...params, ...over };
+      const qp = method === "GET"
+        ? "?" + Object.entries(body).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join("&")
+        : "";
+      return ctx.web!.request(method, host, path + qp, "", method === "POST" ? body : {});
     };
+
+    const SQL_ERR = /error en la consulta|sql|syntax|unterminated|sqlite|no such column/i;
+    const lines: string[] = [
+      `        ___`,
+      `       __H__   sqlmap (edición ÑANDE) — sólo objetivos autorizados`,
+      ``,
+      `[*] objetivo: ${method} ${url}`,
+      `[*] parámetros: ${paramNames.join(", ")}`,
+      ``,
+    ];
+
+    let injectableParam = "";
+    let technique = "";
+    for (const p of paramNames) {
+      const errRes = send({ [p]: `${params[p]}'` });
+      const errBased = SQL_ERR.test(errRes.body);
+      const tRes = send({ [p]: `${params[p]}' OR '1'='1' -- ` });
+      const fRes = send({ [p]: `${params[p]}' AND '1'='2' -- ` });
+      const boolBased = tRes.status !== fRes.status || Math.abs(tRes.body.length - fRes.body.length) > 8;
+      if (errBased || boolBased) {
+        injectableParam = p;
+        technique = [errBased ? "error-based" : "", boolBased ? "boolean-based blind" : ""].filter(Boolean).join(" y ");
+        lines.push(`[+] el parámetro '${p}' PARECE inyectable (${technique})`);
+        if (errBased) lines.push(`    └─ el servidor devolvió un error SQL con la comilla: fuga por error.`);
+        if (boolBased) lines.push(`    └─ 'OR 1=1' y 'AND 1=2' dieron respuestas distintas: blind booleana.`);
+        break;
+      }
+      lines.push(`[-] el parámetro '${p}' no parece inyectable`);
+    }
+
+    if (!injectableParam) {
+      return {
+        output: lines.join("\n") + `\n\n[*] sin parámetros inyectables. ¿Consultas parametrizadas? Buen trabajo del dev.\n`,
+        isError: false,
+      };
+    }
+
+    // Explotación real: bypass de autenticación y extracción de lo que devuelva
+    // la app (seguimos el redirect con la cookie de sesión que emitió).
+    lines.push(``, `[*] explotando: bypass de autenticación con "' OR '1'='1' -- "`);
+    let flag: string | undefined;
+    const bypass = send({ [injectableParam]: `admin' -- ` });
+    if (bypass.status === 302 && bypass.headers.Location) {
+      const cookie = bypass.setCookies.sesion ? `sesion=${bypass.setCookies.sesion}` : "";
+      const after = ctx.web.request("GET", host, bypass.headers.Location, cookie, {});
+      flag = after.body.match(/ND\{[^}]+\}/)?.[0];
+      const rol = after.body.match(/ADMINISTRADOR|administrador/) ? "admin" : "usuario";
+      lines.push(`[+] sesión iniciada SIN contraseña — acceso como ${rol}`);
+      lines.push(`[+] DBMS: ÑandeSQL (SQLite-like)  ·  tabla: usuarios`);
+      if (flag) lines.push(`[+] dato extraído del panel: ${flag}`);
+    } else {
+      // Extracción por error/booleana sin login (ej. buscadores).
+      const dump = send({ [injectableParam]: `' OR '1'='1' -- ` });
+      lines.push(`[+] la inyección alteró la consulta (status ${dump.status}). Revisá la respuesta para el volcado.`);
+    }
+    lines.push(``, `[!] Defensa: consultas parametrizadas (prepared statements). NUNCA concatenar entrada del usuario en SQL.`);
+
+    return { output: lines.join("\n") + "\n", isError: false, flag };
   },
 
   hydra(args, ctx) {
