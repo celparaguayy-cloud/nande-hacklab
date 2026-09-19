@@ -115,9 +115,8 @@ export class VirtualTerminal {
   private currentUser: string;
   private currentDirectory: string;
   private environment: Record<string, string>;
-  /** Lección guiada en curso y en qué paso va. */
-  private activeLesson: string | null = null;
-  private lessonStep = 0;
+  // El progreso de la lección vive en el estado persistente del jugador
+  // (kernel.player.getLessonProgress), así se retoma tras cerrar/refrescar.
   /** Sesión remota activa (pivoting): host y usuario, o null si es local. */
   private remoteHost: string | null = null;
   private remoteUser = "root";
@@ -1426,8 +1425,7 @@ export class VirtualTerminal {
     }
 
     if (action === "stop") {
-      this.activeLesson = null;
-      this.lessonStep = 0;
+      this.kernel.player.clearLessonProgress();
       return "Lección abandonada. Podés retomar con learn <id>.\n";
     }
 
@@ -1437,13 +1435,16 @@ export class VirtualTerminal {
       return `learn: no existe la lección "${action}". Probá 'learn'.\n`;
     }
 
-    this.activeLesson = lesson.id;
-    this.lessonStep = 0;
+    // Si ya venías haciéndola, retomá el paso guardado; si no, empezá de cero.
+    const prev = this.kernel.player.getLessonProgress();
+    const startStep = prev && prev.id === lesson.id ? prev.step : 0;
+    this.kernel.player.setLessonProgress(lesson.id, startStep, 0);
 
     return (
       `📘 ${lesson.title}  [${lesson.level}]\n\n` +
+      (startStep > 0 ? `↩️  Retomando en el paso ${startStep + 1}.\n\n` : "") +
       `${lesson.concept}\n\n` +
-      this.renderStep(lesson.id, 0) +
+      this.renderStep(lesson.id, startStep) +
       `\n(Si te trabás, escribí 'hint'. Para salir, 'learn stop'.)\n`
     );
   }
@@ -1460,32 +1461,57 @@ export class VirtualTerminal {
   }
 
   private lessonHint(): string {
-    if (!this.activeLesson) {
+    const prog = this.kernel.player.getLessonProgress();
+    if (!prog) {
       return "No hay ninguna lección activa. Empezá con 'learn <id>'.\n";
     }
+    const lesson = this.kernel.lessons.get(prog.id)!;
+    const step = lesson.steps[prog.step];
+    // Pistas escalonadas: de un empujón suave a la solución. La última se repite.
+    const hints = step.hints && step.hints.length > 0 ? step.hints : [step.hint];
+    const level = Math.min(prog.hints, hints.length - 1);
+    // Cada 'hint' avanza al siguiente nivel (hasta la solución).
+    this.kernel.player.setLessonProgress(prog.id, prog.step, Math.min(prog.hints + 1, hints.length - 1));
+    const more = level < hints.length - 1 ? "  (escribí 'hint' otra vez para una pista más fuerte)" : "";
+    return `💡 Pista ${level + 1}/${hints.length}: ${hints[level]}${more}\n`;
+  }
 
-    const lesson = this.kernel.lessons.get(this.activeLesson)!;
-    return `💡 ${lesson.steps[this.lessonStep].hint}\n`;
+  /** Ventana al estado real del mundo para verificar pasos contra la realidad. */
+  private lessonWorld(): import("../academy/Lessons").LessonWorld {
+    return {
+      capturedFlags: () => this.kernel.player.getState().capturedFlags,
+      serviceState: (host, service) =>
+        this.kernel.hosts.resolve(host)?.services.find((s) => s.name === service)?.state,
+      cwd: () => this.currentDirectory,
+    };
   }
 
   private checkLessonProgress(command: string, output: string): string {
-    if (!this.activeLesson) {
+    const prog = this.kernel.player.getLessonProgress();
+    if (!prog) {
       return "";
     }
 
-    const lesson = this.kernel.lessons.get(this.activeLesson)!;
-    const step = lesson.steps[this.lessonStep];
+    const lesson = this.kernel.lessons.get(prog.id);
+    if (!lesson) {
+      this.kernel.player.clearLessonProgress();
+      return "";
+    }
+    const stepIdx = prog.step;
+    const step = lesson.steps[stepIdx];
 
-    if (!step.check(command, output)) {
+    if (!step.check(command, output, this.lessonWorld())) {
       return "";
     }
 
     let note = `\n✅ ${step.debrief}\n`;
 
-    this.lessonStep += 1;
+    const nextStep = stepIdx + 1;
 
-    if (this.lessonStep < lesson.steps.length) {
-      note += `\n${this.renderStep(lesson.id, this.lessonStep)}`;
+    if (nextStep < lesson.steps.length) {
+      // Avanza y resetea el nivel de pistas para el paso nuevo.
+      this.kernel.player.setLessonProgress(lesson.id, nextStep, 0);
+      note += `\n${this.renderStep(lesson.id, nextStep)}`;
       return note;
     }
 
@@ -1513,8 +1539,7 @@ export class VirtualTerminal {
       note += `\n🎉 Lección completada: ${lesson.title} (ya la habías hecho).\n`;
     }
 
-    this.activeLesson = null;
-    this.lessonStep = 0;
+    this.kernel.player.clearLessonProgress();
 
     return note;
   }

@@ -50,6 +50,11 @@ export interface PlayerState {
   completedCourses: string[];
   /** Banderas ND{...} capturadas: el registro de competencia demostrada. */
   capturedFlags: string[];
+  /**
+   * Progreso de la lección en curso, para retomar donde se dejó (paso y cuántas
+   * pistas se pidieron). null si no hay ninguna activa.
+   */
+  lessonProgress: { id: string; step: number; hints: number } | null;
 }
 
 const STORAGE_KEY = "nande-player";
@@ -128,6 +133,7 @@ export class Progression {
       solvedLabs: [],
       capturedFlags: [],
       completedCourses: [],
+      lessonProgress: null,
     };
   }
 
@@ -153,6 +159,7 @@ export class Progression {
         solvedLabs: saved.solvedLabs ?? [],
         capturedFlags: saved.capturedFlags ?? [],
         completedCourses: saved.completedCourses ?? [],
+        lessonProgress: saved.lessonProgress ?? null,
       };
     } catch {
       return null;
@@ -315,6 +322,23 @@ export class Progression {
 
   isLabSolved(labId: string): boolean {
     return this.state.solvedLabs.includes(labId);
+  }
+
+  /** Progreso de la lección en curso (o null). Persistente entre sesiones. */
+  getLessonProgress(): PlayerState["lessonProgress"] {
+    return this.state.lessonProgress ? { ...this.state.lessonProgress } : null;
+  }
+
+  /** Guarda el avance de la lección (paso y pistas pedidas). */
+  setLessonProgress(id: string, step: number, hints: number): void {
+    this.state.lessonProgress = { id, step, hints };
+    this.save();
+  }
+
+  /** Limpia el progreso de lección (al terminar o abandonar). */
+  clearLessonProgress(): void {
+    this.state.lessonProgress = null;
+    this.save();
   }
 
   markCourseCompleted(courseId: string): boolean {

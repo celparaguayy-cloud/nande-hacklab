@@ -8,20 +8,42 @@
  * defiende. Todo dentro del sandbox.
  */
 
+/**
+ * Ventana al estado real del mundo para verificar un paso CONTRA la realidad
+ * (no sólo con un regex sobre el texto, que sería trampeable con un `echo`).
+ */
+export interface LessonWorld {
+  /** Banderas realmente capturadas por el jugador. */
+  capturedFlags(): string[];
+  /** Estado real de un servicio en un host ("running"/"stopped"/…), o undefined. */
+  serviceState(host: string, service: string): string | undefined;
+  /** Directorio actual de la terminal (para validar navegación real). */
+  cwd(): string;
+}
+
 export interface LessonStep {
   /** Qué se está aprendiendo, explicado simple. */
   explain: string;
   /** Qué tiene que hacer el alumno. */
   task: string;
-  /** Pista si se traba. */
+  /** Pista simple (compatibilidad). Preferí `hints` para pistas escalonadas. */
   hint: string;
+  /** Pistas escalonadas: de un empujón suave a la solución. Si falta, se usa `hint`. */
+  hints?: string[];
   /**
-   * Verifica si el paso se cumplió, mirando el comando escrito y su salida.
-   * Debe ser una función pura.
+   * Verifica si el paso se cumplió. Mira el comando escrito, su salida y —cuando
+   * hace falta— el estado REAL del mundo (world). Debe ser una función pura.
    */
-  check: (command: string, output: string) => boolean;
+  check: (command: string, output: string, world?: LessonWorld) => boolean;
   /** Explicación tras lograrlo: por qué funciona y cómo defenderse. */
   debrief: string;
+  /**
+   * Qué app abrir para este paso: "terminal" (por defecto) o "browser" (labs
+   * web donde conviene ver el objetivo). La UI la usa para llevar al alumno.
+   */
+  app?: "terminal" | "browser";
+  /** URL a precargar si el paso es de navegador (ej. "http://banco.nande/"). */
+  url?: string;
 }
 
 export interface Lesson {
