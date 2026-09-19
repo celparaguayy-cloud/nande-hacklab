@@ -102,7 +102,7 @@ describe("Engagement web — auditá el banco de punta a punta", () => {
       "responder 6",
       "airodump-ng --bssid E8:94:F6:77:88:04 -c 6 -w captura wlan0mon",
       "aireplay-ng --deauth 5 -a E8:94:F6:77:88:04 wlan0mon",
-      "responder handshake",
+      "responder 3C:5A:B4:00:00:55",
       "aircrack-ng -w rockyou.txt captura-01.cap",
       "responder invitado",
       "responder wpa3",

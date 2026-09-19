@@ -1644,13 +1644,13 @@ export const LESSONS: Lesson[] = [
           "¡Handshake capturado! Ese saludo contiene una prueba matemática de la contraseña (no la contraseña en sí). Ahora hay que adivinarla probando un diccionario contra esa prueba.",
       },
       {
-        explain: "Pensá para qué sirvió el deauth y respondé.",
+        explain: "El deauth mostró a QUÉ cliente estás echando. Leé la salida y respondé.",
         task: "Respondé con 'responder ...'",
-        hint: "El cliente se desconecta y, al volver, repite el ___ que querés capturar.",
-        question: "¿Para qué mandaste el deauth?",
-        answers: ["handshake", "capturar el handshake", "forzar el handshake", "para el handshake", "reconecte", "reconectar"],
+        hint: "Buscá 'STMAC: [ ... ]' en la salida del deauth (o la columna STATION de la captura).",
+        question: "¿Cuál es la MAC del cliente (STATION) conectado a Vecino-2G?",
+        answers: ["3C:5A:B4:00:00:55"],
         answerContains: true,
-        debrief: "Exacto: para forzar el handshake. Sin cliente que se reconecte, habría que esperar a que alguien entre solo.",
+        debrief: "Esa STATION es la que echaste con el deauth; al reconectarse repitió el handshake y tu captura lo agarró. Ese es el truco: sin un cliente al que echar, habría que esperar a que alguien entre solo.",
       },
       {
         explain:
