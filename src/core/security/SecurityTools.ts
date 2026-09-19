@@ -321,24 +321,55 @@ const RUNNERS: Record<string, Runner> = {
     // -p22 (pegado) o -p 22 (separado); -p- = todos los puertos.
     const pIdx = args.findIndex((a) => a === "-p" || (a.startsWith("-p") && a !== "-p-"));
     let portSpec = "";
-    let pValueIdx = -1; // índice del operando de -p (para no confundirlo con el objetivo)
     if (args.includes("-p-")) {
       portSpec = "-";
     } else if (pIdx >= 0) {
       const a = args[pIdx];
-      if (a === "-p") { portSpec = args[pIdx + 1] ?? ""; pValueIdx = pIdx + 1; }
+      if (a === "-p") { portSpec = args[pIdx + 1] ?? ""; }
       else { portSpec = a.slice(2); }
     }
     const topIdx = args.indexOf("--top-ports");
     const topN = topIdx >= 0 ? parseInt(args[topIdx + 1] ?? "0", 10) : 0;
-    const topValueIdx = topIdx >= 0 ? topIdx + 1 : -1;
+
+    // Flags de nmap que llevan un operando: su valor NO es el objetivo. Así
+    // `nmap --script vuln host`, `-oN salida.txt host`, `-D RND:5 host` funcionan.
+    const VALUE_FLAGS = new Set([
+      "-p", "--top-ports", "--script", "--script-args", "-oN", "-oX", "-oG", "-oA",
+      "-D", "-S", "-e", "-g", "--source-port", "--data-length", "-T", "--min-rate",
+      "--max-rate", "-iL", "--exclude", "-b",
+    ]);
+    const operandIdx = new Set<number>();
+    args.forEach((a, i) => { if (VALUE_FLAGS.has(a)) operandIdx.add(i + 1); });
 
     // El objetivo es el primer argumento que NO es una bandera ni el operando
-    // de -p / --top-ports (si no, "22,80,443" se tomaría como host).
-    const target =
-      args.find((a, i) => !a.startsWith("-") && i !== pValueIdx && i !== topValueIdx) ?? "";
+    // de una bandera que toma valor (si no, "22,80,443" se tomaría como host).
+    const target = args.find((a, i) => !a.startsWith("-") && !operandIdx.has(i)) ?? "";
     const err = requireVirtualTarget(target);
     if (err) return { output: `nmap: ${err}\n`, isError: true };
+
+    // Escaneo de subred (CIDR): descubrimiento de hosts vivos (ping sweep).
+    if (target.includes("/")) {
+      const [base, bitsRaw] = target.split("/");
+      const bits = parseInt(bitsRaw, 10);
+      const ipToInt = (ip: string) => ip.split(".").reduce((a, o) => (a << 8) + (parseInt(o, 10) || 0), 0) >>> 0;
+      const mask = bits >= 32 ? 0xffffffff : (0xffffffff << (32 - bits)) >>> 0;
+      const net = ipToInt(base) & mask;
+      const live = (ctx.hosts?.all() ?? [])
+        .filter((h) => h.up && (ipToInt(h.ip) & mask) === net)
+        .sort((a, b) => ipToInt(a.ip) - ipToInt(b.ip));
+      const rows = live.map((h) => {
+        const open = h.services.filter((sv) => sv.state === "running" && !h.firewall.includes(sv.port)).length;
+        return `Nmap scan report for ${h.hostname} (${h.ip})\nHost is up (0.0011s latency). ${open} puerto(s) abierto(s).`;
+      });
+      return {
+        output:
+          `Starting Nmap 7.94 ( https://nmap.org )\n` +
+          (rows.length ? rows.join("\n") + "\n\n" : "No se descubrieron hosts vivos en el rango.\n") +
+          `Nmap done: ${live.length} IP address(es) up scanned in ${(0.4 + live.length * 0.05).toFixed(2)}s\n` +
+          (live.length ? `Escaneá uno en detalle: nmap -sV ${live[0].hostname}\n` : ""),
+        isError: false,
+      };
+    }
 
     // Puertos a escanear. Sin -p: los "top ports" habituales. -p-: todo el rango.
     let requested: number[];
@@ -561,22 +592,41 @@ const RUNNERS: Record<string, Runner> = {
   },
 
   gobuster(args, ctx) {
-    const target = args.find((a) => !a.startsWith("-")) ?? args[args.indexOf("-u") + 1] ?? "";
+    // gobuster real usa modo obligatorio (dir/dns/vhost) + -u <url>. Aceptamos
+    // ambas formas: "gobuster dir -u http://host" y "gobuster http://host".
+    const MODES = new Set(["dir", "dns", "vhost", "fuzz", "s3", "gcs"]);
+    const uIdx = args.indexOf("-u");
+    const wIdx = args.indexOf("-w");
+    const xIdx = args.indexOf("-x");
+    const operand = new Set<number>();
+    ["-u", "-w", "-x", "-s", "-b", "-t", "-o", "-H", "-c", "-P", "-U"].forEach((f) => {
+      const i = args.indexOf(f); if (i >= 0) operand.add(i + 1);
+    });
+    const target = uIdx >= 0
+      ? args[uIdx + 1] ?? ""
+      : args.find((a, i) => !a.startsWith("-") && !operand.has(i) && !MODES.has(a)) ?? "";
     const host = target.replace(/^https?:\/\//, "").split("/")[0];
     const guard = requireVirtualTarget(host);
     if (guard) return { output: `gobuster: ${guard}\n`, isError: true };
+    // -x php,txt,bak: extensiones a probar además de la ruta base.
+    const exts = xIdx >= 0 ? (args[xIdx + 1] ?? "").split(",").map((e) => e.trim()).filter(Boolean) : [];
+    void wIdx; // -w <wordlist>: se acepta; usamos el diccionario incorporado.
 
     // Contra una app REAL del mundo: probamos un diccionario de rutas y
     // reportamos el STATUS real que devuelve el servidor a cada una.
     if (ctx.web?.has(host)) {
       const hits: string[] = [];
+      // Base + cada extensión pedida con -x (word, word.php, word.txt…).
+      const candidates = (word: string) => [word, ...exts.map((e) => `${word}.${e}`)];
       for (const word of DIRB_WORDLIST) {
-        const res = ctx.web.request("GET", host, `/${word}`, "", {});
-        if (res.status === 404) continue;
-        const size = res.body.length;
-        const tag = res.status === 302 ? `[--> ${res.headers.Location ?? "?"}]` : "";
-        const note = res.status === 401 || res.status === 403 ? "  (protegida)" : "";
-        hits.push(`/${word.padEnd(18)} (Status: ${res.status}) [Size: ${size}] ${tag}${note}`);
+        for (const cand of candidates(word)) {
+          const res = ctx.web.request("GET", host, `/${cand}`, "", {});
+          if (res.status === 404) continue;
+          const size = res.body.length;
+          const tag = res.status === 302 ? `[--> ${res.headers.Location ?? "?"}]` : "";
+          const note = res.status === 401 || res.status === 403 ? "  (protegida)" : "";
+          hits.push(`/${cand.padEnd(18)} (Status: ${res.status}) [Size: ${size}] ${tag}${note}`);
+        }
       }
       return {
         output:
@@ -776,7 +826,10 @@ const RUNNERS: Record<string, Runner> = {
     const service = svcArg ? svcArg.split("://")[0] : args.find((a) => a === "ssh" || a === "ftp") ?? "ssh";
     // Los valores de -l/-L/-p/-P/-s son operandos, no el objetivo.
     const operandIdx = new Set<number>();
-    args.forEach((a, i) => { if (["-l", "-L", "-p", "-P", "-s", "-t"].includes(a)) operandIdx.add(i + 1); });
+    args.forEach((a, i) => { if (["-l", "-L", "-p", "-P", "-s", "-t", "-C", "-e", "-o"].includes(a)) operandIdx.add(i + 1); });
+    // -s <puerto>: puerto no estándar (hydra -s 2222 ... ssh).
+    const sIdx = args.indexOf("-s");
+    const customPort = sIdx >= 0 ? parseInt(args[sIdx + 1] ?? "", 10) : NaN;
     const target = svcArg
       ? svcArg.split("://")[1]
       : args.find((a, i) => !a.startsWith("-") && a !== "ssh" && a !== "ftp" && !operandIdx.has(i)) ?? "";
@@ -789,7 +842,7 @@ const RUNNERS: Record<string, Runner> = {
     const host = ctx.hosts.resolve(target)!;
     if (!host.up) return { output: `hydra: ${host.hostname} está caído.\n`, isError: false };
 
-    const port = service === "ftp" ? 21 : 22;
+    const port = !Number.isNaN(customPort) ? customPort : service === "ftp" ? 21 : 22;
     const svc = host.services.find((s) => s.port === port && s.state === "running");
     if (!svc) {
       return {
