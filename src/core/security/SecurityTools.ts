@@ -764,7 +764,9 @@ const RUNNERS: Record<string, Runner> = {
       return ctx.web!.request(method, host, path + qp, cookieHeader, method === "POST" ? body : {});
     };
 
-    const SQL_ERR = /error en la consulta|sql|syntax|unterminated|sqlite|no such column/i;
+    // Ojo: "sql" a secas era demasiado amplio y matcheaba la propia bandera
+    // ND{sqli_union_dump} en una respuesta EXITOSA. Pedimos frases de error reales.
+    const SQL_ERR = /error en la consulta|error sql|syntax|unterminated|sqlite|no such column/i;
     const lines: string[] = [
       `        ___`,
       `       __H__   sqlmap (edición ÑANDE) — sólo objetivos autorizados`,
