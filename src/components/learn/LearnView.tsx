@@ -202,9 +202,10 @@ function LearnView({ kernel, onOpenApp }: LearnViewProps) {
           <div style={{ ...card, background: "linear-gradient(135deg,#1c2f3f,#141d27)", borderColor: "#274b5f" }}>
             <strong style={{ fontSize: 15 }}>🗺️ Itinerarios · de cero a experto</strong>
             <p style={{ fontSize: 13, opacity: 0.88, margin: "6px 0 0", lineHeight: 1.5 }}>
-              Un camino ordenado, no cursos sueltos. Terminá los cursos de una ruta
-              y se desbloquea su <strong>Reto final</strong>: aplicás todo capturando
-              una bandera real.
+              Un camino ordenado, no cursos sueltos. Al terminar los cursos de una
+              ruta se desbloquean sus <strong>Retos</strong>: aplicás todo capturando
+              una bandera real. (Fundamentos y Redes te preparan; los retos llegan
+              cuando ya tenés la herramienta.)
             </p>
           </div>
           {tracks.map((t) => {
@@ -214,8 +215,9 @@ function LearnView({ kernel, onOpenApp }: LearnViewProps) {
             const reqTrack = t.requires ? kernel.tracks.get(t.requires) : undefined;
             const reqDone = !reqTrack || reqTrack.courseIds.every((id) => done.has(`curso:${id}`));
             const cursosDone = t.courseIds.every((id) => done.has(`curso:${id}`));
-            const reto = t.finalChallenge ? kernel.tracks.challenge(t.finalChallenge) : undefined;
-            const retoDone = reto ? flags.includes(reto.flag) : false;
+            const retos = (t.finalChallenges ?? [])
+              .map((rid) => kernel.tracks.challenge(rid))
+              .filter((r): r is NonNullable<typeof r> => !!r);
             const bg = `linear-gradient(135deg, hsl(${t.hue} 55% 24%), hsl(${(t.hue + 28) % 360} 45% 14%))`;
             return (
               <div key={t.id} style={{ ...card, padding: 0, overflow: "hidden", opacity: reqDone ? 1 : 0.72 }}>
@@ -258,24 +260,28 @@ function LearnView({ kernel, onOpenApp }: LearnViewProps) {
                         </button>
                       );
                     })}
-                    {reto && (
-                      <button
-                        style={{
-                          ...routeLessonRow,
-                          borderColor: retoDone ? "#6ee787" : cursosDone ? "#f5b544" : "#1b2733",
-                          background: retoDone ? "rgba(110,231,135,0.10)" : "#0e141b",
-                        }}
-                        onClick={() => setTab("retos")}
-                      >
-                        <span style={{ width: 18, textAlign: "center" }}>{retoDone ? "🏆" : "🚩"}</span>
-                        <span style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
-                          Reto final: {reto.title}
-                        </span>
-                        <span style={{ fontSize: 11, color: retoDone ? "#6ee787" : cursosDone ? "#f5b544" : "#8b98a5" }}>
-                          {retoDone ? "logrado" : cursosDone ? "¡a jugar!" : "bloqueado"}
-                        </span>
-                      </button>
-                    )}
+                    {retos.map((reto) => {
+                      const retoDone = flags.includes(reto.flag);
+                      return (
+                        <button
+                          key={reto.id}
+                          style={{
+                            ...routeLessonRow,
+                            borderColor: retoDone ? "#6ee787" : cursosDone ? "#f5b544" : "#1b2733",
+                            background: retoDone ? "rgba(110,231,135,0.10)" : "#0e141b",
+                          }}
+                          onClick={() => setTab("retos")}
+                        >
+                          <span style={{ width: 18, textAlign: "center" }}>{retoDone ? "🏆" : "🚩"}</span>
+                          <span style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
+                            Reto: {reto.title}
+                          </span>
+                          <span style={{ fontSize: 11, color: retoDone ? "#6ee787" : cursosDone ? "#f5b544" : "#8b98a5" }}>
+                            {retoDone ? "logrado" : cursosDone ? "¡a jugar!" : "bloqueado"}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               </div>

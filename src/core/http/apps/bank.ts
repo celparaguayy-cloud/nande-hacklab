@@ -222,12 +222,30 @@ ${
       )
       .join("");
 
+    // Si el buscador se usó para un UNION que saca la tabla de usuarios y trajo
+    // filas, el volcado tuvo éxito: se entrega la bandera del dump por UNION.
+    // (Es la misma técnica que automatiza sqlmap --dump, hecha a mano.)
+    const dumped =
+      /union\s+select/i.test(buscar) &&
+      /usuarios/i.test(buscar) &&
+      result.rows.length > 0;
+
+    const trofeo = dumped
+      ? notice(
+          "Volcaste la tabla de usuarios con UNION: mirá las contraseñas en " +
+            "claro. Bandera: <code>ND{sqli_union_dump}</code>. " +
+            "Defensa: consultas preparadas y nunca guardar contraseñas en texto plano.",
+          "ok",
+        )
+      : "";
+
     const body = `
 ${this.searchForm(buscar)}
 <table class="lab-table">
   <thead><tr><th>#</th><th>Detalle</th><th>Monto</th></tr></thead>
   <tbody>${filas || '<tr><td colspan="3">Sin resultados.</td></tr>'}</tbody>
 </table>
+${trofeo}
 <p><a href="/panel">Volver</a></p>`;
 
     return html(page(this.title, body), { debug: { sql } });

@@ -397,7 +397,7 @@ const SERVICIOS: Curso = {
         "Corré nmap con detección de versión contra server.nande. Fijate, para cada puerto abierto, qué servicio y qué versión reporta.",
       command: "nmap -sV server.nande",
       explain:
-        "nmap consultó el estado real de cada servicio y te devolvió los puertos abiertos con su versión (por ejemplo 22/ssh OpenÑSSH y 80/http nginx). Con esa lista en mano, el siguiente paso de un pentester es buscar vulnerabilidades conocidas de esas versiones exactas. Del lado defensivo, la conclusión es clara: cada versión vieja es una invitación.",
+        "nmap consultó el estado real de cada servicio y te devolvió los puertos abiertos con su versión (por ejemplo 22/ssh OpenSSH y 80/http nginx). Con esa lista en mano, el siguiente paso de un pentester es buscar vulnerabilidades conocidas de esas versiones exactas. Del lado defensivo, la conclusión es clara: cada versión vieja es una invitación.",
       diagram: "escaneo",
     },
     {

@@ -296,7 +296,7 @@ const WEB_SQLI: Curso = {
   id: "c-web-sqli",
   title: "Inyección SQL: entrá sin la clave",
   subtitle: "Por qué un login mal hecho te deja pasar, y cómo se explota.",
-  level: "avanzado",
+  level: "intermedio",
   skill: "web",
   hue: 275,
   glyph: "code",
@@ -327,8 +327,8 @@ const WEB_SQLI: Curso = {
     {
       kind: "build",
       goal: "Armar el usuario mágico que hace que el login siempre diga 'verdadero' y te deje entrar sin saber la clave",
-      pieces: ["admin", "'", "--", " OR '1'='1", "&&", "1234"],
-      answer: ["admin", "'", " OR '1'='1", "--"],
+      pieces: ["admin", "'", "--", "OR '1'='1", "&&", "1234"],
+      answer: ["admin", "'", "OR '1'='1", "--"],
       hint: "Cerrás la comilla del usuario ('), agregás una condición SIEMPRE verdadera ( OR '1'='1) y comentás el resto (--) para que ignore la parte de la contraseña.",
       explain:
         "Queda: user='admin' OR '1'='1' --'. La condición '1'='1' siempre es verdadera, así que la orden encuentra una fila y te deja pasar. El -- comenta (anula) el chequeo de la contraseña. Ese es el bypass de login por SQLi.",

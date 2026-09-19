@@ -39,8 +39,8 @@ describe("Itinerarios (Tracks)", () => {
       if (t.requires) {
         expect(trackIds.has(t.requires), `prerrequisito inexistente ${t.requires}`).toBe(true);
       }
-      if (t.finalChallenge) {
-        expect(retoIds.has(t.finalChallenge), `reto final inexistente ${t.finalChallenge}`).toBe(true);
+      for (const rc of t.finalChallenges ?? []) {
+        expect(retoIds.has(rc), `reto final inexistente ${rc}`).toBe(true);
       }
     }
   });

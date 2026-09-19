@@ -131,7 +131,7 @@ function SlideView({
   }
 
   if (slide.kind === "quiz") {
-    return <Quiz slide={slide} onAdvance={onAdvance} onBack={onBack} nextLabel={nextLabel} />;
+    return <Quiz slide={slide} seed={seed} onAdvance={onAdvance} onBack={onBack} nextLabel={nextLabel} />;
   }
 
   if (slide.kind === "build") {
@@ -152,14 +152,21 @@ function SlideView({
 }
 
 function Quiz({
-  slide, onAdvance, onBack, nextLabel,
+  slide, seed, onAdvance, onBack, nextLabel,
 }: {
   slide: Extract<Slide, { kind: "quiz" }>;
-  onAdvance: () => void; onBack?: () => void; nextLabel: string;
+  seed: number; onAdvance: () => void; onBack?: () => void; nextLabel: string;
 }) {
+  // `picked` guarda el ÍNDICE ORIGINAL de la opción, no la posición en pantalla.
   const [picked, setPicked] = useState<number | null>(null);
   const answered = picked !== null;
   const right = picked === slide.correct;
+  // Barajamos el ORDEN de las opciones (los autores suelen poner la correcta
+  // primera). Sin esto, el que aprende toca siempre la de arriba y no lee.
+  const order = useMemo(
+    () => shuffleStable(slide.options.map((_, i) => i), seed + 13),
+    [slide.options, seed],
+  );
 
   return (
     <>
@@ -167,26 +174,27 @@ function Quiz({
       {slide.diagram && <ConceptArt diagram={slide.diagram} />}
       <p style={{ ...para, fontWeight: 600 }}>{slide.prompt}</p>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {slide.options.map((opt, k) => {
-          const isCorrect = k === slide.correct;
+        {order.map((oi) => {
+          const opt = slide.options[oi];
+          const isCorrect = oi === slide.correct;
           let bg = "#0e141b", border = "#26313b", col = "#e6edf3";
           if (answered) {
             if (isCorrect) { bg = "rgba(110,231,135,0.14)"; border = "#6ee787"; col = "#8ff0a6"; }
-            else if (k === picked) { bg = "rgba(255,123,114,0.12)"; border = "#ff7b72"; col = "#ffb4a8"; }
+            else if (oi === picked) { bg = "rgba(255,123,114,0.12)"; border = "#ff7b72"; col = "#ffb4a8"; }
             else { col = "#8b98a5"; }
           }
           return (
             <button
-              key={k}
+              key={oi}
               disabled={answered}
-              onClick={() => setPicked(k)}
+              onClick={() => setPicked(oi)}
               style={{
                 textAlign: "left", padding: "11px 13px", borderRadius: 10,
                 background: bg, border: `1px solid ${border}`, color: col,
                 cursor: answered ? "default" : "pointer", fontSize: 13.5, lineHeight: 1.4,
               }}
             >
-              {answered && isCorrect ? "✓ " : answered && k === picked ? "✗ " : ""}{opt}
+              {answered && isCorrect ? "✓ " : answered && oi === picked ? "✗ " : ""}{opt}
             </button>
           );
         })}
