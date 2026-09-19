@@ -77,7 +77,7 @@ describe("Engagement web — auditá el banco de punta a punta", () => {
       "curl http://soc.nande/logs",
       "responder 10.10.66.13",
       "curl http://soc.nande/triage?id=A3",
-      "responder incidente",
+      "responder escalar",
       "curl http://soc.nande/siem?q=10.10.66.13",
       "responder sql",
       "curl \"http://soc.nande/incidente?primero=fuerza+bruta&causa=inyeccion+sql\"",
@@ -132,6 +132,39 @@ describe("Engagement web — auditá el banco de punta a punta", () => {
     expect(last, "el último paso debería cerrar la lección").toMatch(/Lección completada/i);
     expect(kernel.player.completedCourses()).toContain("lesson:l-eng-osint");
     expect(kernel.player.capturedFlags()).toContain("ND{onion_alcanzada_con_circuito}");
+  });
+
+  it("rechaza falsos positivos por subcadena (coincidencia por palabra)", () => {
+    // WiFi: '36' (canal de otra red) ya NO debe pasar como si fuera '6'.
+    term.execute("learn l-eng-wifi");
+    term.execute("airmon-ng start wlan0");
+    term.execute("airodump-ng wlan0mon");
+    const wifiBad = term.execute("responder 36");
+    expect(wifiBad, "'36' no debe aceptarse como canal 6").toMatch(/No es esa|Volvé a leer/i);
+    // Y '6' sí avanza.
+    const wifiOk = term.execute("responder 6");
+    expect(wifiOk).toMatch(/✅|Paso/);
+
+    // OSINT: una respuesta SÍ (equivocada) con 'conoce' no debe pasar como 'no'.
+    resetStorage();
+    seedRandom();
+    kernel = new VirtualKernel();
+    term = new VirtualTerminal(kernel);
+    const osint = [
+      "learn l-eng-osint",
+      "exiftool foto.jpg",
+      "responder gps",
+      "exiftool -all= foto.jpg",
+      "responder metadatos",
+      "anon status",
+      "responder 10.10.0.10",
+      "anon on",
+      "onion biblioteca7k2fx.onion",
+    ];
+    for (const c of osint) term.execute(c);
+    const bad = term.execute("responder sí, conoce tu ip real");
+    expect(bad, "'conoce' no debe aceptarse como 'no'").toMatch(/No es esa|Volvé a leer/i);
+    expect(kernel.player.completedCourses()).not.toContain("lesson:l-eng-osint");
   });
 
   it("no avanza si respondés cualquier cosa a una pregunta", () => {

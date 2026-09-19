@@ -1502,7 +1502,14 @@ export class VirtualTerminal {
 
     const ok = step.answers.some((a) => {
       const want = this.normalizeAnswer(a);
-      return step.answerContains ? given.includes(want) : given === want;
+      if (!step.answerContains) return given === want;
+      // Coincidencia por PALABRA/token completo, no por subcadena cruda: así
+      // "36" ya no contiene "6", "conoce" no contiene "no" y "13" no contiene
+      // "3". Sin esto, respuestas equivocadas pasaban sin entender (falso
+      // positivo grave, sobre todo en preguntas sí/no).
+      const esc = want.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const re = new RegExp(`(?:^|[^\\p{L}\\p{N}])${esc}(?:$|[^\\p{L}\\p{N}])`, "u");
+      return re.test(given);
     });
 
     if (!ok) {

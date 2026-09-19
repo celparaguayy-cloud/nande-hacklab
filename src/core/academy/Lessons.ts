@@ -1461,7 +1461,7 @@ export const LESSONS: Lesson[] = [
         task: "Respondé con 'responder ...'",
         hint: "Frenás la fuerza bruta bloqueando tras varios intentos, o usando llaves/MFA. Bloqueo por ___.",
         question: "¿Qué defensa corta de raíz la fuerza bruta de contraseñas? (una palabra)",
-        answers: ["intentos", "fail2ban", "mfa", "2fa", "llaves", "bloqueo", "clave fuerte", "claves fuertes"],
+        answers: ["intentos", "fail2ban", "mfa", "2fa", "llaves", "bloqueo"],
         answerContains: true,
         debrief:
           "Bloqueo por intentos (fail2ban), llaves SSH en vez de contraseñas y MFA cortan la fuerza bruta; y segmentar la red hace que un pivote como este NO llegue a la caja. Cerraste una intrusión completa con post-explotación. Recordá: esto es solo con permiso, y el hacker ético reporta el camino entero para que lo tapen.",
@@ -1511,11 +1511,11 @@ export const LESSONS: Lesson[] = [
       {
         explain: "Pensá en lo que viste y respondé.",
         task: "Respondé con 'responder ...'",
-        hint: "Hubo fallos y después acceso al panel: no es ruido.",
-        question: "¿La alerta es un incidente real o un falso positivo?",
-        answers: ["incidente", "real", "incidente real", "es real"],
+        hint: "Hubo fallos y después acceso al panel tras un UNION: no es ruido, hay que subirla.",
+        question: "¿Hay que ESCALAR la alerta o cerrarla como ruido?",
+        answers: ["escalar", "escalarla", "escalar la", "hay que escalar", "incidente real"],
         answerContains: true,
-        debrief: "Real. Un buen analista separa lo real del ruido antes de gastar tiempo. Vamos a juntar todo en el SIEM.",
+        debrief: "Escalarla: es un incidente real. Un buen analista separa lo real del ruido antes de gastar tiempo. Vamos a juntar todo en el SIEM.",
       },
       {
         explain:
@@ -1681,7 +1681,7 @@ export const LESSONS: Lesson[] = [
         task: "Respondé con 'responder ...'",
         hint: "El estándar nuevo que resiste el diccionario offline se llama WPA___ (un número).",
         question: "¿Qué estándar WiFi NO cae ante este ataque de diccionario offline?",
-        answers: ["wpa3", "wpa 3", "3"],
+        answers: ["wpa3", "wpa 3", "wpa-3"],
         answerContains: true,
         debrief:
           "WPA3: su handshake (SAE) no se puede probar offline como WPA2. Y en cualquier caso, una frase larga y única deja el diccionario inútil. Cerraste una operación WiFi completa: monitor → escucha → captura → deauth → crackeo. Recordá: SOLO en tu red o con permiso escrito; hacerlo en una red ajena es delito.",
@@ -1734,7 +1734,7 @@ export const LESSONS: Lesson[] = [
         task: "Respondé con 'responder ...'",
         hint: "Lo invisible que borraste con exiftool -all=.",
         question: "¿Qué hay que borrar SIEMPRE de una foto antes de publicarla?",
-        answers: ["metadatos", "los metadatos", "metadata", "el gps", "gps"],
+        answers: ["metadatos", "los metadatos", "metadata"],
         answerContains: true,
         debrief: "Los metadatos. Ahora pasemos a tu propia exposición en la red.",
       },
@@ -1754,7 +1754,7 @@ export const LESSONS: Lesson[] = [
         task: "Respondé con 'responder ...'",
         hint: "Con el anonimato apagado, el destino ve tu IP real: 10.10.0.10.",
         question: "Con el anonimato apagado, ¿qué IP ve el destino?",
-        answers: ["10.10.0.10", "la real", "mi ip real", "la mia", "la mía", "real", "la tuya"],
+        answers: ["10.10.0.10", "mi ip real", "la mia", "la mía", "la tuya"],
         answerContains: true,
         debrief: "Tu IP real. Es como firmar todo con tu nombre. Vamos a cambiarlo.",
       },
