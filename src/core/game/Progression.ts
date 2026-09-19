@@ -55,6 +55,12 @@ export interface PlayerState {
    * pistas se pidieron). null si no hay ninguna activa.
    */
   lessonProgress: { id: string; step: number; hints: number } | null;
+  /**
+   * Diapositiva alcanzada en cada curso interactivo (id → índice de la pantalla
+   * más avanzada vista). Deja retomar el curso donde se dejó y dibujar la barra
+   * de progreso de cada curso en la lista.
+   */
+  courseProgress: Record<string, number>;
 }
 
 const STORAGE_KEY = "nande-player";
@@ -134,6 +140,7 @@ export class Progression {
       capturedFlags: [],
       completedCourses: [],
       lessonProgress: null,
+      courseProgress: {},
     };
   }
 
@@ -160,6 +167,7 @@ export class Progression {
         capturedFlags: saved.capturedFlags ?? [],
         completedCourses: saved.completedCourses ?? [],
         lessonProgress: saved.lessonProgress ?? null,
+        courseProgress: saved.courseProgress ?? {},
       };
     } catch {
       return null;
@@ -339,6 +347,20 @@ export class Progression {
   clearLessonProgress(): void {
     this.state.lessonProgress = null;
     this.save();
+  }
+
+  /** Diapositiva más avanzada vista en un curso interactivo (0 si no empezó). */
+  getCourseProgress(courseId: string): number {
+    return this.state.courseProgress[courseId] ?? 0;
+  }
+
+  /** Guarda hasta qué diapositiva llegó el alumno (sólo avanza, nunca retrocede). */
+  setCourseProgress(courseId: string, slide: number): void {
+    const prev = this.state.courseProgress[courseId] ?? 0;
+    if (slide > prev) {
+      this.state.courseProgress[courseId] = slide;
+      this.save();
+    }
   }
 
   markCourseCompleted(courseId: string): boolean {

@@ -31,7 +31,7 @@ describe("Lecciones nuevas — completables con salida real", () => {
     const cmds = ["services server.nande", "service-stop nginx server.nande", "curl http://server.nande"];
     cmds.forEach((cmd, i) => {
       const out = term.execute(cmd);
-      expect(steps[i].check(cmd, out), `paso ${i}: ${cmd}`).toBe(true);
+      expect(steps[i].check!(cmd, out), `paso ${i}: ${cmd}`).toBe(true);
     });
   });
 
@@ -40,7 +40,7 @@ describe("Lecciones nuevas — completables con salida real", () => {
     const cmds = ["code new mi-scanner", "tool-install mi-scanner", "run mi-scanner server.nande"];
     cmds.forEach((cmd, i) => {
       const out = term.execute(cmd);
-      expect(steps[i].check(cmd, out), `paso ${i}: ${cmd}`).toBe(true);
+      expect(steps[i].check!(cmd, out), `paso ${i}: ${cmd}`).toBe(true);
     });
   });
 
@@ -48,13 +48,13 @@ describe("Lecciones nuevas — completables con salida real", () => {
     const steps = lesson("l-pivoting").steps;
 
     const o0 = term.execute("connect server.nande soporte Verano2024");
-    expect(steps[0].check("connect server.nande soporte Verano2024", o0)).toBe(true);
+    expect(steps[0].check!("connect server.nande soporte Verano2024", o0)).toBe(true);
 
     const o1 = term.execute("nmap");
-    expect(steps[1].check("nmap", o1)).toBe(true);
+    expect(steps[1].check!("nmap", o1)).toBe(true);
 
     term.execute("connect caja.interna.nande admin GiraSol#2024");
     const o2 = term.execute("cat /root/flag.txt");
-    expect(steps[2].check("cat /root/flag.txt", o2)).toBe(true);
+    expect(steps[2].check!("cat /root/flag.txt", o2)).toBe(true);
   });
 });

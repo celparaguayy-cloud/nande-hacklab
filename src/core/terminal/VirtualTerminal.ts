@@ -164,6 +164,10 @@ export class VirtualTerminal {
       return this.lessonHint();
     }
 
+    if (first === "responder" || first === "respuesta") {
+      return this.lessonAnswer(commandLine.split(/\s+/).slice(1).join(" "));
+    }
+
     // Los pipes se procesan dentro del shell virtual.
     // Cada etapa recibe únicamente la salida de la etapa anterior.
     if (this.hasPipe(commandLine)) {
@@ -1453,11 +1457,62 @@ export class VirtualTerminal {
     const lesson = this.kernel.lessons.get(lessonId)!;
     const step = lesson.steps[index];
 
+    // Paso de pregunta: se responde leyendo lo que salió, con 'responder'.
+    if (step.question) {
+      return (
+        `Paso ${index + 1}/${lesson.steps.length}\n` +
+        `${step.explain}\n\n` +
+        `❓ ${step.question}\n` +
+        `✍️  Respondé con:  responder <tu respuesta>\n`
+      );
+    }
+
     return (
       `Paso ${index + 1}/${lesson.steps.length}\n` +
       `${step.explain}\n\n` +
       `👉 ${step.task}\n`
     );
+  }
+
+  /** Normaliza una respuesta para comparar sin importar may/min ni espacios. */
+  private normalizeAnswer(text: string): string {
+    return text.trim().toLowerCase().replace(/\s+/g, " ");
+  }
+
+  /** Valida la respuesta del alumno a un paso de pregunta y avanza si acierta. */
+  private lessonAnswer(raw: string): string {
+    const prog = this.kernel.player.getLessonProgress();
+    if (!prog) {
+      return "No hay ninguna lección activa. Empezá con 'learn <id>'.\n";
+    }
+    const lesson = this.kernel.lessons.get(prog.id);
+    if (!lesson) {
+      this.kernel.player.clearLessonProgress();
+      return "";
+    }
+    const step = lesson.steps[prog.step];
+    if (!step.question || !step.answers) {
+      return "Este paso no es de pregunta. Seguí la instrucción con 👉.\n";
+    }
+
+    const given = this.normalizeAnswer(raw);
+    if (!given) {
+      return "Escribí tu respuesta:  responder <tu respuesta>\n";
+    }
+
+    const ok = step.answers.some((a) => {
+      const want = this.normalizeAnswer(a);
+      return step.answerContains ? given.includes(want) : given === want;
+    });
+
+    if (!ok) {
+      return (
+        `❌ No es esa. Volvé a leer lo que salió y probá de nuevo.\n` +
+        `   (Escribí 'hint' si necesitás una pista.)\n`
+      );
+    }
+
+    return this.advanceLesson(lesson, prog.step, `\n✅ ${step.debrief}\n`);
   }
 
   private lessonHint(): string {
@@ -1500,12 +1555,29 @@ export class VirtualTerminal {
     const stepIdx = prog.step;
     const step = lesson.steps[stepIdx];
 
+    // Los pasos de pregunta no se resuelven con comandos: se responden con
+    // 'responder' (lessonAnswer). Aquí sólo avanzan los pasos de acción.
+    if (!step.check) {
+      return "";
+    }
+
     if (!step.check(command, output, this.lessonWorld())) {
       return "";
     }
 
-    let note = `\n✅ ${step.debrief}\n`;
+    return this.advanceLesson(lesson, stepIdx, `\n✅ ${step.debrief}\n`);
+  }
 
+  /**
+   * Cierra un paso logrado: muestra el debrief, avanza al siguiente paso o
+   * cierra la lección con su recompensa. Compartido por pasos de acción
+   * (checkLessonProgress) y de pregunta (lessonAnswer).
+   */
+  private advanceLesson(
+    lesson: import("../academy/Lessons").Lesson,
+    stepIdx: number,
+    note: string,
+  ): string {
     const nextStep = stepIdx + 1;
 
     if (nextStep < lesson.steps.length) {

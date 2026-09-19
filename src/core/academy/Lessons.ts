@@ -31,11 +31,21 @@ export interface LessonStep {
   /** Pistas escalonadas: de un empujón suave a la solución. Si falta, se usa `hint`. */
   hints?: string[];
   /**
-   * Verifica si el paso se cumplió. Mira el comando escrito, su salida y —cuando
-   * hace falta— el estado REAL del mundo (world). Debe ser una función pura.
+   * Paso de ACCIÓN: verifica que el alumno HIZO algo (corrió un comando y
+   * obtuvo cierta salida), mirando comando, salida y el estado real del mundo.
+   * Un paso es de acción (check) o de pregunta (question), no ambos obligatorios.
    */
-  check: (command: string, output: string, world?: LessonWorld) => boolean;
-  /** Explicación tras lograrlo: por qué funciona y cómo defenderse. */
+  check?: (command: string, output: string, world?: LessonWorld) => boolean;
+  /**
+   * Paso de PREGUNTA (estilo TryHackMe): el alumno debe LEER lo que obtuvo y
+   * responder con `responder <respuesta>`. Fuerza a entender, no a copiar.
+   */
+  question?: string;
+  /** Respuestas aceptadas (se comparan normalizadas: sin may/min ni espacios extra). */
+  answers?: string[];
+  /** Si la respuesta se valida de forma flexible (contiene el texto), no exacta. */
+  answerContains?: boolean;
+  /** Explicación de la brief tras lograrlo: por qué funciona y cómo defenderse. */
   debrief: string;
   /**
    * Qué app abrir para este paso: "terminal" (por defecto) o "browser" (labs

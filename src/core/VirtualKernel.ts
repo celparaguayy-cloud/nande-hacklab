@@ -54,6 +54,7 @@ import { NewsEngine } from "./news/NewsEngine";
 import { SecurityTools } from "./security/SecurityTools";
 import { Academy } from "./academy/Academy";
 import { LessonEngine } from "./academy/Lessons";
+import { Curriculum } from "./academy/Curriculum";
 import { Progression } from "./game/Progression";
 import { PlayerCompany } from "./game/PlayerCompany";
 import { Notoriety } from "./game/Notoriety";
@@ -112,6 +113,7 @@ export class VirtualKernel {
   public tools: SecurityTools;
   public academy: Academy;
   public lessons: LessonEngine;
+  public curriculum: Curriculum;
   public player: Progression;
   public company: PlayerCompany;
   private lastCompanyDay = 0;
@@ -301,6 +303,7 @@ export class VirtualKernel {
     this.tools = new SecurityTools(this.network, this.dns, this.hosts, this.radio, this.web);
     this.academy = new Academy();
     this.lessons = new LessonEngine();
+    this.curriculum = new Curriculum();
     this.player = new Progression(this.events);
     this.company = new PlayerCompany();
     this.missions = new MissionEngine(this.player, this.events);

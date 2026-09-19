@@ -6,6 +6,7 @@ import { DEFENSES } from "../../core/academy/Defenses";
 import { certificationsFor, flagLabel } from "../../core/game/Certifications";
 import { buildReport } from "../../core/game/Report";
 import { Glyph, type GlyphName } from "../ui/Glyph";
+import CoursePlayer from "./CoursePlayer";
 
 /** Cada rango, con su glifo de línea (mismo lenguaje que el dock). */
 const RANK_GLYPH: Record<string, GlyphName> = {
@@ -26,7 +27,7 @@ interface LearnViewProps {
   onOpenApp?: (id: string) => void;
 }
 
-type Tab = "inicio" | "rutas" | "lecciones" | "defensa" | "trofeos" | "informe" | "perfil";
+type Tab = "inicio" | "cursos" | "rutas" | "lecciones" | "defensa" | "trofeos" | "informe" | "perfil";
 
 /**
  * ÑANDE Learn: la app para aprender hacking, ordenada de lo básico a lo
@@ -35,6 +36,7 @@ type Tab = "inicio" | "rutas" | "lecciones" | "defensa" | "trofeos" | "informe" 
 function LearnView({ kernel, onOpenApp }: LearnViewProps) {
   const [tab, setTab] = useState<Tab>("inicio");
   const [player, setPlayer] = useState(() => kernel.player.getState());
+  const [activeCourse, setActiveCourse] = useState<string | null>(null);
 
   useEffect(() => {
     const refresh = () => setPlayer(kernel.player.getState());
@@ -48,6 +50,7 @@ function LearnView({ kernel, onOpenApp }: LearnViewProps) {
   }, [kernel]);
 
   const courses = kernel.academy.all();
+  const cursos = kernel.curriculum.all();
   const lessons = kernel.lessons.all();
   const rank = rankForLevel(player.level);
   const done = new Set(player.completedCourses);
@@ -61,8 +64,22 @@ function LearnView({ kernel, onOpenApp }: LearnViewProps) {
     kernel.queueCommand(`learn ${id}`);
   };
 
+  const cursoActivo = activeCourse ? kernel.curriculum.get(activeCourse) : undefined;
+
   return (
     <div style={container}>
+      {cursoActivo && (
+        <CoursePlayer
+          kernel={kernel}
+          curso={cursoActivo}
+          startAt={kernel.player.getCourseProgress(cursoActivo.id)}
+          onExit={() => {
+            setActiveCourse(null);
+            setPlayer(kernel.player.getState());
+          }}
+          onOpenApp={onOpenApp}
+        />
+      )}
       <div style={scrollArea}>
       {tab === "inicio" && (
         <>
@@ -132,6 +149,41 @@ function LearnView({ kernel, onOpenApp }: LearnViewProps) {
               onStart={() => startLesson(l.id)}
             />
           ))}
+        </>
+      )}
+
+      {tab === "cursos" && (
+        <>
+          <div style={{ ...card, background: "linear-gradient(135deg,#12303f,#141d27)", borderColor: "#274b5f" }}>
+            <strong style={{ fontSize: 15 }}>📚 Cursos interactivos</strong>
+            <p style={{ fontSize: 13, opacity: 0.88, margin: "6px 0 0", lineHeight: 1.5 }}>
+              Aprendé con dibujos, preguntas y comandos que armás vos mismo. Cada
+              curso termina en un laboratorio real contra el mundo ÑANDE. No es
+              "escribí un comando y listo": es entender de verdad.
+            </p>
+          </div>
+          {cursos.map((c) => {
+            const seen = kernel.player.getCourseProgress(c.id);
+            const total = c.slides.length;
+            const isDone = done.has(`curso:${c.id}`);
+            const pct = isDone ? 100 : Math.round((Math.min(seen, total) / total) * 100);
+            const state = isDone ? "Repasar" : seen > 0 ? "Continuar" : "Empezar";
+            return (
+              <CourseCard
+                key={c.id}
+                title={c.title}
+                subtitle={c.subtitle}
+                level={c.level}
+                glyph={c.glyph as GlyphName}
+                hue={c.hue}
+                pct={pct}
+                slides={total}
+                stateLabel={state}
+                done={isDone}
+                onStart={() => setActiveCourse(c.id)}
+              />
+            );
+          })}
         </>
       )}
 
@@ -402,6 +454,7 @@ function LearnView({ kernel, onOpenApp }: LearnViewProps) {
       <div style={tabBar}>
         {([
           ["inicio", "Inicio"],
+          ["cursos", "Cursos"],
           ["rutas", "Rutas"],
           ["lecciones", "Lecciones"],
           ["defensa", "Defensa"],
@@ -446,6 +499,43 @@ function LessonCard({
   );
 }
 
+function CourseCard({
+  title, subtitle, level, glyph, hue, pct, slides, stateLabel, done, onStart,
+}: {
+  title: string; subtitle: string; level: string; glyph: GlyphName; hue: number;
+  pct: number; slides: number; stateLabel: string; done: boolean; onStart: () => void;
+}) {
+  const bg = `linear-gradient(135deg, hsl(${hue} 55% 26%), hsl(${(hue + 30) % 360} 45% 15%))`;
+  return (
+    <div style={{ ...card, padding: 0, overflow: "hidden" }}>
+      <div style={{ ...courseBanner, background: bg }}>
+        <div style={courseBannerGlyph}>
+          <Glyph name={glyph} size={30} />
+        </div>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, lineHeight: 1.2 }}>{title}</div>
+          <div style={{ fontSize: 11.5, opacity: 0.85, marginTop: 2 }}>{slides} pantallas</div>
+        </div>
+        <span style={{ ...levelBadge(level), background: "rgba(0,0,0,0.28)" }}>{level}</span>
+      </div>
+      <div style={{ padding: 14 }}>
+        <p style={{ fontSize: 13, opacity: 0.85, margin: "0 0 10px", lineHeight: 1.45 }}>{subtitle}</p>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+          <div style={progressTrack}>
+            <div style={{ ...progressFill, width: `${pct}%`, background: done ? "#6ee787" : accent }} />
+          </div>
+          <span style={{ fontSize: 11, opacity: 0.7, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
+            {done ? "✓ 100%" : `${pct}%`}
+          </span>
+        </div>
+        <button onClick={onStart} style={startBtn}>
+          {done ? "✅ " : "▶ "}{stateLabel}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function Stat({ glyph, value, label }: { glyph: GlyphName; value: string; label: string }) {
   return (
     <div style={statCard}>
@@ -474,6 +564,7 @@ const accentSoft = "rgba(61,174,233,0.14)";
  *  (nada de emoji): toman el color del tab (acento si está activo). */
 const NAV_GLYPHS: Record<Tab, ReactNode> = {
   inicio: <path d="M4 11l8-6 8 6M6.5 9.5V19h11V9.5M10 19v-5h4v5" />,
+  cursos: <path d="M5 5.5A2.5 2.5 0 0 1 7.5 3H19v15H7.5A2.5 2.5 0 0 0 5 20.5zM5 20.5A2.5 2.5 0 0 1 7.5 18H19M9.5 7.5h6M9.5 11h4" />,
   rutas: <path d="M6 21V4M6 5h11l-2.4 3.5L17 12H6" />,
   lecciones: <path d="M12 6.5C10.5 5.2 8 4.8 5 5v12c3-.2 5.5.2 7 1.5 1.5-1.3 4-1.7 7-1.5V5c-3-.2-5.5.2-7 1.5zM12 6.5V18" />,
   defensa: <path d="M12 3l7 3v5c0 4.2-3 7.3-7 8-4-.7-7-3.8-7-8V6z" />,
@@ -554,6 +645,15 @@ const statCard: CSSProperties = {
 };
 const card: CSSProperties = {
   padding: 14, borderRadius: 12, background: "#111820", border: "1px solid #26313b", marginBottom: 12,
+};
+const courseBanner: CSSProperties = {
+  display: "flex", alignItems: "center", gap: 12, padding: "14px 14px",
+  color: "#eef6fb",
+};
+const courseBannerGlyph: CSSProperties = {
+  flexShrink: 0, width: 46, height: 46, borderRadius: 12,
+  display: "flex", alignItems: "center", justifyContent: "center",
+  background: "rgba(255,255,255,0.14)", border: "1px solid rgba(255,255,255,0.22)",
 };
 const sectionTitle: CSSProperties = { margin: "18px 0 10px", fontSize: 16 };
 const progressTrack: CSSProperties = { flex: 1, height: 6, borderRadius: 999, background: "#26313b", overflow: "hidden" };
