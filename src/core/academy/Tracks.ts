@@ -76,6 +76,27 @@ export const RETOS: Challenge[] = [
     reward: { xp: 120, coins: 90 },
   },
   {
+    id: "r-pivot",
+    title: "El corazón de la red",
+    scenario:
+      "Comprometiste server.nande. Pero lo valioso —la caja interna— vive en una subred que no se ve desde afuera. Usá el server como trampolín: pivoteá a caja.interna.nande y llevate la bandera de root.",
+    objective: "Pivotá al host interno y leé /root/flag.txt.",
+    flag: "ND{pivoting_red_interna}",
+    difficulty: "difícil",
+    hints: [
+      "Primero necesitás estar dentro de server.nande (foothold): connect server.nande soporte Verano2024.",
+      "Desde adentro, la red interna aparece. La nota del server revela caja.interna.nande y su credencial.",
+      "connect caja.interna.nande admin GiraSol#2024  y luego  cat /root/flag.txt",
+    ],
+    steps: [
+      "connect server.nande soporte Verano2024",
+      "connect caja.interna.nande admin GiraSol#2024",
+      "cat /root/flag.txt",
+    ],
+    courseId: "c-op-killchain",
+    reward: { xp: 260, coins: 200 },
+  },
+  {
     id: "r-sqli-login",
     title: "Sin la llave, igual entro",
     scenario:
@@ -346,6 +367,16 @@ export const TRACKS: LearningTrack[] = [
     hue: 330,
     courseIds: ["c-osint-basico", "c-opsec-anon"],
     finalChallenges: ["r-onion"],
+  },
+  {
+    id: "t-operaciones",
+    title: "Operaciones (Red Team)",
+    subtitle: "La metodología completa: de reconocimiento a root, pivotando a la red interna.",
+    glyph: "target",
+    hue: 0,
+    requires: "t-acceso",
+    courseIds: ["c-op-killchain"],
+    finalChallenges: ["r-pivot"],
   },
 ];
 

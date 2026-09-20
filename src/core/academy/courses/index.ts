@@ -12,8 +12,9 @@ import { PASSWORDS_COURSES } from "./passwords";
 import { WIFI_COURSES } from "./wifi";
 import { BLUE_COURSES } from "./blue";
 import { OSINT_COURSES } from "./osint";
+import { KILLCHAIN_COURSES } from "./killchain";
 
-/** Orden pedagógico: de lo básico (Linux) a lo especializado. */
+/** Orden pedagógico: de lo básico (Linux) a lo especializado y el capstone. */
 export const EXTRA_CURSOS: Curso[] = [
   ...LINUX_COURSES,
   ...REDES_COURSES,
@@ -22,4 +23,5 @@ export const EXTRA_CURSOS: Curso[] = [
   ...WIFI_COURSES,
   ...BLUE_COURSES,
   ...OSINT_COURSES,
+  ...KILLCHAIN_COURSES,
 ];
