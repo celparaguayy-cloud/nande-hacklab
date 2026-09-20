@@ -77,6 +77,15 @@ export interface VirtualHost {
   reachableFrom?: string[];
   /** Bandera educativa que premia llegar a este host (opcional). */
   flag?: string;
+  /**
+   * Reglas sudo (NOPASSWD) por usuario: binarios que ese usuario puede correr
+   * como root. Es el vector real de escalada de privilegios: `sudo -l` los
+   * lista y, si el binario permite escapar a una shell (GTFOBins), te volvés
+   * root. Si está definido, los archivos bajo /root quedan protegidos: sólo
+   * root los lee (de ahí que la escalada IMPORTE). Ausente = host sin este
+   * mecanismo (comportamiento clásico).
+   */
+  sudoers?: Record<string, string[]>;
 }
 
 /** Un hecho ocurrido en el runtime. Es la evidencia que consume el SOC. */

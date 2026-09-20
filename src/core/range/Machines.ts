@@ -187,6 +187,25 @@ export const MACHINES: PracticeMachine[] = [
     hint: "enum4linux NANDE.LOCAL revela el SPN; kerberoast + crack-tgs con una clave de temporada (Verano2024!); ya dueño de SVC-SQL, abuse su AdminTo a DB01, mimikatz sekurlsa::logonpasswords y Pass-the-Hash del Domain Admin. La ruta completa: nandeblood.",
     courseId: "c-ad-directorio",
   },
+  {
+    id: "m-privesc",
+    name: "Tuja DevBox",
+    host: "web01.nande",
+    ip: "10.10.7.40",
+    os: "ÑandeLinux 4.0 (SSH)",
+    difficulty: "avanzado",
+    tags: ["linux", "privesc", "sudo"],
+    points: 240,
+    brief:
+      "Un servidor de aplicaciones con SSH. Entrás como el usuario de sistema devops (clave floja) por la bandera de usuario, y después escalás a root: le dejaron un sudo NOPASSWD sobre find de un script viejo, y find escapa a una shell (GTFOBins). Dos banderas, como en HTB: user.txt y root.txt. La escalada importa de verdad — /root no se lee hasta que sos root.",
+    tasks: [
+      { label: "Foothold: leé user.txt como devops", flag: "ND{foothold_devops}" },
+      { label: "Escalá a root (sudo GTFOBins) y leé root.txt", flag: "ND{privesc_sudo_root}" },
+    ],
+    entry: "nmap -p- -sV web01.nande",
+    hint: "nmap -p- -sV web01.nande (SSH); connect web01.nande devops Delfin2024; adentro: sudo -l revela find; sudo find . -exec /bin/sh \\; te vuelve root; cat /root/flag.txt.",
+    courseId: "c-op-killchain",
+  },
 ];
 
 /** Estado de una máquina según las banderas ya capturadas por el jugador. */

