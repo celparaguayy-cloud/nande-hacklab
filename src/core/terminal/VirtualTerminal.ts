@@ -3070,11 +3070,16 @@ export class VirtualTerminal {
       const ntlm = input.match(/\/ntlm:([0-9a-fA-F]{8,})/i)?.[1];
       if (!user) return { output: "uso: mimikatz \"sekurlsa::pth /user:<cuenta> [/ntlm:<hash>]\"\n", isError: true };
       const r = dir.passTheHash(user, ntlm);
+      // Si el Pass-the-Hash cae el dominio, la bandera se captura de verdad
+      // (misma ruta que abuse/crack-tgs): onDomainOwned escanea la señal y la
+      // registra en el historial del jugador. Antes el PtH comprometía el
+      // dominio en el estado pero NO capturaba ND{dominio_comprometido} — la
+      // cadena tool-driven "quedaba a medias". Ahora premia igual que el grafo.
       const body =
         `mimikatz # sekurlsa::pth /user:${user}${ntlm ? " /ntlm:" + ntlm : ""}\n` +
         (r.ok
           ? `[+] Pass-the-Hash OK: ${r.message}\n` +
-            (r.domainOwned ? `\n🏆 Poseés Domain Admins: control total de ${dir.domain}. Mirá nandeblood.\n` : `Mirá nandeblood para la ruta que falta.\n`)
+            (r.domainOwned ? this.onDomainOwned() : `Mirá nandeblood para la ruta que falta.\n`)
           : `[-] ${r.message}\n`);
       return { output: body, isError: !r.ok };
     }
