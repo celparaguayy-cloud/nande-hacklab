@@ -36,6 +36,30 @@ describe("labs de red e infraestructura (tanda 5)", () => {
     expect(t.execute("aircrack-ng -w rockyou.txt Corp-Secure")).not.toContain("ND{wifi_wpa_crackeada}");
   });
 
+  it("ataque PMKID clientless: sin cliente, hcxdumptool + hashcat -m 22000 crackean", () => {
+    resetStorage(); seedRandom();
+    const k = new VirtualKernel();
+    const t = new VirtualTerminal(k);
+    t.execute("airmon-ng start wlan0");
+    // Oficina-5G no tiene clientes: el deauth NO sirve.
+    expect(t.execute("aireplay-ng --deauth 5 -a D8:47:32:AB:CD:06 wlan0mon")).toContain("no tiene clientes");
+    // Pero filtra PMKID: se roba clientless y se crackea con hashcat -m 22000.
+    const dump = t.execute("hcxdumptool Oficina-5G");
+    expect(dump).toContain("PMKID capturado");
+    expect(dump).toContain("WPA*01*"); // hash 22000 real
+    expect(t.execute("hashcat -m 22000 pmkid.pcapng -w rockyou.txt Oficina-5G")).toContain("ND{wifi_pmkid_crackeado}");
+  });
+
+  it("WPA3 no expone PMKID (el ataque clientless no aplica)", () => {
+    resetStorage(); seedRandom();
+    const k = new VirtualKernel();
+    const t = new VirtualTerminal(k);
+    t.execute("airmon-ng start wlan0");
+    const out = t.execute("hcxdumptool Corp-Secure");
+    expect(out).toMatch(/WPA3|SAE/);
+    expect(out).not.toContain("WPA*01*");
+  });
+
   it("proxychains llega a la red interna por pivoting", () => {
     resetStorage(); seedRandom();
     const k = new VirtualKernel();

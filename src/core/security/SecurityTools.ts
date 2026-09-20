@@ -1648,6 +1648,68 @@ const RUNNERS: Record<string, Runner> = {
     return { output: header + `      ${r.message}\n`, isError: false };
   },
 
+  hcxdumptool(args, ctx) {
+    // Ataque CLIENTLESS de PMKID: le pide el PMKID directo al AP, sin cliente
+    // ni deauth. Necesita modo monitor. Deja el material listo para hashcat.
+    const radio = ctx.radio;
+    if (!radio) return { output: "hcxdumptool: la radio no está disponible.\n", isError: true };
+    const target = args.find((a, i) => !a.startsWith("-") && args[i - 1] !== "-i" && !/wlan0/.test(a));
+    if (!target) {
+      // Sin objetivo explícito: barre el aire y saca PMKID de los que filtran.
+      if (!radio.isMonitor()) {
+        return { output: "hcxdumptool: la placa no está en modo monitor (corré 'airmon-ng start wlan0').\n", isError: true };
+      }
+      const hits = radio.accessPoints()
+        .map((ap) => ({ ap, r: radio.capturePmkid(ap.essid) }))
+        .filter((x) => x.r.captured);
+      if (hits.length === 0) {
+        return { output: "hcxdumptool: barrido completo. Ningún AP filtró PMKID (probá el handshake con airodump+aireplay).\n", isError: false };
+      }
+      return {
+        output:
+          `hcxdumptool -i wlan0mon --enable_status=1\n` +
+          `[*] escuchando el aire (ataque clientless de PMKID)\n` +
+          hits.map((x) => `[+] PMKID de ${x.ap.essid} (${x.ap.bssid})  →  ${x.r.hash}`).join("\n") +
+          `\n[*] ${hits.length} PMKID guardado(s) en pmkid.pcapng. Crackealos: hashcat -m 22000 pmkid.pcapng -w rockyou.txt <ESSID>\n`,
+        isError: false,
+      };
+    }
+    // Los objetivos WiFi (ESSID/BSSID) son del sandbox por definición: la radio
+    // sólo conoce APs virtuales, así que no hace falta el guard de red IP.
+    const res = radio.capturePmkid(target);
+    if (!res.ok) return { output: `hcxdumptool: ${res.message}\n`, isError: true };
+    return {
+      output:
+        `hcxdumptool -i wlan0mon --filterlist_ap=${target}\n` +
+        (res.hash ? `[+] ${res.message}\n    hash 22000: ${res.hash}\n` : `${res.message}\n`),
+      isError: false,
+    };
+  },
+
+  hcxpcapngtool(args, ctx) {
+    // Convierte la captura .pcapng al formato de hash 22000 para hashcat.
+    const radio = ctx.radio;
+    if (!radio) return { output: "hcxpcapngtool: la radio no está disponible.\n", isError: true };
+    const target = args.find((a) => !a.startsWith("-") && !/\.pcapng$|\.22000$|\.hc22000$/.test(a));
+    const ap = target ? radio.resolve(target) : undefined;
+    if (ap && radio.hasPmkid(ap.essid)) {
+      const macAp = ap.bssid.replace(/:/g, "").toLowerCase();
+      const essidHex = Array.from(ap.essid).map((c) => c.charCodeAt(0).toString(16).padStart(2, "0")).join("");
+      return {
+        output:
+          `hcxpcapngtool -o hash.22000 pmkid.pcapng\n` +
+          `[+] PMKID(s) written to hash.22000: 1\n` +
+          `WPA*01*${macAp.padEnd(32, "0").slice(0, 32)}*${macAp}*3c5ab4000000*${essidHex}\n` +
+          `[*] listo para: hashcat -m 22000 hash.22000 -w rockyou.txt\n`,
+        isError: false,
+      };
+    }
+    return {
+      output: "hcxpcapngtool: no hay PMKID en la captura. Capturá uno primero con hcxdumptool.\n",
+      isError: false,
+    };
+  },
+
   proxychains(args, ctx) {
     const objetivo = args[args.length - 1] ?? "";
     // Segmento interno 10.10.9.x: no accesible directo, solo por pivote.
@@ -2169,8 +2231,40 @@ const RUNNERS: Record<string, Runner> = {
     };
   },
 
-  hashcat(args) {
-    return RUNNERS.johntheripper(args, {} as ToolContext);
+  hashcat(args, ctx) {
+    // -m 22000 = WPA-PBKDF2-PMKID+EAPOL: crackea el handshake/PMKID capturado
+    // contra el motor de radio real. Es el modo moderno (reemplaza a -m 2500).
+    const mIdx = args.indexOf("-m");
+    const mode = mIdx >= 0 ? args[mIdx + 1] : "";
+    if ((mode === "22000" || mode === "2500" || mode === "16800") && ctx.radio) {
+      const radio = ctx.radio;
+      const wIdx = args.indexOf("-w");
+      const wordlist = wIdx >= 0 ? (args[wIdx + 1] ?? "rockyou.txt") : "rockyou.txt";
+      // Objetivo: un ESSID/BSSID conocido entre los argumentos.
+      const target = args.find((a) => !a.startsWith("-") && a !== mode && a !== wordlist && !!radio.resolve(a));
+      if (!target) {
+        return {
+          output:
+            "hashcat: no encuentro el AP objetivo. Pasá el ESSID capturado.\n" +
+            "Ej: hashcat -m 22000 pmkid.pcapng -w rockyou.txt Oficina-5G\n",
+          isError: false,
+        };
+      }
+      const r = radio.crack(target, wordlist);
+      if (!r.ok) return { output: `hashcat: ${r.message}\n`, isError: false };
+      const header =
+        `hashcat (v6.2, edición ÑANDE) — modo ${mode} (WPA-PMKID/EAPOL)\n` +
+        `Diccionario: ${wordlist}  ·  ${r.keysTested} claves probadas (${r.rate} kH/s)\n`;
+      if (r.found) {
+        return {
+          output: header + `\n${r.key ? `[recuperada] ${target}:${r.key}` : ""}\nStatus...........: Cracked${r.flag ? `\nBandera: ${r.flag}` : ""}\n`,
+          isError: false,
+          flag: r.flag,
+        };
+      }
+      return { output: header + `\nStatus...........: Exhausted — ${r.message}\n`, isError: false };
+    }
+    return RUNNERS.johntheripper(args, ctx);
   },
 
   metasploit(args, ctx) {

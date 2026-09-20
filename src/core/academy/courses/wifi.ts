@@ -355,6 +355,82 @@ const WIFI_AIRCRACK: Curso = {
     },
     {
       kind: "concept",
+      title: "¿Y si el AP no tiene clientes? El ataque PMKID",
+      body:
+        "El handshake tiene un problema: necesitás un cliente conectado al que expulsar. ¿Y si el router no tiene a nadie? Ahí entra el PMKID (2018, Steube/hashcat): muchos APs WPA2/WPA-PSK filtran un dato llamado RSN PMKID en el PRIMER mensaje, apenas les pedís asociarte. O sea: le robás material crackeable AL PROPIO ROUTER, sin cliente y sin deauth. Se llama ataque 'clientless' y es más silencioso (no expulsás a nadie). La herramienta es hcxdumptool.",
+      diagram: "wifi",
+      bullets: [
+        "PMKID = material crackeable que el AP filtra solo, sin necesidad de clientes.",
+        "Clientless: no hace falta deauth → más silencioso que el handshake.",
+      ],
+    },
+    {
+      kind: "concept",
+      title: "El formato 22000 y hashcat",
+      body:
+        "El PMKID (o el handshake) se convierte al formato de hash 22000 con hcxpcapngtool, y se crackea con hashcat en modo -m 22000 (el modo moderno que reemplazó al viejo -m 2500). hashcat usa la GPU: prueba millones de claves por segundo, mucho más rápido que aircrack en CPU. El flujo profesional de WiFi hoy es: hcxdumptool (capturar PMKID) → hcxpcapngtool (a 22000) → hashcat -m 22000 (crackear).",
+      diagram: "hash",
+      bullets: [
+        "hashcat -m 22000 = WPA-PMKID/EAPOL (reemplaza al -m 2500).",
+        "Flujo: hcxdumptool → hcxpcapngtool → hashcat -m 22000.",
+      ],
+    },
+    {
+      kind: "quiz",
+      prompt: "Escaneás y encontrás un AP WPA2 SIN ningún cliente conectado. ¿Cuál es tu mejor jugada?",
+      options: [
+        "Ataque PMKID (clientless): le pido el PMKID directo al AP con hcxdumptool, sin necesidad de clientes",
+        "Deauth igual: aunque no haya clientes, fuerza el handshake",
+        "Esperar horas a que alguien se conecte",
+        "Es imposible, sin cliente no hay nada que hacer",
+      ],
+      correct: 0,
+      explain:
+        "Sin clientes, el deauth no tiene a quién expulsar: no captura handshake. El PMKID no depende de clientes — se lo pedís al AP directamente. Por eso, contra un AP solitario que filtra PMKID, el ataque clientless es la vía. Si el AP no filtra PMKID y no hay clientes, toca esperar o buscar otro vector.",
+      diagram: "wifi",
+    },
+    {
+      kind: "lab",
+      title: "Practicá: robá el PMKID (clientless)",
+      body:
+        "Oficina-5G es un WPA2 en 5GHz sin clientes. Poné la placa en monitor y pedile el PMKID directo con hcxdumptool. Fijate que NO hiciste ningún deauth.",
+      command: "hcxdumptool Oficina-5G",
+      explain:
+        "hcxdumptool captura el PMKID de Oficina-5G sin un solo cliente ni deauth (clientless), y te da el hash en formato 22000. Probá también un deauth contra ese AP: falla, porque no hay a quién expulsar. Ese es el punto del PMKID.",
+      diagram: "wifi",
+    },
+    {
+      kind: "build",
+      goal: "Armar el comando de hashcat que crackea el PMKID capturado de Oficina-5G",
+      pieces: ["hashcat", "-m", "22000", "pmkid.pcapng", "-w", "rockyou.txt", "Oficina-5G", "-m 2500", "aircrack-ng"],
+      answer: ["hashcat", "-m", "22000", "pmkid.pcapng", "-w", "rockyou.txt", "Oficina-5G"],
+      hint: "hashcat en modo 22000 (WPA-PMKID), la captura, -w con el diccionario y el ESSID objetivo. El -m 2500 es el viejo, no lo uses.",
+      explain:
+        "hashcat -m 22000 pmkid.pcapng -w rockyou.txt Oficina-5G prueba el diccionario contra el PMKID. La clave 'paraguay' está en rockyou → cae. -m 22000 es el modo actual; -m 2500 quedó obsoleto.",
+    },
+    {
+      kind: "lab",
+      title: "Practicá: crackeá el PMKID de punta a punta",
+      body:
+        "La cadena clientless completa, encadenada: modo monitor → capturar el PMKID con hcxdumptool → crackearlo con hashcat -m 22000. Sin tocar a ningún cliente.",
+      command: "airmon-ng start wlan0 && hcxdumptool Oficina-5G && hashcat -m 22000 pmkid.pcapng -w rockyou.txt Oficina-5G",
+      explain:
+        "hashcat rompe 'paraguay' desde el PMKID y capturás ND{wifi_pmkid_crackeado} — sin haber expulsado a nadie. Es el ataque WiFi moderno: silencioso y sin depender de que haya clientes. Defensa: clave larga (fuera de todo diccionario) y WPA3.",
+      diagram: "wifi",
+    },
+    {
+      kind: "concept",
+      title: "Por qué WPA3 (SAE) cambia el juego",
+      body:
+        "WPA3 reemplaza el 4-way handshake de WPA2 por SAE (Simultaneous Authentication of Equals, un 'Dragonfly'). SAE NO expone PMKID y NO permite el ataque de diccionario OFFLINE: cada intento de clave exige hablar con el AP (online), que además te frena tras unos pocos. Por eso ni el handshake ni el PMKID sirven contra WPA3. (Hubo fallas como Dragonblood en implementaciones viejas, pero el diseño es sólido.) Sumale 802.11w (PMF) para bloquear el deauth. Conclusión pro: WPA3 + clave larga = tu captura no vale nada.",
+      diagram: "escudo",
+      bullets: [
+        "SAE: sin PMKID y sin diccionario offline — hay que hablar con el AP (online, y te frena).",
+        "WPA3 + 802.11w (PMF): ni deauth ni ataque offline. Por eso es el consejo.",
+      ],
+    },
+    {
+      kind: "concept",
       title: "Cómo se defiende una red WiFi",
       body:
         "Rompiste un WPA2 débil; ahora sabés exactamente cómo blindarlo:\n\n• Clave LARGA y aleatoria (12+ caracteres, fuera de todo diccionario): aunque capturen el handshake, no la sacan.\n• Usá WPA3 si podés: su handshake (SAE) no se ataca con diccionario offline.\n• Activá 802.11w (Protected Management Frames): bloquea el deauth, así no te fuerzan el handshake.\n• Y lo más importante: reportá lo que encontrás. Un hacker ético avisa y explica el arreglo; no abusa.",

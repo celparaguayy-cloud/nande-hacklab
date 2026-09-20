@@ -23,12 +23,17 @@ El dueño delegó las decisiones de producto (qué agregar, arquitectura, rumbo)
    para que un avanzado practique **sin exponerse** ni exponer a nadie.
 10. Enfoque: **enseñar, explicar y dar práctica**. "Tenés todo, sólo ejecutá."
 11. **Investigar** nuevos métodos de hacking/ciberseguridad para mejorar el contenido.
-12. Más reglas en el futuro (se agregan acá cuando lleguen).
+12. **Gente seria también**: hackers reales y pentesters que vienen a practicar. Por eso
+    la exigencia alta y el **realismo extremo** — el contenido debe aguantar el ojo de un
+    profesional, no sólo enseñar a un principiante.
+13. (pendiente — el dueño la dará; se anota acá cuando llegue.)
+14+. Más reglas en el futuro (se agregan acá cuando lleguen).
 
 ## Límites que NO se cruzan (seguridad = parte de hacerse cargo)
 
-ÑANDE lo usan menores y un grupo de estudio. La contención no es un adorno: es lo que
-lo hace seguro y lo que cumple el req 6/9 ("controlado", "sin exponerse").
+ÑANDE lo usan menores Y profesionales; la práctica seria convive con público joven. La
+contención no es un adorno: es lo que lo hace seguro y lo que cumple el req 6/9
+("controlado", "sin exponerse"). Realismo extremo SÍ; salirse del sandbox NO.
 
 - **100% offline / contenido en el dispositivo.** Ninguna herramienta del juego hace
   peticiones a internet real ni saca datos del dispositivo. La única red real permitida

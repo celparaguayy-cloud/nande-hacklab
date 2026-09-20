@@ -498,18 +498,18 @@ export const TOOL_CATALOG: ToolDef[] = [
     simple:
       "Como john pero usando la placa de video para probar aún más rápido.",
     whatItDoes:
-      "Crackea hashes aprovechando la GPU para máxima velocidad.",
+      "Crackea hashes con la GPU. Con -m elegís el tipo: -m 0 (MD5), -m 22000 (WPA-PMKID/EAPOL, el modo WiFi moderno que reemplazó al -m 2500).",
     whyExists:
-      "Para romper hashes a gran escala y medir la fortaleza real.",
+      "Para romper hashes a gran escala y medir la fortaleza real (incluidas claves WiFi por PMKID).",
     whenToUse:
-      "Cuando hay muchos hashes o son costosos de romper.",
+      "Cuando hay muchos hashes, o para crackear un PMKID/handshake WiFi capturado con hcxdumptool.",
     resultMeaning:
       "Contraseñas recuperadas de los hashes que cedieron.",
     howToDetect:
       "Offline: no deja rastro en el objetivo.",
     howToDefend:
-      "Algoritmos resistentes a GPU y sal única por contraseña.",
-    usage: "hashcat -m 0 hashes.txt",
+      "Algoritmos resistentes a GPU y sal única por contraseña; para WiFi, claves largas y WPA3.",
+    usage: "hashcat -m 22000 pmkid.pcapng -w rockyou.txt Oficina-5G",
     runnable: true,
   }),
   t({
@@ -678,6 +678,37 @@ export const TOOL_CATALOG: ToolDef[] = [
     howToDetect: "El crackeo del handshake es offline: no se detecta en la red.",
     howToDefend: "Claves largas y aleatorias, WPA3, y no reutilizar contraseñas.",
     usage: "aircrack-ng -w rockyou.txt Vecino-2G",
+    runnable: true,
+  }),
+  t({
+    id: "hcxdumptool",
+    name: "hcxdumptool",
+    category: "redes",
+    level: "avanzado",
+    simple:
+      "Le pide la 'huella' (PMKID) al router directamente, sin esperar a que se conecte nadie.",
+    whatItDoes: "Ataque CLIENTLESS de PMKID: captura material crackeable sin cliente ni deauth.",
+    whyExists: "Muchos APs WPA2 filtran el PMKID: se ataca aunque no haya ni un cliente conectado.",
+    whenToUse: "Cuando el AP no tiene clientes (el deauth no sirve) o querés ser más sigiloso.",
+    resultMeaning: "Un hash 22000 listo para hashcat; si el AP no filtra PMKID, no da material.",
+    howToDetect: "Pedidos de asociación anómalos; algunos WIDS lo marcan, pero es más silencioso que el deauth.",
+    howToDefend: "WPA3 (SAE no expone PMKID), claves largas y firmware que no filtre el PMKID.",
+    usage: "hcxdumptool Oficina-5G   (antes: airmon-ng start wlan0)",
+    runnable: true,
+  }),
+  t({
+    id: "hcxpcapngtool",
+    name: "hcxpcapngtool",
+    category: "redes",
+    level: "avanzado",
+    simple: "Convierte lo que capturaste al formato que entiende hashcat.",
+    whatItDoes: "Transforma una captura .pcapng en un hash 22000 para hashcat.",
+    whyExists: "hashcat no lee la captura cruda: necesita el hash en formato 22000.",
+    whenToUse: "Entre capturar (hcxdumptool) y crackear (hashcat -m 22000).",
+    resultMeaning: "Un archivo .22000 con el/los hash(es) listos para el diccionario.",
+    howToDetect: "Es offline, en tu máquina: no toca la red.",
+    howToDefend: "No aplica (paso local del atacante); la defensa está en el AP.",
+    usage: "hcxpcapngtool Oficina-5G",
     runnable: true,
   }),
   t({

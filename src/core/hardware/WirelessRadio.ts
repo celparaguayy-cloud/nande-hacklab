@@ -36,6 +36,12 @@ export interface AccessPoint {
   password?: string;
   /** MAC de cada estación (cliente) asociada. */
   clients: string[];
+  /**
+   * El AP filtra el RSN PMKID en el primer mensaje EAPOL: permite el ataque
+   * CLIENTLESS (hcxdumptool) — capturás material crackeable sin ningún cliente
+   * ni deauth. Muchos APs WPA2/WPA-PSK viejos lo hacen. WPA3 (SAE) no.
+   */
+  pmkid?: boolean;
   /** Bandera educativa al crackearla. */
   flag?: string;
 }
@@ -45,6 +51,8 @@ interface Capture {
   bssid: string;
   /** ¿Se capturó el 4-way handshake WPA? */
   handshake: boolean;
+  /** ¿Se capturó el PMKID (ataque clientless con hcxdumptool)? */
+  pmkid?: boolean;
   /** Paquetes de datos "vistos" (para el contador estilo airodump). */
   data: number;
   /** Clave ya recuperada, si se crackeó. */
@@ -99,6 +107,15 @@ function seedAccessPoints(): AccessPoint[] {
       bssid: "B0:BE:76:99:AA:05", essid: "Corp-Secure", channel: 36,
       encryption: "WPA3", password: "R3d-C0rp-2024!largo", power: -78,
       clients: ["3C:5A:B4:00:00:66"],
+    },
+    {
+      // WPA2 en 5GHz que filtra el PMKID y NO tiene clientes: el deauth no sirve
+      // (no hay a quién expulsar), pero el ataque clientless (hcxdumptool) sí.
+      // Su clave está en rockyou → cae con hashcat -m 22000.
+      bssid: "D8:47:32:AB:CD:06", essid: "Oficina-5G", channel: 44,
+      encryption: "WPA2", password: "paraguay", power: -66,
+      clients: [], pmkid: true,
+      flag: "ND{wifi_pmkid_crackeado}",
     },
   ];
 }
@@ -192,6 +209,59 @@ export class WirelessRadio {
     return ap ? !!this.captures.get(ap.bssid)?.handshake : false;
   }
 
+  hasPmkid(ref: string): boolean {
+    const ap = this.resolve(ref);
+    return ap ? !!this.captures.get(ap.bssid)?.pmkid : false;
+  }
+
+  /** Banda por canal: 2.4GHz (1-14) o 5GHz (36+). */
+  band(ap: AccessPoint): string {
+    return ap.channel <= 14 ? "2.4GHz" : "5GHz";
+  }
+
+  /**
+   * Ataque CLIENTLESS de PMKID (hcxdumptool). Le pide el PMKID directo al AP:
+   * no hace falta ningún cliente ni deauth. Sólo funciona si el AP lo filtra
+   * (pmkid:true). WPA3 (SAE) no lo expone; una red abierta no tiene qué robar.
+   * Devuelve el material listo para crackear con hashcat -m 22000.
+   */
+  capturePmkid(ref: string): { ok: boolean; message: string; captured?: boolean; hash?: string } {
+    if (!this.monitor) {
+      return { ok: false, message: "hcxdumptool: la placa no está en modo monitor (corré 'airmon-ng start wlan0')." };
+    }
+    const ap = this.resolve(ref);
+    if (!ap) {
+      return { ok: false, message: `hcxdumptool: no veo ningún AP "${ref}" en el aire.` };
+    }
+    if (ap.encryption === "OPN") {
+      return { ok: true, captured: false, message: `${ap.essid} es una red ABIERTA: no hay PMKID ni clave. Se espía directo.` };
+    }
+    if (ap.encryption === "WPA3") {
+      return {
+        ok: true, captured: false,
+        message: `${ap.essid} usa WPA3 (SAE): no expone PMKID crackeable offline. El ataque clientless no aplica — por eso WPA3 es el consejo.`,
+      };
+    }
+    if (!ap.pmkid) {
+      return {
+        ok: true, captured: false,
+        message: `${ap.essid} no filtra el RSN PMKID: el ataque clientless no da material. Volvé al handshake (airodump + aireplay --deauth).`,
+      };
+    }
+    const cap = this.captureOf(ap.bssid);
+    cap.pmkid = true;
+    this.lastCaptured = ap.bssid;
+    // Hash 22000 de laboratorio (formato WPA*01*PMKID*MAC_AP*MAC_STA*ESSID_hex).
+    const macAp = ap.bssid.replace(/:/g, "").toLowerCase();
+    const essidHex = Array.from(ap.essid).map((c) => c.charCodeAt(0).toString(16).padStart(2, "0")).join("");
+    const pmkidHex = macAp.padEnd(32, "0").slice(0, 32);
+    const hash = `WPA*01*${pmkidHex}*${macAp}*3c5ab4000000*${essidHex}`;
+    return {
+      ok: true, captured: true, hash,
+      message: `PMKID capturado de ${ap.essid} (${ap.bssid}) SIN cliente ni deauth (clientless). Listo para hashcat -m 22000.`,
+    };
+  }
+
   crackedKey(ref: string): string | undefined {
     const ap = this.resolve(ref);
     return ap ? this.captures.get(ap.bssid)?.crackedKey : undefined;
@@ -262,10 +332,11 @@ export class WirelessRadio {
         message: `aircrack-ng: ${ap.essid} es una red abierta: no tiene clave que crackear.`,
       };
     }
-    if (!this.captures.get(ap.bssid)?.handshake) {
+    const cap0 = this.captures.get(ap.bssid);
+    if (!cap0?.handshake && !cap0?.pmkid) {
       return {
         ok: false, found: false, keysTested: 0, rate: 0,
-        message: `aircrack-ng: no hay handshake capturado de ${ap.essid}. Capturá uno primero (airodump-ng + aireplay-ng --deauth).`,
+        message: `aircrack-ng: no hay handshake ni PMKID de ${ap.essid}. Capturá material primero (airodump-ng + aireplay-ng --deauth, o hcxdumptool para PMKID).`,
       };
     }
     const list = WORDLISTS[wordlist.toLowerCase()] ?? WORDLISTS["rockyou.txt"];

@@ -248,6 +248,27 @@ export const RETOS: Challenge[] = [
     reward: { xp: 200, coins: 160 },
   },
   {
+    id: "r-pmkid",
+    title: "Sin cliente, igual caigo (PMKID)",
+    scenario:
+      "Oficina-5G (WPA2, 5GHz) no tiene ni un cliente conectado, así que el deauth no sirve. Pero filtra el PMKID: robalo directo del AP (clientless) y crackealo con hashcat.",
+    objective: "Capturá el PMKID sin cliente y recuperá la clave con hashcat -m 22000.",
+    flag: "ND{wifi_pmkid_crackeado}",
+    difficulty: "difícil",
+    hints: [
+      "Sin clientes, el deauth no captura nada: necesitás el ataque clientless de PMKID.",
+      "hcxdumptool le pide el PMKID directo al AP (antes: airmon-ng start wlan0).",
+      "hashcat -m 22000 pmkid.pcapng -w rockyou.txt Oficina-5G",
+    ],
+    steps: [
+      "airmon-ng start wlan0",
+      "hcxdumptool Oficina-5G",
+      "hashcat -m 22000 pmkid.pcapng -w rockyou.txt Oficina-5G",
+    ],
+    courseId: "c-wifi-aircrack",
+    reward: { xp: 240, coins: 190 },
+  },
+  {
     id: "r-siem",
     title: "El defensor contraataca",
     scenario:
@@ -347,7 +368,7 @@ export const TRACKS: LearningTrack[] = [
     hue: 30,
     requires: "t-redes",
     courseIds: ["c-pass-basico", "c-pass-hydra", "c-pass-hashes", "c-wifi-como-funciona", "c-wifi-aircrack"],
-    finalChallenges: ["r-ssh-brute", "r-wifi"],
+    finalChallenges: ["r-ssh-brute", "r-wifi", "r-pmkid"],
   },
   {
     id: "t-defensa",
