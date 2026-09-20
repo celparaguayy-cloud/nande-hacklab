@@ -30,6 +30,44 @@ const BRUTE_WINDOW = 40;
 const BRUTE_THRESHOLD = 4;
 const SECRET_FIELDS = ["password", "pass", "clave", "contrasena", "contraseña", "pin", "token", "secret"];
 
+/**
+ * Firmas de explotación web sobre el contenido REAL de la petición (como un
+ * WAF/IDS que observa el tráfico, no un texto pregrabado). Devuelve la técnica
+ * MITRE que corresponde, o null si la petición es benigna. El orden es de más a
+ * menos específico; una petición normal (?q=hola, login limpio) no coincide.
+ */
+interface WebExploit {
+  mitreId: string;
+  technique: string;
+  tactic: string;
+  label: string;
+}
+function detectWebExploit(payload: string): WebExploit | null {
+  const p = payload;
+  // SQL injection: UNION SELECT, ' OR '1'='1, tautologías, comentario tras comilla.
+  if (
+    /union\s+select/i.test(p) ||
+    /'\s*or\s+'?\d+'?\s*=\s*'?\d+/i.test(p) ||
+    /\bor\b\s+['"]?\d+['"]?\s*=\s*['"]?\d+/i.test(p) ||
+    /'\s*(--|#|or\b)/i.test(p)
+  ) {
+    return { mitreId: "T1190", technique: "Exploit Public-Facing App: SQL Injection", tactic: "Initial Access", label: "Inyección SQL" };
+  }
+  // Command injection: metacaracter de shell seguido de un comando real.
+  if (/[;|&`]\s*(cat|ls|id|whoami|nc|ncat|bash|sh|curl|wget|rm|echo|uname|pwd|cut|awk|head)\b/i.test(p)) {
+    return { mitreId: "T1059", technique: "Command & Scripting Interpreter (cmdi)", tactic: "Execution", label: "Inyección de comandos" };
+  }
+  // XSS reflejado: etiquetas/handlers de script.
+  if (/<script|onerror\s*=|onload\s*=|javascript:|<svg|<img[^>]*\son\w+=/i.test(p)) {
+    return { mitreId: "T1059.007", technique: "JavaScript (XSS reflejado)", tactic: "Execution", label: "XSS reflejado" };
+  }
+  // Path traversal / LFI: escape de directorio o rutas sensibles.
+  if (/\.\.[/\\]/.test(p) || /%2e%2e(%2f|%5c)/i.test(p) || /\/etc\/passwd\b/i.test(p)) {
+    return { mitreId: "T1083", technique: "File & Directory Access (path traversal / LFI)", tactic: "Discovery", label: "Path traversal / LFI" };
+  }
+  return null;
+}
+
 export class MitreCorrelator {
   private detections: Detection[] = [];
   private seq = 0;
@@ -106,6 +144,7 @@ export class MitreCorrelator {
   }
 
   private fromHttp(t: TrafficRecord): void {
+    // 1) Credencial en claro (T1040): una sola por petición.
     for (const [k, v] of Object.entries(t.reqBody)) {
       if (SECRET_FIELDS.includes(k.toLowerCase()) && v) {
         this.raise({
@@ -116,8 +155,26 @@ export class MitreCorrelator {
           host: t.host,
           confidence: "high",
         });
-        return;
+        break;
       }
+    }
+    // 2) Explotación web: firmas sobre el contenido REAL de la petición (ruta +
+    //    cuerpo). Es el WAF/IDS del mundo observando el tráfico que de verdad
+    //    mandó el jugador — antes las inyecciones capturaban su flag pero el SOC
+    //    quedaba ciego (incoherencia). Una misma petición puede ser cred en
+    //    claro Y explotación (login SQLi): las dos detecciones son legítimas.
+    const payload = `${t.path} ${Object.values(t.reqBody).join(" ")}`;
+    const web = detectWebExploit(payload);
+    if (web) {
+      const shown = payload.trim().slice(0, 80);
+      this.raise({
+        mitreId: web.mitreId,
+        technique: web.technique,
+        tactic: web.tactic,
+        detail: `${web.label} contra ${t.host}${t.path.split("?")[0]}: "${shown}"`,
+        host: t.host,
+        confidence: "high",
+      });
     }
   }
 

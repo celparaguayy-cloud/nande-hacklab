@@ -3,5 +3,5 @@
  * qué build estás corriendo (y confirmar que tomaste la última actualización).
  * Subí el número cuando haya un cambio que el jugador deba poder distinguir.
  */
-export const NANDE_VERSION = "5.39.0";
-export const NANDE_BUILD = "reglas-maestras+privesc-coherente";
+export const NANDE_VERSION = "5.40.0";
+export const NANDE_BUILD = "soc-detecta-web";
