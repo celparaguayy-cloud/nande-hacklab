@@ -15,6 +15,10 @@ const VALID_DIAGRAMS = new Set([
   "escaneo", "handshake", "fuerzabruta", "inyeccion", "wifi", "escudo",
   "terminal", "archivo", "hash", "cookie", "firewall", "phishing", "vpn",
   "xss", "privesc", "osint",
+  // Segunda tanda: una imagen enfocada por concepto (menos repetición).
+  "exploit", "payload", "adgrafo", "kerberos", "pth", "spray", "sniffer",
+  "crackhash", "directorios", "subdominios", "mitm", "pivot", "traversal",
+  "idor", "ssrf", "cmdi", "jwt", "siem", "reversing", "contenedor",
 ]);
 
 // Deben coincidir con GlyphName (Glyph.tsx).

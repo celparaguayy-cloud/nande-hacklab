@@ -115,6 +115,8 @@ const MANPAGES: Record<string, ManPage> = {
     desc: "Explora comparticiones SMB de un host del laboratorio y lee sus archivos REALES (los que expone la máquina). Con -L listás las comparticiones; con //host/files listás los archivos; agregando el nombre bajás/leés uno. Enseña el riesgo del acceso anónimo a recursos compartidos.", examples: ["smbclient -L 10.10.5.40", "smbclient //10.10.5.40/files", "smbclient //10.10.5.40/files /home/student/notes.txt"] },
   crackmapexec: { name: "barrido de autenticación SMB (spray)", synopsis: "crackmapexec smb <objetivo> -u <usuario|users.txt> -p <clave>",
     desc: "Prueba credenciales por SMB contra el dominio REAL. Si la clave es la de la cuenta, entrás y la POSEÉS (el grafo de NandeBlood se recalcula); marca (Pwn3d!) si esa cuenta es admin local de un equipo. Con una lista de usuarios hace password spraying. Alias: cme, nxc. Sólo objetivos del sandbox.", examples: ["crackmapexec smb dc01.nande.local -u svc-sql -p 'Verano2024!'", "cme smb nande.local -u users.txt -p 'Verano2024!'"] },
+  mimikatz: { name: "volcado de credenciales y Pass-the-Hash", synopsis: "mimikatz sekurlsa::logonpasswords  |  mimikatz \"sekurlsa::pth /user:<cuenta> /ntlm:<hash>\"",
+    desc: "Post-explotación de credenciales sobre el Directorio REAL. sekurlsa::logonpasswords vuelca los hashes NT de las cuentas con sesión en los EQUIPOS que ya poseés; con sekurlsa::pth te autenticás con ese hash (Pass-the-Hash) sin conocer la clave. Si volcás y reusás el hash de un Domain Admin, caés el dominio entero. Es el puente real entre 'soy admin de esta máquina' y 'soy dueño del dominio'. Alias: secretsdump.", examples: ["mimikatz sekurlsa::logonpasswords", "mimikatz \"sekurlsa::pth /user:ADMIN-SQL@NANDE.LOCAL /ntlm:...\""] },
   grep: { name: "buscar texto", synopsis: "... | grep <palabra>",
     desc: "Filtra líneas que contienen una palabra. Se usa con | (pipe) para quedarte solo con lo que importa de una salida larga.", examples: ["cat notas.txt | grep clave"] },
   learn: { name: "lecciones guiadas", synopsis: "learn [id]",
@@ -1146,6 +1148,10 @@ export class VirtualTerminal {
         case "cme":
         case "nxc":
           return this.crackmapexecCmd(commandArgs);
+
+        case "mimikatz":
+        case "secretsdump":
+          return this.mimikatzCmd(commandArgs, input);
 
         case "nandeblood":
         case "bloodhound":
@@ -3045,6 +3051,73 @@ export class VirtualTerminal {
       lines.push(`\n[★] Cuenta(s) comprometida(s): el grafo cambió. Mirá nandeblood para la ruta a Domain Admins.`);
     }
     return { output: lines.join("\n") + "\n", isError: false };
+  }
+
+  /**
+   * mimikatz / secretsdump — post-explotación de credenciales sobre el
+   * Directorio REAL. sekurlsa::logonpasswords vuelca los hashes NT de las
+   * cuentas con sesión en los EQUIPOS que ya poseés; sekurlsa::pth se autentica
+   * con ese hash (Pass-the-Hash) y, si la cuenta es Domain Admin, caés el
+   * dominio. Es el puente real de "admin de una máquina" a "dueño del dominio".
+   */
+  private mimikatzCmd(args: string[], input: string): { output: string; isError: boolean } {
+    const dir = this.kernel.directory;
+    const cmd = input.toLowerCase();
+
+    // sekurlsa::pth (o pth) → Pass-the-Hash.
+    if (/pth|pass-?the-?hash/.test(cmd)) {
+      const user = (input.match(/\/user:([^\s"]+)/i)?.[1] ?? args.find((a) => a.includes("@")) ?? "").trim();
+      const ntlm = input.match(/\/ntlm:([0-9a-fA-F]{8,})/i)?.[1];
+      if (!user) return { output: "uso: mimikatz \"sekurlsa::pth /user:<cuenta> [/ntlm:<hash>]\"\n", isError: true };
+      const r = dir.passTheHash(user, ntlm);
+      const body =
+        `mimikatz # sekurlsa::pth /user:${user}${ntlm ? " /ntlm:" + ntlm : ""}\n` +
+        (r.ok
+          ? `[+] Pass-the-Hash OK: ${r.message}\n` +
+            (r.domainOwned ? `\n🏆 Poseés Domain Admins: control total de ${dir.domain}. Mirá nandeblood.\n` : `Mirá nandeblood para la ruta que falta.\n`)
+          : `[-] ${r.message}\n`);
+      return { output: body, isError: !r.ok };
+    }
+
+    // sekurlsa::logonpasswords (o lsadump) → volcado de credenciales.
+    if (/logonpasswords|lsadump|sekurlsa|dcsync|sam/.test(cmd) || args.length === 0) {
+      const creds = dir.dumpableCredentials();
+      if (creds.length === 0) {
+        return {
+          output:
+            `mimikatz # sekurlsa::logonpasswords\n` +
+            `[-] No hay credenciales cacheadas a tu alcance.\n` +
+            `    Primero tenés que POSEER un equipo (ej: comprometé una cuenta con AdminTo y\n` +
+            `    abusala, o entrá con crackmapexec). mimikatz vuelca lo que hay en las máquinas tuyas.\n`,
+          isError: false,
+        };
+      }
+      const rows = creds
+        .map(
+          (c) =>
+            `  * Usuario  : ${c.name}\n    NTLM     : ${c.ntHash}${c.isDomainAdmin ? "   [★ Domain Admin!]" : ""}`,
+        )
+        .join("\n");
+      const da = creds.find((c) => c.isDomainAdmin);
+      return {
+        output:
+          `mimikatz # sekurlsa::logonpasswords\n` +
+          `Authentication Id : 0 ; ${dir.domain}\n` +
+          `${rows}\n\n` +
+          (da
+            ? `[★] ${da.name} es Domain Admin. Autenticate con su hash:\n    mimikatz "sekurlsa::pth /user:${da.name} /ntlm:${da.ntHash}"\n`
+            : `Reusá estos hashes con sekurlsa::pth para moverte lateral.\n`),
+        isError: false,
+      };
+    }
+
+    return {
+      output:
+        `mimikatz — comandos: \n` +
+        `  sekurlsa::logonpasswords   volcá hashes de los equipos que poseés\n` +
+        `  "sekurlsa::pth /user:<cuenta> /ntlm:<hash>"   Pass-the-Hash\n`,
+      isError: false,
+    };
   }
 
   /**

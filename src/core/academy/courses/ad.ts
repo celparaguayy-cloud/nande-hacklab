@@ -38,7 +38,7 @@ const AD_DIRECTORIO: Curso = {
       title: "El grafo: nodos y aristas (como BloodHound)",
       body:
         "AD se modela como un GRAFO. Los nodos son usuarios, grupos y computadoras. Las aristas son relaciones: MemberOf (pertenece a un grupo), AdminTo (es admin local de una máquina), HasSession (tiene sesión abierta ahí), GenericAll/ForceChangePassword (control sobre otra cuenta). Un atacante no piensa en 'máquinas sueltas': piensa en CAMINOS por el grafo, del nodo que ya controla al nodo Domain Admins. La herramienta que dibuja ese grafo y encuentra el camino más corto se llama BloodHound; en ÑANDE es 'nandeblood'.",
-      diagram: "capas",
+      diagram: "adgrafo",
       bullets: [
         "Nodos: usuarios, grupos, equipos. Aristas: MemberOf, AdminTo, HasSession, GenericAll…",
         "Se busca el CAMINO más corto de lo que tenés a Domain Admins.",
@@ -59,7 +59,7 @@ const AD_DIRECTORIO: Curso = {
       title: "Password spraying: una clave, muchos usuarios",
       body:
         "La fuerza bruta clásica prueba muchas claves contra UN usuario — y bloquea la cuenta. El spraying hace lo contrario: prueba UNA clave probable (la típica 'Verano2024!', el nombre de la empresa + año) contra MUCHOS usuarios. Así no bloqueás a nadie y encontrás al que reusó la clave floja. crackmapexec (alias cme/nxc) es la navaja suiza para esto por SMB: si una credencial entra, te lo dice, y marca (Pwn3d!) si esa cuenta es admin local de una máquina.",
-      diagram: "fuerzabruta",
+      diagram: "spray",
       bullets: [
         "Spraying: una clave contra muchos usuarios (no bloquea cuentas).",
         "(Pwn3d!) = esa credencial te da admin local de un equipo.",
@@ -73,14 +73,14 @@ const AD_DIRECTORIO: Curso = {
       command: "crackmapexec smb dc01.nande.local -u svc-sql -p Verano2024!",
       explain:
         "cme autentica por SMB contra el Directorio real. La clave entra y aparece (Pwn3d!) porque SVC-SQL es admin local de DB01. Y no es cosmético: SVC-SQL queda comprometida en el grafo. Corré 'nandeblood' después y vas a ver cómo cambió la ruta hacia Domain Admins.",
-      diagram: "fuerzabruta",
+      diagram: "adgrafo",
     },
     {
       kind: "concept",
       title: "Kerberoasting: robá el hash de una cuenta de servicio",
       body:
         "Las cuentas de servicio (las que corren SQL, IIS, etc.) tienen un SPN. Cualquier usuario del dominio puede PEDIR un ticket Kerberos (TGS) para ese SPN — y ese ticket viene cifrado con el hash de la clave de la cuenta de servicio. Te lo llevás y lo crackeás OFFLINE (sin tocar el dominio, sin bloquear nada). Como esas cuentas suelen tener claves viejas y débiles, caen. Eso es Kerberoasting: pedir el TGS y romperlo tranquilo en tu máquina.",
-      diagram: "hash",
+      diagram: "kerberos",
       bullets: [
         "Cualquiera pide el TGS de un SPN; viene cifrado con la clave del servicio.",
         "Se crackea offline: ni bloqueás cuentas ni hacés ruido en el DC (salvo el 4769).",
@@ -104,7 +104,7 @@ const AD_DIRECTORIO: Curso = {
       command: "crack-tgs SVC-SQL@NANDE.LOCAL Verano2024!",
       explain:
         "La clave era débil: crackeás el TGS y ahora POSEÉS SVC-SQL. Cambio de estado real en el grafo. Como SVC-SQL es admin de DB01 —donde el DBA (miembro de Domain Admins) tiene sesión—, acabás de abrir la puerta al último salto. Esto es lo que hacés en la vida real con hashcat -m 13100.",
-      diagram: "privesc",
+      diagram: "crackhash",
     },
     {
       kind: "quiz",
@@ -118,7 +118,7 @@ const AD_DIRECTORIO: Curso = {
       correct: 0,
       explain:
         "El crackeo es offline: una vez que tenés el TGS, rompés la clave en tu máquina sin volver a tocar el dominio, así que no hay bloqueos ni caídas. Y como las cuentas de servicio suelen arrastrar contraseñas viejas y débiles, el ataque tiene una tasa de éxito altísima. La única huella real es el pedido del ticket (evento 4769) — por eso el Blue Team monitorea Kerberoasting.",
-      diagram: "hash",
+      diagram: "kerberos",
     },
     {
       kind: "concept",
@@ -139,7 +139,54 @@ const AD_DIRECTORIO: Curso = {
       command: "nandeblood",
       explain:
         "nandeblood (nuestro BloodHound) deriva la ruta del GRAFO real y de lo que ya conquistaste — no está escrita. A medida que comprometés cuentas con cme/kerberoast/abuse, la ruta se acorta. Cuando poseés Domain Admins, el dominio es tuyo: control total. Ese es el final de un pentest interno.",
-      diagram: "capas",
+      diagram: "adgrafo",
+    },
+    {
+      kind: "concept",
+      title: "mimikatz: de admin de una máquina a dueño del dominio",
+      body:
+        "Cuando sos admin local de una máquina Windows, las credenciales de QUIEN haya iniciado sesión ahí quedan cacheadas en memoria (en el proceso LSASS). mimikatz las saca: 'sekurlsa::logonpasswords' vuelca los hashes NT. ¿Y si en esa máquina tuvo sesión un Domain Admin? Te llevás su hash. Y con Windows no hace falta la contraseña: te autenticás con el hash directamente (Pass-the-Hash). Ese es el salto final: comprometés una máquina común donde un admin dejó sesión, robás su hash, lo reusás, y sos dueño del dominio.",
+      diagram: "pth",
+      bullets: [
+        "Admin local de una máquina = dumpeás las credenciales cacheadas ahí.",
+        "Pass-the-Hash: te autenticás con el hash NT, sin la contraseña.",
+      ],
+    },
+    {
+      kind: "lab",
+      title: "Practicá: volcá credenciales de un equipo que poseés",
+      body:
+        "Encadená todo: comprometé la cuenta de servicio con crackmapexec, usá su AdminTo para poseer DB01, y volcá con mimikatz lo que quedó cacheado ahí.",
+      command:
+        "crackmapexec smb dc01.nande.local -u svc-sql -p Verano2024! ; abuse SVC-SQL@NANDE.LOCAL DB01@NANDE.LOCAL ; mimikatz sekurlsa::logonpasswords",
+      explain:
+        "cme te da SVC-SQL; como es admin de DB01, la abusás y poseés el equipo. Ahí mimikatz encuentra el hash NT de ADMIN-SQL, que es Domain Admin y tenía sesión en DB01. Acabás de conseguir el hash de la cuenta más poderosa del dominio sin crackear nada.",
+      diagram: "hash",
+    },
+    {
+      kind: "lab",
+      title: "Practicá: Pass-the-Hash y caé el dominio",
+      body:
+        "Con el hash del Domain Admin en la mano, autenticate como él por Pass-the-Hash. Si funciona, el dominio es tuyo.",
+      command:
+        'crackmapexec smb dc01.nande.local -u svc-sql -p Verano2024! ; abuse SVC-SQL@NANDE.LOCAL DB01@NANDE.LOCAL ; mimikatz "sekurlsa::pth /user:ADMIN-SQL@NANDE.LOCAL"',
+      explain:
+        "Reusás el hash de ADMIN-SQL sin conocer su contraseña: Pass-the-Hash. Como es miembro de Domain Admins, al poseerlo controlás TODO NANDE.LOCAL. Ese es el final de un pentest interno: de un usuario cualquiera a dueño del dominio, encadenando permisos mal puestos. Mirá nandeblood: la ruta está completa.",
+      diagram: "pth",
+    },
+    {
+      kind: "quiz",
+      prompt: "¿Por qué Pass-the-Hash es tan potente en redes Windows?",
+      options: [
+        "La autenticación NTLM usa el hash de la contraseña, no la contraseña en sí: con el hash robado te hacés pasar por la cuenta sin tener que crackear nada",
+        "Porque adivina la contraseña más rápido que hydra",
+        "Porque desactiva el antivirus del dominio",
+        "Porque sólo funciona contra Linux",
+      ],
+      correct: 0,
+      explain:
+        "En NTLM, el 'secreto' que prueba tu identidad es el hash de la contraseña. Si lo robás de la memoria de una máquina (mimikatz), lo presentás tal cual y el sistema te acepta — nunca necesitás la contraseña en texto. Por eso robar un solo hash de admin, cacheado en cualquier máquina donde dejó sesión, puede costar el dominio entero. La defensa: no dejar sesiones de admin en máquinas comunes (tier 0) y proteger LSASS (Credential Guard).",
+      diagram: "hash",
     },
     {
       kind: "concept",

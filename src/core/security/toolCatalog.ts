@@ -779,6 +779,23 @@ export const TOOL_CATALOG: ToolDef[] = [
     usage: "msfvenom linux/x86",
     runnable: false,
   }),
+  t({
+    id: "mimikatz",
+    name: "mimikatz",
+    category: "explotacion",
+    level: "avanzado",
+    simple:
+      "Una vez adentro de una máquina, saca las 'llaves' (contraseñas y hashes) que quedaron guardadas en memoria.",
+    whatItDoes:
+      "Post-explotación de credenciales: vuelca hashes NT de las cuentas con sesión en los equipos que ya poseés, y permite Pass-the-Hash contra el Directorio real.",
+    whyExists: "Para moverse lateralmente en Windows sin conocer las contraseñas: alcanza con el hash.",
+    whenToUse: "Después de ser admin local de una máquina: dumpeás lo que hay y reusás esos hashes.",
+    resultMeaning: "Si volcás el hash de un Domain Admin y lo reusás (PtH), caés el dominio entero.",
+    howToDetect: "Acceso a LSASS, eventos de logon anómalos (4624 tipo 9), EDR sobre la memoria.",
+    howToDefend: "Credential Guard, LSA protegido, no dejar sesiones de admin en máquinas comunes, tier 0.",
+    usage: 'mimikatz sekurlsa::logonpasswords   →   mimikatz "sekurlsa::pth /user:ADMIN-SQL /ntlm:<hash>"',
+    runnable: true,
+  }),
 
   // ---------------- FORENSE ----------------
   t({

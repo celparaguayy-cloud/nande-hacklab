@@ -26,7 +26,13 @@ El dueño delegó las decisiones de producto (qué agregar, arquitectura, rumbo)
 12. **Gente seria también**: hackers reales y pentesters que vienen a practicar. Por eso
     la exigencia alta y el **realismo extremo** — el contenido debe aguantar el ojo de un
     profesional, no sólo enseñar a un principiante.
-13. (pendiente — el dueño la dará; se anota acá cuando llegue.)
+13. **Cero simulación: apenas veas un bug o una simulación/fakery dentro de ÑANDE, metés
+    un motor REAL** (conexiones, redes, estado, protocolos — un sistema real de verdad
+    dentro del sandbox), y además **agregás cosas para potenciar ese motor** hasta que sea
+    completamente real, sea lo que sea. Recién después seguís con tus planes. (OJO: "real"
+    sigue significando alta fidelidad DENTRO del sandbox — motores deterministas y con
+    estado que reemplazan lo scripteado, nunca red real ni salir del dispositivo; ver los
+    "Límites que NO se cruzan" y el req 6. De-fakear ≠ romper offline.)
 14+. Más reglas en el futuro (se agregan acá cuando lleguen).
 
 ## Límites que NO se cruzan (seguridad = parte de hacerse cargo)
