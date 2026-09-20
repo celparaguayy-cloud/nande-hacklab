@@ -38,7 +38,28 @@ export type DiagramId =
   | "vpn"
   | "xss"
   | "privesc"
-  | "osint";
+  | "osint"
+  // Segunda tanda: una imagen enfocada por concepto (menos repetición).
+  | "exploit"
+  | "payload"
+  | "adgrafo"
+  | "kerberos"
+  | "pth"
+  | "spray"
+  | "sniffer"
+  | "crackhash"
+  | "directorios"
+  | "subdominios"
+  | "mitm"
+  | "pivot"
+  | "traversal"
+  | "idor"
+  | "ssrf"
+  | "cmdi"
+  | "jwt"
+  | "siem"
+  | "reversing"
+  | "contenedor";
 
 /** Pantalla de explicación con un dibujo que hace visible la idea. */
 export interface ConceptSlide {
