@@ -27,6 +27,7 @@ import NotesView from "../notes/NotesView";
 import GamesView from "../games/GamesView";
 import World2DView from "../world2d/World2DView";
 import LearnView from "../learn/LearnView";
+import MachinesView from "../range/MachinesView";
 import MissionControl from "../mission/MissionControl";
 import PulsoView from "../pulso/PulsoView";
 import TeamView from "../team/TeamView";
@@ -286,6 +287,7 @@ function Desktop() {
       dfir: <DfirView kernel={kernel} />,
       anon: <AnonView kernel={kernel} />,
       asistente: <AsistenteView kernel={kernel} onOpenApp={openWindow} />,
+      maquinas: <MachinesView kernel={kernel} onOpenApp={openWindow} />,
       arena: <ArenaView kernel={kernel} onOpenApp={openWindow} />,
       files: <Files kernel={kernel} />,
       processes: <ProcessMonitor kernel={kernel} />,

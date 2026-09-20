@@ -3,5 +3,5 @@
  * qué build estás corriendo (y confirmar que tomaste la última actualización).
  * Subí el número cuando haya un cambio que el jugador deba poder distinguir.
  */
-export const NANDE_VERSION = "5.27.0";
-export const NANDE_BUILD = "operaciones-redteam";
+export const NANDE_VERSION = "5.28.0";
+export const NANDE_BUILD = "maquinas";

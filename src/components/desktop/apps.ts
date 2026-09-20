@@ -145,6 +145,16 @@ export const APPS: AppMeta[] = [
     dock: false,
   },
   {
+    id: "maquinas",
+    name: "Máquinas",
+    title: "Máquinas — salas de práctica",
+    summary: "Salas estilo HTB/THM: vulnerá cada objetivo de punta a punta y capturá sus banderas",
+    category: "ÑANDE 5.0",
+    from: "#fca5a5",
+    to: "#7f1d1d",
+    dock: true,
+  },
+  {
     id: "arena",
     name: "Arena CTF",
     title: "Arena CTF — retos contrarreloj",
