@@ -221,6 +221,20 @@ export class PacketCapture {
       .sort((a, b) => b.count - a.count);
   }
 
+  /** Conversaciones entre pares de extremos (Statistics → Conversations). */
+  conversations(): { a: string; b: string; packets: number; bytes: number }[] {
+    const by = new Map<string, { a: string; b: string; packets: number; bytes: number }>();
+    for (const p of this.packets) {
+      const [a, b] = [p.src, p.dst].sort();
+      const key = `${a}|${b}`;
+      const e = by.get(key) ?? { a, b, packets: 0, bytes: 0 };
+      e.packets += 1;
+      e.bytes += p.length;
+      by.set(key, e);
+    }
+    return [...by.values()].sort((x, y) => y.packets - x.packets);
+  }
+
   /**
    * Sigue el "stream" de un paquete: reensambla toda la conversación entre sus
    * dos extremos, en orden, con la dirección de cada tramo (Follow TCP Stream).

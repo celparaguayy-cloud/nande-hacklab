@@ -102,6 +102,10 @@ const MANPAGES: Record<string, ManPage> = {
     desc: "Trae el contenido de una web sin abrir el navegador. Sirve para probar formularios, APIs e inyecciones a mano.", examples: ["curl http://banco.nande/login"] },
   wget: { name: "clonar un sitio para analizarlo offline", synopsis: "wget [-r|--mirror] <url>",
     desc: "Descarga las páginas de un sitio VIRTUAL a ./<host>/ para leerlas offline. Con -r sigue los links del HTML (recon de mirroring): después grepeás los archivos y encontrás comentarios y rutas ocultas sin volver a tocar el servidor. Sólo sitios del mundo ÑANDE (100% offline).", examples: ["wget http://banco.nande/login", "wget -r http://blog.yvoty.nande"] },
+  tcpdump: { name: "sniffer de paquetes por línea de comandos", synopsis: "tcpdump [-A|-X] [-n] [-c N] [filtro BPF]",
+    desc: "Escucha el tráfico REAL del mundo y lo muestra paquete a paquete. Usa filtros de CAPTURA estilo BPF: 'host banco.nande', 'src host X', 'port 80', 'tcp'. Con -A ves el payload en texto (credenciales en claro), con -X en hex. Contra una máquina de laboratorio (10.10.x.y) demuestra el sniffing de credenciales sin cifrar.", examples: ["tcpdump -A host banco.nande", "tcpdump -X port 80", "tcpdump 10.10.5.20"] },
+  tshark: { name: "Wireshark de línea de comandos", synopsis: "tshark [-Y <filtro>] [-z io,phs|conv] [-x]",
+    desc: "Analiza el tráfico capturado con el lenguaje de filtros de DISPLAY de Wireshark (distinto del BPF de tcpdump): -Y \"http\", \"ip.addr==10.10.7.10\", \"frame contains \\\"password\\\"\". Estadísticas con -z io,phs (jerarquía de protocolos) y -z conv (conversaciones); -x para el volcado hex.", examples: ["tshark -Y http", "tshark -z io,phs", "tshark -Y \"frame contains \\\"password\\\"\" -x"] },
   grep: { name: "buscar texto", synopsis: "... | grep <palabra>",
     desc: "Filtra líneas que contienen una palabra. Se usa con | (pipe) para quedarte solo con lo que importa de una salida larga.", examples: ["cat notas.txt | grep clave"] },
   learn: { name: "lecciones guiadas", synopsis: "learn [id]",
@@ -1101,6 +1105,12 @@ export class VirtualTerminal {
         case "nandeshark":
         case "sniff":
           return this.sharkCmd(commandArgs);
+
+        case "tcpdump":
+          return this.tcpdumpCmd(commandArgs);
+
+        case "tshark":
+          return this.tsharkCmd(commandArgs);
 
         case "nandeblood":
         case "bloodhound":
@@ -2619,6 +2629,142 @@ export class VirtualTerminal {
       `${lines.join("\n")}\n` +
       `\nDetalle con 'sniff follow <host>'. Credenciales en claro: 'sniff creds'.\n`
     );
+  }
+
+  /**
+   * tcpdump — captura/análisis por línea sobre el tráfico REAL del mundo, con
+   * filtros de captura estilo BPF y volcado -A/-X. Contra una máquina de
+   * laboratorio (10.10.x.y) mantiene la lección clásica de credenciales en claro.
+   */
+  private tcpdumpCmd(args: string[]): { output: string; isError: boolean } {
+    // Lección de sniffing contra un host de laboratorio: delega en el motor de
+    // herramientas (mantiene ND{sniff_credenciales} y las pruebas existentes).
+    const labIp = args.find((a) => /^10\.10\.\d+\.\d+$/.test(a));
+    if (labIp && this.kernel.tools.labs().some((mLab) => mLab.ip === labIp)) {
+      // rewardIfFlag registra la bandera y dispara las señales del mundo, igual
+      // que cuando tcpdump se despacha por la vía genérica de herramientas.
+      return this.rewardIfFlag("tcpdump", args, this.kernel.tools.run("tcpdump", args));
+    }
+
+    const shark = this.kernel.shark;
+    const ascii = args.includes("-A") || args.includes("-XX");
+    const hex = args.includes("-X") || args.includes("-XX");
+    const cIdx = args.indexOf("-c");
+    const count = cIdx >= 0 ? parseInt(args[cIdx + 1] ?? "", 10) : NaN;
+    // Expresión BPF: tokens que no son flags ni sus operandos (-i eth0, -c N, -s N…).
+    const skip = new Set<number>();
+    args.forEach((a, i) => { if (["-i", "-c", "-s", "-w", "-r", "-G", "-W"].includes(a)) { skip.add(i); skip.add(i + 1); } });
+    const bpfTokens = args.filter((a, i) => !a.startsWith("-") && !skip.has(i));
+    const bpf = bpfTokens.join(" ").toLowerCase();
+
+    // Predicado BPF simple: host/src host/dst host, port, tcp/udp/icmp, y los
+    // protocolos del mundo (http/ssh/auth). Suficiente para el laboratorio.
+    const portProto: Record<string, string> = { "80": "http", "22": "ssh", "8080": "http", "21": "auth" };
+    const match = (p: import("../net/PacketCapture").Packet): boolean => {
+      if (!bpf) return true;
+      const m = bpf.match(/(?:src\s+host|dst\s+host|host)\s+([^\s]+)/);
+      if (m) {
+        const h = m[1];
+        const isSrc = /src\s+host/.test(bpf);
+        const isDst = /dst\s+host/.test(bpf);
+        const inSrc = p.src.toLowerCase().includes(h);
+        const inDst = p.dst.toLowerCase().includes(h) || (p.host ?? "").toLowerCase().includes(h);
+        if (isSrc && !inSrc) return false;
+        else if (isDst && !inDst) return false;
+        else if (!isSrc && !isDst && !inSrc && !inDst) return false;
+      }
+      const pm = bpf.match(/port\s+(\d+)/);
+      if (pm && (portProto[pm[1]] ?? "") !== p.proto.toLowerCase()) return false;
+      if (/\btcp\b/.test(bpf) && !["HTTP", "TCP", "AUTH"].includes(p.proto)) return false;
+      if (/\bicmp\b/.test(bpf) && p.proto !== "ICMP") return false;
+      if (/\budp\b/.test(bpf)) return false; // el mundo no genera UDP capturable aún
+      if (/\bhttp\b/.test(bpf) && p.proto !== "HTTP") return false;
+      return true;
+    };
+
+    let pk = shark.all().filter(match);
+    if (!Number.isNaN(count) && count > 0) pk = pk.slice(0, count);
+    if (pk.length === 0) {
+      return {
+        output:
+          `tcpdump: escuchando en eth0${bpf ? ` (filtro: ${bpf})` : ""} — 0 paquetes.\n` +
+          `El sniffer sólo ve tráfico REAL: generá algo (curl/login/navegador) y reintentá.\n` +
+          `Ej: curl http://banco.nande/login -d "usuario=admin&password=x"  →  tcpdump -A host banco.nande\n`,
+        isError: false,
+      };
+    }
+    const out: string[] = [`tcpdump: verbose output suppressed, listening on eth0${bpf ? `, filter "${bpf}"` : ""}`];
+    for (const p of pk) {
+      const proto = p.proto.toLowerCase();
+      out.push(`${String(p.tick).padStart(6)} IP ${p.src} > ${p.dst}: ${proto} ${p.summary}${p.leak ? "  🔓" : ""}`);
+      if (ascii) out.push(...p.wire.split(/\r?\n/).map((l) => `\t${l}`));
+      if (hex) out.push(shark.hexdump(p));
+    }
+    out.push(`\n${pk.length} paquete(s) capturado(s). Filtros BPF: host/src host/dst host, port N, tcp, http.`);
+    const leaks = pk.filter((p) => p.leak);
+    if (leaks.length) out.push(`🔓 ${leaks.length} credencial(es) en claro visible(s) — con HTTPS no se verían.`);
+    return { output: out.join("\n") + "\n", isError: false };
+  }
+
+  /**
+   * tshark — el Wireshark de línea de comandos. Usa el lenguaje de filtros de
+   * DISPLAY (distinto del BPF de captura): -Y "http", "ip.addr==", etc., más
+   * estadísticas (-z io,phs / -z conv) y volcado hex (-x).
+   */
+  private tsharkCmd(args: string[]): { output: string; isError: boolean } {
+    const shark = this.kernel.shark;
+    const zIdx = args.indexOf("-z");
+    const z = zIdx >= 0 ? (args[zIdx + 1] ?? "") : "";
+    if (z.startsWith("io,phs")) {
+      const rows = shark.protocolHierarchy();
+      if (rows.length === 0) return { output: "tshark -z io,phs: 0 paquetes (generá tráfico primero).\n", isError: false };
+      return {
+        output:
+          `===================================================================\n` +
+          `Protocol Hierarchy Statistics\n` +
+          rows.map((r) => `  ${r.proto.padEnd(6)} frames:${String(r.count).padStart(4)}  bytes:${String(r.bytes).padStart(6)}  ${r.pct}%`).join("\n") +
+          `\n===================================================================\n`,
+        isError: false,
+      };
+    }
+    if (z.startsWith("conv")) {
+      const rows = shark.conversations();
+      if (rows.length === 0) return { output: "tshark -z conv: 0 conversaciones (generá tráfico primero).\n", isError: false };
+      return {
+        output:
+          `================ Conversations ================\n` +
+          rows.map((c) => `  ${c.a}  ↔  ${c.b}   ${c.packets} pkts, ${c.bytes} bytes`).join("\n") + "\n",
+        isError: false,
+      };
+    }
+
+    const yIdx = args.indexOf("-Y");
+    const y = yIdx >= 0 ? stripQuotes(args[yIdx + 1] ?? "") : "";
+    const hex = args.includes("-x");
+    const cIdx = args.indexOf("-c");
+    const count = cIdx >= 0 ? parseInt(args[cIdx + 1] ?? "", 10) : NaN;
+    if (y) {
+      const v = shark.validateFilter(y);
+      if (!v.ok) return { output: `tshark: filtro de display inválido: ${v.error ?? y}\n`, isError: true };
+    }
+    let pk = y ? shark.filter(y) : shark.recent(40);
+    if (!Number.isNaN(count) && count > 0) pk = pk.slice(0, count);
+    if (pk.length === 0) {
+      return {
+        output:
+          `tshark${y ? ` -Y "${y}"` : ""}: 0 paquetes.\n` +
+          `Filtros de DISPLAY (Wireshark): http · dns · ip.addr==<ip> · tcp.port==80 · frame contains "password".\n` +
+          `(Distinto del BPF de captura de tcpdump.) Generá tráfico y reintentá.\n`,
+        isError: false,
+      };
+    }
+    const out: string[] = [];
+    pk.forEach((p, i) => {
+      out.push(`${String(i + 1).padStart(3)} ${String(p.tick).padStart(6)} ${p.src} → ${p.dst} ${p.proto} ${p.length}  ${p.summary}${p.leak ? "  🔓" : ""}`);
+      if (hex) out.push(shark.hexdump(p));
+    });
+    out.push(`\n${pk.length} paquete(s)${y ? ` que matchean "${y}"` : ""}. Estadísticas: -z io,phs · -z conv.`);
+    return { output: out.join("\n") + "\n", isError: false };
   }
 
   /**

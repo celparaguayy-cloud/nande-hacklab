@@ -283,6 +283,64 @@ const CAPTURA: Curso = {
     },
     {
       kind: "concept",
+      title: "tcpdump: sniffing sin interfaz gráfica",
+      body:
+        "NandeShark es la vista visual; pero en un pentest real casi siempre estás en una consola remota (SSH), sin ventanas. Ahí se usa tcpdump: el sniffer de línea de comandos, el que hay en TODO Linux. Sus filtros se llaman BPF (Berkeley Packet Filter) y deciden QUÉ capturar:\n\n   tcpdump host banco.nande      solo tráfico de/hacia ese host\n   tcpdump src host 10.10.0.5    solo lo que SALE de esa IP\n   tcpdump port 80               solo el puerto 80 (HTTP)\n   tcpdump -A host banco.nande   -A muestra el payload en TEXTO\n   tcpdump -X ...                -X lo muestra en hexadecimal\n\nBPF es acotado a propósito: capturás sólo lo que te importa, no todo el diluvio.",
+      diagram: "terminal",
+      bullets: [
+        "tcpdump = el sniffer universal de línea de comandos (siempre está).",
+        "Filtros BPF: host / src host / dst host / port N / tcp — QUÉ capturar.",
+        "-A = payload en texto (ves la clave en claro) · -X = hexadecimal.",
+      ],
+    },
+    {
+      kind: "lab",
+      title: "Practicá: tcpdump con filtro BPF",
+      body:
+        "Encadenado con ';' : mandá un login por HTTP y capturá SOLO el tráfico del banco con tcpdump, mostrando el payload en texto (-A). Vas a ver la petición cruda, tal cual viajó.",
+      command: "curl -X POST http://banco.nande/login -d \"usuario=admin&password=girasol77\" ; tcpdump -A host banco.nande",
+      explain:
+        "tcpdump filtró con BPF (host banco.nande) y con -A imprimió el pedido HTTP entero: la línea POST /login, los headers y el cuerpo usuario=admin&password=girasol77 en texto plano. Marcado con 🔓 porque lleva una credencial en claro. Eso es exactamente lo que ve un atacante en la misma red si el sitio no usa HTTPS.",
+      diagram: "terminal",
+    },
+    {
+      kind: "concept",
+      title: "BPF vs display: dos filtros distintos",
+      body:
+        "Una confusión clásica que separa al que sabe: hay DOS lenguajes de filtro y NO son iguales.\n\n• Filtro de CAPTURA (BPF, el de tcpdump): decide qué paquetes se GUARDAN. Se aplica al capturar; lo que no matchea, se pierde para siempre.\n• Filtro de DISPLAY (el de Wireshark y tshark, con -Y): decide qué se MUESTRA de lo ya capturado. No borra nada; podés cambiarlo mil veces sobre la misma captura.\n\nEjemplos de display: http, dns, ip.addr==10.10.7.10, tcp.port==80, http.request.method==POST. Son mucho más ricos que BPF porque operan sobre paquetes ya disecados.",
+      diagram: "capas",
+      bullets: [
+        "BPF (captura, tcpdump): qué se guarda — se decide ANTES.",
+        "Display (-Y, Wireshark/tshark): qué se ve — se decide DESPUÉS, sin perder nada.",
+        "Regla: capturá amplio (BPF laxo), analizá fino (display).",
+      ],
+    },
+    {
+      kind: "lab",
+      title: "Practicá: tshark, el Wireshark de consola",
+      body:
+        "tshark analiza la captura con filtros de DISPLAY. Generá tráfico y quedate solo con los POST (donde viajan los logins) usando -Y. Es el filtro de display, no BPF.",
+      command: "curl -X POST http://banco.nande/login -d \"usuario=admin&password=girasol77\" ; tshark -Y \"http.request.method==POST\"",
+      explain:
+        "tshark mostró solo el paquete POST /login (el login), filtrando con el lenguaje de display de Wireshark. Probá también 'tshark -z io,phs' (jerarquía de protocolos) y 'tshark -z conv' (conversaciones): son las estadísticas que un analista mira primero para entender una captura grande de un vistazo.",
+      diagram: "terminal",
+    },
+    {
+      kind: "quiz",
+      prompt: "Capturaste una hora de tráfico con 'tcpdump -w captura.pcap' sin filtro. Ahora querés ver SOLO los logins POST. ¿Qué usás?",
+      options: [
+        "Un filtro de DISPLAY en tshark/Wireshark (-Y http.request.method==POST): la captura ya está, ahora la filtrás para verla",
+        "Un filtro BPF, pero ya es tarde: lo no capturado se perdió",
+        "Volver a capturar todo de nuevo",
+        "No se puede filtrar una captura ya guardada",
+      ],
+      correct: 0,
+      explain:
+        "Sobre una captura YA hecha, el filtro de display (-Y) es el que manda: reordenás y filtrás lo guardado cuantas veces quieras sin perder nada. El BPF sólo servía en el momento de capturar. Por eso la buena práctica es capturar amplio y después analizar fino con filtros de display.",
+      diagram: "capas",
+    },
+    {
+      kind: "concept",
       title: "Defensa: por eso hoy TODO va con HTTPS",
       body:
         "Lo que acabás de hacer explica por qué Internet migró casi entero a HTTPS. Un login, un mensaje o una cookie por HTTP es un regalo para cualquiera que esté sniffeando la red. Las defensas: usar siempre HTTPS (mirá el candado), desconfiar de WiFi públicos abiertos, y cuando la red no es confiable, meter todo en una VPN (un túnel cifrado). Un hacker ético que descubre tráfico en claro lo reporta para que lo cifren; no lo aprovecha.",
