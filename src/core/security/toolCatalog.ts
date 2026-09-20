@@ -298,18 +298,18 @@ export const TOOL_CATALOG: ToolDef[] = [
     simple:
       "Prueba muchos nombres de carpeta para encontrar páginas escondidas de un sitio.",
     whatItDoes:
-      "Busca rutas y archivos ocultos probando una lista de nombres comunes.",
+      "Enumera por diccionario: rutas y archivos ocultos (dir), subdominios (dns) o vhosts. Filtra por estado con -s/-b, prueba extensiones con -x y sigue redirects con -r.",
     whyExists:
-      "Muchas webs tienen páginas sin enlazar (paneles, backups) que conviene encontrar.",
+      "Muchas webs tienen páginas sin enlazar (paneles, backups) y dominios tienen subdominios olvidados que amplían la superficie de ataque.",
     whenToUse:
-      "Tras mapear una web, para descubrir lo que no está a la vista.",
+      "Tras mapear una web (dir), o para descubrir subdominios de un dominio (dns/vhost).",
     resultMeaning:
-      "Cada acierto es una ruta que existe (código 200/301/403).",
+      "Cada acierto es una ruta que existe (200/301/401/403) o un subdominio que resuelve.",
     howToDetect:
       "Cientos de pedidos a rutas inexistentes: muy visible en los logs web.",
     howToDefend:
-      "No dejar paneles sin proteger; monitorear 404 masivos.",
-    usage: "gobuster 10.10.5.10",
+      "No dejar paneles sin proteger; monitorear 404 masivos; cuidar los subdominios olvidados.",
+    usage: "gobuster dir -u http://banco.nande -x php,bak  ·  gobuster dns -d vortex.nande",
     runnable: true,
   }),
   t({
@@ -331,7 +331,7 @@ export const TOOL_CATALOG: ToolDef[] = [
       "Gran volumen de peticiones con un parámetro que varía.",
     howToDefend:
       "Rate limiting y validación estricta de parámetros.",
-    usage: "ffuf 10.10.5.10 FUZZ",
+    usage: "ffuf -u http://banco.nande/FUZZ -w list -mc 200,401 -fs 572",
     runnable: true,
   }),
   t({

@@ -145,6 +145,16 @@ const DIRB_WORDLIST = [
   "robots.txt", ".env", "test", "debug", "status", "info", "phpinfo.php",
 ];
 
+/** Diccionario de subdominios/vhosts (subconjunto de subdomains-top1million). */
+const SUBDOMAIN_WORDLIST = [
+  "www", "mail", "ftp", "webmail", "smtp", "ns1", "ns2", "vpn", "dns",
+  "api", "dev", "test", "staging", "admin", "panel", "portal", "dashboard",
+  "blog", "shop", "store", "login", "cuenta", "m", "movil", "preview",
+  "link", "cupones", "promo", "fotos", "img", "cdn", "docs", "doc", "wiki",
+  "tools", "herramientas", "import", "export", "git", "ci", "jenkins",
+  "soc", "gateway", "gw", "cpanel", "beta", "old", "backup", "interna",
+];
+
 /** Diccionarios de laboratorio para hydra (usuarios y claves comunes). Incluyen
  *  las credenciales débiles/filtradas del mundo para que la fuerza bruta las
  *  encuentre — y deje su rastro ruidoso en los logs, como en la realidad. */
@@ -725,48 +735,88 @@ const RUNNERS: Record<string, Runner> = {
   },
 
   gobuster(args, ctx) {
-    // gobuster real usa modo obligatorio (dir/dns/vhost) + -u <url>. Aceptamos
+    // gobuster real usa modo obligatorio (dir/dns/vhost) + -u/-d. Aceptamos
     // ambas formas: "gobuster dir -u http://host" y "gobuster http://host".
     const MODES = new Set(["dir", "dns", "vhost", "fuzz", "s3", "gcs"]);
+    const mode = args.find((a) => MODES.has(a)) ?? "dir";
+    const flagVal = (f: string) => { const i = args.indexOf(f); return i >= 0 ? args[i + 1] : undefined; };
     const uIdx = args.indexOf("-u");
-    const wIdx = args.indexOf("-w");
+    const dIdx = args.indexOf("-d");
     const xIdx = args.indexOf("-x");
     const operand = new Set<number>();
-    ["-u", "-w", "-x", "-s", "-b", "-t", "-o", "-H", "-c", "-P", "-U"].forEach((f) => {
+    ["-u", "-w", "-x", "-s", "-b", "-t", "-o", "-H", "-c", "-P", "-U", "-d", "-r"].forEach((f) => {
       const i = args.indexOf(f); if (i >= 0) operand.add(i + 1);
     });
-    const target = uIdx >= 0
-      ? args[uIdx + 1] ?? ""
-      : args.find((a, i) => !a.startsWith("-") && !operand.has(i) && !MODES.has(a)) ?? "";
-    const host = target.replace(/^https?:\/\//, "").split("/")[0];
-    const guard = requireVirtualTarget(host);
-    if (guard) return { output: `gobuster: ${guard}\n`, isError: true };
+    const bare = args.find((a, i) => !a.startsWith("-") && !operand.has(i) && !MODES.has(a)) ?? "";
+    const rawTarget = uIdx >= 0 ? (args[uIdx + 1] ?? "") : dIdx >= 0 ? (args[dIdx + 1] ?? "") : bare;
+    const host = rawTarget.replace(/^https?:\/\//, "").split("/")[0].toLowerCase();
+    // En dns/vhost el objetivo es un DOMINIO (puede ser el TLD "nande" a secas).
+    const dnsMode = mode === "dns" || mode === "vhost";
+    const domainOk = dnsMode && (host === "nande" || host.endsWith(".nande") || host.endsWith(".lab"));
+    if (!domainOk) {
+      const guard = requireVirtualTarget(host);
+      if (guard) return { output: `gobuster: ${guard}\n`, isError: true };
+    }
+
+    // ---- modo dns / vhost: enumerar subdominios/vhosts contra el DNS del mundo.
+    if (mode === "dns" || mode === "vhost") {
+      const domain = host.replace(/^www\./, "");
+      const found: string[] = [];
+      for (const w of SUBDOMAIN_WORDLIST) {
+        const fqdn = `${w}.${domain}`;
+        const ip = ctx.dns.resolve(fqdn);
+        if (ip) found.push(`Found: ${fqdn}`.padEnd(34) + `[${ip}]`);
+      }
+      const label = mode === "dns" ? "dns mode (subdominios)" : "vhost mode";
+      return {
+        output:
+          `===============================================================\n` +
+          `Gobuster (edición ÑANDE) — ${label}\n` +
+          `[+] Domain:   ${domain}\n` +
+          `[+] Words:    ${SUBDOMAIN_WORDLIST.length}\n` +
+          `===============================================================\n` +
+          (found.length ? found.join("\n") : "(sin subdominios con este diccionario)") +
+          `\n===============================================================\n` +
+          `${found.length} subdominio(s). Cada uno es una superficie de ataque nueva (otro sitio que auditar).\n`,
+        isError: false,
+      };
+    }
+
     // -x php,txt,bak: extensiones a probar además de la ruta base.
     const exts = xIdx >= 0 ? (args[xIdx + 1] ?? "").split(",").map((e) => e.trim()).filter(Boolean) : [];
-    void wIdx; // -w <wordlist>: se acepta; usamos el diccionario incorporado.
+    // -s: sólo estos estados (whitelist). -b: ocultar estos (blacklist, def. 404).
+    const parseCodes = (s?: string) => new Set((s ?? "").split(",").map((c) => parseInt(c.trim(), 10)).filter((n) => !Number.isNaN(n)));
+    const whitelist = flagVal("-s") ? parseCodes(flagVal("-s")) : null;
+    const blacklist = flagVal("-b") ? parseCodes(flagVal("-b")) : new Set([404]);
+    const follow = args.includes("-r");
 
     // Contra una app REAL del mundo: probamos un diccionario de rutas y
     // reportamos el STATUS real que devuelve el servidor a cada una.
     if (ctx.web?.has(host)) {
       const hits: string[] = [];
-      // Base + cada extensión pedida con -x (word, word.php, word.txt…).
       const candidates = (word: string) => [word, ...exts.map((e) => `${word}.${e}`)];
       for (const word of DIRB_WORDLIST) {
         for (const cand of candidates(word)) {
-          const res = ctx.web.request("GET", host, `/${cand}`, "", {});
-          if (res.status === 404) continue;
-          const size = res.body.length;
-          const tag = res.status === 302 ? `[--> ${res.headers.Location ?? "?"}]` : "";
+          let res = ctx.web.request("GET", host, `/${cand}`, "", {});
+          let tag = res.status === 301 || res.status === 302 ? `[--> ${res.headers.Location ?? "?"}]` : "";
+          // -r: seguir el redirect y reportar el destino final.
+          if (follow && (res.status === 301 || res.status === 302) && res.headers.Location) {
+            const dest = ctx.web.request("GET", host, res.headers.Location, "", {});
+            tag = `[--> ${res.headers.Location} (${dest.status})]`;
+            res = dest;
+          }
+          if (whitelist ? !whitelist.has(res.status) : blacklist.has(res.status)) continue;
           const note = res.status === 401 || res.status === 403 ? "  (protegida)" : "";
-          hits.push(`/${cand.padEnd(18)} (Status: ${res.status}) [Size: ${size}] ${tag}${note}`);
+          hits.push(`/${cand.padEnd(18)} (Status: ${res.status}) [Size: ${res.body.length}] ${tag}${note}`);
         }
       }
+      const filterNote = whitelist ? `  (sólo ${[...whitelist].join(",")})` : blacklist.size ? `  (oculta ${[...blacklist].join(",")})` : "";
       return {
         output:
           `===============================================================\n` +
           `Gobuster (edición ÑANDE) — dir mode\n` +
           `[+] Url:      http://${host}\n` +
-          `[+] Words:    ${DIRB_WORDLIST.length}   Status codes: 200,204,301,302,401,403\n` +
+          `[+] Words:    ${DIRB_WORDLIST.length}   Status codes: 200,204,301,302,401,403${filterNote}\n` +
           `===============================================================\n` +
           (hits.length ? hits.join("\n") : "(sin rutas encontradas con este diccionario)") +
           `\n===============================================================\n` +
@@ -790,10 +840,53 @@ const RUNNERS: Record<string, Runner> = {
   },
 
   ffuf(args, ctx) {
-    // ffuf fuzzea rutas igual que gobuster: mismo diccionario, contra la app
-    // REAL. Reusa el motor de gobuster y sólo cambia la cabecera.
-    const r = RUNNERS.gobuster(args, ctx);
-    return { ...r, output: r.output.replace(/Gobuster \(edición ÑANDE\) — dir mode/, 'ffuf (edición ÑANDE) — fuzzing de rutas') };
+    // ffuf real: fuzzea la palabra FUZZ. Soporta -u http://host/FUZZ con
+    // matchers/filtros -mc (match codes), -fc (filter codes), -fs (filter size).
+    const flagVal = (f: string) => { const i = args.indexOf(f); return i >= 0 ? args[i + 1] : undefined; };
+    const uVal = flagVal("-u") ?? args.find((a) => a.startsWith("http")) ?? "";
+    const hasFuzz = /FUZZ/.test(uVal);
+
+    // Sin FUZZ en la URL: se comporta como gobuster dir (compatibilidad).
+    if (!hasFuzz) {
+      const r = RUNNERS.gobuster(args, ctx);
+      return { ...r, output: r.output.replace(/Gobuster \(edición ÑANDE\) — dir mode/, "ffuf (edición ÑANDE) — fuzzing de rutas") };
+    }
+
+    const host = uVal.replace(/^https?:\/\//, "").split("/")[0].toLowerCase();
+    const guard = requireVirtualTarget(host);
+    if (guard) return { output: `ffuf: ${guard}\n`, isError: true };
+    if (!ctx.web?.has(host)) {
+      return { output: `ffuf: ${host} no responde como app web. Probá banco.nande.\n`, isError: false };
+    }
+    const pathTmpl = "/" + uVal.replace(/^https?:\/\//, "").split("/").slice(1).join("/");
+    const parseCodes = (s?: string) => new Set((s ?? "").split(",").map((c) => parseInt(c.trim(), 10)).filter((n) => !Number.isNaN(n)));
+    const mc = flagVal("-mc") ? parseCodes(flagVal("-mc")) : new Set([200, 204, 301, 302, 307, 401, 403, 405, 500]);
+    const fc = parseCodes(flagVal("-fc"));
+    const fs = flagVal("-fs") ? parseInt(flagVal("-fs")!, 10) : NaN;
+
+    const hits: string[] = [];
+    for (const word of DIRB_WORDLIST) {
+      const path = pathTmpl.replace(/FUZZ/, word);
+      const res = ctx.web.request("GET", host, path, "", {});
+      if (!mc.has(res.status) || fc.has(res.status)) continue;
+      if (!Number.isNaN(fs) && res.body.length === fs) continue;
+      hits.push(`${word.padEnd(18)} [Status: ${res.status}, Size: ${res.body.length}]`);
+    }
+    return {
+      output:
+        `        /'___\\  /'___\\           /'___\\\n` +
+        `ffuf (edición ÑANDE) — fuzzing de rutas · v2.1\n` +
+        `________________________________________________\n` +
+        ` :: URL      : http://${host}${pathTmpl}\n` +
+        ` :: Wordlist : FUZZ (${DIRB_WORDLIST.length} palabras)\n` +
+        ` :: Matcher  : status ${[...mc].join(",")}\n` +
+        (fc.size ? ` :: Filter   : status ${[...fc].join(",")}\n` : "") +
+        (!Number.isNaN(fs) ? ` :: Filter   : size ${fs}\n` : "") +
+        `________________________________________________\n` +
+        (hits.length ? hits.join("\n") : "(sin coincidencias)") +
+        `\n:: ${hits.length} resultado(s).\n`,
+      isError: false,
+    };
   },
 
   nikto(args, ctx) {

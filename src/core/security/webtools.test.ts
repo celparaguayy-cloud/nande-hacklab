@@ -115,4 +115,39 @@ describe("gobuster — enumeración real de rutas del servidor web", () => {
     expect(out).toContain("fuzzing de rutas");
     expect(out).toMatch(/\/login\s+\(Status: 200\)/);
   });
+
+  it("dns mode enumera subdominios REALES contra el DNS del mundo", () => {
+    const out = term.execute("gobuster dns -d vortex.nande");
+    expect(out).toContain("dns mode");
+    expect(out).toContain("api.vortex.nande");     // subdominio real del mundo
+    expect(out).toContain("preview.vortex.nande");
+    expect(out).not.toContain("noexiste.vortex.nande");
+  });
+
+  it("dns mode acepta el TLD del sandbox (nande) y trae varios subdominios", () => {
+    const out = term.execute("gobuster dns -d nande");
+    expect(out).toMatch(/Found: \w+\.nande/);
+    // Trae más de uno: hay muchos hosts directos bajo .nande.
+    expect((out.match(/Found:/g) ?? []).length).toBeGreaterThan(2);
+  });
+
+  it("vhost mode descubre vhosts por subdominio", () => {
+    const out = term.execute("gobuster vhost -u http://gulu.nande");
+    expect(out).toContain("vhost mode");
+    expect(out).toContain("link.gulu.nande");
+  });
+
+  it("-s filtra por estado: sólo muestra las protegidas (401)", () => {
+    const out = term.execute("gobuster dir -u http://banco.nande -s 401");
+    expect(out).toContain("/panel");
+    expect(out).toContain("(Status: 401)");
+    expect(out).not.toMatch(/\/login\s+\(Status: 200\)/); // 200 queda fuera del filtro
+  });
+
+  it("ffuf con FUZZ y -mc matchea sólo los códigos pedidos", () => {
+    const out = term.execute("ffuf -u http://banco.nande/FUZZ -w list -mc 200");
+    expect(out).toContain("Matcher");
+    expect(out).toMatch(/login\s+\[Status: 200/);
+    expect(out).not.toContain("Status: 401"); // panel (401) no matchea con -mc 200
+  });
 });

@@ -182,6 +182,223 @@ const WEB_COMO_FUNCIONA: Curso = {
 };
 
 /* ------------------------------------------------------------------ *
+ *  CURSO 1b — Enumeración web: gobuster/ffuf a fondo                  *
+ * ------------------------------------------------------------------ */
+
+const WEB_ENUM: Curso = {
+  id: "c-web-enum",
+  title: "Enumeración web: gobuster y ffuf a fondo",
+  subtitle: "Encontrar lo que NO está enlazado: rutas, archivos y subdominios ocultos.",
+  level: "intermedio",
+  skill: "web",
+  hue: 160,
+  glyph: "search",
+  reward: { xp: 220, coins: 170 },
+  slides: [
+    {
+      kind: "concept",
+      title: "Lo que no ves también existe",
+      body:
+        "Una web te muestra sus links, pero atrás casi siempre hay más: paneles de admin, backups, /api, archivos .env con contraseñas, rutas viejas que nadie borró. No están enlazadas, así que no las 'ves' navegando. La enumeración de contenido es probar una lista enorme de nombres comunes y ver cuáles responden. Es de las primeras cosas de una auditoría web: primero mapeás TODA la superficie, después atacás.",
+      diagram: "escaneo",
+      bullets: [
+        "Enumerar = probar miles de nombres y quedarte con los que existen.",
+        "'Oculto' (sin enlace) no es 'protegido': se encuentra igual.",
+      ],
+    },
+    {
+      kind: "concept",
+      title: "El diccionario (wordlist) es todo",
+      body:
+        "gobuster y ffuf no adivinan: prueban una LISTA de palabras (wordlist). La calidad del ataque depende de la lista. Las famosas vienen en SecLists: common.txt (rutas típicas), directory-list-2.3 (enorme), subdomains-top1million (subdominios). Vos elegís con -w. Una lista más grande encuentra más… pero hace más ruido y tarda más. En ÑANDE va incorporada una lista base para que practiques el flujo real.",
+      diagram: "archivo",
+      bullets: [
+        "-w <wordlist>: la lista de nombres a probar (SecLists es el estándar).",
+        "Más grande = más hallazgos, más ruido, más tiempo. Se elige con criterio.",
+      ],
+    },
+    {
+      kind: "concept",
+      title: "Leer los códigos de estado como un atacante",
+      body:
+        "Cada nombre que probás devuelve un código HTTP, y cada código te dice algo:\n\n• 200 OK — existe y te la muestra. Entrá a mirar.\n• 301/302 — redirige a otro lado (seguí el destino con -r).\n• 401/403 — EXISTE pero está protegida. ¡Oro! Algo hay que valga la pena esconder.\n• 404 — no existe (se descarta, es el ruido).\n\nLo más jugoso no siempre es el 200: un 403 en /admin-backup grita 'acá hay algo'.",
+      diagram: "protocolo",
+      bullets: [
+        "200 = entrá · 301/302 = seguí · 401/403 = existe y protegida (oro) · 404 = ruido.",
+        "Un 403 revela una ruta sensible aunque no puedas verla todavía.",
+      ],
+    },
+    {
+      kind: "quiz",
+      prompt: "gobuster te devuelve /backup con código 403. ¿Qué significa para vos?",
+      options: [
+        "La ruta EXISTE pero está protegida: hay algo que alguien quiso esconder, vale la pena investigarla",
+        "La ruta no existe, es ruido que se descarta",
+        "El servidor se cayó",
+        "Ya entraste al backup",
+      ],
+      correct: 0,
+      explain:
+        "403 (Forbidden) significa que la ruta existe pero el servidor te niega el acceso. Eso confirma que /backup está ahí: ahora el trabajo es ver si esa protección se puede saltar (permisos mal puestos, otra ruta, credenciales). Un 404 sí sería 'no existe'.",
+      diagram: "protocolo",
+    },
+    {
+      kind: "concept",
+      title: "gobuster dir: el modo de rutas",
+      body:
+        "El modo estrella es 'dir': prueba rutas contra una URL.\n\n   gobuster dir -u http://banco.nande\n\nAgregale -x para probar EXTENSIONES sobre cada palabra (config → config.php, config.bak, config.txt):\n\n   gobuster dir -u http://banco.nande -x php,bak,txt,zip\n\nEso encuentra backups (.bak, .zip) y archivos de config que nunca deberían estar accesibles. -x es de lo más rentable del recon web.",
+      diagram: "url",
+      bullets: [
+        "gobuster dir -u <url>: prueba rutas.",
+        "-x php,bak,zip: prueba esas extensiones sobre cada palabra (caza backups).",
+      ],
+    },
+    {
+      kind: "build",
+      goal: "Armar un gobuster que busque rutas Y backups (.php y .bak) en el banco",
+      pieces: ["gobuster", "dir", "-u", "http://banco.nande", "-x", "php,bak", "--force", "rm"],
+      answer: ["gobuster", "dir", "-u", "http://banco.nande", "-x", "php,bak"],
+      hint: "Modo dir, -u con la URL, y -x con las extensiones separadas por coma (sin espacios).",
+      explain:
+        "gobuster dir -u http://banco.nande -x php,bak prueba cada palabra tal cual y también con .php y .bak. Así, si existe un config.bak o un panel.php olvidado, aparece. Los backups accesibles por web son una fuente clásica de credenciales.",
+    },
+    {
+      kind: "lab",
+      title: "Practicá: enumerá las rutas del banco",
+      body:
+        "Corré gobuster en modo dir contra banco.nande, probando además extensiones. Mirá el código de cada hallazgo: fijate cuál es 200 y cuál 401.",
+      command: "gobuster dir -u http://banco.nande -x php,bak",
+      explain:
+        "Aparece /login (200, la puerta) y /panel y /movimientos (401, protegidas: existen pero piden sesión). Ya sabés la superficie: dónde entrar y qué está cerrado con llave. El 401 te marca el próximo objetivo (romper esa autenticación).",
+      diagram: "escaneo",
+    },
+    {
+      kind: "concept",
+      title: "Filtrar el ruido: -s, -b y -fs",
+      body:
+        "Una wordlist grande escupe cientos de líneas. Para no ahogarte, filtrás:\n\n• gobuster -b 404,403 → OCULTA esos códigos (blacklist).\n• gobuster -s 200,401 → muestra SÓLO esos (whitelist).\n• ffuf -fs 572 → filtra por TAMAÑO: si todas las 'no existe' pesan 572 bytes, las descartás por tamaño.\n\nFiltrar por tamaño es clave cuando un sitio devuelve 200 para todo (una página '404 bonita'): el código no ayuda, pero el tamaño sí.",
+      diagram: "capas",
+      bullets: [
+        "-s (sólo estos) / -b (oculta estos) filtran por código.",
+        "-fs (ffuf) filtra por tamaño: vence a las webs que dan 200 a todo.",
+      ],
+    },
+    {
+      kind: "quiz",
+      prompt: "Querés ver SÓLO las rutas protegidas (401) del banco, sin el ruido. ¿Qué comando?",
+      options: [
+        "gobuster dir -u http://banco.nande -s 401",
+        "gobuster dir -u http://banco.nande -x 401",
+        "gobuster dns -d banco.nande",
+        "gobuster dir -u http://banco.nande -b 401",
+      ],
+      correct: 0,
+      explain:
+        "-s 401 es la whitelist: muestra sólo lo que responde 401. -b 401 haría lo contrario (ocultarlas). -x es para extensiones y dns es para subdominios. Filtrar por estado te deja ver de una las rutas que valen (las protegidas).",
+      diagram: "capas",
+    },
+    {
+      kind: "lab",
+      title: "Practicá: mostrá sólo las protegidas",
+      body:
+        "Filtrá la salida para quedarte únicamente con las rutas que devuelven 401. Es la forma de ir directo a lo interesante en una web grande.",
+      command: "gobuster dir -u http://banco.nande -s 401",
+      explain:
+        "Sólo quedan /panel y /movimientos (401). Filtrar te ahorra leer cientos de líneas: en una auditoría real, -s/-b/-fs es lo que hace usable a gobuster contra un sitio grande.",
+      diagram: "capas",
+    },
+    {
+      kind: "concept",
+      title: "Subdominios: la superficie que nadie mira",
+      body:
+        "Un dominio no es un solo sitio: banco.nande, api.vortex.nande, preview.vortex.nande… cada subdominio es OTRO servidor, con su propio código y sus propios agujeros. Los subdominios olvidados (un 'preview', un 'old', un 'test') suelen estar peor protegidos que el principal. gobuster los encuentra en modo dns, probando nombres contra el DNS:\n\n   gobuster dns -d vortex.nande",
+      diagram: "dns",
+      bullets: [
+        "Cada subdominio = otra app para auditar (más superficie de ataque).",
+        "gobuster dns -d <dominio> prueba nombres y reporta los que resuelven.",
+      ],
+    },
+    {
+      kind: "quiz",
+      prompt: "¿Por qué un subdominio olvidado como 'preview.vortex.nande' suele ser un buen objetivo?",
+      options: [
+        "Porque al estar olvidado suele tener menos mantenimiento y protección que el sitio principal, pero llega a los mismos datos",
+        "Porque los subdominios no se pueden hackear",
+        "Porque siempre son más lentos",
+        "Porque no aparecen en el DNS",
+      ],
+      correct: 0,
+      explain:
+        "Un 'preview', 'staging' u 'old' se crea y se olvida: versiones viejas, sin parches, con credenciales de prueba, a veces conectado a la misma base que producción. Es una puerta lateral. Por eso enumerar subdominios amplía tanto la superficie de ataque.",
+      diagram: "dns",
+    },
+    {
+      kind: "lab",
+      title: "Practicá: descubrí subdominios",
+      body:
+        "Enumerá los subdominios de vortex.nande con gobuster en modo dns. Cada uno que resuelva es otro sitio que podrías auditar.",
+      command: "gobuster dns -d vortex.nande",
+      explain:
+        "Aparecen api.vortex.nande y preview.vortex.nande, con sus IPs. No estaban enlazados en ningún lado: los sacaste probando el DNS. Ahora tenés dos objetivos nuevos (la API y el preview). Probá también: gobuster dns -d nande para ver todo el mundo.",
+      diagram: "dns",
+    },
+    {
+      kind: "concept",
+      title: "ffuf y la palabra mágica FUZZ",
+      body:
+        "ffuf es el primo veloz y flexible. Su truco: ponés la palabra FUZZ donde querés probar valores, y ffuf la reemplaza por cada línea de la lista.\n\n   ffuf -u http://banco.nande/FUZZ -w lista       (rutas)\n   ffuf -u http://banco.nande/api?id=FUZZ -w nums  (valores de un parámetro)\n\nY filtrás con -mc (match codes, quedate con estos), -fc (filter codes, sacá estos) o -fs (filter size). FUZZ puede ir en la ruta, en un parámetro, en un header… por eso ffuf sirve para mucho más que rutas.",
+      diagram: "terminal",
+      bullets: [
+        "FUZZ = el lugar que ffuf reemplaza por cada palabra de la lista.",
+        "-mc / -fc / -fs: matchear o filtrar por código o tamaño.",
+      ],
+    },
+    {
+      kind: "lab",
+      title: "Practicá: fuzzing de rutas con ffuf",
+      body:
+        "Usá ffuf con FUZZ en la ruta y quedate sólo con lo que responde 200 o 401. Compará la salida con la de gobuster: mismo objetivo, otra herramienta.",
+      command: "ffuf -u http://banco.nande/FUZZ -w list -mc 200,401",
+      explain:
+        "ffuf reemplaza FUZZ por cada palabra y, con -mc 200,401, sólo te muestra login (200) y panel/movimientos (401). El resto (404) lo descarta solo. Mismo resultado que gobuster, con una sintaxis que además sirve para fuzzear parámetros y headers.",
+      diagram: "terminal",
+    },
+    {
+      kind: "concept",
+      title: "Enumerar es el paso 1, no el final",
+      body:
+        "Encontrar las rutas no es entrar: es el mapa. Con lo que sacaste, el flujo real sigue:\n\n1. /login (200) → probás SQLi / fuerza bruta.\n2. /panel, /movimientos (401) → conseguís sesión y volvés.\n3. subdominios → auditás cada uno de cero.\n4. un config.bak → lo abrís buscando credenciales.\n\nLa enumeración prende las luces; el ataque viene después, ya sabiendo a dónde apuntar.",
+      diagram: "capas",
+      bullets: [
+        "Enumerás → priorizás (200 para entrar, 401/403 para romper auth) → atacás.",
+        "Cada hallazgo abre el siguiente curso: SQLi, fuerza bruta, IDOR…",
+      ],
+    },
+    {
+      kind: "concept",
+      title: "Defensa: cómo se corta esto",
+      body:
+        "Del lado azul, la enumeración es RUIDOSA y se puede frenar:\n\n• No dejes nada sensible sin autenticación (ni /backup, ni /api interna, ni config accesible por web).\n• No subas backups (.bak, .zip, .sql) al webroot.\n• Monitoreá los 404 masivos: cientos de rutas inexistentes en segundos = alguien enumerando. Alertá o bloqueá esa IP (rate limiting / WAF).\n• Cuidá los subdominios olvidados: apagá 'preview', 'old', 'test' cuando no se usan.",
+      diagram: "escudo",
+      bullets: [
+        "Autenticá todo lo sensible y sacá backups del webroot.",
+        "404 masivos = enumeración: rate limiting, WAF y apagar subdominios muertos.",
+      ],
+    },
+    {
+      kind: "lab",
+      title: "Capstone: encontrá la ruta oculta en el lab",
+      body:
+        "Poné todo junto en una lección guiada: enumerás una máquina del laboratorio, abrís la ruta oculta que encuentres y leés lo que el sitio 'regala' en robots.txt. Tocá para arrancar en la terminal.",
+      command: "learn l-gobuster",
+      explain:
+        "El flujo completo de recon: gobuster para descubrir /admin y /robots.txt, curl para abrirlas, y leer lo que el propio sitio filtra. Es la metodología que vas a repetir en cada auditoría web: primero el mapa, después el ataque.",
+      diagram: "escaneo",
+    },
+  ],
+};
+
+/* ------------------------------------------------------------------ *
  *  CURSO 2 — SQLi avanzado: robá toda la base con UNION              *
  * ------------------------------------------------------------------ */
 
@@ -1085,6 +1302,7 @@ const WEB_CMDI_JWT: Curso = {
 
 export const WEB_COURSES: Curso[] = [
   WEB_COMO_FUNCIONA,
+  WEB_ENUM,
   WEB_SQLI_UNION,
   WEB_SQLMAP,
   WEB_XSS,
