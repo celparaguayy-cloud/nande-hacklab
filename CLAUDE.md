@@ -35,6 +35,91 @@ El dueño delegó las decisiones de producto (qué agregar, arquitectura, rumbo)
     "Límites que NO se cruzan" y el req 6. De-fakear ≠ romper offline.)
 14+. Más reglas en el futuro (se agregan acá cuando lleguen).
 
+## REGLAS MAESTRAS — ÑANDE NEXT STAGE (rige junto con el contrato de arriba)
+
+Las agregó el dueño. Amplían y precisan el marco. Ante duda, mandan estas.
+
+1. **Profundidad antes que cantidad.** No agregar feature/herramienta/pantalla/máquina/
+   sistema sólo para subir el número. Antes de crear algo nuevo preguntar: ¿profundiza un
+   sistema existente? ¿conecta con el mundo? ¿mejora la experiencia? ¿aporta aprendizaje
+   real dentro del sandbox? Si no, priorizar mejorar lo existente.
+2. **Una sola fuente de verdad.** Cada estado importante (hosts, usuarios, credenciales,
+   privilegios, servicios, vulns, sesiones, compromisos, flags, inventario, progreso) tiene
+   UNA fuente central; nada de estados paralelos contradictorios. Herramientas, UI, misiones,
+   grafos y eventos consultan ese estado central.
+3. **Las herramientas no deben fingir.** Cada herramienta: (1) lee el estado real; (2) valida
+   condiciones; (3) produce consecuencias reales en el motor; (4) emite los eventos; (5)
+   actualiza el estado persistente cuando corresponde. Si algo aún es simulación simplificada,
+   dejarlo explícito internamente y NO presentarlo como funcionalidad real.
+4. **Cada vulnerabilidad tiene consecuencia real.** No basta un comando que la menciona. Debe
+   existir la cadena verificable: descubrimiento → condición → explotación → cambio de estado
+   → consecuencia → evidencia/flag. Las máquinas se resuelven con el motor, no con una
+   secuencia decorativa de comandos.
+5. **Coherencia global.** Una acción importante produce las MISMAS consecuencias sin importar
+   desde dónde se ejecute. Si Terminal compromete un host, esa realidad se refleja en Mission
+   Engine, Graph, History, UI, World State, estadísticas y flags. Nunca una capa dice una cosa
+   y otra dice otra.
+6. **Todo cambio crítico tiene test.** Si toca el estado del mundo, primero (o junto) el test
+   funcional. Especialmente: privilegios, autenticación, credenciales, movimiento lateral,
+   máquinas, flags, servicios, vulns, relaciones AD, persistencia. No aceptar "parece funcionar".
+7. **El motor es más importante que la interfaz.** Entre pantalla nueva y mejora profunda del
+   motor, priorizar el motor. La UI representa el estado real, no lo sustituye.
+8. **No duplicar lógica.** Antes de crear, buscar si ya existe algo equivalente. Preferir
+   reutilizar / extender / refactorizar local / API común. No cinco implementaciones del mismo
+   concepto.
+9. **No romper el sandbox.** Offline-by-default y aislado. Ninguna mejora introduce egress real,
+   credenciales expuestas, API keys incrustadas, llamadas de red no autorizadas ni interacción
+   con sistemas reales. La alta fidelidad ocurre dentro del mundo virtual.
+10. **Realismo basado en estado.** El realismo sale de relaciones y consecuencias, no de texto
+    bonito. Un usuario con privilegios afecta de verdad qué puede hacer; un host comprometido
+    cambia de verdad su estado; una cuenta capturada modifica de verdad las rutas.
+11. **Máquinas como sistemas, no como guiones.** No "comando A→B→C→flag". Una máquina tiene
+    activos, servicios, usuarios, relaciones, condiciones, vulns, estados y caminos alternativos
+    cuando tenga sentido. Dos jugadores pueden llegar al mismo objetivo por rutas distintas si el
+    estado lo permite.
+12. **El grafo refleja la realidad.** Nunca decoración: se deriva del estado real (hosts,
+    usuarios, relaciones, privilegios, sesiones, compromisos) y se recalcula cuando cambia el mundo.
+13. **Cero regresiones.** Antes de tocar un sistema importante: entender consumidores, localizar
+    invariantes, revisar tests, preservar compatibilidad. Después: tsc → lint → tests → build. Si
+    algo falla, corregir la causa real; nunca desactivar tipos, borrar tests ni bajar cobertura
+    para forzar verde.
+14. **No grandes refactors sin necesidad.** No reemplazar arquitectura estable por elegancia.
+    Cambios estructurales sólo por bug real, duplicación real, límite de escalabilidad,
+    inconsistencia o mantenibilidad. Cambiar menos código, pero mejor.
+15. **UX: siempre hay un próximo paso.** Un jugador nuevo nunca queda mirando la interfaz sin
+    saber qué hacer. Cada flujo responde: ¿dónde estoy? ¿qué sé? ¿qué puedo hacer? ¿qué me falta?
+    ¿qué conseguí? La complejidad interna no se traduce en confusión.
+16. **Aprendizaje integrado.** Academia, labs y mundo se refuerzan: una lección prepara una acción
+    del mundo; una acción del mundo enseña; un error se vuelve aprendizaje. No separar "teoría" y
+    "juego".
+17. **Contenido específico, no repetitivo.** Cada curso/máquina/concepto con identidad propia. No
+    reutilizar arte/ejemplos/textos/estructuras genéricas cuando el concepto pueda representarse
+    específicamente. Reutilizar infraestructura SÍ; repetir contenido visible NO.
+18. **Observabilidad interna.** Los sistemas críticos explican por qué pasó algo: estado anterior,
+    acción, validación, cambio aplicado, evento emitido, resultado. Nada de estados mágicos.
+19. **De-fakery continuo.** Ante simulación falsa / inconsistencia / resultado decorativo: no
+    taparlo con UI. Encontrar la lógica incorrecta, reemplazarla por implementación stateful dentro
+    del sandbox, y agregar prueba que impida que vuelva.
+20. **No declarar "real" sin evidencia.** No afirmar "real/completo/funcional" porque el código
+    parezca correcto. La afirmación se apoya en test / ejecución / estado observable / build / CI.
+    Diferenciar SIEMPRE: IMPLEMENTADO ≠ VERIFICADO ≠ DESPLEGADO.
+21. **Cada release es reproducible.** Una versión publicada se reconstruye desde Git y vuelve a
+    pasar typecheck + lint + tests + build. No depender de cambios locales ocultos.
+22. **Preservar la historia del proyecto.** No sobrescribir cambios sin entenderlos. No reset
+    destructivo para "ordenar". Commits pequeños y trazables.
+23. **Priorización** (cuando hay muchas pendientes): 1) bugs que rompen coherencia del mundo;
+    2) regresiones; 3) sistemas existentes incompletos; 4) tests y observabilidad; 5) UX de flujos
+    importantes; 6) profundidad del motor; 7) contenido nuevo; 8) mejoras visuales; 9) features
+    experimentales.
+24. **Regla de oro.** Antes de "¿qué feature agregamos ahora?", preguntar "¿qué parte de ÑANDE ya
+    existe pero todavía no funciona a la profundidad que debería?". Esa pregunta tiene prioridad.
+25. **Objetivo final.** ÑANDE no es una colección de herramientas: es un mundo de simulación
+    coherente donde el estado importa, las acciones tienen consecuencias, las herramientas
+    interactúan con sistemas reales del sandbox, los errores son detectables, las rutas cambian, el
+    aprendizaje ocurre por interacción, y todo permanece verificable, mantenible y offline-safe.
+
+**REGLA FINAL: menos features falsamente profundas; más sistemas realmente conectados.**
+
 ## Límites que NO se cruzan (seguridad = parte de hacerse cargo)
 
 ÑANDE lo usan menores Y profesionales; la práctica seria convive con público joven. La
