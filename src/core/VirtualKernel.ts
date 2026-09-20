@@ -793,6 +793,36 @@ export class VirtualKernel {
       flag: "ND{pivoting_red_interna}",
     });
 
+    // Máquina de ESCALADA DE PRIVILEGIOS (estilo HTB): entrás como un usuario
+    // sin privilegios y tenés que llegar a root. El foothold (devops) puede
+    // correr /usr/bin/find como root sin contraseña (sudo NOPASSWD) — y find
+    // escapa a una shell (GTFOBins). La bandera vive en /root, ilegible hasta
+    // que escalás. Motor real: sudo -l + escape GTFOBins, no salida grabada.
+    this.dns.register("web01.nande", "10.10.7.40");
+    this.hosts.register({
+      hostname: "web01.nande",
+      ip: "10.10.7.40",
+      os: "ÑandeLinux 4.0 (kernel 6.1)",
+      up: true,
+      services: [
+        { name: "sshd", port: 22, protocol: "tcp", version: "OpenÑSSH 9.6", kind: "ssh", state: "running", enabled: true },
+        { name: "nginx", port: 80, protocol: "tcp", version: "nginx/1.24 (ÑANDE)", kind: "http", state: "running", enabled: true },
+      ],
+      firewall: [],
+      processes: [],
+      files: {
+        "/etc/motd": "web01.nande — servidor de aplicaciones. Uso autorizado.",
+        "/home/devops/user.txt": "Bandera de usuario: ND{foothold_devops}",
+        "/home/devops/notas.txt":
+          "TODO: sacarme el sudo de find, me lo dejaron para un script viejo de limpieza.",
+        "/root/flag.txt": "Bandera de root: ND{privesc_sudo_root}",
+        "/root/.ssh/id_rsa": "-----BEGIN OPENSSH PRIVATE KEY----- (clave de root)",
+      },
+      creds: [{ user: "devops", password: "Delfin2024" }],
+      sudoers: { devops: ["/usr/bin/find"] },
+      flag: "ND{privesc_sudo_root}",
+    });
+
     // Máquinas del laboratorio: importar sus servicios reales.
     for (const machine of this.tools.labMachines()) {
       if (this.hosts.has(machine.hostname) || this.hosts.has(machine.ip)) continue;

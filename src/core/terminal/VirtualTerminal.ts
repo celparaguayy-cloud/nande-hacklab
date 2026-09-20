@@ -2263,6 +2263,11 @@ export class VirtualTerminal {
       case "cat": {
         const path = args[0];
         if (!path) return { output: "uso: cat <archivo>\n", isError: true };
+        // En un host con sudo (máquina de privesc), /root es 700: sólo root.
+        // La escalada IMPORTA — la bandera de root no se lee hasta que sos root.
+        if (host.sudoers && path.startsWith("/root/") && this.remoteUser !== "root") {
+          return { output: `cat: ${path}: Permiso denegado\n`, isError: true };
+        }
         const content = host.files[path];
         if (content === undefined) {
           return { output: `cat: ${path}: no existe\n`, isError: true };
@@ -2274,11 +2279,31 @@ export class VirtualTerminal {
       }
 
       case "flag": {
+        // La bandera de root vive en /root: en un host con sudo, hasta no
+        // escalar no la ves (misma regla que cat).
+        if (host.sudoers && this.remoteUser !== "root") {
+          return {
+            output:
+              `La bandera está en /root/flag.txt y todavía sos ${this.remoteUser}.\n` +
+              `Escalá a root primero: sudo -l\n`,
+            isError: true,
+          };
+        }
         const content = host.files["/root/flag.txt"] ?? host.flag;
         if (!content) return { output: "no hay bandera acá.\n", isError: false };
         const notes = this.kernel.scanForSignals(content);
         const suffix = notes.length ? "\n" + notes.join("\n") + "\n" : "";
         return { output: content + "\n" + suffix, isError: false };
+      }
+
+      case "sudo":
+        return this.sudoCmd(host, args);
+
+      case "id": {
+        const u = this.remoteUser;
+        return u === "root"
+          ? { output: "uid=0(root) gid=0(root) groups=0(root)\n", isError: false }
+          : { output: `uid=1000(${u}) gid=1000(${u}) groups=1000(${u})\n`, isError: false };
       }
 
       case "ps": {
@@ -2328,8 +2353,9 @@ export class VirtualTerminal {
         return {
           output:
             `Sesión remota en ${hostname} (${this.remoteUser}):\n` +
-            `  ls, cat <archivo>, pwd, whoami, hostname\n` +
-            `  ps, kill <pid>, services, service-stop/start <s>\n` +
+            `  ls, cat <archivo>, pwd, whoami, id, hostname\n` +
+            `  sudo -l (permisos), sudo <cmd> (escalar), ps, kill <pid>\n` +
+            `  services, service-stop/start <s>\n` +
             `  nmap (red interna), connect <host> <u> <c> (pivotar), flag, exit\n`,
           isError: false,
         };
@@ -2342,6 +2368,124 @@ export class VirtualTerminal {
           output: `${command}: no disponible en sesión remota (escribí 'help' o 'exit').\n`,
           isError: true,
         };
+    }
+  }
+
+  /**
+   * sudo dentro de una sesión remota — escalada de privilegios REAL.
+   *
+   *   sudo -l           → lista los binarios que este usuario corre como root.
+   *   sudo <bin> <args> → si el binario está permitido Y su invocación escapa
+   *                       a una shell (GTFOBins), te volvés root de verdad
+   *                       (this.remoteUser = "root"): el estado cambia y recién
+   *                       ahí leés /root. No hay salida pregrabada: la escalada
+   *                       depende de que el comando sea un escape válido.
+   */
+  private sudoCmd(
+    host: { hostname: string; sudoers?: Record<string, string[]> },
+    args: string[],
+  ): { output: string; isError: boolean } {
+    const user = this.remoteUser;
+    const allowed = host.sudoers?.[user] ?? (user === "root" ? ["ALL"] : []);
+
+    if (args[0] === "-l" || args.length === 0) {
+      if (allowed.length === 0) {
+        return {
+          output: `El usuario ${user} no puede ejecutar sudo en ${host.hostname}.\n`,
+          isError: false,
+        };
+      }
+      if (allowed.includes("ALL")) {
+        return { output: `El usuario ${user} puede ejecutar (ALL : ALL) ALL\n`, isError: false };
+      }
+      const rows = allowed.map((b) => `    (root) NOPASSWD: ${b}`).join("\n");
+      return {
+        output:
+          `Matching Defaults entries for ${user} on ${host.hostname}:\n` +
+          `    env_reset, mail_badpass, secure_path=/usr/local/sbin\\:/usr/local/bin\\:/usr/sbin\\:/usr/bin\\:/sbin\\:/bin\n\n` +
+          `El usuario ${user} puede ejecutar los siguientes comandos en ${host.hostname}:\n` +
+          `${rows}\n\n` +
+          `Pista: fijate en GTFOBins cómo ese binario escapa a una shell corriendo como root.\n`,
+        isError: false,
+      };
+    }
+
+    // sudo <bin> [args...]
+    if (user === "root") {
+      return { output: `(ya sos root; sudo no hace falta)\n`, isError: false };
+    }
+    const rawBin = args[0] ?? "";
+    const base = rawBin.split("/").pop() ?? rawBin;
+    const isAllowed = allowed.some((b) => b === rawBin || (b.split("/").pop() ?? b) === base);
+    if (!isAllowed) {
+      return {
+        output: `Lo siento, ${user} no puede ejecutar '/usr/bin/${base}' como root en ${host.hostname}.\n`,
+        isError: true,
+      };
+    }
+
+    const argStr = args.slice(1).join(" ");
+    if (this.gtfobinsEscape(base, argStr)) {
+      this.remoteUser = "root";
+      return {
+        output:
+          `# id\n` +
+          `uid=0(root) gid=0(root) groups=0(root)\n` +
+          `[★] Escapaste a una shell como root vía ${base} (GTFOBins). Sos root en ${host.hostname}.\n` +
+          `    Ahora sí: cat /root/flag.txt\n`,
+        isError: false,
+      };
+    }
+
+    // Binario permitido pero SIN escape: corre como root, no escalás la sesión.
+    return {
+      output:
+        `(${base} se ejecutó como root, pero no abriste una shell)\n` +
+        `Necesitás un escape de shell. Pista (GTFOBins ${base}): probá lanzar /bin/sh desde ${base}.\n`,
+      isError: false,
+    };
+  }
+
+  /**
+   * ¿La invocación de `bin` con `argStr` escapa a una shell? (GTFOBins). Es lo
+   * que separa "corrí un comando como root" de "tengo una shell de root".
+   */
+  private gtfobinsEscape(bin: string, argStr: string): boolean {
+    const s = argStr.toLowerCase();
+    const shell = /(^|[\s'"/=(])(sh|bash|dash|zsh)\b/;
+    switch (bin) {
+      case "sh":
+      case "bash":
+      case "dash":
+      case "zsh":
+        return true; // sudo bash → shell de root directa
+      case "find":
+        return /-exec(dir)?\b/.test(s) && shell.test(s); // find . -exec /bin/sh \;
+      case "vim":
+      case "vi":
+      case "nvim":
+        return /(:!|-c\s*['"]?:?!|!\/?(bin\/)?(sh|bash))/.test(s) || /py(thon)?3?\b/.test(s);
+      case "less":
+      case "more":
+      case "man":
+        return /!\s*\/?(bin\/)?(sh|bash)/.test(s);
+      case "awk":
+      case "gawk":
+        return /system\s*\(/.test(s);
+      case "python":
+      case "python3":
+      case "python2":
+        return /(os\.system|pty\.spawn|subprocess|import\s+os)/.test(s) && shell.test(s);
+      case "perl":
+        return /(exec|system)\s*\(?/.test(s) && shell.test(s);
+      case "env":
+        return shell.test(s);
+      case "nmap":
+        return /--interactive/.test(s);
+      case "tar":
+        return /(--checkpoint-action|--to-command)/.test(s) && shell.test(s);
+      default:
+        return false;
     }
   }
 
