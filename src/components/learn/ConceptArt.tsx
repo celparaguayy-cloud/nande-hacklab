@@ -576,6 +576,412 @@ function Osint() {
   );
 }
 
+function Exploit() {
+  return (
+    <Frame>
+      <text x={160} y={22} fill={DIM} fontSize={12} fontFamily={sans} textAnchor="middle">Un exploit abre UNA grieta concreta → sesión</text>
+      <rect x={30} y={44} width={104} height={96} rx={6} fill={PANEL2} stroke={RED} />
+      <text x={82} y={64} fill={RED} fontSize={11} fontFamily={mono} textAnchor="middle">servicio</text>
+      <text x={82} y={78} fill={DIM} fontSize={9} fontFamily={sans} textAnchor="middle">vulnerable</text>
+      <path d="M60 92l14 10-10 12 16 8-12 12" fill="none" stroke={RED} strokeWidth={2} />
+      <path d="M138 92h40" stroke={AMBER} strokeWidth={2} markerEnd="url(#exg)" />
+      <text x={158} y={86} fill={AMBER} fontSize={9} fontFamily={mono} textAnchor="middle">exploit</text>
+      <rect x={184} y={54} width={110} height={76} rx={6} fill="rgba(110,231,135,0.10)" stroke={GREEN} />
+      <text x={239} y={78} fill={GREEN} fontSize={12} fontFamily={mono} textAnchor="middle">session 1</text>
+      <text x={239} y={98} fill={DIM} fontSize={9} fontFamily={sans} textAnchor="middle">meterpreter</text>
+      <text x={239} y={116} fill={GREEN} fontSize={9} fontFamily={sans} textAnchor="middle">shell abierta ✓</text>
+      <text x={160} y={160} fill={DIM} fontSize={10} fontFamily={sans} textAnchor="middle">sin la grieta, no hay sesión</text>
+      <defs><marker id="exg" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0l6 3-6 3z" fill={AMBER} /></marker></defs>
+    </Frame>
+  );
+}
+
+function Payload() {
+  return (
+    <Frame>
+      <text x={160} y={22} fill={DIM} fontSize={12} fontFamily={sans} textAnchor="middle">reverse shell: la víctima te llama a VOS</text>
+      <rect x={22} y={60} width={78} height={54} rx={6} fill={PANEL2} stroke={GREEN} />
+      <text x={61} y={84} fill={GREEN} fontSize={11} fontFamily={sans} textAnchor="middle">tu escucha</text>
+      <text x={61} y={100} fill={DIM} fontSize={9} fontFamily={mono} textAnchor="middle">LHOST:4444</text>
+      <rect x={220} y={60} width={78} height={54} rx={6} fill={PANEL2} stroke={RED} />
+      <text x={259} y={84} fill={RED} fontSize={11} fontFamily={sans} textAnchor="middle">víctima</text>
+      <text x={259} y={100} fill={DIM} fontSize={9} fontFamily={sans} textAnchor="middle">payload</text>
+      <path d="M218 88H104" stroke={GREEN} strokeWidth={2} markerEnd="url(#pyg)" />
+      <text x={160} y={80} fill={GREEN} fontSize={9.5} fontFamily={mono} textAnchor="middle">conexión inversa</text>
+      <text x={160} y={132} fill={DIM} fontSize={10} fontFamily={sans} textAnchor="middle">así atraviesa el firewall de salida</text>
+      <defs><marker id="pyg" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0l6 3-6 3z" fill={GREEN} /></marker></defs>
+    </Frame>
+  );
+}
+
+function AdGrafo() {
+  const nodes = [
+    { x: 40, y: 130, t: "vos", c: GREEN },
+    { x: 110, y: 90, t: "grupo", c: CYAN },
+    { x: 180, y: 120, t: "svc-sql", c: AMBER },
+    { x: 240, y: 78, t: "DB01", c: AMBER },
+    { x: 288, y: 40, t: "DA", c: RED },
+  ];
+  const edges = [[0, 1], [1, 2], [2, 3], [3, 4]];
+  return (
+    <Frame>
+      <text x={160} y={20} fill={DIM} fontSize={12} fontFamily={sans} textAnchor="middle">AD es un grafo: buscás el camino a Domain Admins</text>
+      {edges.map(([a, b], i) => (
+        <line key={i} x1={nodes[a].x} y1={nodes[a].y} x2={nodes[b].x} y2={nodes[b].y} stroke={LINE} strokeWidth={2} markerEnd="url(#adg)" />
+      ))}
+      {nodes.map((n, i) => (
+        <g key={i}>
+          <circle cx={n.x} cy={n.y} r={12} fill={PANEL2} stroke={n.c} strokeWidth={2} />
+          <text x={n.x} y={n.y + 26} fill={n.c} fontSize={9} fontFamily={mono} textAnchor="middle">{n.t}</text>
+        </g>
+      ))}
+      <defs><marker id="adg" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0 0l6 3-6 3z" fill={DIM} /></marker></defs>
+    </Frame>
+  );
+}
+
+function Kerberos() {
+  return (
+    <Frame>
+      <text x={160} y={24} fill={DIM} fontSize={12} fontFamily={sans} textAnchor="middle">Kerberoasting: pedís el ticket, lo crackeás afuera</text>
+      <path d="M40 60h130v56H40a10 10 0 0 0 0-20 10 10 0 0 0 0-16z" fill={PANEL2} stroke={VIOLET} strokeWidth={2} />
+      <text x={104} y={82} fill={VIOLET} fontSize={11} fontFamily={mono} textAnchor="middle">TGS</text>
+      <text x={104} y={100} fill={DIM} fontSize={9} fontFamily={sans} textAnchor="middle">SVC-SQL (SPN)</text>
+      <path d="M176 88h26" stroke={DIM} strokeWidth={2} markerEnd="url(#kbg)" />
+      <text x={189} y={80} fill={DIM} fontSize={8} fontFamily={sans} textAnchor="middle">offline</text>
+      <rect x={208} y={64} width={88} height={48} rx={5} fill={PANEL2} stroke={GREEN} />
+      <text x={252} y={84} fill={DIM} fontSize={9} fontFamily={sans} textAnchor="middle">clave débil</text>
+      <text x={252} y={101} fill={GREEN} fontSize={11} fontFamily={mono} textAnchor="middle">Verano2024!</text>
+      <text x={160} y={140} fill={DIM} fontSize={10} fontFamily={sans} textAnchor="middle">no bloquea cuentas · sólo el evento 4769</text>
+      <defs><marker id="kbg" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0l6 3-6 3z" fill={DIM} /></marker></defs>
+    </Frame>
+  );
+}
+
+function Pth() {
+  return (
+    <Frame>
+      <text x={160} y={24} fill={DIM} fontSize={12} fontFamily={sans} textAnchor="middle">Pass-the-Hash: entrás con el hash, sin la clave</text>
+      <rect x={26} y={64} width={104} height={46} rx={5} fill={PANEL2} stroke={AMBER} />
+      <text x={78} y={84} fill={DIM} fontSize={9} fontFamily={sans} textAnchor="middle">hash NT robado</text>
+      <text x={78} y={100} fill={AMBER} fontSize={10} fontFamily={mono} textAnchor="middle">a1f9…7c2</text>
+      <path d="M134 88h44" stroke={AMBER} strokeWidth={2} markerEnd="url(#ptg)" />
+      <text x={156} y={80} fill={DIM} fontSize={8} fontFamily={mono} textAnchor="middle">NTLM</text>
+      <rect x={184} y={56} width={112} height={62} rx={5} fill={PANEL2} stroke={GREEN} />
+      <text x={240} y={80} fill={GREEN} fontSize={11} fontFamily={sans} textAnchor="middle">acceso ✓</text>
+      <text x={240} y={100} fill={DIM} fontSize={9} fontFamily={sans} textAnchor="middle">sin contraseña</text>
+      <text x={160} y={140} fill={RED} fontSize={10} fontFamily={sans} textAnchor="middle">el hash ES la credencial en NTLM</text>
+      <defs><marker id="ptg" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0l6 3-6 3z" fill={AMBER} /></marker></defs>
+    </Frame>
+  );
+}
+
+function Spray() {
+  const users = ["ana", "svc-sql", "lore", "dba"];
+  return (
+    <Frame>
+      <text x={160} y={22} fill={DIM} fontSize={12} fontFamily={sans} textAnchor="middle">Spraying: UNA clave contra MUCHOS usuarios</text>
+      <rect x={26} y={70} width={92} height={30} rx={5} fill={PANEL2} stroke={AMBER} />
+      <text x={72} y={90} fill={AMBER} fontSize={11} fontFamily={mono} textAnchor="middle">Verano2024!</text>
+      {users.map((u, i) => (
+        <g key={i}>
+          <rect x={196} y={40 + i * 26} width={98} height={20} rx={4} fill={PANEL2} stroke={i === 1 ? GREEN : LINE} />
+          <text x={206} y={54 + i * 26} fill={i === 1 ? GREEN : DIM} fontSize={10} fontFamily={mono}>{u}{i === 1 ? " ✓" : ""}</text>
+          <line x1={120} y1={85} x2={194} y2={50 + i * 26} stroke={i === 1 ? GREEN : LINE} strokeWidth={i === 1 ? 2 : 1} strokeDasharray={i === 1 ? "" : "3 3"} />
+        </g>
+      ))}
+      <text x={72} y={118} fill={DIM} fontSize={9} fontFamily={sans} textAnchor="middle">no bloquea cuentas</text>
+    </Frame>
+  );
+}
+
+function Sniffer() {
+  return (
+    <Frame>
+      <text x={160} y={24} fill={DIM} fontSize={12} fontFamily={sans} textAnchor="middle">Sniffer: lee lo que viaja por el cable</text>
+      <line x1={20} y1={92} x2={300} y2={92} stroke={LINE} strokeWidth={3} />
+      {[60, 130, 210].map((x, i) => (
+        <g key={i}>
+          <rect x={x} y={80} width={26} height={24} rx={3} fill={PANEL2} stroke={i === 1 ? RED : CYAN} />
+          <text x={x + 13} y={96} fill={i === 1 ? RED : CYAN} fontSize={9} fontFamily={mono} textAnchor="middle">{i === 1 ? "🔓" : "···"}</text>
+        </g>
+      ))}
+      <rect x={112} y={120} width={96} height={30} rx={4} fill="rgba(255,123,114,0.12)" stroke={RED} />
+      <text x={160} y={139} fill={RED} fontSize={10} fontFamily={mono} textAnchor="middle">password=girasol77</text>
+      <text x={160} y={64} fill={DIM} fontSize={10} fontFamily={sans} textAnchor="middle">en HTTP la clave viaja en claro</text>
+    </Frame>
+  );
+}
+
+function CrackHash() {
+  const words = ["123456", "girasol77", "qwerty"];
+  return (
+    <Frame>
+      <text x={160} y={22} fill={DIM} fontSize={12} fontFamily={sans} textAnchor="middle">Crackear: hasheás el diccionario y comparás</text>
+      <rect x={24} y={48} width={96} height={30} rx={5} fill={PANEL2} stroke={VIOLET} />
+      <text x={72} y={62} fill={DIM} fontSize={8} fontFamily={sans} textAnchor="middle">hash objetivo</text>
+      <text x={72} y={74} fill={VIOLET} fontSize={10} fontFamily={mono} textAnchor="middle">2ab9…767</text>
+      {words.map((w, i) => (
+        <g key={i}>
+          <rect x={200} y={42 + i * 30} width={96} height={22} rx={4} fill={PANEL2} stroke={i === 1 ? GREEN : LINE} />
+          <text x={210} y={57 + i * 30} fill={i === 1 ? GREEN : DIM} fontSize={10} fontFamily={mono}>{w}{i === 1 ? " ✓" : ""}</text>
+        </g>
+      ))}
+      <path d="M122 63h74" stroke={DIM} strokeWidth={1.5} strokeDasharray="3 3" />
+      <text x={160} y={150} fill={GREEN} fontSize={10} fontFamily={sans} textAnchor="middle">coincide el hash → clave = girasol77</text>
+    </Frame>
+  );
+}
+
+function Directorios() {
+  const paths = [
+    { p: "/login", s: "200", c: GREEN },
+    { p: "/admin", s: "403", c: AMBER },
+    { p: "/backup", s: "200", c: GREEN },
+    { p: "/xyz", s: "404", c: DIM },
+  ];
+  return (
+    <Frame>
+      <text x={160} y={24} fill={DIM} fontSize={12} fontFamily={sans} textAnchor="middle">gobuster prueba rutas y mira el código</text>
+      {paths.map((r, i) => (
+        <g key={i}>
+          <rect x={60} y={40 + i * 26} width={200} height={20} rx={4} fill={PANEL2} stroke={LINE} />
+          <text x={70} y={54 + i * 26} fill={INK} fontSize={11} fontFamily={mono}>{r.p}</text>
+          <text x={248} y={54 + i * 26} fill={r.c} fontSize={11} fontFamily={mono} textAnchor="end">{r.s}</text>
+        </g>
+      ))}
+      <text x={160} y={158} fill={DIM} fontSize={10} fontFamily={sans} textAnchor="middle">200/403 existen · 404 no · lo oculto aparece</text>
+    </Frame>
+  );
+}
+
+function Subdominios() {
+  const subs = ["www", "mail", "dev", "admin"];
+  return (
+    <Frame>
+      <text x={160} y={22} fill={DIM} fontSize={12} fontFamily={sans} textAnchor="middle">Enumerar subdominios de un dominio</text>
+      <rect x={116} y={36} width={88} height={26} rx={5} fill={PANEL2} stroke={CYAN} />
+      <text x={160} y={53} fill={CYAN} fontSize={11} fontFamily={mono} textAnchor="middle">nande.local</text>
+      {subs.map((s, i) => {
+        const x = 30 + i * 72;
+        return (
+          <g key={i}>
+            <line x1={160} y1={62} x2={x + 32} y2={104} stroke={LINE} />
+            <rect x={x} y={104} width={64} height={24} rx={4} fill={PANEL2} stroke={i === 3 ? AMBER : LINE} />
+            <text x={x + 32} y={120} fill={i === 3 ? AMBER : DIM} fontSize={9.5} fontFamily={mono} textAnchor="middle">{s}</text>
+          </g>
+        );
+      })}
+      <text x={160} y={150} fill={AMBER} fontSize={10} fontFamily={sans} textAnchor="middle">'admin' no estaba en la web pública</text>
+    </Frame>
+  );
+}
+
+function Mitm() {
+  return (
+    <Frame>
+      <text x={160} y={24} fill={DIM} fontSize={12} fontFamily={sans} textAnchor="middle">MITM: el atacante se mete en el medio</text>
+      <rect x={20} y={92} width={60} height={40} rx={5} fill={PANEL2} stroke={CYAN} />
+      <text x={50} y={116} fill={DIM} fontSize={9} textAnchor="middle" fontFamily={sans}>víctima</text>
+      <rect x={240} y={92} width={60} height={40} rx={5} fill={PANEL2} stroke={GREEN} />
+      <text x={270} y={116} fill={DIM} fontSize={9} textAnchor="middle" fontFamily={sans}>router</text>
+      <rect x={126} y={40} width={68} height={38} rx={5} fill="rgba(255,123,114,0.12)" stroke={RED} />
+      <text x={160} y={63} fill={RED} fontSize={10} textAnchor="middle" fontFamily={sans}>atacante</text>
+      <path d="M80 108h158" stroke={LINE} strokeWidth={1.5} strokeDasharray="4 3" />
+      <path d="M70 96l84-18" stroke={RED} strokeWidth={2} markerEnd="url(#mmg)" />
+      <path d="M166 78l82 18" stroke={RED} strokeWidth={2} markerEnd="url(#mmg)" />
+      <text x={160} y={150} fill={DIM} fontSize={10} fontFamily={sans} textAnchor="middle">todo el tráfico pasa por él</text>
+      <defs><marker id="mmg" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0l6 3-6 3z" fill={RED} /></marker></defs>
+    </Frame>
+  );
+}
+
+function Pivot() {
+  return (
+    <Frame>
+      <text x={160} y={22} fill={DIM} fontSize={12} fontFamily={sans} textAnchor="middle">Pivoting: saltás por un host a la red interna</text>
+      <rect x={22} y={74} width={56} height={38} rx={5} fill={PANEL2} stroke={GREEN} />
+      <text x={50} y={97} fill={GREEN} fontSize={9} textAnchor="middle" fontFamily={sans}>vos</text>
+      <rect x={132} y={74} width={56} height={38} rx={5} fill={PANEL2} stroke={AMBER} />
+      <text x={160} y={92} fill={AMBER} fontSize={9} textAnchor="middle" fontFamily={sans}>pivote</text>
+      <text x={160} y={104} fill={DIM} fontSize={8} textAnchor="middle" fontFamily={sans}>2 redes</text>
+      <rect x={228} y={44} width={80} height={98} rx={6} fill="rgba(185,140,255,0.08)" stroke={VIOLET} strokeDasharray="4 3" />
+      <text x={268} y={60} fill={VIOLET} fontSize={9} textAnchor="middle" fontFamily={sans}>red interna</text>
+      {[0, 1].map((i) => <rect key={i} x={244} y={72 + i * 30} width={48} height={22} rx={3} fill={PANEL2} stroke={VIOLET} />)}
+      <path d="M80 93h50" stroke={GREEN} strokeWidth={2} markerEnd="url(#pvg)" />
+      <path d="M190 93h36" stroke={VIOLET} strokeWidth={2} markerEnd="url(#pvv)" />
+      <defs>
+        <marker id="pvg" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0l6 3-6 3z" fill={GREEN} /></marker>
+        <marker id="pvv" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0l6 3-6 3z" fill={VIOLET} /></marker>
+      </defs>
+    </Frame>
+  );
+}
+
+function Traversal() {
+  return (
+    <Frame>
+      <text x={160} y={24} fill={DIM} fontSize={12} fontFamily={sans} textAnchor="middle">Path traversal: te escapás de la carpeta web</text>
+      <rect x={30} y={50} width={260} height={34} rx={6} fill={PANEL} stroke={CYAN} />
+      <text x={44} y={71} fill={INK} fontSize={12} fontFamily={mono}>/img?f=</text>
+      <text x={112} y={71} fill={RED} fontSize={12} fontFamily={mono}>../../../etc/passwd</text>
+      {["/var/www", "..", "..", "/etc/passwd"].map((s, i) => (
+        <g key={i}>
+          <rect x={30 + i * 70} y={104} width={62} height={22} rx={4} fill={PANEL2} stroke={i === 3 ? RED : LINE} />
+          <text x={61 + i * 70} y={119} fill={i === 3 ? RED : DIM} fontSize={9} fontFamily={mono} textAnchor="middle">{s}</text>
+        </g>
+      ))}
+      <text x={160} y={150} fill={RED} fontSize={10} fontFamily={sans} textAnchor="middle">cada ../ sube un nivel → salís de lo permitido</text>
+    </Frame>
+  );
+}
+
+function Idor() {
+  return (
+    <Frame>
+      <text x={160} y={24} fill={DIM} fontSize={12} fontFamily={sans} textAnchor="middle">IDOR: cambiás el número y ves lo ajeno</text>
+      <rect x={40} y={44} width={110} height={40} rx={6} fill={PANEL2} stroke={GREEN} />
+      <text x={95} y={62} fill={INK} fontSize={12} fontFamily={mono} textAnchor="middle">/order/7</text>
+      <text x={95} y={78} fill={GREEN} fontSize={9} fontFamily={sans} textAnchor="middle">tu pedido ✓</text>
+      <rect x={170} y={44} width={110} height={40} rx={6} fill="rgba(255,123,114,0.12)" stroke={RED} />
+      <text x={225} y={62} fill={INK} fontSize={12} fontFamily={mono} textAnchor="middle">/order/8</text>
+      <text x={225} y={78} fill={RED} fontSize={9} fontFamily={sans} textAnchor="middle">¡pedido de OTRO!</text>
+      <path d="M150 64h18" stroke={AMBER} strokeWidth={2} markerEnd="url(#idg)" />
+      <text x={160} y={116} fill={DIM} fontSize={10.5} fontFamily={sans} textAnchor="middle">el servidor no chequea de quién es el id</text>
+      <text x={160} y={140} fill={AMBER} fontSize={10} fontFamily={sans} textAnchor="middle">+1 al id = datos que no son tuyos</text>
+      <defs><marker id="idg" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0l6 3-6 3z" fill={AMBER} /></marker></defs>
+    </Frame>
+  );
+}
+
+function Ssrf() {
+  return (
+    <Frame>
+      <text x={160} y={22} fill={DIM} fontSize={12} fontFamily={sans} textAnchor="middle">SSRF: el servidor pide la URL por vos</text>
+      <rect x={22} y={74} width={54} height={38} rx={5} fill={PANEL2} stroke={CYAN} />
+      <text x={49} y={97} fill={DIM} fontSize={9} textAnchor="middle" fontFamily={sans}>vos</text>
+      <rect x={128} y={68} width={64} height={50} rx={5} fill={PANEL2} stroke={AMBER} />
+      <text x={160} y={90} fill={AMBER} fontSize={10} textAnchor="middle" fontFamily={sans}>servidor</text>
+      <text x={160} y={104} fill={DIM} fontSize={8} textAnchor="middle" fontFamily={sans}>web</text>
+      <rect x={244} y={74} width={62} height={38} rx={5} fill="rgba(255,123,114,0.12)" stroke={RED} />
+      <text x={275} y={92} fill={RED} fontSize={9} textAnchor="middle" fontFamily={sans}>interno</text>
+      <text x={275} y={104} fill={DIM} fontSize={8} textAnchor="middle" fontFamily={mono}>169.254…</text>
+      <path d="M76 93h50" stroke={CYAN} strokeWidth={2} markerEnd="url(#ssg)" />
+      <path d="M192 93h50" stroke={RED} strokeWidth={2} markerEnd="url(#ssr)" />
+      <text x={101} y={86} fill={DIM} fontSize={8} fontFamily={mono} textAnchor="middle">url=…</text>
+      <text x={160} y={140} fill={DIM} fontSize={10} fontFamily={sans} textAnchor="middle">llega a lo que vos no alcanzás</text>
+      <defs>
+        <marker id="ssg" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0l6 3-6 3z" fill={CYAN} /></marker>
+        <marker id="ssr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0l6 3-6 3z" fill={RED} /></marker>
+      </defs>
+    </Frame>
+  );
+}
+
+function Cmdi() {
+  return (
+    <Frame>
+      <text x={160} y={24} fill={DIM} fontSize={12} fontFamily={sans} textAnchor="middle">Inyección de comandos: tu texto se ejecuta</text>
+      <rect x={30} y={44} width={260} height={30} rx={5} fill={PANEL} stroke={CYAN} />
+      <text x={42} y={64} fill={INK} fontSize={12} fontFamily={mono}>ping 10.0.0.1</text>
+      <text x={150} y={64} fill={RED} fontSize={12} fontFamily={mono}>; whoami</text>
+      <rect x={30} y={88} width={260} height={62} rx={5} fill="#0a1017" stroke={LINE} />
+      <text x={42} y={108} fill={DIM} fontSize={11} fontFamily={mono}>64 bytes from 10.0.0.1…</text>
+      <text x={42} y={128} fill={GREEN} fontSize={11} fontFamily={mono}>root</text>
+      <text x={42} y={144} fill={DIM} fontSize={9} fontFamily={sans}>el ; encadenó tu comando extra</text>
+    </Frame>
+  );
+}
+
+function Jwt() {
+  const segs = [
+    { t: "header", c: RED },
+    { t: "payload", c: VIOLET },
+    { t: "firma", c: CYAN },
+  ];
+  let x = 26;
+  return (
+    <Frame>
+      <text x={160} y={26} fill={DIM} fontSize={12} fontFamily={sans} textAnchor="middle">Un JWT = 3 partes separadas por punto</text>
+      {segs.map((s, i) => {
+        const w = 80;
+        const seg = (
+          <g key={i}>
+            <rect x={x} y={62} width={w} height={34} rx={5} fill="rgba(255,255,255,0.04)" stroke={s.c} />
+            <text x={x + w / 2} y={83} fill={s.c} fontSize={11} fontFamily={mono} textAnchor="middle">{s.t}</text>
+            {i < 2 && <text x={x + w + 3} y={84} fill={DIM} fontSize={16} fontFamily={mono}>.</text>}
+          </g>
+        );
+        x += w + 12;
+        return seg;
+      })}
+      <text x={66} y={116} fill={DIM} fontSize={9} fontFamily={sans} textAnchor="middle">algoritmo</text>
+      <text x={158} y={116} fill={DIM} fontSize={9} fontFamily={sans} textAnchor="middle">datos (rol!)</text>
+      <text x={250} y={116} fill={DIM} fontSize={9} fontFamily={sans} textAnchor="middle">sella todo</text>
+      <text x={160} y={144} fill={AMBER} fontSize={10} fontFamily={sans} textAnchor="middle">si la firma es débil, cambiás el rol a admin</text>
+    </Frame>
+  );
+}
+
+function Siem() {
+  const logs = ["login fail ana", "login fail ana", "login fail ana", "login OK ana"];
+  return (
+    <Frame>
+      <text x={160} y={22} fill={DIM} fontSize={12} fontFamily={sans} textAnchor="middle">El SIEM junta logs y dispara una alerta</text>
+      {logs.map((l, i) => (
+        <g key={i}>
+          <rect x={26} y={36 + i * 22} width={150} height={18} rx={3} fill={PANEL2} stroke={LINE} />
+          <text x={34} y={49 + i * 22} fill={i === 3 ? GREEN : DIM} fontSize={9} fontFamily={mono}>{l}</text>
+        </g>
+      ))}
+      <path d="M178 90h26" stroke={AMBER} strokeWidth={2} markerEnd="url(#smg)" />
+      <rect x={206} y={64} width={92} height={52} rx={6} fill="rgba(245,181,68,0.12)" stroke={AMBER} />
+      <text x={252} y={86} fill={AMBER} fontSize={11} fontFamily={sans} textAnchor="middle">⚠ ALERTA</text>
+      <text x={252} y={104} fill={DIM} fontSize={9} fontFamily={sans} textAnchor="middle">fuerza bruta</text>
+      <text x={160} y={150} fill={DIM} fontSize={10} fontFamily={sans} textAnchor="middle">la ráfaga de intentos es el patrón que caza</text>
+      <defs><marker id="smg" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0l6 3-6 3z" fill={AMBER} /></marker></defs>
+    </Frame>
+  );
+}
+
+function Reversing() {
+  return (
+    <Frame>
+      <text x={160} y={24} fill={DIM} fontSize={12} fontFamily={sans} textAnchor="middle">Reversing: de bytes a instrucciones legibles</text>
+      <rect x={22} y={44} width={120} height={96} rx={5} fill={PANEL2} stroke={LINE} />
+      <text x={32} y={64} fill={DIM} fontSize={10} fontFamily={mono}>55 48 89 e5</text>
+      <text x={32} y={82} fill={DIM} fontSize={10} fontFamily={mono}>8b 45 fc 83</text>
+      <text x={32} y={100} fill={DIM} fontSize={10} fontFamily={mono}>f8 2a 74 05</text>
+      <text x={82} y={130} fill={DIM} fontSize={9} fontFamily={sans} textAnchor="middle">bytes</text>
+      <path d="M146 92h28" stroke={CYAN} strokeWidth={2} markerEnd="url(#rvg)" />
+      <rect x={178} y={44} width={120} height={96} rx={5} fill={PANEL2} stroke={CYAN} />
+      <text x={188} y={64} fill={GREEN} fontSize={10} fontFamily={mono}>push rbp</text>
+      <text x={188} y={82} fill={GREEN} fontSize={10} fontFamily={mono}>mov eax,[..]</text>
+      <text x={188} y={100} fill={AMBER} fontSize={10} fontFamily={mono}>cmp eax,0x2a</text>
+      <text x={238} y={130} fill={DIM} fontSize={9} fontFamily={sans} textAnchor="middle">ensamblador</text>
+      <defs><marker id="rvg" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0l6 3-6 3z" fill={CYAN} /></marker></defs>
+    </Frame>
+  );
+}
+
+function Contenedor() {
+  return (
+    <Frame>
+      <text x={160} y={24} fill={DIM} fontSize={12} fontFamily={sans} textAnchor="middle">Contenedores: apps aisladas sobre un mismo kernel</text>
+      {[0, 1, 2].map((i) => (
+        <g key={i}>
+          <rect x={30 + i * 92} y={44} width={80} height={54} rx={6} fill={PANEL2} stroke={CYAN} />
+          <rect x={40 + i * 92} y={54} width={60} height={12} rx={2} fill="#0a1017" stroke={GREEN} />
+          <text x={70 + i * 92} y={86} fill={DIM} fontSize={9} fontFamily={mono} textAnchor="middle">app{i + 1}</text>
+        </g>
+      ))}
+      <rect x={30} y={108} width={264} height={24} rx={4} fill="rgba(61,174,233,0.10)" stroke={CYAN} />
+      <text x={160} y={124} fill={CYAN} fontSize={10} fontFamily={sans} textAnchor="middle">kernel del host (compartido)</text>
+      <text x={160} y={150} fill={AMBER} fontSize={10} fontFamily={sans} textAnchor="middle">si te escapás del contenedor, tocás el host</text>
+    </Frame>
+  );
+}
+
 const ART: Record<DiagramId, () => React.ReactElement> = {
   internet: Internet,
   dominio: Dominio,
@@ -601,6 +1007,26 @@ const ART: Record<DiagramId, () => React.ReactElement> = {
   xss: Xss,
   privesc: Privesc,
   osint: Osint,
+  exploit: Exploit,
+  payload: Payload,
+  adgrafo: AdGrafo,
+  kerberos: Kerberos,
+  pth: Pth,
+  spray: Spray,
+  sniffer: Sniffer,
+  crackhash: CrackHash,
+  directorios: Directorios,
+  subdominios: Subdominios,
+  mitm: Mitm,
+  pivot: Pivot,
+  traversal: Traversal,
+  idor: Idor,
+  ssrf: Ssrf,
+  cmdi: Cmdi,
+  jwt: Jwt,
+  siem: Siem,
+  reversing: Reversing,
+  contenedor: Contenedor,
 };
 
 /** Dibuja la ilustración pedida (o nada si el id no existe). */
