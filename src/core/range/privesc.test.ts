@@ -66,4 +66,21 @@ describe("Privesc — web01.nande (sudo NOPASSWD find → GTFOBins → root)", (
     expect(benign).not.toMatch(/uid=0\(root\)/);
     expect(term.execute("whoami")).toContain("devops");
   });
+
+  it("escalar a root enciende una detección MITRE (coherencia SOC/OPSEC/DFIR)", () => {
+    term.execute("connect web01.nande devops Delfin2024");
+    const before = kernel.mitre.count();
+    term.execute("sudo find . -exec /bin/sh \\;");
+    // La acción ofensiva se propaga a la capa defensiva: no es sólo texto.
+    expect(kernel.mitre.techniques().map((t) => t.mitreId)).toContain("T1548.003");
+    expect(kernel.mitre.count()).toBeGreaterThan(before);
+    const det = kernel.mitre.all().find((d) => d.mitreId === "T1548.003");
+    expect(det?.host).toBe("web01.nande");
+  });
+
+  it("un find SIN escape no genera detección de escalada (sin falsos positivos)", () => {
+    term.execute("connect web01.nande devops Delfin2024");
+    term.execute("sudo find /etc -name passwd");
+    expect(kernel.mitre.techniques().map((t) => t.mitreId)).not.toContain("T1548.003");
+  });
 });

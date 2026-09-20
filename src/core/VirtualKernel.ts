@@ -27,7 +27,7 @@ import { CtfArena } from "./game/CtfArena";
 import { ThreatEngine, DEFENSE_HOST } from "./game/ThreatEngine";
 import { CyberRuntime } from "./runtime/CyberRuntime";
 import { PacketCapture } from "./net/PacketCapture";
-import { Directory } from "./ad/Directory";
+import { Directory, type AttackSignal } from "./ad/Directory";
 import { MitreCorrelator } from "./soc/Mitre";
 import { RedTeamAgent, REDTEAM_TARGET } from "./game/RedTeamAgent";
 import { CtfForge } from "./game/CtfForge";
@@ -1158,6 +1158,18 @@ export class VirtualKernel {
     }
 
     return notes;
+  }
+
+  /**
+   * Emite una señal ofensiva al MISMO canal que usa el Directorio Activo
+   * (`attack.technique`): la consumen el correlador MITRE (detección), el SOC,
+   * DFIR y el OpsecTracer (exposición/notoriedad). Es el puente de coherencia
+   * (regla maestra 3/5/18): una acción ofensiva de CUALQUIER herramienta —no
+   * sólo AD— produce las mismas consecuencias observables en la capa defensiva.
+   * Centraliza el nombre del evento para no duplicarlo por toda la base.
+   */
+  noteAttackTechnique(signal: AttackSignal): void {
+    this.events.emit("attack.technique", signal);
   }
 
   /**

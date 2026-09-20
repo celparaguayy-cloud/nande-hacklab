@@ -2427,6 +2427,17 @@ export class VirtualTerminal {
     const argStr = args.slice(1).join(" ");
     if (this.gtfobinsEscape(base, argStr)) {
       this.remoteUser = "root";
+      // Consecuencia real y coherente (regla maestra 3/5/18): la escalada
+      // enciende una detección en la capa defensiva, igual que el AD. La
+      // acción ofensiva se propaga al correlador MITRE (SOC/SIEM), a DFIR y
+      // al OpsecTracer (exposición/notoriedad si atacás sin anonimato).
+      this.kernel.noteAttackTechnique({
+        technique: "Abuse Elevation Control Mechanism: sudo (NOPASSWD/GTFOBins)",
+        tactic: "Privilege Escalation",
+        mitreId: "T1548.003",
+        detail: `Escalada a root en ${host.hostname} abusando sudo sobre ${base} (escape de shell GTFOBins).`,
+        host: host.hostname,
+      });
       return {
         output:
           `# id\n` +
