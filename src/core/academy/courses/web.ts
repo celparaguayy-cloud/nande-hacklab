@@ -312,7 +312,7 @@ const WEB_ENUM: Curso = {
       title: "Subdominios: la superficie que nadie mira",
       body:
         "Un dominio no es un solo sitio: banco.nande, api.vortex.nande, preview.vortex.nande… cada subdominio es OTRO servidor, con su propio código y sus propios agujeros. Los subdominios olvidados (un 'preview', un 'old', un 'test') suelen estar peor protegidos que el principal. gobuster los encuentra en modo dns, probando nombres contra el DNS:\n\n   gobuster dns -d vortex.nande",
-      diagram: "dns",
+      diagram: "subdominios",
       bullets: [
         "Cada subdominio = otra app para auditar (más superficie de ataque).",
         "gobuster dns -d <dominio> prueba nombres y reporta los que resuelven.",
@@ -330,7 +330,7 @@ const WEB_ENUM: Curso = {
       correct: 0,
       explain:
         "Un 'preview', 'staging' u 'old' se crea y se olvida: versiones viejas, sin parches, con credenciales de prueba, a veces conectado a la misma base que producción. Es una puerta lateral. Por eso enumerar subdominios amplía tanto la superficie de ataque.",
-      diagram: "dns",
+      diagram: "subdominios",
     },
     {
       kind: "lab",
@@ -340,7 +340,7 @@ const WEB_ENUM: Curso = {
       command: "gobuster dns -d vortex.nande",
       explain:
         "Aparecen api.vortex.nande y preview.vortex.nande, con sus IPs. No estaban enlazados en ningún lado: los sacaste probando el DNS. Ahora tenés dos objetivos nuevos (la API y el preview). Probá también: gobuster dns -d nande para ver todo el mundo.",
-      diagram: "dns",
+      diagram: "subdominios",
     },
     {
       kind: "concept",
@@ -1018,7 +1018,7 @@ const WEB_IDOR_TRAVERSAL: Curso = {
       title: "IDOR: cambiar el ?id=",
       body:
         "IDOR = Referencia Directa a Objeto Insegura. Un sitio muestra tu recurso con algo como /album?id=1. Ese 1 es una referencia directa: apunta derecho al objeto en la base. Si cambiás a ?id=2, ?id=5, ?id=7… y el servidor no verifica que ese álbum sea tuyo, te muestra el de otra persona. No hackeás nada raro: solo cambiás un número que vos controlás.",
-      diagram: "url",
+      diagram: "idor",
       bullets: [
         "El id apunta directo al recurso (álbum, factura, mensaje).",
         "Cambiar el número y ver lo ajeno = IDOR.",
@@ -1036,14 +1036,14 @@ const WEB_IDOR_TRAVERSAL: Curso = {
       correct: 0,
       explain:
         "El id no es el problema; el problema es que el servidor no controla la propiedad: no pregunta '¿este álbum es de quien lo pide?'. La defensa es siempre verificar permisos en el servidor para CADA recurso, sin importar qué número te manden.",
-      diagram: "url",
+      diagram: "idor",
     },
     {
       kind: "concept",
       title: "El objetivo: fotos.arandu.nande",
       body:
         "En fotos.arandu.nande, tus álbumes son /album?id=1 y /album?id=2. Pero el servidor nunca comprueba de quién es el álbum: solo busca el número que le pidas y te lo muestra. Si probás otros ids, aparecen álbumes privados de otras personas. El álbum #7 es del administrador, y adentro hay una bandera. Cambiar un número te lleva a lo que no deberías ver.",
-      diagram: "url",
+      diagram: "idor",
       bullets: [
         "Tus álbumes: ?id=1 y ?id=2.",
         "?id=5 y ?id=7 son de otros: el servidor no lo controla.",
@@ -1057,14 +1057,14 @@ const WEB_IDOR_TRAVERSAL: Curso = {
       command: "curl http://fotos.arandu.nande/album?id=7",
       explain:
         "Te muestra el álbum privado del admin y cae la bandera ND{idor_album_ajeno}. Lo que observás: solo cambiaste el número del id y accediste a un recurso ajeno; no hizo falta contraseña ni truco. Defensa: el servidor debe verificar, en cada pedido, que el recurso pertenezca a quien inició sesión (control de acceso del lado del servidor).",
-      diagram: "url",
+      diagram: "idor",
     },
     {
       kind: "concept",
       title: "Path Traversal: trepar con ../",
       body:
         "Ahora, en vez de un número, el dato es el nombre de un archivo: /ver?archivo=manual.txt. El servidor busca ese archivo dentro de una carpeta pública. Pero en las rutas existe .. que significa 'subí una carpeta'. Si el servidor no limpia la ruta, podés escribir ../ varias veces para SALIR de la carpeta pública y llegar a archivos del sistema que no deberías leer, como los de configuración con secretos.",
-      diagram: "archivo",
+      diagram: "traversal",
       bullets: [
         ".. = subir un nivel de carpeta.",
         "../ repetido = escapar de la carpeta permitida.",
@@ -1075,7 +1075,7 @@ const WEB_IDOR_TRAVERSAL: Curso = {
       title: "Cómo se arma el salto",
       body:
         "El visor de docs.tape.nande arma la ruta pegando tu texto detrás de la carpeta pública:\n\n   public/  +  loque_pidas\n\nSi pedís archivo=manual.txt, abre public/manual.txt (bien). Pero si pedís archivo=../config/secrets.env, la ruta queda public/../config/secrets.env, y ese ../ te saca de public/ y te lleva a config/secrets.env, donde hay contraseñas y una bandera. El servidor no encerró la ruta: ese es el bug.",
-      diagram: "archivo",
+      diagram: "traversal",
       bullets: [
         "public/ + ../config/secrets.env → config/secrets.env.",
         "El fallo: no normalizar ni encerrar la ruta.",
@@ -1093,7 +1093,7 @@ const WEB_IDOR_TRAVERSAL: Curso = {
       correct: 0,
       explain:
         "'..' significa 'la carpeta de arriba'. Encadenando ../ te movés hacia afuera de donde estás. En un visor que no controla la ruta, eso te deja salir de la carpeta pública y leer archivos internos: eso es path traversal.",
-      diagram: "archivo",
+      diagram: "traversal",
     },
     {
       kind: "build",
@@ -1117,7 +1117,7 @@ const WEB_IDOR_TRAVERSAL: Curso = {
       command: "curl \"http://docs.tape.nande/ver?archivo=../config/secrets.env\"",
       explain:
         "El visor te muestra el contenido de config/secrets.env, con DB_PASS=Tap3-r00t y la bandera ND{path_traversal_secreto}. Lo que observás: con ../ saliste de la carpeta pública y leíste un archivo interno. Defensa: normalizar la ruta y rechazar cualquiera que salga de la carpeta permitida (por ejemplo, comprobar que la ruta final siga empezando por public/).",
-      diagram: "archivo",
+      diagram: "traversal",
     },
     {
       kind: "quiz",
@@ -1167,7 +1167,7 @@ const WEB_CMDI_JWT: Curso = {
       title: "Cuando la web te presta la consola del servidor",
       body:
         "Algunas webs, por dentro, ejecutan comandos del sistema operativo. Por ejemplo, una herramienta de 'ping' que corre en el servidor:  ping -c1 <lo que pusiste>. Si el sitio pega tu texto en ese comando sin limpiarlo, podés colar TUS propios comandos. Eso es inyección de comandos, y es de las fallas más graves: te da un pedazo de la consola del servidor.",
-      diagram: "inyeccion",
+      diagram: "cmdi",
       bullets: [
         "Algunas webs ejecutan comandos del sistema por dentro.",
         "Si pegan tu texto sin limpiarlo, corrés TUS comandos en el servidor.",
@@ -1178,7 +1178,7 @@ const WEB_CMDI_JWT: Curso = {
       title: "El fallo: encadenar comandos",
       body:
         "En una consola, podés poner varios comandos seguidos separándolos:\n\n   comando1 ; comando2       (corré uno y después el otro)\n   comando1 && comando2      (corré el segundo si el primero salió bien)\n\nSi el servidor arma  ping -c1 TU_TEXTO  y vos ponés como texto  x; cat flag , queda  ping -c1 x; cat flag : primero hace el ping y DESPUÉS ejecuta tu cat. Ese ; es la llave del ataque.",
-      diagram: "inyeccion",
+      diagram: "cmdi",
       bullets: [
         "; y && encadenan comandos.",
         "x; cat flag → hace el ping y además lee el archivo flag.",
@@ -1196,14 +1196,14 @@ const WEB_CMDI_JWT: Curso = {
       correct: 0,
       explain:
         "El ';' separa comandos: cierra el que el servidor iba a correr y pega el tuyo detrás. Así, en vez de solo un ping, el servidor ejecuta también tu comando (leer un archivo, ver quién sos con whoami, etc.). Es exactamente lo que hace un shell de verdad.",
-      diagram: "inyeccion",
+      diagram: "cmdi",
     },
     {
       kind: "concept",
       title: "El objetivo: tools.pyta.nande",
       body:
         "tools.pyta.nande tiene una utilidad de red en /ping?host=. Por dentro corre  ping -c1 <host>  sin limpiar el host. Adentro del servidor hay un archivo llamado flag. Vos vas a mandar como host algo que, además de pingear, ejecute  cat flag  para leerlo. Con eso demostrás que controlás la consola del servidor.",
-      diagram: "inyeccion",
+      diagram: "url",
       bullets: [
         "/ping?host= corre ping -c1 <host> sin sanear.",
         "Objetivo: encadenar  cat flag  para leer el archivo secreto.",
@@ -1226,14 +1226,14 @@ const WEB_CMDI_JWT: Curso = {
       command: "curl \"http://tools.pyta.nande/ping?host=x; cat flag\"",
       explain:
         "La salida muestra el ping y, debajo, el contenido de flag: la bandera ND{cmd_injection_pwned}. Lo que observás: tu ';' cortó el comando de la web y ejecutó el tuyo en el servidor. Defensa: NUNCA pasar entrada del usuario a un comando del sistema; usar funciones seguras que reciban el dato aparte (sin shell), y validar con listas de permitidos (solo letras y puntos de un host, por ejemplo).",
-      diagram: "inyeccion",
+      diagram: "cmdi",
     },
     {
       kind: "concept",
       title: "Tokens JWT: cómo la web recuerda quién sos",
       body:
         "Muchas APIs no usan cookies clásicas sino un token JWT (JSON Web Token). Un JWT tiene tres partes separadas por puntos:\n\n   header . payload . firma\n\n• header: dice cómo está firmado (por ej. alg: HS256).\n• payload: tus datos (usuario, rol: cliente o admin).\n• firma: un sello hecho con una clave secreta, que prueba que el token no fue alterado.\n\nEl servidor lee el payload para saber quién sos y qué podés hacer.",
-      diagram: "cookie",
+      diagram: "jwt",
       bullets: [
         "JWT = header . payload . firma.",
         "El payload dice tu rol; la firma prueba que nadie lo tocó.",
@@ -1244,7 +1244,7 @@ const WEB_CMDI_JWT: Curso = {
       title: "El fallo: confiar en el token sin verificar bien",
       body:
         "El JWT es seguro solo si el servidor verifica la firma con una clave FUERTE. Falla cuando:\n\n• Acepta alg:none: un token que dice 'no tengo firma' y el servidor lo cree igual. Así cualquiera arma un token con rol:admin y entra (api.vortex.nande cae con esto).\n• Usa una clave débil: si la clave secreta es adivinable, la crackeás, re-firmás un token con rol:admin y el servidor te cree.\n\nEn los dos casos, vos forjás un token de administrador que no deberías poder crear.",
-      diagram: "cookie",
+      diagram: "jwt",
       bullets: [
         "alg:none → el servidor acepta un token sin firma.",
         "Clave débil → la adivinás y firmás tu propio token de admin.",
@@ -1262,7 +1262,7 @@ const WEB_CMDI_JWT: Curso = {
       correct: 0,
       explain:
         "La firma es un sello hecho con una clave secreta sobre el header y el payload. Si alguien cambia el payload (por ejemplo, pone rol:admin), la firma ya no coincide… salvo que el servidor no la verifique (alg:none) o que la clave sea débil y se pueda re-firmar. Por eso la firma es el corazón de la seguridad del JWT.",
-      diagram: "cookie",
+      diagram: "jwt",
     },
     {
       kind: "quiz",
@@ -1276,7 +1276,7 @@ const WEB_CMDI_JWT: Curso = {
       correct: 0,
       explain:
         "alg:none significa 'este token no viene firmado'. Un servidor que lo acepta está confiando en el payload sin comprobar nada, así que cualquiera arma un token diciendo rol:admin y entra como administrador. La regla: rechazar alg:none y verificar siempre la firma con una clave fuerte.",
-      diagram: "cookie",
+      diagram: "jwt",
     },
     {
       kind: "build",
@@ -1295,7 +1295,7 @@ const WEB_CMDI_JWT: Curso = {
       command: "jwt forge nande123 rol=admin usuario=admin",
       explain:
         "La herramienta te devuelve un token firmado con rol=admin y confirma que un servidor le creería: cae la bandera ND{jwt_forged_admin}. Después podés probar un token contra la API real con  curl \"http://api.vortex.nande/panel?token=TU_TOKEN\"  para ver el panel de admin (esa API además acepta alg:none, ND{jwt_alg_none}). Defensa: verificar SIEMPRE la firma con una clave fuerte y secreta, rechazar alg:none, y no confiar en el rol del payload sin comprobar el sello. Ético: forjás para demostrar y reportar la falla, nunca para entrar a sistemas ajenos.",
-      diagram: "cookie",
+      diagram: "jwt",
     },
   ],
 };

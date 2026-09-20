@@ -2423,6 +2423,19 @@ const RUNNERS: Record<string, Runner> = {
     };
   },
 
+  mimikatz() {
+    // El volcado de credenciales y Pass-the-Hash REALES viven en la terminal
+    // (VirtualTerminal → directory.dumpableCredentials / passTheHash), operando
+    // sobre el grafo del dominio. Nada scripteado.
+    return {
+      output:
+        `mimikatz es post-explotación: desde la terminal, ya con un equipo poseído,\n` +
+        `  mimikatz sekurlsa::logonpasswords            (volcá hashes NT cacheados)\n` +
+        `  mimikatz "sekurlsa::pth /user:<cuenta> /ntlm:<hash>"   (Pass-the-Hash)\n`,
+      isError: false,
+    };
+  },
+
   crackmapexec() {
     // El barrido de autenticación REAL vive en la terminal (VirtualTerminal →
     // directory.smbLogin): verifica la clave contra la cuenta y, si acierta,

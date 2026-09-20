@@ -451,7 +451,7 @@ const PASS_HASHES: Curso = {
       title: "El ataque: adiviná y comparás huellas",
       body:
         "Como el hash no se revierte, el atacante que roba una lista de hashes hace esto: toma un diccionario (rockyou), hashea cada palabra y compara con los hashes robados. Cuando dos huellas coinciden, encontró la clave. Herramientas como john y hashcat hacen esto a millones de intentos por segundo. hashcat usa la placa de video (GPU) para ir aún más rápido.",
-      diagram: "fuerzabruta",
+      diagram: "crackhash",
       bullets: [
         "No se rompe el hash: se adivina la entrada que lo produce.",
         "Hash rápido (MD5/SHA1) = millones de intentos por segundo = malo para el defensor.",
@@ -511,7 +511,7 @@ const PASS_HASHES: Curso = {
       command: "john hashes.txt",
       explain:
         "john recuperó las claves débiles del volcado (password, qwerty…) comparando huellas del diccionario con las robadas. Cayeron por débiles + hash rápido + sin sal. hashcat haría lo mismo con la GPU, aún más rápido. Las claves largas y saladas no aparecen: esas resisten. ('john --show' relista lo ya roto.)",
-      diagram: "fuerzabruta",
+      diagram: "crackhash",
     },
     {
       kind: "concept",

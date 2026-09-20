@@ -181,7 +181,7 @@ const CAPTURA: Curso = {
       title: "¿Qué es sniffing?",
       body:
         "Sniffing (de 'sniff', olfatear) es escuchar el tráfico que pasa por una red y leerlo. Cuando muchos equipos comparten una red, sus paquetes andan dando vueltas por el mismo cable o el mismo aire. Un sniffer es un programa que los agarra al vuelo y te los muestra: quién habló con quién, qué protocolo usaron y —a veces— qué dijeron exactamente. Es la herramienta que hace VISIBLE lo que normalmente no ves.",
-      diagram: "capas",
+      diagram: "sniffer",
       bullets: [
         "Sniffing = capturar y leer el tráfico de la red.",
         "Sirve para diagnosticar problemas… y para espiar.",
@@ -234,7 +234,7 @@ const CAPTURA: Curso = {
       command: "curl -X POST http://banco.nande/login -d \"usuario=admin&password=girasol77\" ; sniff creds",
       explain:
         "NandeShark te muestra 'password=girasol77': la contraseña que mandaste viajó en claro porque el login usa HTTP, y el sniffer la pescó del cable tal cual. Esto no es un truco de magia: es lo que pasa de verdad en cualquier sitio sin HTTPS. La defensa es directa: si ese login usara HTTPS, el sniffer no habría visto más que basura cifrada.",
-      diagram: "protocolo",
+      diagram: "sniffer",
     },
     {
       kind: "concept",
@@ -256,7 +256,7 @@ const CAPTURA: Curso = {
       command: "curl http://banco.nande/ ; sniff follow 10.10.7.10",
       explain:
         "NandeShark rearmó el 'stream': ves tu pedido saliendo de tu IP (10.10.0.5) hacia el banco (10.10.7.10) y su respuesta volviendo. Seguir un stream así es lo que hace un analista para entender un ataque completo, o lo que hace un atacante para reconstruir qué mandó una víctima. Todo lo capturado antes (como el login del paso anterior) también aparece en esta charla.",
-      diagram: "capas",
+      diagram: "sniffer",
     },
     {
       kind: "build",

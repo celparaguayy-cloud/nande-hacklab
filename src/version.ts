@@ -3,5 +3,5 @@
  * qué build estás corriendo (y confirmar que tomaste la última actualización).
  * Subí el número cuando haya un cambio que el jugador deba poder distinguir.
  */
-export const NANDE_VERSION = "5.35.0";
-export const NANDE_BUILD = "diagramas-cursos";
+export const NANDE_VERSION = "5.36.0";
+export const NANDE_BUILD = "mimikatz+diagramas-cursos";

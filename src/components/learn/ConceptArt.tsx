@@ -580,12 +580,15 @@ function Exploit() {
   return (
     <Frame>
       <text x={160} y={22} fill={DIM} fontSize={12} fontFamily={sans} textAnchor="middle">Un exploit abre UNA grieta concreta → sesión</text>
+      {/* servicio vulnerable con grieta */}
       <rect x={30} y={44} width={104} height={96} rx={6} fill={PANEL2} stroke={RED} />
       <text x={82} y={64} fill={RED} fontSize={11} fontFamily={mono} textAnchor="middle">servicio</text>
       <text x={82} y={78} fill={DIM} fontSize={9} fontFamily={sans} textAnchor="middle">vulnerable</text>
       <path d="M60 92l14 10-10 12 16 8-12 12" fill="none" stroke={RED} strokeWidth={2} />
+      {/* exploit */}
       <path d="M138 92h40" stroke={AMBER} strokeWidth={2} markerEnd="url(#exg)" />
       <text x={158} y={86} fill={AMBER} fontSize={9} fontFamily={mono} textAnchor="middle">exploit</text>
+      {/* sesión */}
       <rect x={184} y={54} width={110} height={76} rx={6} fill="rgba(110,231,135,0.10)" stroke={GREEN} />
       <text x={239} y={78} fill={GREEN} fontSize={12} fontFamily={mono} textAnchor="middle">session 1</text>
       <text x={239} y={98} fill={DIM} fontSize={9} fontFamily={sans} textAnchor="middle">meterpreter</text>
@@ -644,6 +647,7 @@ function Kerberos() {
   return (
     <Frame>
       <text x={160} y={24} fill={DIM} fontSize={12} fontFamily={sans} textAnchor="middle">Kerberoasting: pedís el ticket, lo crackeás afuera</text>
+      {/* ticket */}
       <path d="M40 60h130v56H40a10 10 0 0 0 0-20 10 10 0 0 0 0-16z" fill={PANEL2} stroke={VIOLET} strokeWidth={2} />
       <text x={104} y={82} fill={VIOLET} fontSize={11} fontFamily={mono} textAnchor="middle">TGS</text>
       <text x={104} y={100} fill={DIM} fontSize={9} fontFamily={sans} textAnchor="middle">SVC-SQL (SPN)</text>
@@ -805,6 +809,7 @@ function Pivot() {
       <rect x={132} y={74} width={56} height={38} rx={5} fill={PANEL2} stroke={AMBER} />
       <text x={160} y={92} fill={AMBER} fontSize={9} textAnchor="middle" fontFamily={sans}>pivote</text>
       <text x={160} y={104} fill={DIM} fontSize={8} textAnchor="middle" fontFamily={sans}>2 redes</text>
+      {/* red interna */}
       <rect x={228} y={44} width={80} height={98} rx={6} fill="rgba(185,140,255,0.08)" stroke={VIOLET} strokeDasharray="4 3" />
       <text x={268} y={60} fill={VIOLET} fontSize={9} textAnchor="middle" fontFamily={sans}>red interna</text>
       {[0, 1].map((i) => <rect key={i} x={244} y={72 + i * 30} width={48} height={22} rx={3} fill={PANEL2} stroke={VIOLET} />)}

@@ -143,6 +143,53 @@ const AD_DIRECTORIO: Curso = {
     },
     {
       kind: "concept",
+      title: "mimikatz: de admin de una máquina a dueño del dominio",
+      body:
+        "Cuando sos admin local de una máquina Windows, las credenciales de QUIEN haya iniciado sesión ahí quedan cacheadas en memoria (en el proceso LSASS). mimikatz las saca: 'sekurlsa::logonpasswords' vuelca los hashes NT. ¿Y si en esa máquina tuvo sesión un Domain Admin? Te llevás su hash. Y con Windows no hace falta la contraseña: te autenticás con el hash directamente (Pass-the-Hash). Ese es el salto final: comprometés una máquina común donde un admin dejó sesión, robás su hash, lo reusás, y sos dueño del dominio.",
+      diagram: "pth",
+      bullets: [
+        "Admin local de una máquina = dumpeás las credenciales cacheadas ahí.",
+        "Pass-the-Hash: te autenticás con el hash NT, sin la contraseña.",
+      ],
+    },
+    {
+      kind: "lab",
+      title: "Practicá: volcá credenciales de un equipo que poseés",
+      body:
+        "Encadená todo: comprometé la cuenta de servicio con crackmapexec, usá su AdminTo para poseer DB01, y volcá con mimikatz lo que quedó cacheado ahí.",
+      command:
+        "crackmapexec smb dc01.nande.local -u svc-sql -p Verano2024! ; abuse SVC-SQL@NANDE.LOCAL DB01@NANDE.LOCAL ; mimikatz sekurlsa::logonpasswords",
+      explain:
+        "cme te da SVC-SQL; como es admin de DB01, la abusás y poseés el equipo. Ahí mimikatz encuentra el hash NT de ADMIN-SQL, que es Domain Admin y tenía sesión en DB01. Acabás de conseguir el hash de la cuenta más poderosa del dominio sin crackear nada.",
+      diagram: "hash",
+    },
+    {
+      kind: "lab",
+      title: "Practicá: Pass-the-Hash y caé el dominio",
+      body:
+        "Con el hash del Domain Admin en la mano, autenticate como él por Pass-the-Hash. Si funciona, el dominio es tuyo.",
+      command:
+        'crackmapexec smb dc01.nande.local -u svc-sql -p Verano2024! ; abuse SVC-SQL@NANDE.LOCAL DB01@NANDE.LOCAL ; mimikatz "sekurlsa::pth /user:ADMIN-SQL@NANDE.LOCAL"',
+      explain:
+        "Reusás el hash de ADMIN-SQL sin conocer su contraseña: Pass-the-Hash. Como es miembro de Domain Admins, al poseerlo controlás TODO NANDE.LOCAL. Ese es el final de un pentest interno: de un usuario cualquiera a dueño del dominio, encadenando permisos mal puestos. Mirá nandeblood: la ruta está completa.",
+      diagram: "pth",
+    },
+    {
+      kind: "quiz",
+      prompt: "¿Por qué Pass-the-Hash es tan potente en redes Windows?",
+      options: [
+        "La autenticación NTLM usa el hash de la contraseña, no la contraseña en sí: con el hash robado te hacés pasar por la cuenta sin tener que crackear nada",
+        "Porque adivina la contraseña más rápido que hydra",
+        "Porque desactiva el antivirus del dominio",
+        "Porque sólo funciona contra Linux",
+      ],
+      correct: 0,
+      explain:
+        "En NTLM, el 'secreto' que prueba tu identidad es el hash de la contraseña. Si lo robás de la memoria de una máquina (mimikatz), lo presentás tal cual y el sistema te acepta — nunca necesitás la contraseña en texto. Por eso robar un solo hash de admin, cacheado en cualquier máquina donde dejó sesión, puede costar el dominio entero. La defensa: no dejar sesiones de admin en máquinas comunes (tier 0) y proteger LSASS (Credential Guard).",
+      diagram: "hash",
+    },
+    {
+      kind: "concept",
       title: "Defensa: cómo se corta esta cadena",
       body:
         "Todo esto se previene, y por eso lo enseñamos: claves LARGAS y únicas para cuentas de servicio (idealmente gMSA, que las rota solas) mata el Kerberoasting; el principio de mínimo privilegio (que nadie sea admin de lo que no necesita) borra aristas del grafo; monitorear el evento 4769 y los logons raros detecta el spray y el roasting; y separar cuentas de administración (tier 0) evita que un DBA tenga sesión donde un atacante la pueda robar. El grafo del atacante es el mismo mapa que el defensor usa para taparse.",

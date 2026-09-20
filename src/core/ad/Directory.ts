@@ -256,6 +256,96 @@ export class Directory {
     };
   }
 
+  /** Hash NT determinista y ficticio de una cuenta (lo que volcaría mimikatz). */
+  ntHash(name: string): string {
+    return fakeHash(name.toUpperCase() + ":NT");
+  }
+
+  /** ¿El principal está en Domain Admins (MemberOf directo)? */
+  isDomainAdmin(name: string): boolean {
+    const p = this.resolvePrincipal(name);
+    if (!p) return false;
+    return this.edges.some(
+      (e) => e.from === p.name && e.to === DA_GROUP && e.type === "MemberOf",
+    );
+  }
+
+  /**
+   * Credenciales cacheadas en los EQUIPOS que ya poseés (lo que ve
+   * `sekurlsa::logonpasswords` de mimikatz): por cada sesión (HasSession) sobre
+   * un equipo poseído, exponés el hash NT del usuario de esa sesión. Es el
+   * puente real entre "soy admin de esta máquina" y "tengo el hash del DA".
+   */
+  dumpableCredentials(): { name: string; ntHash: string; isDomainAdmin: boolean }[] {
+    const found = new Map<string, { name: string; ntHash: string; isDomainAdmin: boolean }>();
+    for (const e of this.edges) {
+      if (e.type !== "HasSession") continue;
+      const a = this.get(e.from);
+      const b = this.get(e.to);
+      if (!a || !b) continue;
+      const comp = a.kind === "computer" ? a : b.kind === "computer" ? b : undefined;
+      const usr = a.kind === "user" ? a : b.kind === "user" ? b : undefined;
+      if (!comp || !usr || !comp.owned) continue;
+      found.set(usr.name, {
+        name: usr.name,
+        ntHash: this.ntHash(usr.name),
+        isDomainAdmin: this.isDomainAdmin(usr.name),
+      });
+    }
+    return [...found.values()];
+  }
+
+  /**
+   * Pass-the-Hash: te autenticás como una cuenta usando su hash NT (sin la
+   * clave). Válido si pasás el hash correcto, o si esa cuenta tiene una sesión
+   * en un equipo que ya poseés (de ahí lo sacaste). Si acierta, la POSEÉS
+   * (estado real → si es Domain Admin, caés el dominio). Emite T1550.002.
+   */
+  passTheHash(userName: string, hash?: string): {
+    ok: boolean;
+    domainOwned: boolean;
+    principal?: string;
+    message: string;
+  } {
+    const p = this.resolvePrincipal(userName);
+    if (!p || p.kind !== "user") {
+      return { ok: false, domainOwned: this.domainOwned(), message: `usuario desconocido: ${userName}` };
+    }
+    const hashOk = hash ? hash.toLowerCase() === this.ntHash(p.name) : false;
+    const dumpable = this.dumpableCredentials().some((c) => c.name === p.name);
+    if (!hashOk && !dumpable) {
+      return {
+        ok: false,
+        domainOwned: this.domainOwned(),
+        principal: p.name,
+        message: hash ? "hash NT incorrecto" : `no tenés el hash de ${p.name} (volcalo con sekurlsa::logonpasswords desde un equipo que poseas)`,
+      };
+    }
+    this.own(p.name);
+    this.signal({
+      technique: "Pass the Hash",
+      tactic: "Lateral Movement",
+      mitreId: "T1550.002",
+      detail: `Autenticación con hash NT como ${p.name} (sin conocer la contraseña).`,
+      host: this.domain,
+    });
+    if (this.domainOwned()) {
+      this.signal({
+        technique: "Domain Dominance",
+        tactic: "Impact",
+        mitreId: "T1078.002",
+        detail: `Compromiso de Domain Admins en ${this.domain} vía Pass-the-Hash.`,
+        host: this.domain,
+      });
+    }
+    return {
+      ok: true,
+      domainOwned: this.domainOwned(),
+      principal: p.name,
+      message: `poseés ${p.name}${this.domainOwned() ? " — ¡DOMINIO COMPROMETIDO!" : ""}`,
+    };
+  }
+
   /**
    * Abusa de un borde ofensivo (GenericAll / ForceChangePassword / AdminTo /
    * HasSession) para tomar el nodo destino: sólo funciona si ya poseés el
