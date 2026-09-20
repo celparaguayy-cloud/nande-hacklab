@@ -476,18 +476,18 @@ export const TOOL_CATALOG: ToolDef[] = [
     simple:
       "Toma contraseñas 'revueltas' y trata de adivinar la original probando muchas.",
     whatItDoes:
-      "Crackea hashes de contraseñas offline probando candidatos.",
+      "Crackea hashes offline: diccionario, reglas (--rules) y máscara (--mask). Elegí el tipo con --format (raw-md5, raw-sha256).",
     whyExists:
       "Para demostrar cuán fácil se rompe una contraseña débil ya robada.",
     whenToUse:
       "Cuando tenés un hash (no la contraseña) y querés recuperarla, en labs.",
     resultMeaning:
-      "Si el hash era débil, muestra la contraseña original.",
+      "Si el hash era débil, muestra la contraseña original. 'john --show' relista lo roto.",
     howToDetect:
       "Es offline: no se ve en el objetivo. La defensa es previa.",
     howToDefend:
       "Usar hashing lento con sal (bcrypt/argon2) y contraseñas largas.",
-    usage: "john hashes.txt",
+    usage: "john --format=raw-md5 --wordlist=rockyou.txt --rules 5f4dcc3b5aa765d61d8327deb882cf99",
     runnable: true,
   }),
   t({

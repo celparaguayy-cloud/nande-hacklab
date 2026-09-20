@@ -510,8 +510,64 @@ const PASS_HASHES: Curso = {
         "Ya sabés el tipo. Ahora corré john sobre un archivo de hashes robados del laboratorio y mirá cuáles cede. Observá que solo caen los débiles.",
       command: "john hashes.txt",
       explain:
-        "john recuperó las claves débiles ('hola123', '123456') comparando huellas del diccionario con las robadas. Cayeron por débiles + hash rápido + (probablemente) sin sal. hashcat haría lo mismo usando la GPU, aún más rápido. Las claves largas y saladas no aparecen: esas resisten.",
+        "john recuperó las claves débiles del volcado (password, qwerty…) comparando huellas del diccionario con las robadas. Cayeron por débiles + hash rápido + sin sal. hashcat haría lo mismo con la GPU, aún más rápido. Las claves largas y saladas no aparecen: esas resisten. ('john --show' relista lo ya roto.)",
       diagram: "fuerzabruta",
+    },
+    {
+      kind: "concept",
+      title: "Los modos de ataque: straight, reglas, máscara",
+      body:
+        "Adivinar no es sólo 'tirar el diccionario'. john y hashcat tienen MODOS:\n\n• Straight (-a 0): probás cada palabra del diccionario tal cual.\n• Reglas (--rules / -r best64): mutás cada palabra (girasol → Girasol, girasol1, g1r4s0l, girasol2024). Multiplica el diccionario y caza las claves 'casi fuertes'.\n• Máscara / brute (-a 3): probás TODAS las combinaciones de un patrón. ?d=dígito, ?l=minúscula, ?u=mayúscula. Ej: ?d?d?d?d = los 10.000 PINs de 4 dígitos.\n• Combinator: pegás dos diccionarios (verano+2024).\n\nEl arte es elegir el modo según lo que sospechás de la clave.",
+      diagram: "fuerzabruta",
+      bullets: [
+        "straight = diccionario tal cual · reglas = diccionario mutado · máscara = fuerza bruta de un patrón.",
+        "hashcat: -a 0 (dic) / -a 3 (máscara) / -r reglas.  john: --wordlist / --rules / --mask.",
+      ],
+    },
+    {
+      kind: "quiz",
+      prompt: "Sabés que la clave es un PIN de exactamente 4 dígitos. ¿Cuál es el ataque más directo?",
+      options: [
+        "Máscara: hashcat -a 3 ?d?d?d?d (prueba los 10.000 PINs posibles)",
+        "Diccionario rockyou tal cual (-a 0)",
+        "Reglas best64 sobre rockyou",
+        "No se puede sin el diccionario correcto",
+      ],
+      correct: 0,
+      explain:
+        "Para un espacio chico y conocido (4 dígitos = 10.000 combinaciones), la máscara -a 3 ?d?d?d?d lo agota en un instante y con certeza. El diccionario podría no tener ese PIN; la máscara los cubre TODOS. Elegir el modo según lo que sabés de la clave es lo que separa a un cracker eficiente.",
+      diagram: "fuerzabruta",
+    },
+    {
+      kind: "lab",
+      title: "Practicá: fuerza bruta por máscara",
+      body:
+        "Este hash MD5 es un PIN de 4 dígitos: e48e13207341b6bffb7fb1622282247b. Rompelo con un ataque de máscara (no con diccionario).",
+      command: "hashcat -m 0 -a 3 e48e13207341b6bffb7fb1622282247b ?d?d?d?d",
+      explain:
+        "La máscara ?d?d?d?d recorre 0000–9999 y encuentra el PIN (1337). Ningún diccionario hacía falta: el patrón cubre todo el espacio. Así se rompen PINs y claves cortas de formato conocido. Lección: una clave corta, aunque no esté en rockyou, cae por fuerza bruta pura.",
+      diagram: "fuerzabruta",
+    },
+    {
+      kind: "lab",
+      title: "Practicá: el hash filtrado (identificar → crackear)",
+      body:
+        "Te pasan un hash de una brecha: 2ab96390c7dbe3439de74d0c9b0b1767. Primero identificalo, después crackealo con hashcat. Es el flujo real de un pentester ante un volcado.",
+      command: "hashcat -m 0 2ab96390c7dbe3439de74d0c9b0b1767 -w rockyou.txt",
+      explain:
+        "hashid te dice que 32 hex es MD5 (o NTLM); probás MD5 primero con -m 0 y cae 'hunter2' → capturás ND{hash_crackeado}. Ese es el ciclo completo: identificar el tipo, elegir el modo, crackear. Defensa: un hash lento y salado (bcrypt) haría inviable este mismo ataque.",
+      diagram: "hash",
+    },
+    {
+      kind: "concept",
+      title: "Hashes lentos: por qué bcrypt te frena",
+      body:
+        "MD5/SHA-256 son RÁPIDOS: una GPU hace miles de millones por segundo, ideal para el atacante. Los hashes pensados para contraseñas —bcrypt, scrypt, argon2— son LENTOS y ajustables a propósito (un 'factor de costo'). Con bcrypt bien configurado, el atacante pasa de miles de millones a unos pocos miles de intentos por segundo: el mismo diccionario que revienta un MD5 en segundos tarda años. Por eso el tipo de hash importa tanto como la clave. En hashcat esto es -m 3200 (bcrypt), -m 1800 (sha512crypt), -m 22000 (WPA).",
+      diagram: "escudo",
+      bullets: [
+        "Rápido (MD5/SHA) = regalo para el atacante · lento (bcrypt/argon2) = muro.",
+        "El factor de costo se sube con el hardware: la defensa envejece bien.",
+      ],
     },
     {
       kind: "concept",

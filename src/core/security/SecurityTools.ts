@@ -1,4 +1,6 @@
 import { TOOL_CATALOG } from "./toolCatalog";
+import { crack as crackHash, WORDLIST as CRACK_WORDLIST } from "../crypto/cracker";
+import { md5, sha256 } from "../crypto/hash";
 import type { WirelessRadio } from "../hardware/WirelessRadio";
 import type { WebServer } from "../http/WebServer";
 import type { ToolCategory, ToolDef, ToolLevel } from "./toolCatalog";
@@ -330,6 +332,92 @@ function nseForService(
 }
 
 type Runner = (args: string[], ctx: ToolContext) => ToolRunResult;
+
+/* ============================================================= *
+ *  Crackeo de contraseñas (john / hashcat) sobre el motor real   *
+ * ============================================================= */
+
+/** Hash de desafío del laboratorio: MD5("hunter2"). Al romperlo cae la bandera. */
+const CRACK_FLAG_MD5 = md5("hunter2");
+
+/** Modos hashcat soportados por el motor de ÑANDE (los demás se explican). */
+const HASHCAT_MODES: Record<string, { algo: "md5" | "sha256"; name: string }> = {
+  "0": { algo: "md5", name: "MD5" },
+  "1400": { algo: "sha256", name: "SHA2-256" },
+};
+/** Formatos john equivalentes. */
+const JOHN_FORMATS: Record<string, "md5" | "sha256"> = {
+  "raw-md5": "md5", "raw-sha256": "sha256", md5: "md5", sha256: "sha256",
+};
+
+/** Fuerza bruta por máscara acotada (?d ?l ?u), como hashcat -a 3. */
+function maskBrute(target: string, algo: "md5" | "sha256", mask: string):
+  { found: boolean; password?: string; attempts: number; tooBig?: boolean } {
+  const sets: string[] = [];
+  const re = /\?([dlu])|(.)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(mask))) {
+    if (m[1] === "d") sets.push("0123456789");
+    else if (m[1] === "l") sets.push("abcdefghijklmnopqrstuvwxyz");
+    else if (m[1] === "u") sets.push("ABCDEFGHIJKLMNOPQRSTUVWXYZ");
+    else if (m[2]) sets.push(m[2]); // carácter literal en la máscara
+  }
+  const total = sets.reduce((n, s) => n * s.length, 1);
+  if (total > 300000) return { found: false, attempts: 0, tooBig: true };
+  const hashFn = algo === "md5" ? md5 : sha256;
+  let attempts = 0;
+  const idx = new Array(sets.length).fill(0);
+  for (let i = 0; i < total; i += 1) {
+    let cand = "";
+    for (let j = 0; j < sets.length; j += 1) cand += sets[j][idx[j]];
+    attempts += 1;
+    if (hashFn(cand) === target) return { found: true, password: cand, attempts };
+    // incrementar el contador mixto-radix
+    for (let j = sets.length - 1; j >= 0; j -= 1) {
+      idx[j] += 1;
+      if (idx[j] < sets[j].length) break;
+      idx[j] = 0;
+    }
+  }
+  return { found: false, attempts };
+}
+
+/**
+ * Motor compartido de john/hashcat. Crackea los hashes de los argumentos con
+ * el motor REAL (md5/sha256), respetando formato/modo, diccionario, reglas y
+ * máscara. Devuelve las líneas de resultado y la bandera si cae el desafío.
+ */
+function crackCli(
+  args: string[],
+  opts: { algo?: "md5" | "sha256"; rules?: boolean; mask?: string },
+): { lines: string[]; cracked: { hash: string; algo: string; pass: string }[]; flag?: string } {
+  const hashes = args.filter((a) => /^[0-9a-f]{32}$/i.test(a) || /^[0-9a-f]{64}$/i.test(a))
+    .map((h) => h.toLowerCase());
+  // Sin hash explícito: set de demostración (hashes REALES de palabras débiles).
+  const demo = hashes.length ? hashes : [md5("password"), sha256("qwerty"), CRACK_FLAG_MD5];
+  const lines: string[] = [];
+  const cracked: { hash: string; algo: string; pass: string }[] = [];
+  let flag: string | undefined;
+  for (const h of demo) {
+    const algo = opts.algo ?? (h.length === 32 ? "md5" : "sha256");
+    let r: { found: boolean; password?: string; attempts: number };
+    if (opts.mask) {
+      const mb = maskBrute(h, algo, opts.mask);
+      if (mb.tooBig) { lines.push(`${h}  → espacio de máscara demasiado grande para el lab (probá dic).`); continue; }
+      r = mb;
+    } else {
+      const cr = crackHash(h, { wordlist: CRACK_WORDLIST, rules: opts.rules ?? true });
+      r = { found: cr.found, password: cr.password, attempts: cr.attempts };
+    }
+    if (r.found && r.password) {
+      cracked.push({ hash: h, algo, pass: r.password });
+      if (h === CRACK_FLAG_MD5) flag = "ND{hash_crackeado}";
+    } else {
+      lines.push(`${h.slice(0, 24)}…  → sin resultado (${r.attempts} intentos).`);
+    }
+  }
+  return { lines, cracked, flag };
+}
 
 const RUNNERS: Record<string, Runner> = {
   ping(args, ctx) {
@@ -1821,13 +1909,29 @@ const RUNNERS: Record<string, Runner> = {
   },
 
   hashid(args) {
-    const hash = args[0] ?? "";
-    const len = hash.length;
-    const guess =
-      len === 32 ? "MD5" : len === 40 ? "SHA1" : len === 64 ? "SHA256" : "desconocido";
-
+    const hash = (args.find((a) => /^[$0-9a-f]/i.test(a)) ?? args[0] ?? "").trim();
+    // Candidatos por longitud/forma, con su modo hashcat y formato john — igual
+    // que hashid/hash-identifier reales: una longitud puede ser VARIOS tipos.
+    let cands: string[];
+    if (/^\$2[aby]\$/.test(hash)) cands = ["bcrypt $2*$ [hashcat -m 3200 · john bcrypt]"];
+    else if (/^\$6\$/.test(hash)) cands = ["sha512crypt $6$ (Linux /etc/shadow) [-m 1800 · sha512crypt]"];
+    else if (/^\$1\$/.test(hash)) cands = ["md5crypt $1$ [-m 500 · md5crypt]"];
+    else if (/^[0-9a-f]{32}$/i.test(hash)) cands = [
+      "MD5 [hashcat -m 0 · john raw-md5]",
+      "NTLM [hashcat -m 1000 · john nt]",
+      "LM [hashcat -m 3000]",
+      "MD4 [hashcat -m 900]",
+    ];
+    else if (/^[0-9a-f]{40}$/i.test(hash)) cands = ["SHA1 [hashcat -m 100 · john raw-sha1]", "MySQL4.1+ [-m 300]"];
+    else if (/^[0-9a-f]{64}$/i.test(hash)) cands = ["SHA2-256 [hashcat -m 1400 · john raw-sha256]"];
+    else if (/^[0-9a-f]{128}$/i.test(hash)) cands = ["SHA2-512 [hashcat -m 1700]"];
+    else if (/^[0-9a-f]{16}$/i.test(hash)) cands = ["MySQL323 (viejo) [-m 200]"];
+    else cands = ["desconocido — ¿es un hash? Fijate la longitud y el prefijo ($2b$, $6$…)."];
     return {
-      output: `hashid: "${hash}"\nPosible tipo: ${guess}\n`,
+      output:
+        `hashid: analizando "${hash.slice(0, 40)}${hash.length > 40 ? "…" : ""}"\n` +
+        cands.map((c) => `[+] ${c}`).join("\n") +
+        (cands.length > 1 ? `\n(una misma longitud es varios tipos: probá el más probable primero — MD5 antes que NTLM en apps web).\n` : "\n"),
       isError: false,
     };
   },
@@ -2221,14 +2325,30 @@ const RUNNERS: Record<string, Runner> = {
   },
 
   johntheripper(args) {
-    return {
-      output:
-        `john ${args.join(" ") || "hashes.txt"} (laboratorio)\n` +
-        `hola123      (usuario1)\n123456       (usuario2)\n` +
-        `2 contraseñas rotas: eran débiles.\n` +
-        `Defensa: hashing lento con sal y contraseñas largas.\n`,
-      isError: false,
-    };
+    // john REAL sobre el motor de ÑANDE: crackea los hashes que le pases con
+    // el diccionario, respetando --format, --rules y --mask.
+    const fmtArg = args.find((a) => a.startsWith("--format="))?.slice("--format=".length)?.toLowerCase();
+    const algo = fmtArg ? JOHN_FORMATS[fmtArg] : undefined;
+    if (fmtArg && !algo) {
+      return { output: `john: formato "${fmtArg}" no soportado en el lab. Usá --format=raw-md5 o --format=raw-sha256.\n`, isError: false };
+    }
+    const rules = args.includes("--rules") || args.some((a) => a.startsWith("--rules="));
+    const maskArg = args.find((a) => a.startsWith("--mask="))?.slice("--mask=".length);
+    const wl = args.find((a) => a.startsWith("--wordlist="))?.slice("--wordlist=".length) ?? "rockyou.txt";
+    const attack = maskArg ? `máscara ${maskArg}` : rules ? `diccionario + reglas (${wl})` : `diccionario (${wl})`;
+    const { lines, cracked, flag } = crackCli(args, { algo, rules, mask: maskArg });
+    const head =
+      `John the Ripper (edición ÑANDE)\n` +
+      `Modo: ${attack}\n` +
+      (cracked.length
+        ? cracked.map((c) => `${c.pass.padEnd(16)}(${c.algo})`).join("\n") + "\n"
+        : "") +
+      lines.join("\n") + (lines.length ? "\n" : "");
+    const tail = cracked.length
+      ? `${cracked.length} contraseña(s) rota(s). 'john --show' las relista.\n` +
+        `Defensa: hashing lento con sal (bcrypt/argon2) y contraseñas largas.\n`
+      : `Sin resultados. Probá --rules, otro diccionario, o --mask=?d?d?d?d.\n`;
+    return { output: head + tail, isError: false, flag };
   },
 
   hashcat(args, ctx) {
@@ -2264,7 +2384,36 @@ const RUNNERS: Record<string, Runner> = {
       }
       return { output: header + `\nStatus...........: Exhausted — ${r.message}\n`, isError: false };
     }
-    return RUNNERS.johntheripper(args, ctx);
+
+    // Modos de hash "normales" (MD5/SHA-256) contra el motor real de crackeo.
+    if (mode && !HASHCAT_MODES[mode]) {
+      return {
+        output:
+          `hashcat: modo -m ${mode} no soportado en el lab (motor MD5/SHA-256).\n` +
+          `Usá -m 0 (MD5), -m 1400 (SHA-256) o -m 22000 (WPA). 'hashid <hash>' te dice cuál.\n`,
+        isError: false,
+      };
+    }
+    const algo = mode ? HASHCAT_MODES[mode].algo : undefined;
+    // -a 3 = ataque por máscara (brute); -a 0 (o sin -a) = diccionario.
+    const aIdx = args.indexOf("-a");
+    const attackMode = aIdx >= 0 ? args[aIdx + 1] : "0";
+    const mask = attackMode === "3" ? args.find((a) => /\?[dlu]/.test(a)) : undefined;
+    const rules = args.some((a) => a === "-r" || a.startsWith("--rules"));
+    const wIdx = args.indexOf("-w");
+    const wl = wIdx >= 0 ? (args[wIdx + 1] ?? "rockyou.txt") : "rockyou.txt";
+    const { lines, cracked, flag } = crackCli(args, { algo, rules, mask });
+    const modeName = mode ? HASHCAT_MODES[mode].name : "auto";
+    const atk = mask ? `-a 3 (máscara ${mask})` : `-a 0 (diccionario ${wl}${rules ? " + reglas" : ""})`;
+    const head =
+      `hashcat (v6.2, edición ÑANDE) — -m ${mode || "?"} (${modeName})  ${atk}\n` +
+      `Speed.#1.........: ${algo === "sha256" ? "820.0 MH/s" : "9450.1 MH/s"} (GPU laboratorio)\n\n` +
+      (cracked.length ? cracked.map((c) => `${c.hash}:${c.pass}`).join("\n") + "\n" : "") +
+      lines.join("\n") + (lines.length ? "\n" : "");
+    const tail = cracked.length
+      ? `Status...........: Cracked (${cracked.length})  ·  'hashcat --show' las relista.\n`
+      : `Status...........: Exhausted — sin resultados. Probá -r reglas o -a 3 con máscara.\n`;
+    return { output: head + tail, isError: false, flag };
   },
 
   metasploit(args, ctx) {

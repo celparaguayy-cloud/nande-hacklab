@@ -269,6 +269,26 @@ export const RETOS: Challenge[] = [
     reward: { xp: 240, coins: 190 },
   },
   {
+    id: "r-crack",
+    title: "El hash filtrado",
+    scenario:
+      "En una brecha se filtró un hash MD5: 2ab96390c7dbe3439de74d0c9b0b1767. Identificá el tipo y recuperá la contraseña con diccionario.",
+    objective: "Identificá el hash y crackealo con john o hashcat.",
+    flag: "ND{hash_crackeado}",
+    difficulty: "media",
+    hints: [
+      "Primero identificá el tipo: hashid 2ab96390c7dbe3439de74d0c9b0b1767 (32 hex → MD5).",
+      "hashcat usa -m 0 para MD5; pasale el diccionario con -w rockyou.txt.",
+      "hashcat -m 0 2ab96390c7dbe3439de74d0c9b0b1767 -w rockyou.txt",
+    ],
+    steps: [
+      "hashid 2ab96390c7dbe3439de74d0c9b0b1767",
+      "hashcat -m 0 2ab96390c7dbe3439de74d0c9b0b1767 -w rockyou.txt",
+    ],
+    courseId: "c-pass-hashes",
+    reward: { xp: 150, coins: 110 },
+  },
+  {
     id: "r-siem",
     title: "El defensor contraataca",
     scenario:
@@ -368,7 +388,7 @@ export const TRACKS: LearningTrack[] = [
     hue: 30,
     requires: "t-redes",
     courseIds: ["c-pass-basico", "c-pass-hydra", "c-pass-hashes", "c-wifi-como-funciona", "c-wifi-aircrack"],
-    finalChallenges: ["r-ssh-brute", "r-wifi", "r-pmkid"],
+    finalChallenges: ["r-ssh-brute", "r-wifi", "r-pmkid", "r-crack"],
   },
   {
     id: "t-defensa",

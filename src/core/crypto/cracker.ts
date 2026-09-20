@@ -53,12 +53,15 @@ function variants(word: string): string[] {
  */
 export function crack(
   hash: string,
-  options: { salt?: string; wordlist?: string[] } = {},
+  options: { salt?: string; wordlist?: string[]; rules?: boolean } = {},
 ): CrackResult {
   const target = hash.trim().toLowerCase();
   const algo = guessAlgo(target);
   const salt = options.salt ?? "";
   const list = options.wordlist ?? WORDLIST;
+  // Con reglas (por defecto) se prueban variantes (leet, mayúscula, +año); sin
+  // reglas, sólo la palabra tal cual — ataque "straight", como john/hashcat.
+  const rules = options.rules ?? true;
 
   if (algo === "desconocido") {
     return { found: false, algo, attempts: 0, salted: !!salt };
@@ -67,7 +70,7 @@ export function crack(
   let attempts = 0;
 
   for (const word of list) {
-    for (const candidate of variants(word)) {
+    for (const candidate of rules ? variants(word) : [word]) {
       attempts += 1;
       // La sal se antepone, como en muchos esquemas reales.
       if (hashWith(algo, salt + candidate) === target) {
