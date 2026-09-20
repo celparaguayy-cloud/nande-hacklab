@@ -840,7 +840,8 @@ const RUNNERS: Record<string, Runner> = {
     const method: "GET" | "POST" = dataStr ? "POST" : "GET";
     // --cookie "sesion=..." se envía en cada petición (para endpoints con sesión).
     const cookieIdx = args.indexOf("--cookie");
-    const cookieHeader = cookieIdx >= 0 ? (args[cookieIdx + 1] ?? "") : "";
+    // 'let' porque sqlmap puede autenticarse solo si el endpoint exige sesión.
+    let cookieHeader = cookieIdx >= 0 ? (args[cookieIdx + 1] ?? "") : "";
     const parseKV = (raw: string): Record<string, string> => {
       const o: Record<string, string> = {};
       for (const pair of raw.split("&")) {
@@ -909,6 +910,38 @@ const RUNNERS: Record<string, Runner> = {
       ``,
     ];
 
+    // --batch: modo no interactivo (real: asume las respuestas por defecto y no
+    // pregunta nada). --level/--risk suben la profundidad/agresividad del test.
+    if (args.includes("--batch")) lines.push(`[*] --batch: modo no interactivo, asumiendo respuestas por defecto`);
+    const levelIdx = args.indexOf("--level");
+    const riskIdx = args.indexOf("--risk");
+    if (levelIdx >= 0 || riskIdx >= 0) {
+      const lvl = levelIdx >= 0 ? (args[levelIdx + 1] ?? "1") : "1";
+      const rsk = riskIdx >= 0 ? (args[riskIdx + 1] ?? "1") : "1";
+      lines.push(`[*] nivel=${lvl} riesgo=${rsk}: probando más parámetros y payloads (más ruidoso)`);
+    }
+    if (levelIdx >= 0 || riskIdx >= 0 || args.includes("--batch")) lines.push(``);
+
+    // Auto-sesión: si el endpoint EXIGE sesión (401) y no diste --cookie, sqlmap
+    // entra solo con el bypass del login (usuario=admin' --) y sigue con la
+    // cookie obtenida. Es lo que haría un pentester: primero sesión, después
+    // inyectar. Sin esto, "sqlmap ... /movimientos --dump" decía 'no inyectable'.
+    if (!cookieHeader && method === "GET") {
+      const baseline = send({});
+      const needsSession =
+        baseline.status === 401 ||
+        /iniciá sesión|inicia sesión|sesión primero/i.test(baseline.body ?? "");
+      if (needsSession) {
+        const login = ctx.web!.request("POST", host, "/login", "", { usuario: "admin' -- ", password: "x" });
+        const sid = login.setCookies?.sesion;
+        if (sid) {
+          cookieHeader = `sesion=${sid}`;
+          lines.push(`[*] el endpoint exige sesión → sqlmap se autentica solo (bypass de login) y continúa`);
+          lines.push(``);
+        }
+      }
+    }
+
     let injectableParam = "";
     let technique = "";
     for (const p of paramNames) {
@@ -936,10 +969,17 @@ const RUNNERS: Record<string, Runner> = {
     }
 
 
-    // --dump / --tables / --dbs: enumeración y volcado por UNION contra el motor
-    // SQL REAL. Sin information_schema/sqlite_master, sqlmap cae a diccionarios
-    // de tablas/columnas comunes (como --common-tables/--common-columns real).
-    const wantsDump = args.includes("--dump") || args.includes("--tables") || args.includes("--dbs");
+    // --dump / --tables / --dbs / --columns e info (--banner/--current-db/
+    // --current-user): enumeración y volcado por UNION contra el motor SQL REAL.
+    // Sin information_schema/sqlite_master, sqlmap cae a diccionarios de tablas/
+    // columnas comunes (como --common-tables/--common-columns real).
+    const wantsBanner = args.includes("--banner");
+    const wantsCurrentUser = args.includes("--current-user");
+    const wantsCurrentDb = args.includes("--current-db");
+    const wantsInfo = wantsBanner || wantsCurrentUser || wantsCurrentDb;
+    const wantsColumns = args.includes("--columns");
+    const wantsDump =
+      args.includes("--dump") || args.includes("--tables") || args.includes("--dbs") || wantsColumns || wantsInfo;
     if (wantsDump) {
       const clean = params[injectableParam] ?? "";
       const q = (payload: string) => send({ [injectableParam]: payload });
@@ -969,6 +1009,18 @@ const RUNNERS: Record<string, Runner> = {
         return { output: lines.join("\n") + "\n", isError: false };
       }
 
+      // --banner / --current-db / --current-user: datos del motor extraídos por
+      // la misma inyección UNION (información antes de tocar las tablas).
+      if (wantsInfo) {
+        if (wantsBanner) lines.push(``, `[+] banner del DBMS: ÑandeSQL 3.4 (motor tipo SQLite del mundo ÑANDE)`);
+        if (wantsCurrentDb) lines.push(`[+] base de datos actual: 'main'`);
+        if (wantsCurrentUser) lines.push(`[+] usuario actual del DBMS: 'app_banco'@'10.10.7.10'`);
+        if (!wantsColumns && !args.includes("--dump") && !args.includes("--tables") && !args.includes("--dbs")) {
+          return { output: lines.join("\n") + "\n", isError: false };
+        }
+        lines.push(``);
+      }
+
       // Diccionario de tablas/columnas comunes (fallback real de sqlmap).
       const COMMON_TABLES = ["usuarios", "users", "usuario", "clientes", "cuentas", "accounts", "admin", "movimientos"];
       const tExplicit = args.indexOf("-T");
@@ -987,19 +1039,30 @@ const RUNNERS: Record<string, Runner> = {
         return { output: lines.join("\n") + "\n", isError: false };
       }
 
-      // --dump: para la primera tabla, descubrir columnas comunes y volcarlas.
+      // Descubrir las columnas de la primera tabla probando un diccionario común
+      // (fallback real de sqlmap cuando no hay information_schema accesible).
       const table = found[0];
       const COMMON_COLS = ["id", "usuario", "user", "username", "nombre", "password", "pass", "clave", "rol", "email", "saldo"];
       const okCols: string[] = [];
       for (const c of COMMON_COLS) {
-        if (okCols.length >= reflected.length) break;
         if (!isErr(q(`${clean}%' UNION SELECT ${nulls({ [reflected[0]]: c })} FROM ${table} -- `))) okCols.push(c);
       }
       if (okCols.length === 0) {
-        lines.push(`[-] no pude confirmar columnas de ${table}. Probá --columns.`);
+        lines.push(`[-] no pude confirmar columnas de ${table}. Probá -T ${table} --columns.`);
         return { output: lines.join("\n") + "\n", isError: false };
       }
-      // Mapear columnas confirmadas a las posiciones reflejadas y volcar.
+
+      // --columns: enumerar las columnas SIN volcar los valores.
+      if (wantsColumns && !args.includes("--dump")) {
+        lines.push(
+          ``,
+          `[+] columnas de '${table}' (${okCols.length}): ${okCols.join(", ")}`,
+          `    (para leer los datos: -T ${table} --dump)`,
+        );
+        return { output: lines.join("\n") + "\n", isError: false };
+      }
+
+      // --dump: mapear columnas confirmadas a las posiciones reflejadas y volcar.
       const dumpCols = okCols.slice(0, reflected.length);
       const proj: Record<number, string> = {};
       dumpCols.forEach((c, i) => { proj[reflected[i]] = c; });

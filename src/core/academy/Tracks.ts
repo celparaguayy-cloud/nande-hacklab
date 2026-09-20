@@ -310,6 +310,7 @@ export const TRACKS: LearningTrack[] = [
       "c-web-como-funciona",
       "c-web-sqli",
       "c-web-sqli-union",
+      "c-web-sqlmap",
       "c-web-xss",
       "c-web-idor-traversal",
       "c-web-cmdi-jwt",

@@ -48,6 +48,45 @@ describe("sqlmap — inyección real contra el motor SQL del mundo", () => {
     expect(out).not.toContain("M8arete-2024!"); // --tables no vuelca contenido
   });
 
+  it("se autentica solo cuando el endpoint exige sesión (--dump sin cookie)", () => {
+    // Regresión: /movimientos exige sesión. Antes sqlmap decía "no inyectable"
+    // porque el 401 tapaba la inyección. Ahora hace bypass de login y sigue.
+    const out = term.execute('sqlmap -u "http://banco.nande/movimientos?q=a" --dump');
+    expect(out).toContain("se autentica solo"); // bypass de login automático
+    expect(out).toContain("usuarios");
+    expect(out).toContain("M8arete-2024!"); // extrae de verdad tras auto-login
+    expect(kernel.player.capturedFlags()).toContain("ND{sqli_union_dump}");
+  });
+
+  it("--dbs revela el motor y la base de datos actual", () => {
+    const out = term.execute('sqlmap -u "http://banco.nande/movimientos?q=a" --dbs');
+    expect(out).toContain("DBMS");
+    expect(out).toContain("main"); // base de datos disponible
+    expect(out).not.toContain("M8arete-2024!"); // --dbs no vuelca datos
+  });
+
+  it("--columns enumera las columnas de una tabla sin volcar valores", () => {
+    const out = term.execute('sqlmap -u "http://banco.nande/movimientos?q=a" -T usuarios --columns');
+    expect(out).toContain("columnas de 'usuarios'");
+    expect(out).toContain("password"); // la columna aparece…
+    expect(out).not.toContain("M8arete-2024!"); // …pero su valor NO
+  });
+
+  it("--banner / --current-db / --current-user extraen info del DBMS", () => {
+    const out = term.execute('sqlmap -u "http://banco.nande/movimientos?q=a" --banner --current-db --current-user');
+    expect(out).toContain("ÑandeSQL"); // banner del motor
+    expect(out).toContain("base de datos actual");
+    expect(out).toContain("usuario actual del DBMS");
+    expect(out).not.toContain("volcado de"); // info sola no dispara el dump
+  });
+
+  it("--batch y --level/--risk cambian el modo de escaneo (y siguen funcionando)", () => {
+    const out = term.execute('sqlmap -u "http://banco.nande/movimientos?q=a" --batch --level 3 --risk 2 --dump');
+    expect(out).toContain("modo no interactivo"); // --batch
+    expect(out).toMatch(/nivel=3 riesgo=2/); // --level/--risk reconocidos
+    expect(out).toContain("M8arete-2024!"); // y el volcado sigue funcionando
+  });
+
   it("pide parámetros y respeta el sandbox", () => {
     expect(term.execute("sqlmap -u http://banco.nande/")).toContain("no hay parámetros");
     expect(term.execute("sqlmap -u http://evil.com/?x=1")).toContain("fuera del sandbox");

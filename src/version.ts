@@ -3,5 +3,5 @@
  * qué build estás corriendo (y confirmar que tomaste la última actualización).
  * Subí el número cuando haya un cambio que el jugador deba poder distinguir.
  */
-export const NANDE_VERSION = "5.23.0";
-export const NANDE_BUILD = "hydra-profundo";
+export const NANDE_VERSION = "5.24.0";
+export const NANDE_BUILD = "sqlmap-profundo";

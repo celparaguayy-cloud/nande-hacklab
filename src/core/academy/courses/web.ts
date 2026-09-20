@@ -372,6 +372,245 @@ const WEB_SQLI_UNION: Curso = {
 };
 
 /* ------------------------------------------------------------------ *
+ *  CURSO 2b — sqlmap a fondo: automatizá la inyección SQL            *
+ * ------------------------------------------------------------------ */
+
+const WEB_SQLMAP: Curso = {
+  id: "c-web-sqlmap",
+  title: "sqlmap a fondo: la inyección, automatizada",
+  subtitle: "De la comilla a mano a la herramienta que detecta, enumera y vuelca la base sola.",
+  level: "avanzado",
+  skill: "web",
+  hue: 190,
+  glyph: "drop",
+  reward: { xp: 280, coins: 220 },
+  slides: [
+    {
+      kind: "concept",
+      title: "¿Por qué sqlmap?",
+      body:
+        "En los cursos anteriores rompiste el login a mano (' OR '1'='1' -- ) y robaste la tabla usuarios contando columnas con ORDER BY y armando un UNION SELECT. Funciona, pero es lento y hay que probar mil variantes de la comilla. sqlmap es la herramienta que hace TODO eso sola: prueba decenas de payloads, detecta si el parámetro es inyectable, adivina el motor de base de datos, cuenta las columnas, encuentra las tablas y te vuelca los datos. Es la herramienta de SQLi más usada del mundo. No reemplaza entender la inyección: la potencia.",
+      diagram: "inyeccion",
+      bullets: [
+        "sqlmap automatiza detección + explotación + volcado de SQLi.",
+        "Entender la inyección a mano es lo que te deja leer y confiar en lo que sqlmap hace.",
+      ],
+    },
+    {
+      kind: "concept",
+      title: "Las 5 técnicas que prueba sqlmap (BEUST)",
+      body:
+        "sqlmap no tiene una sola forma de inyectar: prueba cinco familias de técnicas, y las elige según cómo responde la app.\n\n• B — Boolean-based blind: manda una condición verdadera y una falsa y mira si la página CAMBIA (aunque no muestre datos).\n• E — Error-based: provoca un error SQL y lee el dato dentro del mensaje de error.\n• U — UNION query-based: pega un UNION SELECT (lo que hiciste a mano) y trae filas de otras tablas. La más rápida cuando la app refleja datos.\n• S — Stacked queries: encadena una segunda orden con ';' (puede INSERT/UPDATE/DROP).\n• T — Time-based blind: cuando NADA cambia en pantalla, hace que la base 'duerma' X segundos si la condición es verdadera, y mide el tiempo.",
+      diagram: "inyeccion",
+      bullets: [
+        "B(oolean) E(rror) U(nion) S(tacked) T(ime) — las 5 técnicas.",
+        "Ciega = la app no muestra el dato: se deduce por cambios (B) o por tiempo (T).",
+      ],
+    },
+    {
+      kind: "quiz",
+      prompt: "Un endpoint es vulnerable pero NUNCA muestra el resultado ni cambia el texto de la página. ¿Qué técnica te queda para extraer datos?",
+      options: [
+        "Time-based blind (T): hacés que la base tarde X segundos si la condición es verdadera y medís el tiempo",
+        "UNION-based (U): pegás un UNION SELECT y leés las filas",
+        "Error-based (E): leés el dato en el mensaje de error",
+        "Ninguna: si no muestra nada, no se puede",
+      ],
+      correct: 0,
+      explain:
+        "Si la página no refleja datos, no cambia y no filtra errores, todavía queda el TIEMPO. Con time-based hacés 'si la 1ra letra es A, dormí 5s'. Si tarda, era A. Es lentísimo (letra por letra) pero funciona en inyecciones totalmente ciegas. sqlmap lo automatiza con --technique=T.",
+      diagram: "inyeccion",
+    },
+    {
+      kind: "concept",
+      title: "Lo primero: un parámetro para atacar",
+      body:
+        "sqlmap ataca UN parámetro. Se lo das de dos formas:\n\n• GET: en la URL, con -u y el ?param=valor\n   sqlmap -u \"http://banco.nande/movimientos?q=a\"\n\n• POST: con --data y los campos del cuerpo\n   sqlmap -u http://banco.nande/login --data \"usuario=admin&password=x\"\n\nSin un parámetro no hay nada que inyectar: sqlmap te va a decir 'no hay parámetros que probar'. Siempre las comillas alrededor de la URL: si no, la shell parte el ?q= en pedazos.",
+      diagram: "url",
+      bullets: [
+        "GET → -u \"...?param=valor\"   ·   POST → --data \"campo=valor\"",
+        "Comillas SIEMPRE alrededor de la URL (por el ? y el &).",
+      ],
+    },
+    {
+      kind: "quiz",
+      prompt: "¿Cuál de estos comandos tiene sentido para sqlmap?",
+      options: [
+        "sqlmap -u \"http://banco.nande/movimientos?q=a\"  (tiene un parámetro q para probar)",
+        "sqlmap -u http://banco.nande/  (la home, sin parámetros)",
+        "sqlmap banco.nande  (falta -u y el http)",
+        "sqlmap --dump  (sin objetivo)",
+      ],
+      correct: 0,
+      explain:
+        "sqlmap necesita una URL (con http) y un parámetro donde inyectar. /movimientos?q=a tiene el parámetro q. La home sin ?param= no le da nada que probar, y sin -u ni URL no sabe a dónde apuntar.",
+      diagram: "url",
+    },
+    {
+      kind: "concept",
+      title: "Endpoints con sesión: la cookie",
+      body:
+        "El buscador /movimientos del banco exige estar logueado: sin sesión devuelve 401 y sqlmap no vería la inyección. Dos caminos:\n\n1) Le pasás una cookie que ya tengas:\n   sqlmap -u \"http://banco.nande/movimientos?q=a\" --cookie \"sesion=abc123\"\n\n2) En este mundo, si el endpoint pide sesión y no diste cookie, sqlmap se autentica solo con el bypass de login (usuario=admin' -- ) y sigue. Vas a ver en la salida: 'el endpoint exige sesión → sqlmap se autentica solo'. En sqlmap real esto se logra con --auth o guardando la cookie primero; la idea es la misma: primero entrás, después inyectás.",
+      diagram: "cookie",
+      bullets: [
+        "--cookie \"sesion=...\" manda tu sesión en cada petición.",
+        "Regla de oro: primero conseguí sesión, después inyectás el endpoint privado.",
+      ],
+    },
+    {
+      kind: "lab",
+      title: "Practicá: primera detección (el login)",
+      body:
+        "Arranquemos por el login, que es POST. Le damos los dos campos con --data. sqlmap va a probar la comilla en cada uno y decirte si son inyectables.",
+      command: 'sqlmap -u http://banco.nande/login --data "usuario=admin&password=x"',
+      explain:
+        "sqlmap detecta que 'usuario' es inyectable (error-based y/o boolean), hace el bypass de autenticación y entra sin contraseña: cae ND{sqli_login_bypass}. Fijate cómo te explica POR QUÉ lo marcó inyectable (el error SQL con la comilla, o la diferencia entre 1=1 y 1=2). Eso es lo mismo que hiciste a mano, pero en segundos.",
+      diagram: "inyeccion",
+    },
+    {
+      kind: "concept",
+      title: "La escalera de enumeración: --dbs → --tables → --columns → --dump",
+      body:
+        "Una vez que sqlmap confirma la inyección, no vas directo a robar todo: enumerás de a poco, como abrir cajones.\n\n• --dbs      → qué bases de datos hay (acá el motor ÑandeSQL, base 'main').\n• --tables   → qué tablas tiene (usuarios, movimientos…).\n• --columns  → qué columnas tiene una tabla (-T usuarios → id, usuario, password, rol…).\n• --dump     → volcá los DATOS de la tabla (las filas reales).\n\nPodés saltar directo a --dump si ya sabés qué querés, pero enumerar primero te dice DÓNDE están las contraseñas sin volcar toda la base (más silencioso y más prolijo).",
+      diagram: "capas",
+      bullets: [
+        "--dbs → --tables → --columns → --dump: de lo general al dato.",
+        "-T <tabla> enfoca en una tabla; -C <columna> en columnas puntuales.",
+      ],
+    },
+    {
+      kind: "quiz",
+      prompt: "Querés saber QUÉ columnas tiene la tabla usuarios, pero todavía NO volcar las contraseñas. ¿Qué comando usás?",
+      options: [
+        "sqlmap -u \"...movimientos?q=a\" -T usuarios --columns",
+        "sqlmap -u \"...movimientos?q=a\" --dump",
+        "sqlmap -u \"...movimientos?q=a\" --dbs",
+        "sqlmap -u \"...movimientos?q=a\" --tables",
+      ],
+      correct: 0,
+      explain:
+        "--columns enumera los NOMBRES de las columnas (con -T para elegir la tabla) sin traer los valores. --dump ya volcaría las filas (las contraseñas). --dbs lista bases y --tables lista tablas: ninguno baja al nivel de columna.",
+      diagram: "capas",
+    },
+    {
+      kind: "lab",
+      title: "Practicá: enumerá bases y tablas",
+      body:
+        "Sobre el buscador (que exige sesión: sqlmap se autentica solo). Primero preguntá qué motor y qué bases hay, después qué tablas. Sin volcar nada todavía.",
+      command: 'sqlmap -u "http://banco.nande/movimientos?q=a" --dbs',
+      explain:
+        "sqlmap te dice el DBMS (ÑandeSQL) y la base 'main'. Cambiá --dbs por --tables y vas a ver las tablas (usuarios, movimientos). Fijate que NO aparece ninguna contraseña: enumerar no es volcar. Recién sabiendo que existe la tabla 'usuarios' tiene sentido ir por ella.",
+      diagram: "capas",
+    },
+    {
+      kind: "lab",
+      title: "Practicá: columnas de usuarios (sin volcar)",
+      body:
+        "Ya sabés que existe la tabla usuarios. Preguntá qué columnas tiene, enfocando con -T. Todavía sin traer los datos.",
+      command: 'sqlmap -u "http://banco.nande/movimientos?q=a" -T usuarios --columns',
+      explain:
+        "Aparecen las columnas reales: id, usuario, password, rol (y alguna más). Ahí ya ves DÓNDE está el oro: la columna 'password'. Un pentester prolijo llega hasta acá antes de volcar, para saber exactamente qué pedir y no arrastrar toda la base (menos ruido, menos datos sensibles tocados).",
+      diagram: "capas",
+    },
+    {
+      kind: "build",
+      goal: "Armar el comando sqlmap que vuelca la tabla usuarios del buscador, sin que pregunte nada",
+      pieces: [
+        "sqlmap",
+        "-u",
+        "\"http://banco.nande/movimientos?q=a\"",
+        "--batch",
+        "--dump",
+        "--data",
+        "DROP TABLE",
+        "rm -rf",
+      ],
+      answer: ["sqlmap", "-u", "\"http://banco.nande/movimientos?q=a\"", "--batch", "--dump"],
+      hint: "sqlmap -u con la URL entre comillas (tiene ?q=). --batch para que no pregunte nada, --dump para volcar. Nada de --data acá: el parámetro va en la URL (es GET).",
+      explain:
+        "Queda: sqlmap -u \"http://banco.nande/movimientos?q=a\" --batch --dump . El -u apunta al buscador (GET, el parámetro q va en la URL). --batch corre sin preguntar (asume las respuestas por defecto). --dump vuelca la tabla. sqlmap se autentica solo, cuenta columnas, arma el UNION y trae las filas.",
+    },
+    {
+      kind: "lab",
+      title: "Practicá: el volcado completo",
+      body:
+        "El momento de la verdad: dejá que sqlmap haga todo el trabajo pesado y te devuelva la tabla usuarios con las contraseñas. Mirá la tabla que imprime.",
+      command: 'sqlmap -u "http://banco.nande/movimientos?q=a" --batch --dump',
+      explain:
+        "sqlmap se autentica, cuenta 4 columnas con ORDER BY, descubre las posiciones reflejadas, prueba tablas y columnas por diccionario y vuelca: admin/M8arete-2024!, rocio/girasol77, dario/boca123, sofia/qwerty. Cae ND{sqli_union_dump}. Todo lo del curso anterior, en un comando. Y como salen en texto plano, ya se podrían crackear con john/hashcat si fueran hashes.",
+      diagram: "inyeccion",
+    },
+    {
+      kind: "concept",
+      title: "Afinar el escaneo: --level, --risk, --batch, --technique",
+      body:
+        "sqlmap tiene perillas para escanear más profundo o más rápido:\n\n• --batch: no pregunta nada, asume las respuestas por defecto (ideal para automatizar).\n• --level 1..5: cuántos LUGARES prueba (parámetros, headers, cookies). Más nivel = más cobertura y más ruido.\n• --risk 1..3: qué tan AGRESIVOS son los payloads (risk 3 usa hasta OR que podrían modificar datos).\n• --technique=BEUST: forzar sólo algunas técnicas (ej. --technique=U para UNION, --technique=T para time-based).\n\nRegla práctica: empezá bajo (--level 1 --risk 1). Si no encuentra nada y sospechás que hay algo, subí. Más nivel = más lento y más visible para el SOC.",
+      diagram: "escaneo",
+      bullets: [
+        "--level = cuántos lugares prueba · --risk = qué tan agresivo.",
+        "--batch para automatizar · --technique para forzar una técnica puntual.",
+      ],
+    },
+    {
+      kind: "quiz",
+      prompt: "sqlmap con --level 1 no encontró nada, pero estás casi seguro de que hay inyección en una cookie. ¿Qué hacés?",
+      options: [
+        "Subir el --level (2..5): a más nivel, prueba más lugares como headers y cookies",
+        "Subir el --risk a 3 y listo, es lo mismo",
+        "Repetir el mismo comando varias veces",
+        "Concluir que no hay inyección y cerrar",
+      ],
+      correct: 0,
+      explain:
+        "--level controla CUÁNTOS lugares prueba: con nivel bajo sólo mira los parámetros obvios; subiéndolo empieza a probar headers y cookies. --risk es otra cosa (qué tan agresivo es el payload). Repetir igual no cambia nada. Subí el nivel con criterio, sabiendo que hacés más ruido.",
+      diagram: "escaneo",
+    },
+    {
+      kind: "lab",
+      title: "Practicá: reconocé el motor (banner)",
+      body:
+        "Antes de volcar, muchas veces querés saber contra qué peleás: qué motor, qué base, qué usuario corre la app. sqlmap lo extrae por la misma inyección.",
+      command: 'sqlmap -u "http://banco.nande/movimientos?q=a" --banner --current-db --current-user',
+      explain:
+        "Salen el banner del motor (ÑandeSQL), la base actual (main) y el usuario del DBMS (app_banco). Ese usuario importa: si la app se conecta a la base como un superusuario, una SQLi es mucho más grave (podría leer archivos o ejecutar comandos). Por eso la defensa incluye 'mínimos privilegios' para la cuenta de la app.",
+      diagram: "inyeccion",
+    },
+    {
+      kind: "concept",
+      title: "sqlmap es RUIDOSO: el SOC te ve",
+      body:
+        "sqlmap manda cientos de peticiones raras (comillas, UNION, ORDER BY, sleeps) en segundos. Eso deja un rastro clarísimo: un SOC con detección web lo ccaza al toque como 'posible SQLi automatizada'. En un pentest real esto es parte del juego (a veces querés ser detectado para probar la defensa), pero si el objetivo es sigilo, sqlmap a lo bruto te quema. Se puede bajar el ruido (--delay, --level bajo, un solo parámetro), pero nunca es invisible. Lección doble: como atacante, medí tu ruido; como defensor, este patrón es de los más fáciles de detectar y bloquear.",
+      diagram: "firewall",
+      bullets: [
+        "Cientos de payloads/segundo → firma obvia para el SOC/WAF.",
+        "Atacás: controlá el ruido. Defendés: la SQLi automatizada se detecta fácil.",
+      ],
+    },
+    {
+      kind: "concept",
+      title: "La cura (otra vez): consultas preparadas",
+      body:
+        "Que sqlmap sea tan poderoso no cambia la defensa: sigue siendo una sola cosa. Si la app usa consultas preparadas (parametrizadas), el dato viaja separado de la orden y NINGUNA técnica de sqlmap funciona — ni B, ni E, ni U, ni T. Sumale: la cuenta de la app con mínimos privilegios (que no pueda leer otras bases ni archivos), no mostrar errores SQL al usuario, un WAF que corte los patrones típicos, y hashear las contraseñas (con sal) para que, aunque roben la tabla, no sirvan directo. sqlmap es el mejor argumento para programar bien: te muestra exactamente lo que un atacante automatiza en segundos.",
+      diagram: "escudo",
+      bullets: [
+        "Consultas preparadas = sqlmap se queda sin nada que explotar.",
+        "Defensa en capas: mínimos privilegios + sin errores visibles + WAF + hashing.",
+      ],
+    },
+    {
+      kind: "lab",
+      title: "Capstone: la auditoría web completa",
+      body:
+        "Ya sabés manejar sqlmap de punta a punta. Ahora usalo dentro de una auditoría de verdad a banco.nande: reconocer, enumerar, explotar, saquear e informar. Es guiada y te pregunta qué encontraste en cada etapa. Tocá para arrancar el engagement en la terminal.",
+      command: "learn l-eng-web",
+      explain:
+        "La metodología real: nmap → gobuster → SQLi de login → volcado (a mano o con sqlmap --dump) → lectura de los datos → informe. Terminarla demuestra que sabés HACER una auditoría web completa, con la herramienta y entendiendo lo que hace por dentro.",
+      diagram: "capas",
+    },
+  ],
+};
+
+/* ------------------------------------------------------------------ *
  *  CURSO 3 — XSS: tu código en el navegador ajeno                    *
  * ------------------------------------------------------------------ */
 
@@ -847,6 +1086,7 @@ const WEB_CMDI_JWT: Curso = {
 export const WEB_COURSES: Curso[] = [
   WEB_COMO_FUNCIONA,
   WEB_SQLI_UNION,
+  WEB_SQLMAP,
   WEB_XSS,
   WEB_IDOR_TRAVERSAL,
   WEB_CMDI_JWT,
