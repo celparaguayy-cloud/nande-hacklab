@@ -3,6 +3,7 @@ import { TOOL_CODEX, findTool, explainTool } from "../academy/toolCodex";
 import { crack, WORDLIST } from "../crypto/cracker";
 import { decodeJwt, signJwt, verifyJwt, crackJwtSecret } from "../crypto/jwt";
 import { randomMac } from "../security/Anonymity";
+import { MsfConsole, type MsfResult } from "../security/Metasploit";
 
 /** MACs de fábrica de las interfaces (para saber si el jugador las cambió). */
 const DEFAULT_MACS: Record<string, string> = {
@@ -106,6 +107,8 @@ const MANPAGES: Record<string, ManPage> = {
     desc: "Escucha el tráfico REAL del mundo y lo muestra paquete a paquete. Usa filtros de CAPTURA estilo BPF: 'host banco.nande', 'src host X', 'port 80', 'tcp'. Con -A ves el payload en texto (credenciales en claro), con -X en hex. Contra una máquina de laboratorio (10.10.x.y) demuestra el sniffing de credenciales sin cifrar.", examples: ["tcpdump -A host banco.nande", "tcpdump -X port 80", "tcpdump 10.10.5.20"] },
   tshark: { name: "Wireshark de línea de comandos", synopsis: "tshark [-Y <filtro>] [-z io,phs|conv] [-x]",
     desc: "Analiza el tráfico capturado con el lenguaje de filtros de DISPLAY de Wireshark (distinto del BPF de tcpdump): -Y \"http\", \"ip.addr==10.10.7.10\", \"frame contains \\\"password\\\"\". Estadísticas con -z io,phs (jerarquía de protocolos) y -z conv (conversaciones); -x para el volcado hex.", examples: ["tshark -Y http", "tshark -z io,phs", "tshark -Y \"frame contains \\\"password\\\"\" -x"] },
+  msfconsole: { name: "consola de explotación (Metasploit)", synopsis: "msfconsole  |  msfconsole -x \"use ...; set ...; exploit\"",
+    desc: "Consola STATEFUL de explotación. Flujo real: search <término> → use <módulo> → set RHOSTS/PAYLOAD/LHOST/LPORT → check → exploit. El exploit SÓLO abre sesión si el objetivo es DE VERDAD vulnerable al módulo (si el servicio está parcheado o no existe, falla). Sin argumentos entrás al modo interactivo (prompt msf6, salís con 'exit'); con -x corrés un script de una tirada. Objetivos: sólo 10.10.x.y del laboratorio (100% offline).", examples: ["msfconsole", "msfconsole search cmdi", "msfconsole -x \"use exploit/nande/http/cmd_injection; set RHOSTS 10.10.5.50; set LHOST 10.10.0.5; set LPORT 4444; exploit\""] },
   grep: { name: "buscar texto", synopsis: "... | grep <palabra>",
     desc: "Filtra líneas que contienen una palabra. Se usa con | (pipe) para quedarte solo con lo que importa de una salida larga.", examples: ["cat notas.txt | grep clave"] },
   learn: { name: "lecciones guiadas", synopsis: "learn [id]",
@@ -128,6 +131,10 @@ export class VirtualTerminal {
   private remoteUser = "root";
   /** Pila de hosts para volver con exit al pivotar en cadena. */
   private remoteStack: { host: string; user: string }[] = [];
+  /** Consola de explotación (msfconsole). Viva mientras dura la sesión. */
+  private msf: MsfConsole | null = null;
+  /** ¿Estamos dentro de la consola msf? (las líneas se enrutan al motor). */
+  private msfMode = false;
 
   constructor(kernel: VirtualKernel) {
     this.kernel = kernel;
@@ -705,6 +712,12 @@ export class VirtualTerminal {
     const command = args[0];
     const commandArgs = args.slice(1);
 
+    // Dentro de la consola msfconsole: las líneas van al motor de explotación
+    // hasta que se sale con exit/quit.
+    if (this.msfMode) {
+      return this.msfLine(input);
+    }
+
     // En una sesión remota, los comandos operan contra el host remoto.
     if (this.remoteHost) {
       return this.executeRemote(command, commandArgs);
@@ -1111,6 +1124,11 @@ export class VirtualTerminal {
 
         case "tshark":
           return this.tsharkCmd(commandArgs);
+
+        case "msfconsole":
+        case "msf":
+        case "metasploit":
+          return this.msfCmd(commandArgs, input);
 
         case "nandeblood":
         case "bloodhound":
@@ -2765,6 +2783,77 @@ export class VirtualTerminal {
     });
     out.push(`\n${pk.length} paquete(s)${y ? ` que matchean "${y}"` : ""}. Estadísticas: -z io,phs · -z conv.`);
     return { output: out.join("\n") + "\n", isError: false };
+  }
+
+  /* -------------------------------------------------- msfconsole (explotación) */
+
+  private ensureMsf(): MsfConsole {
+    if (!this.msf) this.msf = new MsfConsole();
+    return this.msf;
+  }
+
+  /**
+   * msfconsole — la consola de explotación. Tres formas de uso:
+   *   msfconsole                       → entra al modo interactivo (prompt msf6).
+   *   msfconsole -x "use ...; run"     → script de recurso (una sola tirada).
+   *   msfconsole <subcomando ...>      → un comando suelto (consola persistente).
+   */
+  private msfCmd(args: string[], _input: string): { output: string; isError: boolean } {
+    const msf = this.ensureMsf();
+    const xIdx = args.indexOf("-x");
+    if (xIdx >= 0) {
+      return this.msfRunScript(stripQuotes(args.slice(xIdx + 1).join(" ")));
+    }
+    // Un subcomando suelto (search/use/set/run/…) contra la consola persistente.
+    const first = args[0];
+    if (first && first !== "-q") {
+      return this.msfReward(msf.exec(args.join(" "), this.kernel.tools.labs()));
+    }
+    // Sin argumentos: entrar al modo interactivo.
+    this.msfMode = true;
+    return { output: msf.banner() + "\n" + msf.prompt() + "\n", isError: false };
+  }
+
+  /** Enruta una línea escrita DENTRO de la consola msf al motor. */
+  private msfLine(input: string): { output: string; isError: boolean } {
+    const msf = this.ensureMsf();
+    const trimmed = input.trim();
+    const low = trimmed.toLowerCase();
+    if (low === "exit" || low === "quit" || low === "exit -y") {
+      this.msfMode = false;
+      return { output: "[*] Saliendo de la consola ÑandeMSF.\n", isError: false };
+    }
+    const rewarded = this.msfReward(msf.exec(trimmed, this.kernel.tools.labs()));
+    return { output: rewarded.output + msf.prompt() + "\n", isError: rewarded.isError };
+  }
+
+  /** Corre un script `-x` (comandos separados por ;) manteniendo el estado. */
+  private msfRunScript(script: string): { output: string; isError: boolean } {
+    const msf = this.ensureMsf();
+    const cmds = script.split(/;+/).map((s) => s.trim()).filter(Boolean);
+    if (cmds.length === 0) return { output: msf.banner(), isError: false };
+    const out: string[] = [];
+    let isError = false;
+    for (const c of cmds) {
+      const rewarded = this.msfReward(msf.exec(c, this.kernel.tools.labs()));
+      out.push(`${msf.prompt()}${c}`);
+      const body = rewarded.output.replace(/\n$/, "");
+      if (body.trim()) out.push(body);
+      if (rewarded.isError) isError = true;
+    }
+    return { output: out.join("\n") + "\n", isError };
+  }
+
+  /** Si una tirada de msf comprometió una máquina, acredita el lab resuelto. */
+  private msfReward(res: MsfResult): { output: string; isError: boolean } {
+    if (res.flag && res.rhosts) {
+      return this.rewardIfFlag("metasploit", [res.rhosts], {
+        output: res.output,
+        isError: res.isError,
+        flag: res.flag,
+      });
+    }
+    return { output: res.output, isError: res.isError };
   }
 
   /**

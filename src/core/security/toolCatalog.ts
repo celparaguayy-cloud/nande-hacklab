@@ -731,19 +731,19 @@ export const TOOL_CATALOG: ToolDef[] = [
   // ---------------- EXPLOTACIÓN ----------------
   t({
     id: "metasploit",
-    name: "msf",
+    name: "msfconsole",
     category: "explotacion",
     level: "avanzado",
     simple:
-      "Una caja de herramientas gigante con 'llaves' listas para puertas conocidas.",
+      "Una consola con 'llaves' listas para puertas conocidas: elegís el módulo, apuntás y disparás.",
     whatItDoes:
-      "Marco para probar exploits conocidos contra servicios vulnerables (aquí, labs).",
-    whyExists: "Para automatizar y estandarizar pruebas de explotación.",
-    whenToUse: "Cuando identificaste un servicio con un fallo conocido.",
-    resultMeaning: "Si el exploit funciona, obtenés acceso al sistema de laboratorio.",
-    howToDetect: "Firmas de exploits conocidas por antivirus e IDS.",
-    howToDefend: "Parchear a tiempo: si no hay fallo, no hay exploit.",
-    usage: "msf 10.10.5.20",
+      "Consola stateful de explotación (search/use/set/check/exploit) contra los labs. El exploit SÓLO funciona si el objetivo es de verdad vulnerable.",
+    whyExists: "Para estandarizar la explotación: mismo flujo para cada fallo.",
+    whenToUse: "Cuando el reconocimiento (nmap) reveló un servicio con un fallo conocido.",
+    resultMeaning: "Si el objetivo es vulnerable, abrís una sesión (shell/meterpreter) y tomás el sistema de laboratorio.",
+    howToDetect: "Firmas de exploits y payloads conocidas por antivirus/IDS; conexiones inversas raras.",
+    howToDefend: "Parchear a tiempo: si el fallo no existe, el exploit no crea sesión.",
+    usage: 'msfconsole   →   use exploit/nande/http/cmd_injection ; set RHOSTS 10.10.5.50 ; exploit',
     runnable: true,
   }),
   t({

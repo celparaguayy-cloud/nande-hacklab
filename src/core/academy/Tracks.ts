@@ -416,7 +416,7 @@ export const TRACKS: LearningTrack[] = [
     glyph: "target",
     hue: 0,
     requires: "t-acceso",
-    courseIds: ["c-op-killchain"],
+    courseIds: ["c-exploit-msf", "c-op-killchain"],
     finalChallenges: ["r-pivot"],
   },
 ];

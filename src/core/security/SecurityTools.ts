@@ -2416,20 +2416,19 @@ const RUNNERS: Record<string, Runner> = {
     return { output: head + tail, isError: false, flag };
   },
 
-  metasploit(args, ctx) {
-    const target = args[0] ?? "";
-    const guard = requireVirtualTarget(target);
-    if (guard) return { output: `msf: ${guard}\n`, isError: true };
-
-    const machine = ctx.lab.resolve(target);
-    if (!machine) return { output: `msf: objetivo no válido.\n`, isError: false };
-
+  metasploit() {
+    // La explotación de verdad vive en la consola stateful (VirtualTerminal →
+    // MsfConsole): search/use/set/exploit con estado, y el exploit sólo funciona
+    // si el objetivo es REALMENTE vulnerable. Nada scripteado acá.
     return {
       output:
-        `msf > exploit contra ${machine.hostname} (laboratorio)\n` +
-        `[*] probando módulo compatible con ${machine.services[0]?.name ?? "servicio"}...\n` +
-        `[+] sesión abierta (simulada) en ${machine.ip}\n` +
-        `Lección: si el servicio está parcheado, el exploit no funciona.\n`,
+        `msfconsole es interactivo. Abrí la consola y seguí el flujo real:\n` +
+        `  msfconsole                       (entra a la consola msf6)\n` +
+        `  search cmdi                      (buscar módulos)\n` +
+        `  use exploit/nande/http/cmd_injection\n` +
+        `  set RHOSTS 10.10.5.50 ; set LHOST 10.10.0.5 ; set LPORT 4444\n` +
+        `  check ; exploit\n` +
+        `Atajo de una tirada: msfconsole -x "use ...; set RHOSTS ...; exploit"\n`,
       isError: false,
     };
   },
