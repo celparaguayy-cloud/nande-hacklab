@@ -97,6 +97,31 @@ export const RETOS: Challenge[] = [
     reward: { xp: 260, coins: 200 },
   },
   {
+    id: "r-ad-dominio",
+    title: "De un usuario a dueño del dominio",
+    scenario:
+      "Tenés un foothold en NANDE.LOCAL como un usuario cualquiera. Una cuenta de servicio (SVC-SQL) expone un SPN: kerberoasteala, crackeá su TGS offline, saltá al servidor que administra y, desde ahí, robá el hash del Domain Admin con mimikatz. Un Pass-the-Hash y el dominio es tuyo.",
+    objective: "Comprometé Domain Admins de NANDE.LOCAL (kerberoast → crack → lateral → PtH).",
+    flag: "ND{dominio_comprometido}",
+    difficulty: "difícil",
+    hints: [
+      "Enumerá primero: enum4linux NANDE.LOCAL te muestra usuarios, grupos y qué cuenta tiene SPN.",
+      "kerberoast SVC-SQL@NANDE.LOCAL te da el TGS; crackealo con crack-tgs y una clave de temporada (Verano2024!).",
+      "Ya dueño de SVC-SQL, abusá su AdminTo a DB01 (abuse), volcá credenciales con mimikatz sekurlsa::logonpasswords y hacé Pass-the-Hash del Domain Admin.",
+      'mimikatz "sekurlsa::pth /user:ADMIN-SQL@NANDE.LOCAL"  → dominio comprometido.',
+    ],
+    steps: [
+      "enum4linux NANDE.LOCAL",
+      "kerberoast SVC-SQL@NANDE.LOCAL",
+      "crack-tgs SVC-SQL@NANDE.LOCAL Verano2024!",
+      "abuse SVC-SQL@NANDE.LOCAL DB01@NANDE.LOCAL",
+      "mimikatz sekurlsa::logonpasswords",
+      "mimikatz sekurlsa::pth /user:ADMIN-SQL@NANDE.LOCAL",
+    ],
+    courseId: "c-ad-directorio",
+    reward: { xp: 300, coins: 230 },
+  },
+  {
     id: "r-sqli-login",
     title: "Sin la llave, igual entro",
     scenario:
@@ -417,7 +442,7 @@ export const TRACKS: LearningTrack[] = [
     hue: 0,
     requires: "t-acceso",
     courseIds: ["c-exploit-msf", "c-ad-directorio", "c-op-killchain"],
-    finalChallenges: ["r-pivot"],
+    finalChallenges: ["r-ad-dominio", "r-pivot"],
   },
 ];
 

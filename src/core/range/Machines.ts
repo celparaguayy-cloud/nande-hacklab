@@ -171,6 +171,22 @@ export const MACHINES: PracticeMachine[] = [
     hint: "Mandá un <script> en ?q= y mirá cómo vuelve dentro del HTML.",
     courseId: "c-web-xss",
   },
+  {
+    id: "m-ad",
+    name: "Guaraní Domain",
+    host: "dc.nande",
+    ip: "10.10.10.10",
+    os: "ÑandeServer AD — NANDE.LOCAL (Kerberos + SMB)",
+    difficulty: "experto",
+    tags: ["active-directory", "kerberos", "pass-the-hash"],
+    points: 320,
+    brief:
+      "El controlador de dominio de NANDE.LOCAL. Entrás como un usuario común y tenés que llegar a Domain Admin de punta a punta: enumerá el dominio, kerberosteá la cuenta de servicio con SPN, crackeá su TGS offline, movete lateral al servidor que administra y robá el hash del Domain Admin con mimikatz. Un Pass-the-Hash y sos dueño del bosque. El grafo es estado real: cada cuenta que tomás recalcula la ruta (nandeblood).",
+    tasks: [{ label: "Comprometé el dominio (Domain Admin)", flag: "ND{dominio_comprometido}" }],
+    entry: "enum4linux NANDE.LOCAL",
+    hint: "enum4linux NANDE.LOCAL revela el SPN; kerberoast + crack-tgs con una clave de temporada (Verano2024!); ya dueño de SVC-SQL, abuse su AdminTo a DB01, mimikatz sekurlsa::logonpasswords y Pass-the-Hash del Domain Admin. La ruta completa: nandeblood.",
+    courseId: "c-ad-directorio",
+  },
 ];
 
 /** Estado de una máquina según las banderas ya capturadas por el jugador. */
