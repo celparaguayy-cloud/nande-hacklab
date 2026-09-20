@@ -63,4 +63,37 @@ describe("MitreCorrelator — el ataque enciende la defensa", () => {
     expect(out).toContain("ATT&CK");
     expect(out).toContain("T1078.002");
   });
+
+  it("una inyección SQL real por HTTP enciende T1190 en el SOC", () => {
+    term.execute("curl -X POST http://banco.nande/login -d \"usuario=admin' OR '1'='1 --&password=x\"");
+    const ids = kernel.mitre.techniques().map((t) => t.mitreId);
+    expect(ids).toContain("T1190");
+  });
+
+  it("una inyección de comandos enciende T1059", () => {
+    term.execute("curl \"http://tools.pyta.nande/ping?host=x; cat flag\"");
+    const det = kernel.mitre.all().find((d) => d.mitreId === "T1059");
+    expect(det).toBeDefined();
+    expect(det!.host).toBe("tools.pyta.nande");
+  });
+
+  it("un XSS reflejado enciende T1059.007", () => {
+    term.execute("curl \"http://blog.yvoty.nande/buscar?q=<script>alert(1)</script>\"");
+    expect(kernel.mitre.techniques().map((t) => t.mitreId)).toContain("T1059.007");
+  });
+
+  it("un path traversal enciende T1083", () => {
+    term.execute("curl \"http://docs.tape.nande/ver?archivo=../config/secrets.env\"");
+    expect(kernel.mitre.techniques().map((t) => t.mitreId)).toContain("T1083");
+  });
+
+  it("tráfico web benigno NO genera detección (sin falsos positivos)", () => {
+    kernel.browser.request("GET", "blog.yvoty.nande", "/buscar?q=hola", {});
+    kernel.browser.request("POST", "banco.nande", "/login", { usuario: "ana", password: "Clave123" });
+    const ids = kernel.mitre.techniques().map((t) => t.mitreId);
+    expect(ids).not.toContain("T1190");
+    expect(ids).not.toContain("T1059");
+    expect(ids).not.toContain("T1059.007");
+    expect(ids).not.toContain("T1083");
+  });
 });
