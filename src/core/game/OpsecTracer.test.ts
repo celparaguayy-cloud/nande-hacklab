@@ -55,4 +55,25 @@ describe("OpsecTracer — el mundo te rastrea", () => {
     }
     expect(kernel.opsec.state().busts).toBeGreaterThan(0);
   });
+
+  it("una explotación web sin anonimato también te expone (coherencia con el SOC)", () => {
+    expect(kernel.anonymity.isTorEnabled()).toBe(false);
+    kernel.browser.request("GET", "tools.pyta.nande", "/ping?host=x; cat flag", {});
+    const s = kernel.opsec.state();
+    expect(s.exposedCount).toBeGreaterThan(0);
+    expect(kernel.opsec.atRisk()).toBe(true);
+  });
+
+  it("con Tor, la misma explotación web queda enmascarada", () => {
+    kernel.anonymity.enableTor();
+    kernel.browser.request("GET", "tools.pyta.nande", "/ping?host=x; cat flag", {});
+    const s = kernel.opsec.state();
+    expect(s.maskedCount).toBeGreaterThan(0);
+    expect(s.exposedCount).toBe(0);
+  });
+
+  it("tráfico web benigno no deja rastro OPSEC (sin falsos positivos)", () => {
+    kernel.browser.request("GET", "blog.yvoty.nande", "/buscar?q=hola", {});
+    expect(kernel.opsec.state().exposedCount).toBe(0);
+  });
 });

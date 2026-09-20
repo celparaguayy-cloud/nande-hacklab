@@ -2,6 +2,8 @@ import type { EventBus } from "../events/EventBus";
 import type { AttackSignal } from "../ad/Directory";
 import type { Notoriety } from "./Notoriety";
 import type { Anonymity } from "../security/Anonymity";
+import type { TrafficRecord } from "../browser/VirtualBrowser";
+import { detectWebExploit, trafficExploitPayload } from "../soc/webSignatures";
 
 /**
  * OpsecTracer — el contraataque del mundo. Cuando VOS ejecutás una técnica
@@ -32,7 +34,7 @@ export class OpsecTracer {
   private notoriety: Notoriety;
   private anonymity: Anonymity;
   private clock: () => number;
-  private unsub: () => void;
+  private unsubs: (() => void)[] = [];
   private exposedCount = 0;
   private maskedCount = 0;
   private busts = 0;
@@ -46,23 +48,38 @@ export class OpsecTracer {
     this.notoriety = notoriety;
     this.anonymity = anonymity;
     this.clock = clock;
-    this.unsub = events.subscribe<AttackSignal>("attack.technique", (e) =>
-      this.onAttack(e.data),
+    // Rastro por señal ofensiva explícita (AD, privesc, etc.)…
+    this.unsubs.push(
+      events.subscribe<AttackSignal>("attack.technique", (e) =>
+        this.recordTrace(e.data.technique, e.data.mitreId),
+      ),
+    );
+    // …y por explotación web observada en el tráfico real: atacar una app desde
+    // tu IP real también te expone (coherencia regla maestra 5). Misma firma
+    // que usa el SOC (regla 8), para que ambas capas vean lo mismo.
+    this.unsubs.push(
+      events.subscribe<TrafficRecord>("network.request", (e) => this.onHttp(e.data)),
     );
   }
 
   dispose(): void {
-    this.unsub();
+    this.unsubs.forEach((u) => u());
+    this.unsubs = [];
   }
 
-  private onAttack(s: AttackSignal): void {
+  private onHttp(t: TrafficRecord): void {
+    const web = detectWebExploit(trafficExploitPayload(t.path, t.reqBody));
+    if (web) this.recordTrace(web.technique, web.mitreId);
+  }
+
+  private recordTrace(technique: string, mitreId: string): void {
     const tor = this.anonymity.isTorEnabled();
     const exposed = !tor;
     const seenSource = this.anonymity.visibleIp(PLAYER_IP);
     this.traces.push({
       tick: this.clock(),
-      technique: s.technique,
-      mitreId: s.mitreId,
+      technique,
+      mitreId,
       exposed,
       seenSource,
     });
