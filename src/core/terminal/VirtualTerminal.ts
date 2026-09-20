@@ -109,6 +109,12 @@ const MANPAGES: Record<string, ManPage> = {
     desc: "Analiza el tráfico capturado con el lenguaje de filtros de DISPLAY de Wireshark (distinto del BPF de tcpdump): -Y \"http\", \"ip.addr==10.10.7.10\", \"frame contains \\\"password\\\"\". Estadísticas con -z io,phs (jerarquía de protocolos) y -z conv (conversaciones); -x para el volcado hex.", examples: ["tshark -Y http", "tshark -z io,phs", "tshark -Y \"frame contains \\\"password\\\"\" -x"] },
   msfconsole: { name: "consola de explotación (Metasploit)", synopsis: "msfconsole  |  msfconsole -x \"use ...; set ...; exploit\"",
     desc: "Consola STATEFUL de explotación. Flujo real: search <término> → use <módulo> → set RHOSTS/PAYLOAD/LHOST/LPORT → check → exploit. El exploit SÓLO abre sesión si el objetivo es DE VERDAD vulnerable al módulo (si el servicio está parcheado o no existe, falla). Sin argumentos entrás al modo interactivo (prompt msf6, salís con 'exit'); con -x corrés un script de una tirada. Objetivos: sólo 10.10.x.y del laboratorio (100% offline).", examples: ["msfconsole", "msfconsole search cmdi", "msfconsole -x \"use exploit/nande/http/cmd_injection; set RHOSTS 10.10.5.50; set LHOST 10.10.0.5; set LPORT 4444; exploit\""] },
+  enum4linux: { name: "enumerar el dominio (usuarios/grupos/SPN)", synopsis: "enum4linux <dominio|host>",
+    desc: "Enumera el Directorio Activo REAL (NANDE.LOCAL): usuarios, grupos, equipos y cuentas con SPN (kerberoasteables). No inventa: refleja el estado vivo del dominio y marca lo que ya poseés. Es el primer paso del ataque a AD: sabés a quién apuntar antes de disparar.", examples: ["enum4linux nande.local", "enum4linux dc01.nande.local"] },
+  smbclient: { name: "navegar comparticiones SMB", synopsis: "smbclient -L <host>  |  smbclient //<host>/files [archivo]",
+    desc: "Explora comparticiones SMB de un host del laboratorio y lee sus archivos REALES (los que expone la máquina). Con -L listás las comparticiones; con //host/files listás los archivos; agregando el nombre bajás/leés uno. Enseña el riesgo del acceso anónimo a recursos compartidos.", examples: ["smbclient -L 10.10.5.40", "smbclient //10.10.5.40/files", "smbclient //10.10.5.40/files /home/student/notes.txt"] },
+  crackmapexec: { name: "barrido de autenticación SMB (spray)", synopsis: "crackmapexec smb <objetivo> -u <usuario|users.txt> -p <clave>",
+    desc: "Prueba credenciales por SMB contra el dominio REAL. Si la clave es la de la cuenta, entrás y la POSEÉS (el grafo de NandeBlood se recalcula); marca (Pwn3d!) si esa cuenta es admin local de un equipo. Con una lista de usuarios hace password spraying. Alias: cme, nxc. Sólo objetivos del sandbox.", examples: ["crackmapexec smb dc01.nande.local -u svc-sql -p 'Verano2024!'", "cme smb nande.local -u users.txt -p 'Verano2024!'"] },
   grep: { name: "buscar texto", synopsis: "... | grep <palabra>",
     desc: "Filtra líneas que contienen una palabra. Se usa con | (pipe) para quedarte solo con lo que importa de una salida larga.", examples: ["cat notas.txt | grep clave"] },
   learn: { name: "lecciones guiadas", synopsis: "learn [id]",
@@ -1129,6 +1135,17 @@ export class VirtualTerminal {
         case "msf":
         case "metasploit":
           return this.msfCmd(commandArgs, input);
+
+        case "enum4linux":
+          return this.enum4linuxCmd(commandArgs);
+
+        case "smbclient":
+          return this.smbclientCmd(commandArgs);
+
+        case "crackmapexec":
+        case "cme":
+        case "nxc":
+          return this.crackmapexecCmd(commandArgs);
 
         case "nandeblood":
         case "bloodhound":
@@ -2854,6 +2871,180 @@ export class VirtualTerminal {
       });
     }
     return { output: res.output, isError: res.isError };
+  }
+
+  /* ------------------------------------------------ enumeración SMB / AD */
+
+  /** ¿El objetivo vive en el sandbox? (dominio NANDE.LOCAL o red de lab). */
+  private isVirtualTarget(t: string): boolean {
+    const s = t.toLowerCase();
+    return (
+      s === "nande" ||
+      s === "nande.local" ||
+      /\.nande(\.local)?$/.test(s) ||
+      /\.lab$/.test(s) ||
+      /^10\.10\.\d+\.\d+$/.test(s)
+    );
+  }
+
+  /**
+   * enum4linux — enumeración del dominio contra el Directorio Activo REAL
+   * (kernel.directory). No inventa: refleja los principals vivos (usuarios,
+   * grupos, equipos), marca las cuentas con SPN (kerberoasteables) y lo que
+   * ya poseés. El estado cambia a medida que comprometés cuentas.
+   */
+  private enum4linuxCmd(args: string[]): { output: string; isError: boolean } {
+    const target = args.find((a) => !a.startsWith("-")) ?? "";
+    if (!target) {
+      return { output: "uso: enum4linux <objetivo>  (ej: nande.local, dc01.nande.local)\n", isError: true };
+    }
+    if (!this.isVirtualTarget(target)) {
+      return {
+        output: `enum4linux: sólo objetivos del sandbox (NANDE.LOCAL / 10.10.x.y). Nada de internet real.\n`,
+        isError: true,
+      };
+    }
+    const dir = this.kernel.directory;
+    const users = dir.all().filter((p) => p.kind === "user");
+    const groups = dir.all().filter((p) => p.kind === "group");
+    const computers = dir.all().filter((p) => p.kind === "computer");
+    const mark = (p: { owned: boolean; spn?: string }) =>
+      `${p.spn ? "  [SPN " + p.spn + "]" : ""}${p.owned ? "  [★ poseído]" : ""}`;
+    const out: string[] = [
+      `Starting enum4linux contra ${target}`,
+      `======================================`,
+      `[+] Dominio: ${dir.domain}`,
+      ``,
+      `[+] Usuarios (${users.length}):`,
+      ...users.map((p) => `    ${p.name}${mark(p)}`),
+      ``,
+      `[+] Grupos (${groups.length}):`,
+      ...groups.map((p) => `    ${p.name}${p.owned ? "  [★ poseído]" : ""}`),
+      ``,
+      `[+] Equipos (${computers.length}):`,
+      ...computers.map((p) => `    ${p.name}${p.owned ? "  [★ poseído]" : ""}`),
+      ``,
+    ];
+    const spn = dir.kerberoastable();
+    if (spn.length) {
+      out.push(
+        `[!] ${spn.length} cuenta(s) con SPN → kerberoasteables: ${spn.map((p) => p.name).join(", ")}`,
+        `    Siguiente paso: kerberoast <cuenta> → crackeá el TGS offline, o crackmapexec para spray.`,
+      );
+    }
+    out.push(`\nGrafo completo y ruta a Domain Admins: nandeblood.`);
+    return { output: out.join("\n") + "\n", isError: false };
+  }
+
+  /**
+   * smbclient — navega comparticiones SMB. Lee los archivos REALES de la
+   * máquina de laboratorio (LabMachine.files), no una lista inventada.
+   *   smbclient -L <host>            → lista las comparticiones.
+   *   smbclient //<host>/files       → lista los archivos de la compartición.
+   *   smbclient //<host>/files <ruta>→ baja/lee un archivo.
+   */
+  private smbclientCmd(args: string[]): { output: string; isError: boolean } {
+    const listShares = args.includes("-L");
+    const share = args.find((a) => a.startsWith("//"));
+    // Tokens sueltos (no flags, no la ruta //host/share): el host (en -L) o el archivo.
+    const plain = args.filter((a) => !a.startsWith("-") && !a.startsWith("//"));
+    const hostRaw = (listShares ? plain[0] : share?.replace(/^\/\//, "").split("/")[0]) ?? plain[0] ?? "";
+    const host = hostRaw.replace(/^\/\//, "");
+    if (!host) {
+      return { output: "uso: smbclient -L <host>  |  smbclient //<host>/files [archivo]\n", isError: true };
+    }
+    if (!this.isVirtualTarget(host)) {
+      return { output: "smbclient: sólo hosts del sandbox (10.10.x.y / *.nande). 100% offline.\n", isError: true };
+    }
+    const machine = this.kernel.tools.labs().find((m) => m.ip === host || m.hostname === host);
+    if (!machine) {
+      return { output: `smbclient: ${host} no es una máquina del laboratorio.\n`, isError: false };
+    }
+    const files = machine.files ?? [];
+    if (listShares) {
+      return {
+        output:
+          `smbclient -L //${host} (laboratorio)\n\n` +
+          `\tSharename       Type      Comment\n` +
+          `\t---------       ----      -------\n` +
+          `\tIPC$            IPC       Remote IPC\n` +
+          (files.length ? `\tfiles           Disk      Archivos del sistema (¡acceso anónimo!)\n` : "") +
+          (files.length
+            ? `\n[!] La compartición 'files' permite lectura anónima: hallazgo de seguridad.\n`
+            : `\n[*] Sin comparticiones de disco expuestas en este host.\n`),
+        isError: false,
+      };
+    }
+    if (files.length === 0) {
+      return { output: `smbclient //${host}/files: sin archivos legibles.\n`, isError: false };
+    }
+    // ¿Pidieron un archivo puntual? (get/cat): el primer token suelto que no
+    // sea el nombre de la compartición.
+    const fileArg = plain.find((a) => a !== "files" && a !== host);
+    if (fileArg) {
+      const f = files.find((x) => x.path === fileArg || x.path.endsWith("/" + fileArg));
+      if (!f) return { output: `smb: get ${fileArg}: NT_STATUS_NO_SUCH_FILE\n`, isError: true };
+      return {
+        output: `smb: getting file ${f.path}...\n----- ${f.path} -----\n${f.content}\n`,
+        isError: false,
+      };
+    }
+    return {
+      output:
+        `smb: \\> dir  (//${host}/files)\n` +
+        files.map((f) => `  ${f.path}`).join("\n") +
+        `\n\nLeé uno con: smbclient //${host}/files ${files[0].path}\n`,
+      isError: false,
+    };
+  }
+
+  /**
+   * crackmapexec / nxc — barrido de autenticación SMB contra el dominio REAL.
+   * No es una salida canned: llama a directory.smbLogin, que verifica la clave
+   * contra la cuenta y, si acierta, la POSEÉS (cambio de estado que NandeBlood
+   * recalcula). "Pwn3d!" cuando esa cuenta es admin local de un equipo.
+   */
+  private crackmapexecCmd(args: string[]): { output: string; isError: boolean } {
+    const proto = args[0] === "smb" || args[0] === "winrm" || args[0] === "ldap" ? args[0] : "smb";
+    const positional = args.filter((a, i) => !a.startsWith("-") && a !== proto && args[i - 1] !== "-u" && args[i - 1] !== "-p");
+    const target = positional[0] ?? "";
+    const uIdx = args.indexOf("-u");
+    const pIdx = args.indexOf("-p");
+    const user = uIdx >= 0 ? args[uIdx + 1] ?? "" : "";
+    const pass = pIdx >= 0 ? args[pIdx + 1] ?? "" : "";
+    if (!target) {
+      return { output: 'uso: crackmapexec smb <objetivo> -u <usuario|users.txt> -p <clave>\n', isError: true };
+    }
+    if (!this.isVirtualTarget(target)) {
+      return { output: "crackmapexec: sólo objetivos del sandbox (NANDE.LOCAL / 10.10.x.y). 100% offline.\n", isError: true };
+    }
+    if (!user || !pass) {
+      return { output: "crackmapexec: faltan credenciales (-u <usuario> -p <clave>).\n", isError: true };
+    }
+    const dir = this.kernel.directory;
+    const tag = `${proto.toUpperCase()}  ${target.padEnd(18)} 445    ${dir.domain}`;
+    // Spray: si el usuario es una lista, probá la clave contra todo el dominio.
+    const spray = /\.txt$|^-$|^users?$|^usuarios?$/i.test(user);
+    const targets = spray ? dir.all().filter((p) => p.kind === "user") : [{ name: user }];
+    const lines: string[] = [`crackmapexec ${proto} ${target} -u ${user} -p ${pass}`];
+    let anyPwn = false;
+    for (const t of targets) {
+      const short = t.name.split("@")[0];
+      const r = dir.smbLogin(short, pass);
+      if (r.ok) {
+        anyPwn = true;
+        lines.push(`${tag} [+] ${dir.domain.split(".")[0]}\\${short}:${pass} ${r.pwned ? "(Pwn3d!)" : ""} → ${r.message}`);
+      } else if (!spray) {
+        lines.push(`${tag} [-] ${dir.domain.split(".")[0]}\\${short}:${pass} ${r.message}`);
+      }
+    }
+    if (spray && !anyPwn) {
+      lines.push(`${tag} [-] Ningún usuario aceptó esa clave (STATUS_LOGON_FAILURE).`);
+    }
+    if (anyPwn) {
+      lines.push(`\n[★] Cuenta(s) comprometida(s): el grafo cambió. Mirá nandeblood para la ruta a Domain Admins.`);
+    }
+    return { output: lines.join("\n") + "\n", isError: false };
   }
 
   /**

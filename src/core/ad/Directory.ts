@@ -211,6 +211,51 @@ export class Directory {
     return { ok: false, message: `Clave incorrecta para ${p.name}` };
   }
 
+  /** Resuelve un principal por nombre corto (svc-sql) o completo (case-insensitive). */
+  resolvePrincipal(name: string): Principal | undefined {
+    const direct = this.get(name);
+    if (direct) return direct;
+    const short = name.toUpperCase().split("@")[0];
+    return this.all().find((p) => p.name.split("@")[0] === short);
+  }
+
+  /**
+   * Autenticación SMB/NTLM contra el dominio (lo que hace crackmapexec): probás
+   * usuario+clave y, si la clave es la débil de esa cuenta, entrás y la poseés.
+   * Es ESTADO REAL: al poseerla, NandeBlood recalcula la ruta. Devuelve pwned
+   * ("Pwn3d!") si esa cuenta es admin local de algún equipo (borde AdminTo).
+   * Emite T1078 (Valid Accounts) para que lo vea el correlador Purple.
+   */
+  smbLogin(userName: string, password: string): {
+    ok: boolean;
+    pwned: boolean;
+    principal?: string;
+    message: string;
+  } {
+    const p = this.resolvePrincipal(userName);
+    if (!p || p.kind !== "user") {
+      return { ok: false, pwned: false, message: `usuario desconocido: ${userName}` };
+    }
+    if (!p.weakPassword || password !== p.weakPassword) {
+      return { ok: false, pwned: false, principal: p.name, message: "STATUS_LOGON_FAILURE" };
+    }
+    const newlyOwned = this.own(p.name);
+    this.signal({
+      technique: "Valid Accounts",
+      tactic: "Credential Access",
+      mitreId: "T1078",
+      detail: `Autenticación SMB exitosa como ${p.name} (clave débil reutilizada).`,
+      host: this.domain,
+    });
+    const pwned = this.edges.some((e) => e.from === p.name && e.type === "AdminTo");
+    return {
+      ok: true,
+      pwned,
+      principal: p.name,
+      message: newlyOwned ? `poseés ${p.name}` : `${p.name} ya era tuya`,
+    };
+  }
+
   /**
    * Abusa de un borde ofensivo (GenericAll / ForceChangePassword / AdminTo /
    * HasSession) para tomar el nodo destino: sólo funciona si ya poseés el

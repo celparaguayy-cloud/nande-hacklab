@@ -2097,35 +2097,25 @@ const RUNNERS: Record<string, Runner> = {
     };
   },
 
-  enum4linux(args, ctx) {
-    const target = args[0] ?? "";
-    const guard = requireVirtualTarget(target);
-    if (guard) return { output: `enum4linux: ${guard}\n`, isError: true };
-
-    const machine = ctx.lab.resolve(target);
-    if (!machine) return { output: `enum4linux: objetivo no válido.\n`, isError: false };
-
+  enum4linux() {
+    // La enumeración REAL del dominio la sirve la terminal desde el Directorio
+    // Activo vivo (kernel.directory), no una lista fija. Ver VirtualTerminal.
     return {
       output:
-        `enum4linux sobre ${machine.hostname} (${machine.ip})\n` +
-        `[+] Usuarios: student, admin, backup (laboratorio)\n` +
-        `[+] Grupos: users, wheel\n` +
-        `[+] Comparticiones: /pub (lectura anónima)\n` +
-        `Lección: restringí el acceso anónimo a recursos compartidos.\n`,
+        `enum4linux enumera el dominio REAL desde la terminal:\n` +
+        `  enum4linux nande.local     (usuarios, grupos, equipos, cuentas SPN)\n`,
       isError: false,
     };
   },
 
-  smbclient(args) {
-    const target = args[0] ?? "";
-    const guard = requireVirtualTarget(target);
-    if (guard) return { output: `smbclient: ${guard}\n`, isError: true };
-
+  smbclient() {
+    // El listado REAL de comparticiones/archivos lo sirve la terminal leyendo
+    // LabMachine.files, no una lista inventada. Ver VirtualTerminal.
     return {
       output:
-        `smbclient //${target}/pub (laboratorio)\n` +
-        `  documento.txt\n  respaldo.zip\n  notas.md\n` +
-        `Acceso anónimo permitido: hallazgo de seguridad.\n`,
+        `smbclient navega comparticiones desde la terminal:\n` +
+        `  smbclient -L 10.10.5.40          (lista comparticiones)\n` +
+        `  smbclient //10.10.5.40/files     (lista archivos reales del host)\n`,
       isError: false,
     };
   },
@@ -2433,16 +2423,16 @@ const RUNNERS: Record<string, Runner> = {
     };
   },
 
-  crackmapexec(args, ctx) {
-    const target = args[0] ?? "";
-    const guard = requireVirtualTarget(target.split("/")[0]);
-    if (guard) return { output: `cme: ${guard}\n`, isError: true };
-
+  crackmapexec() {
+    // El barrido de autenticación REAL vive en la terminal (VirtualTerminal →
+    // directory.smbLogin): verifica la clave contra la cuenta y, si acierta,
+    // poseés el principal (estado que NandeBlood recalcula). Nada simulado.
     return {
       output:
-        `cme sobre ${target} (laboratorio)\n` +
-        ctx.lab.liveHosts().map((ip) => `${ip}  [+] credencial válida (simulada)`).join("\n") +
-        `\nLección: una contraseña reutilizada abre media red.\n`,
+        `crackmapexec es interactivo contra el dominio. Desde la terminal:\n` +
+        `  enum4linux nande.local                       (enumerá usuarios/SPN)\n` +
+        `  crackmapexec smb dc01.nande.local -u svc-sql -p 'Verano2024!'\n` +
+        `  nandeblood                                   (mirá cómo cambió la ruta)\n`,
       isError: false,
     };
   },
