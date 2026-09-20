@@ -812,18 +812,138 @@
 /* ------------------------------------------------------------------
    Terminal
    ------------------------------------------------------------------ */
-.nd-term {
+/* Terminal estilo Kitty: pestañas múltiples + temas de color intercambiables.
+   Los colores son variables para poder cambiar de tema sin tocar el markup.
+   El tema por defecto ("nande") deja la terminal igual que siempre. */
+.nd-kitty {
   width: 100%;
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: #0f1319;
-  background-image: radial-gradient(
-    ellipse at 50% 0%,
-    rgba(61, 174, 233, 0.05),
-    transparent 62%
-  );
-  color: #d5dae3;
+  min-height: 0;
+  /* Paleta por defecto (nande) */
+  --t-bg: #0f1319;
+  --t-fg: #d5dae3;
+  --t-cmd: #e8ecf2;
+  --t-err: #ff7b72;
+  --t-ok: #7ee787;
+  --t-muted: #7d8899;
+  --t-user: #7ee787;
+  --t-path: #79c0ff;
+  --t-sign: #d2a8ff;
+  --t-accent: #3daee9;
+  --t-glow: rgba(61, 174, 233, 0.05);
+}
+.nd-kitty[data-term-theme="dracula"] {
+  --t-bg: #282a36; --t-fg: #f8f8f2; --t-cmd: #f8f8f2; --t-err: #ff5555;
+  --t-ok: #50fa7b; --t-muted: #6272a4; --t-user: #50fa7b; --t-path: #8be9fd;
+  --t-sign: #bd93f9; --t-accent: #bd93f9; --t-glow: rgba(189, 147, 249, 0.07);
+}
+.nd-kitty[data-term-theme="gruvbox"] {
+  --t-bg: #282828; --t-fg: #ebdbb2; --t-cmd: #fbf1c7; --t-err: #fb4934;
+  --t-ok: #b8bb26; --t-muted: #928374; --t-user: #b8bb26; --t-path: #83a598;
+  --t-sign: #d3869b; --t-accent: #fabd2f; --t-glow: rgba(250, 189, 47, 0.06);
+}
+.nd-kitty[data-term-theme="nord"] {
+  --t-bg: #2e3440; --t-fg: #d8dee9; --t-cmd: #eceff4; --t-err: #bf616a;
+  --t-ok: #a3be8c; --t-muted: #616e88; --t-user: #a3be8c; --t-path: #88c0d0;
+  --t-sign: #b48ead; --t-accent: #88c0d0; --t-glow: rgba(136, 192, 208, 0.06);
+}
+.nd-kitty[data-term-theme="solarized"] {
+  --t-bg: #002b36; --t-fg: #93a1a1; --t-cmd: #eee8d5; --t-err: #dc322f;
+  --t-ok: #859900; --t-muted: #586e75; --t-user: #859900; --t-path: #268bd2;
+  --t-sign: #6c71c5; --t-accent: #2aa198; --t-glow: rgba(42, 161, 152, 0.06);
+}
+.nd-kitty[data-term-theme="matrix"] {
+  --t-bg: #05100a; --t-fg: #33ff66; --t-cmd: #7dffa0; --t-err: #ff5555;
+  --t-ok: #33ff66; --t-muted: #2c7a45; --t-user: #33ff66; --t-path: #9cff33;
+  --t-sign: #33ff99; --t-accent: #33ff66; --t-glow: rgba(51, 255, 102, 0.08);
+}
+
+/* Barra de pestañas (como Kitty/Windows Terminal). */
+.nd-kitty__tabbar {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  padding: 6px 6px 0;
+  background: color-mix(in srgb, var(--t-bg) 82%, #000);
+  border-bottom: 1px solid color-mix(in srgb, var(--t-bg) 60%, #000);
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex: 0 0 auto;
+}
+.nd-kitty__tabbar::-webkit-scrollbar { display: none; }
+.nd-kitty__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px 7px;
+  border-radius: 8px 8px 0 0;
+  background: color-mix(in srgb, var(--t-bg) 55%, #000);
+  color: var(--t-muted);
+  font-family: var(--nd-mono);
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-bottom: none;
+  max-width: 200px;
+}
+.nd-kitty__tab:hover { color: var(--t-fg); }
+.nd-kitty__tab--active {
+  background: var(--t-bg);
+  color: var(--t-fg);
+  border-color: color-mix(in srgb, var(--t-bg) 55%, #000);
+}
+.nd-kitty__tab-title { overflow: hidden; text-overflow: ellipsis; }
+.nd-kitty__tab-close {
+  display: inline-flex;
+  width: 15px; height: 15px;
+  align-items: center; justify-content: center;
+  border-radius: 4px;
+  font-size: 13px; line-height: 1;
+  color: var(--t-muted);
+  flex: 0 0 auto;
+}
+.nd-kitty__tab-close:hover { background: var(--t-err); color: #fff; }
+.nd-kitty__newtab {
+  align-self: center;
+  margin-left: 2px;
+  width: 26px; height: 26px;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--t-muted);
+  border: none;
+  font-size: 17px; line-height: 1;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.nd-kitty__newtab:hover { background: color-mix(in srgb, var(--t-bg) 55%, #000); color: var(--t-fg); }
+.nd-kitty__spacer { flex: 1 1 auto; }
+.nd-kitty__theme {
+  align-self: center;
+  margin-right: 4px;
+  background: transparent;
+  color: var(--t-muted);
+  border: 1px solid color-mix(in srgb, var(--t-bg) 55%, #000);
+  border-radius: 6px;
+  font-family: var(--nd-mono);
+  font-size: 11px;
+  padding: 3px 6px;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.nd-kitty__theme:hover { color: var(--t-fg); }
+
+.nd-term {
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--t-bg);
+  background-image: radial-gradient(ellipse at 50% 0%, var(--t-glow), transparent 62%);
+  color: var(--t-fg);
   font-family: var(--nd-mono);
   font-size: 13px;
   line-height: 1.55;
@@ -835,7 +955,7 @@
   /* No estira para llenar la ventana: crece con la salida y, cuando ésta
      supera el alto, se encoge y hace scroll. Así una terminal recién abierta
      deja el prompt pegado al intro (no flotando sobre un vacío negro). */
-  flex: 0 1 auto;
+  flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
   padding: 14px 16px 4px;
@@ -848,19 +968,19 @@
 
 /* Colores de salida, al estilo Konsole. */
 .nd-term__line--cmd {
-  color: #e8ecf2;
+  color: var(--t-cmd);
 }
 
 .nd-term__line--err {
-  color: #ff7b72;
+  color: var(--t-err);
 }
 
 .nd-term__line--ok {
-  color: #7ee787;
+  color: var(--t-ok);
 }
 
 .nd-term__line--muted {
-  color: #7d8899;
+  color: var(--t-muted);
 }
 
 .nd-term__prompt {
@@ -869,16 +989,16 @@
 }
 
 .nd-term__prompt-user {
-  color: #7ee787;
+  color: var(--t-user);
   font-weight: 600;
 }
 
 .nd-term__prompt-path {
-  color: #79c0ff;
+  color: var(--t-path);
 }
 
 .nd-term__prompt-sign {
-  color: #d2a8ff;
+  color: var(--t-sign);
 }
 
 .nd-term__inputrow {
@@ -894,11 +1014,11 @@
   background: transparent;
   border: none;
   outline: none;
-  color: #e8ecf2;
+  color: var(--t-cmd);
   font-family: inherit;
   font-size: inherit;
   line-height: inherit;
-  caret-color: var(--nd-accent);
+  caret-color: var(--t-accent);
 }
 
 /* ------------------------------------------------------------------

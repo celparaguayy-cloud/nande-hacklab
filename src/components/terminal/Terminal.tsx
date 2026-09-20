@@ -1,6 +1,6 @@
 import {
+  useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
   type KeyboardEvent,
@@ -19,6 +19,19 @@ interface Line {
   text: string;
   kind: "out" | "cmd" | "err" | "ok" | "muted";
 }
+
+/** Una pestaña = una sesión independiente (su propia shell, cwd e historial). */
+interface Tab {
+  id: number;
+  terminal: VirtualTerminal;
+  lines: Line[];
+  input: string;
+  history: string[];
+  historyIndex: number;
+}
+
+/** Temas de color intercambiables, como en Kitty. */
+const THEMES = ["nande", "dracula", "gruvbox", "nord", "solarized", "matrix"] as const;
 
 /**
  * Cabecera que ve el usuario al abrir o limpiar la terminal. Se dibuja con
@@ -62,196 +75,310 @@ function classify(text: string): Line["kind"] {
 }
 
 export default function Terminal({ kernel }: TerminalProps) {
-  const terminal = useMemo(() => new VirtualTerminal(kernel), [kernel]);
+  const nextId = useRef(1);
+  const makeTab = useCallback(
+    (): Tab => ({
+      id: nextId.current++,
+      terminal: new VirtualTerminal(kernel),
+      lines: [...BANNER],
+      input: "",
+      history: [],
+      historyIndex: -1,
+    }),
+    [kernel],
+  );
 
-  const [lines, setLines] = useState<Line[]>(() => [...BANNER]);
-
-  const [input, setInput] = useState("");
-  const [history, setHistory] = useState<string[]>([]);
-  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [tabs, setTabs] = useState<Tab[]>(() => [makeTab()]);
+  const [activeId, setActiveId] = useState<number>(() => tabs[0].id);
+  const [theme, setTheme] = useState<string>(() => {
+    try {
+      return localStorage.getItem("nd-term-theme") ?? "nande";
+    } catch {
+      return "nande";
+    }
+  });
 
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const directory = terminal.getCurrentDirectory();
+  const active = tabs.find((t) => t.id === activeId) ?? tabs[0];
+  const directory = active.terminal.getCurrentDirectory();
+  const displayDirectory = directory === "/home/student" ? "~" : directory;
 
-  const displayDirectory =
-    directory === "/home/student" ? "~" : directory;
+  useEffect(() => {
+    try {
+      localStorage.setItem("nd-term-theme", theme);
+    } catch {
+      /* modo privado: seguimos sin persistir */
+    }
+  }, [theme]);
 
-  function getPrompt(): string {
-    return `student@nande-os:${displayDirectory}$`;
-  }
-
-  function executeCommand() {
-    runCommand(input.trim());
+  /** Actualiza una pestaña por id de forma inmutable. */
+  function patchTab(id: number, patch: (t: Tab) => Tab) {
+    setTabs((prev) => prev.map((t) => (t.id === id ? patch(t) : t)));
   }
 
   function runCommand(command: string) {
-    if (!command) {
-      return;
-    }
+    if (!command) return;
 
-    // Guardamos el prompt ANTES de ejecutar.
-    // Así "cd /" aparece con el directorio desde
-    // el que realmente se ejecutó.
-    const promptBefore = getPrompt();
+    const tab = tabs.find((t) => t.id === activeId);
+    if (!tab) return;
 
-    const output = terminal.execute(command);
+    // Guardamos el prompt ANTES de ejecutar, para que "cd /" aparezca con el
+    // directorio desde el que realmente se corrió.
+    const dir = tab.terminal.getCurrentDirectory();
+    const promptBefore = `student@nande-os:${dir === "/home/student" ? "~" : dir}$`;
 
-    setHistory((previous) => [
-      ...previous.filter((item) => item !== command),
-      command,
-    ]);
-
-    setHistoryIndex(-1);
+    const output = tab.terminal.execute(command);
 
     if (output === "\x1b[CLEAR") {
-      setLines([...BANNER]);
-      setInput("");
-
-      setTimeout(() => {
-        inputRef.current?.focus();
-      }, 0);
-
+      patchTab(tab.id, (t) => ({
+        ...t,
+        lines: [...BANNER],
+        input: "",
+        history: [...t.history.filter((h) => h !== command), command],
+        historyIndex: -1,
+      }));
+      setTimeout(() => inputRef.current?.focus(), 0);
       return;
     }
 
-    setLines((previous) => [
-      ...previous,
-      { text: `${promptBefore} ${command}`, kind: "cmd" as const },
-      ...(output
-        ? output
-            .split("\n")
-            .map((text) => ({ text, kind: classify(text) }))
-        : []),
-    ]);
+    patchTab(tab.id, (t) => ({
+      ...t,
+      input: "",
+      history: [...t.history.filter((h) => h !== command), command],
+      historyIndex: -1,
+      lines: [
+        ...t.lines,
+        { text: `${promptBefore} ${command}`, kind: "cmd" as const },
+        ...(output
+          ? output.split("\n").map((text) => ({ text, kind: classify(text) }))
+          : []),
+      ],
+    }));
 
-    setInput("");
-
-    setTimeout(() => {
-      inputRef.current?.focus();
-    }, 0);
+    setTimeout(() => inputRef.current?.focus(), 0);
   }
 
-  // La app de aprendizaje puede pedir que la terminal ejecute algo
-  // (por ejemplo, arrancar una lección). Se consume al abrir y por evento.
+  // La app de aprendizaje puede pedir que la terminal ejecute algo (arrancar
+  // una lección, por ejemplo). Va SIEMPRE a la pestaña activa. Usamos un ref
+  // para que el handler del evento vea siempre el runCommand más nuevo.
+  const runRef = useRef(runCommand);
+  runRef.current = runCommand;
+
   useEffect(() => {
     if (kernel.pendingCommand) {
       const cmd = kernel.pendingCommand;
       kernel.pendingCommand = null;
-      runCommand(cmd);
+      runRef.current(cmd);
     }
 
     return kernel.events.subscribe<{ command: string }>(
       "terminal.run",
       (event) => {
         kernel.pendingCommand = null;
-        runCommand(event.data.command);
+        runRef.current(event.data.command);
       },
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kernel]);
 
-  // La salida nueva queda siempre a la vista: antes había que scrollear a
-  // mano después de cada comando largo.
+  // La salida nueva (o el cambio de pestaña) queda siempre a la vista.
   useEffect(() => {
     const scroll = scrollRef.current;
+    if (scroll) scroll.scrollTop = scroll.scrollHeight;
+  }, [active.lines, activeId]);
 
-    if (scroll) {
-      scroll.scrollTop = scroll.scrollHeight;
-    }
-  }, [lines]);
+  function newTab() {
+    const tab = makeTab();
+    setTabs((prev) => [...prev, tab]);
+    setActiveId(tab.id);
+    setTimeout(() => inputRef.current?.focus(), 0);
+  }
+
+  function closeTab(id: number) {
+    setTabs((prev) => {
+      if (prev.length === 1) return prev; // nunca cerramos la última
+      const next = prev.filter((t) => t.id !== id);
+      if (id === activeId) {
+        const idx = prev.findIndex((t) => t.id === id);
+        const fallback = next[Math.max(0, idx - 1)] ?? next[0];
+        setActiveId(fallback.id);
+      }
+      return next;
+    });
+    setTimeout(() => inputRef.current?.focus(), 0);
+  }
+
+  function tabTitle(t: Tab, i: number): string {
+    const dir = t.terminal.getCurrentDirectory();
+    const base = dir === "/home/student" ? "~" : dir.split("/").filter(Boolean).pop() || "/";
+    return `${i + 1}: ${base}`;
+  }
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    // Atajos de pestañas estilo Kitty (con Alt, para no pisar los del navegador).
+    if (event.altKey) {
+      if (event.key === "t" || event.key === "T") {
+        event.preventDefault();
+        newTab();
+        return;
+      }
+      if (event.key === "w" || event.key === "W") {
+        event.preventDefault();
+        closeTab(activeId);
+        return;
+      }
+      if (/^[1-9]$/.test(event.key)) {
+        event.preventDefault();
+        const target = tabs[Number(event.key) - 1];
+        if (target) setActiveId(target.id);
+        return;
+      }
+    }
+
     // Vida audiovisual: un clic sutil por tecla (silenciable en Config).
     if (event.key.length === 1) sound.play("key");
     else if (event.key === "Enter") sound.play("click");
+
     if (event.key === "Enter") {
       event.preventDefault();
-      executeCommand();
+      runCommand(active.input.trim());
       return;
     }
 
     if (event.key === "ArrowUp") {
       event.preventDefault();
-
-      if (history.length === 0) {
-        return;
-      }
-
+      if (active.history.length === 0) return;
       const nextIndex =
-        historyIndex === -1
-          ? history.length - 1
-          : Math.max(0, historyIndex - 1);
-
-      setHistoryIndex(nextIndex);
-      setInput(history[nextIndex] ?? "");
-
+        active.historyIndex === -1
+          ? active.history.length - 1
+          : Math.max(0, active.historyIndex - 1);
+      patchTab(active.id, (t) => ({
+        ...t,
+        historyIndex: nextIndex,
+        input: t.history[nextIndex] ?? "",
+      }));
       return;
     }
 
     if (event.key === "ArrowDown") {
       event.preventDefault();
-
-      if (history.length === 0) {
+      if (active.history.length === 0 || active.historyIndex === -1) return;
+      const nextIndex = active.historyIndex + 1;
+      if (nextIndex >= active.history.length) {
+        patchTab(active.id, (t) => ({ ...t, historyIndex: -1, input: "" }));
         return;
       }
-
-      if (historyIndex === -1) {
-        return;
-      }
-
-      const nextIndex = historyIndex + 1;
-
-      if (nextIndex >= history.length) {
-        setHistoryIndex(-1);
-        setInput("");
-        return;
-      }
-
-      setHistoryIndex(nextIndex);
-      setInput(history[nextIndex] ?? "");
-
+      patchTab(active.id, (t) => ({
+        ...t,
+        historyIndex: nextIndex,
+        input: t.history[nextIndex] ?? "",
+      }));
       return;
     }
   }
 
   return (
-    <div className="nd-term" onClick={() => inputRef.current?.focus()}>
-      <div className="nd-term__scroll" ref={scrollRef}>
-        {lines.map((line, index) => (
+    <div className="nd-kitty" data-term-theme={theme}>
+      <div className="nd-kitty__tabbar" role="tablist">
+        {tabs.map((t, i) => (
           <div
-            key={index}
-            className={`nd-term__line nd-term__line--${line.kind}`}
+            key={t.id}
+            role="tab"
+            aria-selected={t.id === activeId}
+            className={`nd-kitty__tab${t.id === activeId ? " nd-kitty__tab--active" : ""}`}
+            onClick={() => {
+              setActiveId(t.id);
+              setTimeout(() => inputRef.current?.focus(), 0);
+            }}
+            title={tabTitle(t, i)}
           >
-            {line.text}
+            <span className="nd-kitty__tab-title">{tabTitle(t, i)}</span>
+            {tabs.length > 1 && (
+              <span
+                className="nd-kitty__tab-close"
+                role="button"
+                aria-label="Cerrar pestaña"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  closeTab(t.id);
+                }}
+              >
+                ×
+              </span>
+            )}
           </div>
         ))}
+        <button
+          type="button"
+          className="nd-kitty__newtab"
+          onClick={newTab}
+          aria-label="Nueva pestaña (Alt+T)"
+          title="Nueva pestaña (Alt+T)"
+        >
+          +
+        </button>
+
+        <span className="nd-kitty__spacer" />
+
+        <select
+          className="nd-kitty__theme"
+          value={theme}
+          onChange={(e) => {
+            setTheme(e.target.value);
+            setTimeout(() => inputRef.current?.focus(), 0);
+          }}
+          aria-label="Tema de la terminal"
+          title="Tema de color"
+        >
+          {THEMES.map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
+        </select>
       </div>
 
-      <div className="nd-term__inputrow">
-        <span className="nd-term__prompt">
-          <span className="nd-term__prompt-user">student@nande-os</span>
-          <span className="nd-term__prompt-sign">:</span>
-          <span className="nd-term__prompt-path">{displayDirectory}</span>
-          <span className="nd-term__prompt-sign">$</span>
-        </span>
+      <div className="nd-term" onClick={() => inputRef.current?.focus()}>
+        <div className="nd-term__scroll" ref={scrollRef}>
+          {active.lines.map((line, index) => (
+            <div
+              key={index}
+              className={`nd-term__line nd-term__line--${line.kind}`}
+            >
+              {line.text}
+            </div>
+          ))}
+        </div>
 
-        <input
-          ref={inputRef}
-          className="nd-term__input"
-          value={input}
-          onChange={(event) => {
-            setInput(event.target.value);
-            setHistoryIndex(-1);
-          }}
-          onKeyDown={handleKeyDown}
-          autoFocus
-          spellCheck={false}
-          autoCapitalize="off"
-          autoCorrect="off"
-          aria-label="Entrada de la terminal"
-        />
+        <div className="nd-term__inputrow">
+          <span className="nd-term__prompt">
+            <span className="nd-term__prompt-user">student@nande-os</span>
+            <span className="nd-term__prompt-sign">:</span>
+            <span className="nd-term__prompt-path">{displayDirectory}</span>
+            <span className="nd-term__prompt-sign">$</span>
+          </span>
+
+          <input
+            ref={inputRef}
+            className="nd-term__input"
+            value={active.input}
+            onChange={(event) =>
+              patchTab(active.id, (t) => ({
+                ...t,
+                input: event.target.value,
+                historyIndex: -1,
+              }))
+            }
+            onKeyDown={handleKeyDown}
+            autoFocus
+            spellCheck={false}
+            autoCapitalize="off"
+            autoCorrect="off"
+            aria-label="Entrada de la terminal"
+          />
+        </div>
       </div>
     </div>
   );

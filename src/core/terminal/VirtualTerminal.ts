@@ -100,6 +100,8 @@ const MANPAGES: Record<string, ManPage> = {
     desc: "Si tenés credenciales, entrás a otra máquina y desde ahí ves su red interna. Así se 'pivota' hacia lo que no se ve desde afuera.", examples: ["connect server.nande soporte Verano2024"] },
   curl: { name: "pedir una página desde la terminal", synopsis: "curl <url>",
     desc: "Trae el contenido de una web sin abrir el navegador. Sirve para probar formularios, APIs e inyecciones a mano.", examples: ["curl http://banco.nande/login"] },
+  wget: { name: "clonar un sitio para analizarlo offline", synopsis: "wget [-r|--mirror] <url>",
+    desc: "Descarga las páginas de un sitio VIRTUAL a ./<host>/ para leerlas offline. Con -r sigue los links del HTML (recon de mirroring): después grepeás los archivos y encontrás comentarios y rutas ocultas sin volver a tocar el servidor. Sólo sitios del mundo ÑANDE (100% offline).", examples: ["wget http://banco.nande/login", "wget -r http://blog.yvoty.nande"] },
   grep: { name: "buscar texto", synopsis: "... | grep <palabra>",
     desc: "Filtra líneas que contienen una palabra. Se usa con | (pipe) para quedarte solo con lo que importa de una salida larga.", examples: ["cat notas.txt | grep clave"] },
   learn: { name: "lecciones guiadas", synopsis: "learn [id]",
@@ -171,7 +173,10 @@ export class VirtualTerminal {
     // Los pipes se procesan dentro del shell virtual.
     // Cada etapa recibe únicamente la salida de la etapa anterior.
     if (this.hasPipe(commandLine)) {
-      return this.executePipeline(commandLine);
+      const piped = this.executePipeline(commandLine);
+      // Una lección puede pedir un paso con pipe (ej. cat archivo | grep href):
+      // también tiene que poder avanzar, no sólo los comandos sueltos.
+      return piped + this.checkLessonProgress(commandLine, piped);
     }
 
     const commands = this.splitChain(commandLine);
@@ -1050,6 +1055,11 @@ export class VirtualTerminal {
 
         case "curl":
           return this.curlCmd(commandArgs);
+
+        case "wget":
+        case "sitecopy":
+        case "clonar-sitio":
+          return this.wgetCmd(commandArgs);
 
         case "wifi":
           return this.wifiCmd(commandArgs);
@@ -1936,6 +1946,147 @@ export class VirtualTerminal {
         isError: true,
       };
     }
+  }
+
+  /**
+   * wget / sitecopy / clonar-sitio: clona un sitio VIRTUAL del mundo ÑANDE al
+   * filesystem para analizarlo offline (recon real de mirroring de sitios).
+   *
+   *   wget http://banco.nande/login        una sola página
+   *   wget -r http://banco.nande           recursivo: sigue los links del HTML
+   *   wget --mirror http://blog.yvoty.nande  espejo (como wget -m -np)
+   *
+   * Guarda el HTML CRUDO en ./<host>/ para después grepearlo, leer comentarios
+   * y descubrir rutas que no viste en pantalla — sin volver a tocar el servidor.
+   *
+   * OFFLINE POR DISEÑO: sólo clona apps del mundo virtual. Internet real no
+   * existe en el laboratorio (así se practica mirroring sin riesgo ni daño).
+   */
+  private wgetCmd(args: string[]): { output: string; isError: boolean } {
+    const recursive = args.some((a) =>
+      ["-r", "-m", "--mirror", "--recursive", "-np", "--page-requisites", "-p"].includes(a),
+    );
+    const urlArg = args.find((a) => !a.startsWith("-"));
+    if (!urlArg) {
+      return {
+        output:
+          "wget: falta la URL\n" +
+          "  wget http://banco.nande/login     una página\n" +
+          "  wget -r http://banco.nande        clon recursivo (sigue los links)\n",
+        isError: true,
+      };
+    }
+
+    const url = stripQuotes(urlArg);
+    const clean = url.replace(/^https?:\/\//i, "");
+    const slash = clean.indexOf("/");
+    const host = (slash === -1 ? clean : clean.slice(0, slash)).toLowerCase();
+    const startPath = slash === -1 ? "/" : clean.slice(slash);
+
+    if (!this.kernel.browser.isWebApp(host)) {
+      return {
+        output:
+          `wget: no se pudo resolver '${host}'.\n` +
+          `ÑANDE es un laboratorio 100% offline: wget sólo clona sitios del mundo virtual\n` +
+          `(banco.nande, blog.yvoty.nande, fotos.arandu.nande, docs.tape.nande, tools.pyta.nande...).\n` +
+          `Internet real no existe acá — y esa es la idea: practicás mirroring sin riesgo ni daño.\n`,
+        isError: true,
+      };
+    }
+
+    // Directorio destino: ./<host>/  (se crea si no existe).
+    const baseDir = this.resolvePath(host);
+    if (!this.kernel.filesystem.exists(baseDir)) {
+      this.kernel.filesystem.createDirectory(baseDir, "student", "users", "755");
+    }
+    const saveFile = (rel: string, content: string): string => {
+      const p = `${baseDir}/${rel}`;
+      if (this.kernel.filesystem.exists(p)) this.kernel.filesystem.writeFile(p, content);
+      else this.kernel.filesystem.createFile(p, content, "student", "users", "644");
+      return p;
+    };
+    const fileNameFor = (path: string): string => {
+      const noQuery = path.split("?")[0].split("#")[0];
+      const trimmed = noQuery.replace(/^\/+/, "").replace(/\/+$/, "");
+      if (!trimmed) return "index.html";
+      const flat = trimmed.replace(/\//g, "_");
+      return /\.[a-z0-9]{1,5}$/i.test(flat) ? flat : `${flat}.html`;
+    };
+
+    // BFS siguiendo los links del HTML (comportamiento real de wget -r -np):
+    // no sale del host y no repite rutas ya visitadas.
+    const out: string[] = [`--ÑANDE-- clonando http://${host}${startPath}`, ``];
+    const queue: string[] = [startPath];
+    const seen = new Set<string>();
+    const saved: string[] = [];
+    let totalBytes = 0;
+    let allHtml = "";
+    const MAX = recursive ? 40 : 1;
+
+    while (queue.length && saved.length < MAX) {
+      const path = queue.shift()!;
+      const key = path.split("#")[0];
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      let result: { response: { status: number; body: string; headers?: Record<string, string> }; finalPath: string };
+      try {
+        result = this.kernel.browser.request("GET", host, path, {});
+      } catch {
+        out.push(`fallo    ${path} (no alcanzable)`);
+        continue;
+      }
+      const { status, body } = result.response;
+      seen.add(result.finalPath.split("#")[0]);
+
+      if (status === 404) {
+        out.push(`404      ${path} (no existe, omitido)`);
+        continue;
+      }
+      if (status !== 200) {
+        out.push(`HTTP ${status}  ${path} (no se guarda: respuesta ${status})`);
+        continue;
+      }
+
+      const file = saveFile(fileNameFor(result.finalPath || path), body);
+      const rel = file.replace(`${this.currentDirectory}/`, "./");
+      totalBytes += body.length;
+      allHtml += body + "\n";
+      saved.push(rel);
+      out.push(`HTTP 200  ${path}  →  ${rel} (${body.length} bytes)`);
+
+      if (recursive) {
+        for (const m of body.matchAll(/href\s*=\s*["']([^"'#\s]+)["']/gi)) {
+          let link = m[1];
+          if (/^https?:\/\//i.test(link)) {
+            const lclean = link.replace(/^https?:\/\//i, "");
+            if (lclean.split("/")[0].toLowerCase() !== host) continue; // no salir del host
+            link = "/" + lclean.split("/").slice(1).join("/");
+          } else if (link.startsWith("mailto:") || link.startsWith("javascript:")) {
+            continue;
+          } else if (!link.startsWith("/")) {
+            link = "/" + link;
+          }
+          const lkey = link.split("#")[0];
+          if (!seen.has(lkey) && !queue.includes(link)) queue.push(link);
+        }
+      }
+    }
+
+    out.push(``, `Descargado: ${saved.length} archivo(s), ${totalBytes} bytes → ./${host}/`);
+    if (recursive) {
+      out.push(
+        `Analizalo offline:  ls ${host}   ·   cat ${host}/index.html   ·   grep -ri "href" ${host}`,
+        `Recon: los comentarios (<!-- ... -->) y los links del HTML delatan rutas que no viste en pantalla.`,
+      );
+    }
+
+    // Consecuencias en el mundo: una bandera/pista dentro del HTML clonado cuenta
+    // igual que si la hubieras encontrado navegando (recon vale).
+    const notes = this.kernel.scanForSignals(allHtml);
+    const suffix = notes.length ? "\n" + notes.join("\n") + "\n" : "";
+
+    return { output: out.join("\n") + "\n" + suffix, isError: false };
   }
 
 

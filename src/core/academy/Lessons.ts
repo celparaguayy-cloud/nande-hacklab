@@ -293,6 +293,77 @@ export const LESSONS: Lesson[] = [
     ],
   },
   {
+    id: "l-recon-mirror",
+    title: "Clonar un sitio para estudiarlo offline",
+    level: "intermedio",
+    summary: "Bajás una copia del sitio con wget y la analizás sin volver a tocar el servidor.",
+    concept:
+      "El mirroring es recon puro: te llevás una copia del sitio a tu máquina y la peinás tranquilo (links, comentarios, rutas). Menos ruido en el objetivo y todo el tiempo del mundo para leer. wget -r sigue los links del HTML como haría un navegador.",
+    reward: { xp: 170, coins: 130 },
+    steps: [
+      {
+        explain:
+          "Primero, una sola página para ver cómo funciona: wget baja el HTML y lo guarda en ./<host>/. No lo muestra pelado como curl: guarda el archivo para después.",
+        task: "Bajá el login: wget http://banco.nande/login",
+        hint: "Escribí: wget http://banco.nande/login",
+        hints: [
+          "La herramienta es wget y necesita la URL completa.",
+          "La URL es http://banco.nande/login",
+          "Escribí: wget http://banco.nande/login",
+        ],
+        check: (cmd, out) =>
+          usedTool(cmd, "wget") && cmd.includes("banco.nande") && /\.html|guardado|HTTP 200/i.test(out),
+        debrief:
+          "Quedó ./banco.nande/login.html en tu disco. Ya tenés una copia para analizar sin volver a pedirla al servidor.",
+      },
+      {
+        explain:
+          "Para clonar el área privada hay que tener sesión. Entrá con el bypass de SQLi que ya conocés: la cookie de sesión queda guardada y wget la va a reusar (mismo navegador, misma sesión).",
+        task: "Conseguí sesión: curl -X POST http://banco.nande/login -d \"usuario=admin' -- &password=x\"",
+        hint: "Es el mismo bypass de login por SQLi, mandado con curl -X POST y -d.",
+        hints: [
+          "Usá curl -X POST contra /login con -d \"usuario=...&password=...\".",
+          "El usuario es  admin' --  (el comentario apaga el chequeo de la clave).",
+          "curl -X POST http://banco.nande/login -d \"usuario=admin' -- &password=x\"",
+        ],
+        check: (cmd, out) =>
+          usedTool(cmd, "curl") && /administrador|sesión iniciada|ND\{sqli_login_bypass\}/i.test(out),
+        debrief:
+          "Entraste sin la clave y el navegador guardó tu cookie de sesión. Ahora wget puede clonar lo que sólo se ve logueado.",
+      },
+      {
+        explain:
+          "Ahora el espejo del área privada: wget -r arranca en /panel y SIGUE los links del HTML (a /movimientos, /logout…), bajando cada página. Así se reconstruye el sitio entero de un tiro.",
+        task: "Clonalo recursivo: wget -r http://banco.nande/panel",
+        hint: "Agregá -r (recursivo) y apuntá a /panel: wget -r http://banco.nande/panel",
+        hints: [
+          "El flag -r hace que wget siga los links del HTML.",
+          "Arrancá en el área privada: /panel.",
+          "wget -r http://banco.nande/panel",
+        ],
+        check: (cmd, out) =>
+          usedTool(cmd, "wget") && /-r|--mirror|-m\b/.test(cmd) && out.includes("/movimientos"),
+        debrief:
+          "wget siguió los links y bajó panel, movimientos y logout. Tenés el área privada entera en ./banco.nande/ para estudiar offline.",
+      },
+      {
+        explain:
+          "El premio del mirroring: analizás la copia sin tocar más el servidor. Un grep sobre los archivos te muestra los links (href) que quedaron guardados — ahí aparecen rutas que quizá no viste en pantalla.",
+        task: "Peiná la copia: cat banco.nande/panel.html | grep href",
+        hint: "Usá cat sobre el archivo clonado y pasalo por grep href con un pipe (|).",
+        hints: [
+          "grep se usa dentro de un pipe: cat <archivo> | grep <palabra>.",
+          "El archivo es banco.nande/panel.html y la palabra es href.",
+          "cat banco.nande/panel.html | grep href",
+        ],
+        check: (cmd, out) =>
+          usedTool(cmd, "cat") && cmd.includes("grep") && out.includes("href"),
+        debrief:
+          "Encontraste los links dentro del HTML clonado, sin generar una sola petición nueva al banco. Eso es recon de bajo ruido. Defensa: no dejar rutas ni comentarios sensibles en el HTML, y recordar que cualquiera puede clonar lo que sirve tu servidor.",
+      },
+    ],
+  },
+  {
     id: "l-privesc",
     title: "De usuario a root",
     level: "avanzado",

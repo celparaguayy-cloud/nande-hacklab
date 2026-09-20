@@ -33,6 +33,20 @@ describe("Academia — lecciones profundizadas (multi-paso, comandos reales)", (
     expect(k.player.getState().completedCourses).toContain("lesson:l-dns");
   });
 
+  it("l-recon-mirror: wget clona el sitio y se analiza offline (paso con pipe)", () => {
+    resetStorage(); seedRandom();
+    const k = new VirtualKernel();
+    const t = new VirtualTerminal(k);
+    expect(k.lessons.get("l-recon-mirror")!.steps.length).toBe(4);
+    t.execute("learn l-recon-mirror");
+    t.execute("wget http://banco.nande/login");
+    t.execute("curl -X POST http://banco.nande/login -d \"usuario=admin' -- &password=x\"");
+    t.execute("wget -r http://banco.nande/panel");
+    // El último paso es un PIPE (cat | grep): antes no completaba la lección.
+    t.execute("cat banco.nande/panel.html | grep href");
+    expect(k.player.getState().completedCourses).toContain("lesson:l-recon-mirror");
+  });
+
   it("las pistas de un paso escalan (hints[])", () => {
     resetStorage(); seedRandom();
     const k = new VirtualKernel();
