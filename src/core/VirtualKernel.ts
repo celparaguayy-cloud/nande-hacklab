@@ -371,8 +371,9 @@ export class VirtualKernel {
     // derivados del mismo reloj del mundo. Da la sensación de multijugador
     // dentro del sandbox (who/w te muestran quién más está en el host).
     this.netlife = new NetworkLife(() => this.world.getState().clock.tick);
-    // PvP en vivo: duelo contra un bot del ranking por el mismo objetivo.
-    this.duel = new Duel();
+    // PvP en vivo: duelo contra un bot del ranking por el mismo objetivo. El
+    // rival contraataca de verdad (rota credencial, filtra SSH) sobre el host.
+    this.duel = new Duel(this.hosts);
     // Co-op hot-seat: dos personas en el mismo dispositivo (rojo vs azul)
     // jugando por turnos sobre el mismo mundo (acciones reales de servicios).
     this.coop = new CoopArena(this.hosts);
@@ -1253,7 +1254,7 @@ export class VirtualKernel {
     // y el resultado se resuelve contra el estado real (banderas del jugador).
     // Así el duelo termina aunque no estés mirando la pantalla del duelo.
     if (this.duel.active) {
-      this.duel.sync(worldState.clock.tick, this.player.capturedFlags());
+      this.duel.advance(worldState.clock.tick, this.player.capturedFlags());
     }
 
     // El mundo sigue vivo: cada tanto, un habitante en línea programa y

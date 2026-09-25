@@ -79,4 +79,58 @@ describe("Duel — carrera PvP contra un bot", () => {
   it("man duel documenta el comando", () => {
     expect(term.execute("man duel")).toContain("PvP");
   });
+
+  it("el rival CONTRAATACA: rota la credencial y te deja afuera (estado real)", () => {
+    kernel.duel.start(0);
+    // Avanzá hasta pasar el umbral de rotación de credencial (~45%).
+    kernel.duel.advance(11, kernel.player.capturedFlags());
+    const cred = kernel.hosts.resolve("duelo.corp.nande")!.creds[0];
+    expect(cred.password).not.toBe("Duelo2024"); // la clave conocida ya no sirve
+    // Y connect con la clave conocida falla de verdad.
+    const fail = term.execute("connect duelo.corp.nande visitante Duelo2024");
+    expect(fail).toContain("inválid");
+    // Trabar deshace el sabotaje: recuperás la credencial original.
+    const r = kernel.duel.disrupt(11);
+    expect(r.undone).toContain("la credencial");
+    expect(kernel.hosts.resolve("duelo.corp.nande")!.creds[0].password).toBe("Duelo2024");
+    expect(term.execute("connect duelo.corp.nande visitante Duelo2024")).toContain("conectado");
+  });
+
+  it("el rival FILTRA tu SSH y connect se rechaza; trabar lo reabre", () => {
+    kernel.duel.start(0);
+    // Avanzá hasta pasar el umbral de bloqueo de SSH (~75%).
+    kernel.duel.advance(18, kernel.player.capturedFlags());
+    expect(kernel.hosts.resolve("duelo.corp.nande")!.firewall).toContain(22);
+    // connect se rechaza por puerto filtrado (no por credenciales).
+    const refused = term.execute("connect duelo.corp.nande visitante Duelo2024");
+    expect(refused).toContain("filtrado");
+    // Trabar reabre el SSH y restaura el acceso.
+    const r = kernel.duel.disrupt(18);
+    expect(r.undone.some((u) => u.includes("SSH"))).toBe(true);
+    expect(kernel.hosts.resolve("duelo.corp.nande")!.firewall).not.toContain(22);
+  });
+
+  it("el contraataque es idempotente: cada etapa se ejecuta una sola vez", () => {
+    kernel.duel.start(0);
+    kernel.duel.advance(11, []);
+    const rotada = kernel.hosts.resolve("duelo.corp.nande")!.creds[0].password;
+    // Volver a avanzar al mismo punto NO vuelve a rotar (misma etapa).
+    kernel.duel.advance(12, []);
+    expect(kernel.hosts.resolve("duelo.corp.nande")!.creds[0].password).toBe(rotada);
+  });
+
+  it("al terminar el duelo el objetivo queda LIMPIO (sin sabotaje colgado)", () => {
+    kernel.duel.start(0);
+    kernel.duel.advance(18, []); // dispara sabotaje (cred + SSH)
+    // El jugador gana capturando la bandera.
+    term.execute("connect duelo.corp.nande visitante Duelo2024"); // falla (filtrado) — recuperamos primero
+    kernel.duel.disrupt(18);
+    term.execute("connect duelo.corp.nande visitante Duelo2024");
+    term.execute("cat /root/flag.txt");
+    term.execute("exit");
+    kernel.duel.advance(19, kernel.player.capturedFlags());
+    const host = kernel.hosts.resolve("duelo.corp.nande")!;
+    expect(host.creds[0].password).toBe("Duelo2024");
+    expect(host.firewall).not.toContain(22);
+  });
 });

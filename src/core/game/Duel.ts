@@ -1,4 +1,5 @@
 import { RIVALS, type Rival } from "./RivalHackers";
+import type { HostRuntime } from "../net/HostRuntime";
 
 /**
  * Duel — PvP EN VIVO contra un bot, dentro del sandbox. No hay red ni oponente
@@ -10,9 +11,10 @@ import { RIVALS, type Rival } from "./RivalHackers";
  * "Real" acá = carrera con estado y ritmo DETERMINISTA (regla 13): el avance del
  * bot es una función pura del reloj del mundo y de su skill (reproducible, no
  * texto al azar). Vos ganás capturando la bandera de verdad con las
- * herramientas (el motor la registra en player.capturedFlags). Podés TRABARLO
- * con una acción real que lo hace retroceder. El resultado sale del estado, no
- * de un guion.
+ * herramientas. Y el rival CONTRAATACA de verdad: a medida que avanza, ejecuta
+ * operaciones REALES sobre el objetivo para trabarte —rota la credencial
+ * conocida y filtra tu SSH— y recién `duel trabar` deshace ese sabotaje y lo
+ * hace retroceder. El resultado sale del estado, no de un guion.
  */
 
 export interface DuelStep {
@@ -34,14 +36,20 @@ export interface DuelSnapshot {
   botProgress: number;
   /** ETA del bot en ticks desde el arranque (a ritmo pleno). */
   botEta: number;
+  /** Sabotajes activos del rival sobre el objetivo (te traban de verdad). */
+  sabotage: string[];
   /** "vos" | alias del rival | null si sigue abierto. */
   winner: string | null;
 }
 
 const DEFAULT_TARGET = "duelo.corp.nande";
 const DEFAULT_FLAG = "ND{duelo_ganado}";
+/** Umbrales de progreso a los que el rival ejecuta cada contraataque. */
+const STAGE_CRED = 45;
+const STAGE_PORT = 75;
 
 export class Duel {
+  private hosts?: HostRuntime;
   private rivalIdx = 0;
   private rival: Rival = RIVALS[0];
   private target = DEFAULT_TARGET;
@@ -53,6 +61,21 @@ export class Duel {
   active = false;
   private log: DuelStep[] = [];
 
+  // --- Contraataque real del rival sobre el objetivo ---
+  /** Etapa de sabotaje ya ejecutada: 0 nada, 1 credencial, 2 credencial+SSH. */
+  private counterStage = 0;
+  /** Credencial original del objetivo, para poder restaurarla al trabar. */
+  private origCred?: { user: string; password: string };
+  /** Puerto SSH del objetivo (para filtrarlo/liberarlo). */
+  private sshPort = 22;
+  /** ¿La credencial está rotada ahora mismo? ¿el SSH filtrado? */
+  private credRotated = false;
+  private portBlocked = false;
+
+  constructor(hosts?: HostRuntime) {
+    this.hosts = hosts;
+  }
+
   /** ETA del bot: más skill, menos ticks. Determinista y reproducible. */
   private etaTicks(skill: number): number {
     // skill 40 → ~34 ticks; skill 92 → ~22 ticks. Deja ventana para jugar.
@@ -61,7 +84,8 @@ export class Duel {
 
   /**
    * Arranca un duelo: rota al siguiente rival del ranking y fija objetivo,
-   * bandera y tick de inicio. Reproducible: mismo rival para el mismo índice.
+   * bandera y tick de inicio. Deja el objetivo LIMPIO (deshace cualquier
+   * sabotaje previo) para empezar parejo. Reproducible.
    */
   start(nowTick: number, opts?: { target?: string; flag?: string }): DuelSnapshot {
     this.rival = RIVALS[this.rivalIdx % RIVALS.length];
@@ -72,12 +96,22 @@ export class Duel {
     this.setback = 0;
     this.winner = null;
     this.active = true;
+    this.counterStage = 0;
+    // Capturar el estado limpio del objetivo y restaurarlo.
+    const host = this.hosts?.resolve(this.target);
+    if (host) {
+      const ssh = host.services.find((s) => s.kind === "ssh");
+      this.sshPort = ssh?.port ?? 22;
+      const cred = host.creds[0];
+      if (cred) this.origCred = { user: cred.user, password: cred.password };
+      this.restoreTarget();
+    }
     this.log = [
       {
         tick: nowTick,
         who: "sistema",
         action: "Duelo iniciado",
-        detail: `Carrera por ${this.flag} en ${this.target}. Rival: ${this.rival.alias} (skill ${this.rival.skill}). ¡El primero que captura, gana!`,
+        detail: `Carrera por ${this.flag} en ${this.target}. Rival: ${this.rival.alias} (skill ${this.rival.skill}). ¡El primero que captura, gana! El rival contraataca: apurate.`,
       },
     ];
     return this.snapshot(nowTick, []);
@@ -93,16 +127,38 @@ export class Duel {
   }
 
   /**
-   * Sincroniza el resultado con el estado REAL: si el jugador ya capturó la
+   * Latido del duelo: ejecuta los CONTRAATAQUES del rival según su progreso
+   * (operaciones reales sobre el objetivo) y resuelve el resultado contra el
+   * estado real. Es lo que el kernel llama en cada tick y el comando `duel` al
+   * consultarse. Idempotente: cada etapa de sabotaje se ejecuta una sola vez.
+   */
+  advance(tick: number, playerFlags: readonly string[]): DuelSnapshot {
+    if (this.active && this.winner === null) {
+      const p = this.botProgressAt(tick);
+      // El rival ejecuta su contraataque real a medida que avanza.
+      if (this.counterStage < 1 && p >= STAGE_CRED) {
+        this.rotateCred(tick);
+        this.counterStage = 1;
+      }
+      if (this.counterStage < 2 && p >= STAGE_PORT) {
+        this.blockSsh(tick);
+        this.counterStage = 2;
+      }
+    }
+    return this.sync(tick, playerFlags);
+  }
+
+  /**
+   * Resuelve el resultado con el estado REAL: si el jugador ya capturó la
    * bandera, gana; si no y el bot llegó a 100, gana el bot. Idempotente: el
-   * primero que llega fija el resultado. Es el corazón del duelo (regla 5/20:
-   * el ganador sale del estado observable, no de un texto).
+   * primero que llega fija el resultado. Al terminar, deja el objetivo limpio.
    */
   sync(tick: number, playerFlags: readonly string[]): DuelSnapshot {
     if (this.active && this.winner === null) {
       if (playerFlags.includes(this.flag)) {
         this.winner = "vos";
         this.active = false;
+        this.restoreTarget(); // el rival se repliega
         this.log.push({ tick, who: "vos", action: "¡Ganaste!", detail: `Capturaste ${this.flag} antes que ${this.rival.alias}.` });
       } else if (this.botProgressAt(tick) >= 100) {
         this.winner = this.rival.alias;
@@ -114,24 +170,83 @@ export class Duel {
   }
 
   /**
-   * Trabás al bot: acción real de defensa/sabotaje que lo hace retroceder
-   * (rotar credencial, cortar su sesión…). Devuelve cuánto retrocedió. Sólo
-   * mientras el duelo esté abierto.
+   * Trabás al rival: acción real de respuesta. DESHACE su sabotaje (restaura la
+   * credencial y libera el SSH que te bloqueó) y lo hace retroceder. Sólo
+   * mientras el duelo esté abierto. Devuelve qué recuperaste.
    */
-  disrupt(tick: number, amount = 30): { ok: boolean; setback: number } {
-    if (!this.active || this.winner !== null) return { ok: false, setback: 0 };
+  disrupt(tick: number, amount = 40): { ok: boolean; setback: number; undone: string[] } {
+    if (!this.active || this.winner !== null) return { ok: false, setback: 0, undone: [] };
+    const undone = this.restoreTarget();
+    // El sabotaje ya ejecutado quedó deshecho; el rival no lo repite (sus
+    // etapas ya se gastaron), pero sigue avanzando: por eso además lo frenás.
     this.setback += amount;
     this.log.push({
       tick,
       who: "vos",
       action: "Trabaste al rival",
-      detail: `Interferencia real: ${this.rival.alias} retrocedió ${amount}%. Aprovechá la ventana.`,
+      detail:
+        `Le cortaste la maniobra a ${this.rival.alias}: retrocedió ${amount}%` +
+        (undone.length ? ` y recuperaste ${undone.join(" + ")}.` : ".") +
+        ` ¡Aprovechá la ventana!`,
     });
-    return { ok: true, setback: amount };
+    return { ok: true, setback: amount, undone };
+  }
+
+  /** El rival rota la credencial conocida del objetivo: te deja afuera. */
+  private rotateCred(tick: number): void {
+    const host = this.hosts?.resolve(this.target);
+    const cred = host?.creds.find((c) => c.user === this.origCred?.user);
+    if (cred) {
+      cred.password = `r0t_${this.rival.alias}_${tick}`;
+      this.credRotated = true;
+    }
+    this.log.push({
+      tick,
+      who: this.rival.alias,
+      action: "Contraataque",
+      detail: `${this.rival.alias} rotó la credencial de ${this.origCred?.user ?? "acceso"} en ${this.target}: tu clave conocida ya no entra. Trabalo (duel trabar) para recuperarla.`,
+    });
+  }
+
+  /** El rival filtra el SSH del objetivo: te corta la ruta de entrada. */
+  private blockSsh(tick: number): void {
+    if (this.hosts) {
+      this.hosts.blockPort(this.target, this.sshPort);
+      this.portBlocked = true;
+    }
+    this.log.push({
+      tick,
+      who: this.rival.alias,
+      action: "Contraataque",
+      detail: `${this.rival.alias} filtró el puerto ${this.sshPort}/tcp de ${this.target}: te cortó el SSH. Trabalo para reabrirlo.`,
+    });
+  }
+
+  /** Deshace el sabotaje activo (credencial + SSH). Devuelve qué recuperó. */
+  private restoreTarget(): string[] {
+    const undone: string[] = [];
+    const host = this.hosts?.resolve(this.target);
+    if (this.credRotated && this.origCred) {
+      const cred = host?.creds.find((c) => c.user === this.origCred!.user);
+      if (cred) cred.password = this.origCred.password;
+      this.credRotated = false;
+      undone.push("la credencial");
+    }
+    if (this.portBlocked && this.hosts) {
+      this.hosts.allowPort(this.target, this.sshPort);
+      // Asegurar que el sshd siga corriendo (por si acaso).
+      this.hosts.startService(this.target, "sshd");
+      this.portBlocked = false;
+      undone.push(`el SSH (${this.sshPort}/tcp)`);
+    }
+    return undone;
   }
 
   snapshot(tick: number, playerFlags: readonly string[]): DuelSnapshot {
     const won = this.winner === null && playerFlags.includes(this.flag);
+    const sabotage: string[] = [];
+    if (this.credRotated) sabotage.push(`credencial de ${this.origCred?.user ?? "acceso"} rotada`);
+    if (this.portBlocked) sabotage.push(`SSH ${this.sshPort}/tcp filtrado`);
     return {
       active: this.active,
       finished: this.winner !== null,
@@ -142,6 +257,7 @@ export class Duel {
       startTick: this.startTick,
       botProgress: this.botProgressAt(tick),
       botEta: this.etaTicks(this.rival.skill),
+      sabotage,
       winner: this.winner ?? (won ? "vos" : null),
     };
   }

@@ -2323,6 +2323,20 @@ export class VirtualTerminal {
       };
     }
 
+    // Coherencia (regla 5): si el host EXPONE SSH, ese servicio tiene que estar
+    // realmente accesible para poder conectarse. Si alguien —vos, el firewall o
+    // un RIVAL— tiró el sshd o filtró su puerto, connect falla de verdad. En
+    // hosts sin SSH declarado no cambia nada (retrocompatible).
+    const ssh = host.services.find((s) => s.kind === "ssh");
+    if (ssh) {
+      if (ssh.state !== "running") {
+        return { output: `connect: ${host.hostname}: conexión rechazada (SSH caído en ${ssh.port}/tcp).\n`, isError: false };
+      }
+      if (host.firewall.includes(ssh.port)) {
+        return { output: `connect: ${host.hostname}: puerto ${ssh.port}/tcp filtrado (firewall). No hay ruta a SSH.\n`, isError: false };
+      }
+    }
+
     // Autenticación si el host tiene credenciales.
     if (host.creds.length > 0) {
       const user = positional[1];
@@ -3610,12 +3624,13 @@ export class VirtualTerminal {
       return {
         output:
           `🩹 Trabaste a ${s.rival}: retrocedió ${r.setback}%. Progreso del rival: ${s.botProgress}%.\n` +
+          (r.undone.length ? `Recuperaste ${r.undone.join(" + ")}.\n` : "") +
           `¡Aprovechá para capturar la bandera ya!\n`,
         isError: false,
       };
     }
 
-    const s = d.sync(tick, flags);
+    const s = d.advance(tick, flags);
     if (!s.active && s.winner === null) {
       return {
         output:
@@ -3633,11 +3648,15 @@ export class VirtualTerminal {
     else if (s.winner) estado = `💀 Te ganó ${s.winner}: capturó ${s.flag} primero. Revancha: duel empezar.`;
     else estado = `Carrera abierta — ¡apurate!`;
     const tl = d.timeline(6).map((x) => `  t=${String(x.tick).padStart(5)} [${x.who}] ${x.action} — ${x.detail}`);
+    const sabotaje = s.sabotage.length
+      ? `⚠ Contraataque activo de ${s.rival}: ${s.sabotage.join(" · ")} → duel trabar para revertirlo.\n`
+      : "";
     return {
       output:
         `⚔  DUELO PvP · vos vs. ${s.rival} (skill ${s.skill}) · ${s.target}\n` +
         `Rival:  [${bar}] ${s.botProgress}%\n` +
         `Vos:    ${yo}\n` +
+        sabotaje +
         `${estado}\n\n` +
         (tl.length ? tl.join("\n") + "\n" : "") +
         (s.winner === null ? `\nGaná: connect ${s.target} visitante Duelo2024 → cat /root/flag.txt · Trabalo: duel trabar\n` : ""),
