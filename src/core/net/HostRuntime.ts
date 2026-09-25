@@ -119,6 +119,27 @@ export interface HostRuntimeOptions {
   logLimit?: number;
 }
 
+/** Un host tal como lo ve el mapa de red (derivado del estado real). */
+export interface SubnetHost {
+  hostname: string;
+  ip: string;
+  /** Cantidad de servicios expuestos. */
+  services: number;
+  /** true si el host sólo se alcanza pivotando (no desde la red del jugador). */
+  internal: boolean;
+}
+
+/** Una subred /24 del mundo virtual, con sus hosts. */
+export interface Subnet {
+  /** Prefijo /24, ej. "10.10.7". */
+  base: string;
+  /** Notación CIDR, ej. "10.10.7.0/24". */
+  cidr: string;
+  /** true si TODOS sus hosts son internos (segmento aislado). */
+  internal: boolean;
+  hosts: SubnetHost[];
+}
+
 export class HostRuntime {
   private hosts = new Map<string, VirtualHost>();
   private byIpIndex = new Map<string, string>();
@@ -231,6 +252,33 @@ export class HostRuntime {
 
   all(): VirtualHost[] {
     return [...this.hosts.values()];
+  }
+
+  /**
+   * Mapa de red DERIVADO del estado real (regla maestra 2/12): agrupa los hosts
+   * por subred /24 y marca cuáles son internas. Una subred es interna si NINGUNO
+   * de sus hosts es alcanzable directo desde la red del jugador (sólo se llega
+   * pivotando). Única fuente de verdad de la topología: nmap, netmap y el grafo
+   * leen de acá, no de listas paralelas. 100% dentro del sandbox (10.10.0.0/16).
+   */
+  subnets(): Subnet[] {
+    const map = new Map<string, SubnetHost[]>();
+    for (const h of this.all()) {
+      const base = h.ip.split(".").slice(0, 3).join(".");
+      const internal = !this.isPublic(h.hostname);
+      const list = map.get(base) ?? [];
+      list.push({ hostname: h.hostname, ip: h.ip, services: h.services.length, internal });
+      map.set(base, list);
+    }
+    const numeric = (a: string, b: string) =>
+      a.localeCompare(b, undefined, { numeric: true });
+    const out: Subnet[] = [];
+    for (const [base, hosts] of map) {
+      hosts.sort((a, b) => numeric(a.ip, b.ip));
+      out.push({ base, cidr: `${base}.0/24`, internal: hosts.every((h) => h.internal), hosts });
+    }
+    out.sort((a, b) => numeric(a.base, b.base));
+    return out;
   }
 
   private findService(

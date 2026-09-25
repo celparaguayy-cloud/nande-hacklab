@@ -97,6 +97,8 @@ const MANPAGES: Record<string, ManPage> = {
     desc: "Los humanos usamos nombres (server.nande); las máquinas usan números (IP). Esto traduce el nombre a su número, como una guía telefónica (DNS).", examples: ["nslookup banco.nande"] },
   nmap: { name: "escanear puertos y servicios", synopsis: "nmap <ip|host>",
     desc: "Golpea todas las 'puertas' (puertos) de una máquina y te dice cuáles están abiertas y qué servicio hay detrás (web, ssh, base de datos...). Es el primer paso de casi todo ataque y defensa.", examples: ["nmap 10.10.5.20", "nmap server.nande"] },
+  netmap: { name: "mapa de la red del sandbox", synopsis: "netmap",
+    desc: "Dibuja el mapa de la red virtual de ÑANDE (10.10.0.0/16): las subredes alcanzables y los hosts de cada una, derivado del estado real (misma fuente que nmap y el grafo). Los segmentos INTERNOS no se ven desde tu red: se descubren pivotando (nmap dentro de un host comprometido). 100% dentro del sandbox.", examples: ["netmap"] },
   connect: { name: "conectarse a otra máquina (pivotar)", synopsis: "connect <host> <usuario> <clave>",
     desc: "Si tenés credenciales, entrás a otra máquina y desde ahí ves su red interna. Así se 'pivota' hacia lo que no se ve desde afuera.", examples: ["connect server.nande soporte Verano2024"] },
   curl: { name: "pedir una página desde la terminal", synopsis: "curl <url>",
@@ -670,6 +672,41 @@ export class VirtualTerminal {
     };
   }
 
+  /**
+   * netmap — el MAPA de la red del sandbox, derivado del estado real de hosts
+   * (HostRuntime.subnets, única fuente de verdad). Muestra sólo lo alcanzable
+   * desde tu red: los segmentos internos no se ven hasta pivotar (coherencia
+   * regla 5/12: refleja la reachability real, no inventa). 100% offline.
+   */
+  private netmapCmd(): { output: string; isError: boolean } {
+    const subnets = this.kernel.hosts.subnets();
+    const publicSubnets = subnets.filter((sn) => sn.hosts.some((h) => !h.internal));
+    let visibleHosts = 0;
+    const lines: string[] = [];
+    lines.push("=== Mapa de red - NANDE (10.10.0.0/16, todo dentro del sandbox) ===");
+    lines.push("Tu red: eth0 10.10.0.10/24  gw 10.10.0.1  dns 10.10.0.53");
+    lines.push("");
+    for (const sn of publicSubnets) {
+      const visibles = sn.hosts.filter((h) => !h.internal);
+      visibleHosts += visibles.length;
+      lines.push(`# ${sn.cidr}  (${visibles.length} host${visibles.length === 1 ? "" : "s"})`);
+      for (const h of visibles) {
+        lines.push(
+          `    ${h.ip.padEnd(15)} ${h.hostname.padEnd(28)} ${h.services} svc`,
+        );
+      }
+      lines.push("");
+    }
+    lines.push(`Total alcanzable: ${visibleHosts} hosts en ${publicSubnets.length} subredes.`);
+    lines.push(
+      "Los segmentos INTERNOS (LAN privadas detras de un host) no se ven desde aca:",
+    );
+    lines.push(
+      "compromete un host y corre 'nmap' adentro para descubrir su red interna (pivoting).",
+    );
+    return { output: lines.join("\n") + "\n", isError: false };
+  }
+
   private executePing(args: string[]): {
     output: string;
     isError: boolean;
@@ -995,6 +1032,10 @@ export class VirtualTerminal {
 
         case "ifconfig":
           return this.executeIfconfig();
+
+        case "netmap":
+        case "netmapa":
+          return this.netmapCmd();
 
         case "ping":
           return this.executePing(commandArgs);
