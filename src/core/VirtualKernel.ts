@@ -15,6 +15,7 @@ import { BankApp } from "./http/apps/bank";
 import { ServerApp } from "./http/apps/server";
 import { ControlPanelApp } from "./http/apps/panel";
 import { HostRuntime, type VirtualService } from "./net/HostRuntime";
+import { NetworkLife } from "./net/NetworkLife";
 import { CodeExecutionSandbox, type SandboxHost } from "./code/Sandbox";
 import { ToolRuntime } from "./code/ToolRuntime";
 import { NpcToolForge } from "./code/NpcToolForge";
@@ -166,6 +167,7 @@ export class VirtualKernel {
   public mitre: MitreCorrelator;
   /** Red team autónomo: un adversario NPC que corre una kill-chain real. */
   public redteam: RedTeamAgent;
+  public netlife: NetworkLife;
   /** Generador de retos procedurales: banderas reales detrás de apps reales. */
   public ctfForge: CtfForge;
   /** Rastreo OPSEC: el mundo te rastrea si atacás sin anonimato (heat/bust). */
@@ -361,6 +363,10 @@ export class VirtualKernel {
     this.mitre = new MitreCorrelator(this.events, () => this.world.getState().clock.tick);
     this.directory = new Directory((s) => this.events.emit("attack.technique", s));
     this.redteam = new RedTeamAgent(this.hosts);
+    // La red interna VIVA: habitantes autónomos (staff + rivales) con sesión,
+    // derivados del mismo reloj del mundo. Da la sensación de multijugador
+    // dentro del sandbox (who/w te muestran quién más está en el host).
+    this.netlife = new NetworkLife(() => this.world.getState().clock.tick);
     this.ctfForge = new CtfForge(this.web, this.dns, this.hosts);
     this.opsec = new OpsecTracer(
       this.events,

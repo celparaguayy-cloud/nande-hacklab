@@ -100,6 +100,8 @@ const MANPAGES: Record<string, ManPage> = {
     desc: "Golpea todas las 'puertas' (puertos) de una máquina y te dice cuáles están abiertas y qué servicio hay detrás (web, ssh, base de datos...). Es el primer paso de casi todo ataque y defensa.", examples: ["nmap 10.10.5.20", "nmap server.nande"] },
   netmap: { name: "mapa de la red del sandbox (según dónde estés)", synopsis: "netmap",
     desc: "Dibuja el mapa de la red virtual de ÑANDE (10.10.0.0/16) DESDE donde estás parado, derivado del estado real (misma fuente que nmap y connect). En tu equipo: las subredes alcanzables y sus hosts; los segmentos INTERNOS no aparecen. Dentro de una sesión remota (tras connect): la ruta de pivoting que recorriste y los segmentos internos que se ven desde ese host, con los servicios que responden ahora. Un host apagado figura como tal; un servicio detenido no se cuenta. 100% dentro del sandbox.", examples: ["netmap", "connect server.nande soporte Verano2024", "netmap   (ahora desde server.nande)"] },
+  who: { name: "quién más está logueado (en sesión remota)", synopsis: "who   |   w",
+    desc: "Dentro de una máquina comprometida, muestra qué OTROS usuarios están conectados ahora mismo (staff que trabaja + otros operadores/rivales) y qué están haciendo, además de tu propia sesión. La red está poblada: no sos el único adentro. El estado es real y determinista (sale del reloj del mundo), no texto inventado.", examples: ["who", "w"] },
   connect: { name: "conectarse a otra máquina (pivotar)", synopsis: "connect <host> <usuario> <clave>",
     desc: "Si tenés credenciales, entrás a otra máquina y desde ahí ves su red interna. Así se 'pivota' hacia lo que no se ve desde afuera.", examples: ["connect server.nande soporte Verano2024"] },
   curl: { name: "pedir una página desde la terminal", synopsis: "curl <url>",
@@ -764,6 +766,43 @@ export class VirtualTerminal {
         : "Siguiente paso: buscá credenciales o notas en este host (ls, cat) o volvé con exit.",
     );
     return { output: lines.join("\n") + "\n", isError: false };
+  }
+
+  /**
+   * who / w — quién MÁS está logueado en este host ahora. Deriva de
+   * NetworkLife (habitantes autónomos: staff y rivales) usando el reloj del
+   * mundo, más tu propia sesión. Es la sensación de multijugador dentro del
+   * sandbox: la red está poblada, no estás solo. Estado real y determinista,
+   * no texto al azar (regla 13/19). Si hay un RIVAL logueado, se avisa: es
+   * otro operador metido en la misma máquina.
+   */
+  private whoCmd(hostname: string): { output: string; isError: boolean } {
+    const tick = this.kernel.world.getState().clock.tick;
+    const sessions = this.kernel.netlife.sessionsOn(hostname, tick);
+    const fmtIdle = (m: number) => (m <= 0 ? "0.00s" : `${m}:00`);
+    const days = Math.floor(tick / 1440);
+    const rows: string[] = [];
+    rows.push(
+      `USUARIO   DE               INACTIVO  QUÉ`,
+    );
+    for (const s of sessions) {
+      const flag = s.kind === "rival" ? " «rival»" : "";
+      rows.push(
+        `${s.user.padEnd(9)} ${s.fromIp.padEnd(16)} ${fmtIdle(s.idleMin).padEnd(9)} ${s.activity}${flag}`,
+      );
+    }
+    // Tu propia sesión (venís de tu equipo / del host anterior).
+    const yourIp = this.remoteStack.length
+      ? (this.kernel.hosts.resolve(this.remoteStack[this.remoteStack.length - 1].host)?.ip ?? "10.10.0.10")
+      : "10.10.0.10";
+    rows.push(`${this.remoteUser.padEnd(9)} ${yourIp.padEnd(16)} ${"0.00s".padEnd(9)} w  «vos»`);
+
+    const rival = sessions.find((s) => s.kind === "rival");
+    const header = ` ${String(8 + (tick % 12)).padStart(2, "0")}:${String(tick % 60).padStart(2, "0")}  up ${days} días,  ${sessions.length + 1} usuario(s)`;
+    const warn = rival
+      ? `\n⚠ Hay OTRO operador (${rival.user}) en esta máquina — no sos el único adentro.\n`
+      : "";
+    return { output: header + "\n" + rows.join("\n") + "\n" + warn, isError: false };
   }
 
   private executePing(args: string[]): {
@@ -2301,7 +2340,7 @@ export class VirtualTerminal {
       output:
         `✔ conectado a ${host.hostname} (${host.ip}) como ${this.remoteUser}.\n` +
         (host.files["/etc/motd"] ? `${host.files["/etc/motd"]}\n` : "") +
-        `Comandos: ls · cat <archivo> · ps · services · service-stop <s> · kill <pid> · nmap · netmap · flag · exit\n`,
+        `Comandos: ls · cat <archivo> · ps · who/w · services · service-stop <s> · kill <pid> · nmap · netmap · flag · exit\n`,
       isError: false,
     };
   }
@@ -2342,6 +2381,10 @@ export class VirtualTerminal {
 
       case "whoami":
         return { output: `${this.remoteUser}\n`, isError: false };
+
+      case "who":
+      case "w":
+        return this.whoCmd(hostname);
 
       case "hostname":
         return { output: `${hostname}\n`, isError: false };
@@ -2457,7 +2500,7 @@ export class VirtualTerminal {
             `  ls, cat <archivo>, pwd, whoami, id, hostname\n` +
             `  sudo -l (permisos), sudo <cmd> (escalar), ps, kill <pid>\n` +
             `  services, service-stop/start <s>\n` +
-            `  nmap (red interna), netmap (mapa desde acá), connect <host> <u> <c> (pivotar), flag, exit\n`,
+            `  nmap (red interna), netmap (mapa desde acá), who/w (quién más hay), connect <host> <u> <c> (pivotar), flag, exit\n`,
           isError: false,
         };
 
