@@ -165,6 +165,53 @@ export const RETOS: Challenge[] = [
     reward: { xp: 300, coins: 240 },
   },
   {
+    id: "r-ot-hmi",
+    title: "Del dato a la planta (IT → OT)",
+    scenario:
+      "db-core es el historian: está doble-homed y puentea la red corporativa con la red industrial (OT). Su uplink filtra el acceso a la consola de operador (HMI) de la planta. Pivotá desde la base central hasta la HMI: es el salto de IT a OT, donde el daño se vuelve físico.",
+    objective: "Pivotá IT→OT y tomá la consola HMI (leé su /root/flag.txt).",
+    flag: "ND{ot_hmi_tomado}",
+    difficulty: "difícil",
+    hints: [
+      "Llegá primero a db-core (server → nas → db-core) y leé cat /etc/historian/ot-uplink.conf.",
+      "El uplink revela la HMI (10.10.77.10) y sus credenciales de operador.",
+      "connect hmi.planta.nande operador Planta#2024   y luego   cat /root/flag.txt",
+    ],
+    steps: [
+      "connect server.nande soporte Verano2024",
+      "connect nas.interna.nande respaldo NasÑande#2024",
+      "connect db-core.interna.nande dbadmin Core-DB!2024",
+      "connect hmi.planta.nande operador Planta#2024",
+      "cat /root/flag.txt",
+    ],
+    courseId: "c-op-killchain",
+    reward: { xp: 320, coins: 250 },
+  },
+  {
+    id: "r-ot-plc",
+    title: "Dueño del proceso físico",
+    scenario:
+      "La HMI habla con el PLC: el controlador que gobierna bombas y válvulas. Con la config de la HMI conseguís el acceso de ingeniería al PLC. Llegar ahí es controlar la planta — el peor caso de un incidente OT. (Hay más de un camino al PLC: también se lo alcanza desde el historian.)",
+    objective: "Alcanzá el PLC de la planta y leé su /root/flag.txt.",
+    flag: "ND{ot_plc_control}",
+    difficulty: "difícil",
+    hints: [
+      "Desde la HMI, corré 'netmap': aparece el PLC (10.10.77.20).",
+      "La config de la HMI filtra el acceso de ingeniería: cat /etc/scada/plc-links.conf (ingenieria / PlcÑande!2024).",
+      "connect plc.planta.nande ingenieria PlcÑande!2024   y luego   cat /root/flag.txt",
+    ],
+    steps: [
+      "connect server.nande soporte Verano2024",
+      "connect nas.interna.nande respaldo NasÑande#2024",
+      "connect db-core.interna.nande dbadmin Core-DB!2024",
+      "connect hmi.planta.nande operador Planta#2024",
+      "connect plc.planta.nande ingenieria PlcÑande!2024",
+      "cat /root/flag.txt",
+    ],
+    courseId: "c-op-killchain",
+    reward: { xp: 360, coins: 280 },
+  },
+  {
     id: "r-web01-user",
     title: "Pie adentro (foothold)",
     scenario:
@@ -527,7 +574,7 @@ export const TRACKS: LearningTrack[] = [
     hue: 0,
     requires: "t-acceso",
     courseIds: ["c-exploit-msf", "c-ad-directorio", "c-op-killchain"],
-    finalChallenges: ["r-ad-dominio", "r-web01-user", "r-privesc-sudo", "r-pivot", "r-lan-nas", "r-lan-restringido"],
+    finalChallenges: ["r-ad-dominio", "r-web01-user", "r-privesc-sudo", "r-pivot", "r-lan-nas", "r-lan-restringido", "r-ot-hmi", "r-ot-plc"],
   },
 ];
 

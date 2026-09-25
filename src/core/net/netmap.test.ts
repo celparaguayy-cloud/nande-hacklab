@@ -181,4 +181,84 @@ describe("Mapa de red (subnets + netmap)", () => {
     expect(flags).toContain("ND{nas_backup_expuesto}");
     expect(flags).toContain("ND{segmento_restringido_ok}");
   });
+
+  it("segmento OT/Planta: cuarto nivel de una red segmentada real (Purdue)", () => {
+    const h = kernel.hosts;
+    const by = new Map(h.subnets().map((sn) => [sn.base, sn]));
+    // La red industrial existe y es interna (no se ve desde el jugador).
+    expect(by.get("10.10.77")?.internal).toBe(true);
+    expect(by.get("10.10.77")?.hosts.map((x) => x.hostname).sort()).toEqual(
+      ["hmi.planta.nande", "plc.planta.nande"],
+    );
+    // Cadena de segmentación completa: cada capa sólo se alcanza desde la previa.
+    expect(h.canReach(null, "hmi.planta.nande")).toBe(false);
+    expect(h.canReach("db-core.interna.nande", "hmi.planta.nande")).toBe(true);
+    // Rutas ALTERNATIVAS al PLC (regla 11): HMI y también el historian.
+    expect(h.canReach("hmi.planta.nande", "plc.planta.nande")).toBe(true);
+    expect(h.canReach("db-core.interna.nande", "plc.planta.nande")).toBe(true);
+    // Pero NO desde la LAN corporativa ni desde el jugador (aislamiento OT).
+    expect(h.canReach("caja.interna.nande", "plc.planta.nande")).toBe(false);
+    expect(h.canReach(null, "plc.planta.nande")).toBe(false);
+  });
+
+  it("los hosts OT no se filtran al mapa del jugador (sin fakery)", () => {
+    const out = term.execute("netmap");
+    expect(out).not.toContain("planta.nande");
+    expect(out).not.toContain("10.10.77");
+  });
+
+  it("netmap context-aware: el historian revela la red OT; la HMI, el PLC", () => {
+    for (const step of [
+      "connect server.nande soporte Verano2024",
+      "connect nas.interna.nande respaldo NasÑande#2024",
+      "connect db-core.interna.nande dbadmin Core-DB!2024",
+    ]) {
+      term.execute(step);
+    }
+    // Desde el historian (doble-homed) se ve toda la red de planta.
+    const desdeDb = term.execute("netmap");
+    expect(desdeDb).toContain("10.10.77.0/24  [interno]  (2 hosts)");
+    expect(desdeDb).toContain("hmi.planta.nande");
+    expect(desdeDb).toContain("plc.planta.nande");
+    // Desde la HMI queda a la vista el PLC.
+    term.execute("connect hmi.planta.nande operador Planta#2024");
+    const desdeHmi = term.execute("netmap");
+    expect(desdeHmi).toContain("Mapa de red desde hmi.planta.nande");
+    expect(desdeHmi).toContain("plc.planta.nande");
+    expect(desdeHmi).toContain(
+      "-> db-core.interna.nande (10.10.99.10) [dbadmin] -> hmi.planta.nande (10.10.77.10) [operador]",
+    );
+  });
+
+  it("dos rutas distintas al PLC capturan la misma bandera (red real, regla 11)", () => {
+    const solveViaHmi = () => {
+      const t = new VirtualTerminal(kernel);
+      for (const step of [
+        "connect server.nande soporte Verano2024",
+        "connect nas.interna.nande respaldo NasÑande#2024",
+        "connect db-core.interna.nande dbadmin Core-DB!2024",
+        "connect hmi.planta.nande operador Planta#2024",
+        "connect plc.planta.nande ingenieria PlcÑande!2024",
+        "cat /root/flag.txt",
+      ]) t.execute(step);
+    };
+    const solveDirecto = () => {
+      const t = new VirtualTerminal(kernel);
+      for (const step of [
+        "connect server.nande soporte Verano2024",
+        "connect nas.interna.nande respaldo NasÑande#2024",
+        "connect db-core.interna.nande dbadmin Core-DB!2024",
+        "connect plc.planta.nande ingenieria PlcÑande!2024", // ruta directa historian→PLC
+        "cat /root/flag.txt",
+      ]) t.execute(step);
+    };
+    solveViaHmi();
+    expect(kernel.player.capturedFlags()).toContain("ND{ot_plc_control}");
+    // La segunda ruta también resuelve (no depende de haber pasado por la HMI).
+    resetStorage();
+    seedRandom();
+    kernel = new VirtualKernel();
+    solveDirecto();
+    expect(kernel.player.capturedFlags()).toContain("ND{ot_plc_control}");
+  });
 });

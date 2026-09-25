@@ -867,10 +867,91 @@ export class VirtualKernel {
         "/root/flag.txt": "Bandera: ND{segmento_restringido_ok}",
         "/var/lib/pg/maestra.sql":
           "-- Base de datos MAESTRA de la organización (ficticia). Joya de la corona.",
+        // db-core es el HISTORIAN: está doble-homed (IT + OT) para levantar
+        // datos de la planta. Ese puente IT→OT es el punto débil clásico. El
+        // uplink filtra el acceso a la HMI (movimiento lateral real, regla 4).
+        "/etc/historian/ot-uplink.conf":
+          "# ot-uplink.conf — enlace del historian con la red industrial (OT)\n" +
+          "[ot]\n" +
+          "  segmento = 10.10.77.0/24   # red de PLANTA (industrial / SCADA)\n" +
+          "  hmi  = hmi.planta.nande    # 10.10.77.10 (consola de operador)\n" +
+          "  user = operador\n" +
+          "  pass = Planta#2024\n" +
+          "# Auditoría: IT y OT NO deberían compartir host. Esto es un puente.",
       },
       creds: [{ user: "dbadmin", password: "Core-DB!2024" }],
       reachableFrom: ["nas.interna.nande"],
       flag: "ND{segmento_restringido_ok}",
+    });
+
+    // Cuarto nivel de la red: SEGMENTO OT / PLANTA INDUSTRIAL (10.10.77.0/24).
+    // Completa una red empresarial real y segmentada al estilo Purdue:
+    // Internet → DMZ (server) → Corporativa (66) → BD restringida (99) → OT (77).
+    // Escenario avanzado y realista (req 7/12): pivotar de IT a OT es donde el
+    // daño físico ocurre — por eso la segmentación IT/OT importa de verdad.
+    // 100% dentro del sandbox, sólo alcanzable pivotando (netmap context-aware).
+    //
+    //   HMI (consola de operador): se alcanza desde el historian (db-core, que
+    //   está doble-homed). Su config SCADA filtra el acceso de ingeniería al PLC.
+    this.dns.register("hmi.planta.nande", "10.10.77.10");
+    this.hosts.register({
+      hostname: "hmi.planta.nande",
+      ip: "10.10.77.10",
+      os: "ÑandeSCADA HMI 1.2 (Windows Embedded)",
+      up: true,
+      services: [
+        { name: "sshd", port: 22, protocol: "tcp", version: "OpenÑSSH 9.6", kind: "ssh", state: "running", enabled: true },
+        { name: "nginx", port: 80, protocol: "tcp", version: "nginx/1.24 (panel HMI)", kind: "http", state: "running", enabled: true },
+      ],
+      firewall: [],
+      processes: [],
+      files: {
+        "/root/flag.txt": "Bandera: ND{ot_hmi_tomado}",
+        // Estado del proceso físico que la HMI muestra (evidencia real de qué
+        // significa comprometer una consola de operador — no se finge control).
+        "/var/scada/proceso.status":
+          "PLANTA — estado en vivo (lectura de la HMI)\n" +
+          "  Tanque-1 nivel: 62%   Bomba-A: ON    Válvula-3: 40%\n" +
+          "  Setpoint presión: 4.2 bar   Presión: 4.19 bar   Modo: AUTO",
+        // La HMI habla con el PLC: su config filtra el acceso de ingeniería.
+        "/etc/scada/plc-links.conf":
+          "# plc-links.conf — dispositivos de campo conectados a esta HMI\n" +
+          "[plc-1]\n" +
+          "  host = plc.planta.nande   # 10.10.77.20 (controlador lógico)\n" +
+          "  proto = modbus/tcp:502\n" +
+          "  eng_user = ingenieria\n" +
+          "  eng_pass = PlcÑande!2024",
+      },
+      creds: [{ user: "operador", password: "Planta#2024" }],
+      reachableFrom: ["db-core.interna.nande"],
+      flag: "ND{ot_hmi_tomado}",
+    });
+
+    //   PLC (controlador lógico): el que gobierna el proceso físico. Tiene DOS
+    //   entradas (regla 11: rutas alternativas) — se alcanza desde la HMI (lo
+    //   normal) y también desde el historian (que también monitorea el PLC).
+    //   Dos jugadores pueden llegar por caminos distintos: es una red de verdad.
+    this.dns.register("plc.planta.nande", "10.10.77.20");
+    this.hosts.register({
+      hostname: "plc.planta.nande",
+      ip: "10.10.77.20",
+      os: "ÑandePLC firmware 3.11 (RTOS industrial)",
+      up: true,
+      services: [
+        { name: "sshd", port: 22, protocol: "tcp", version: "Dropbear 2022 (mantenimiento)", kind: "ssh", state: "running", enabled: true },
+        { name: "modbus", port: 502, protocol: "tcp", version: "Modbus/TCP (ÑANDE-PLC)", kind: "other", state: "running", enabled: true },
+      ],
+      firewall: [],
+      processes: [],
+      files: {
+        "/root/flag.txt": "Bandera: ND{ot_plc_control}",
+        "/cfg/ladder.txt":
+          "-- Programa LADDER del PLC (ficticio): controla bombas y válvulas de la planta.\n" +
+          "-- Quien llega hasta acá controla el proceso físico: por esto la OT se aísla.",
+      },
+      creds: [{ user: "ingenieria", password: "PlcÑande!2024" }],
+      reachableFrom: ["hmi.planta.nande", "db-core.interna.nande"],
+      flag: "ND{ot_plc_control}",
     });
 
     // Máquina de ESCALADA DE PRIVILEGIOS (estilo HTB): entrás como un usuario

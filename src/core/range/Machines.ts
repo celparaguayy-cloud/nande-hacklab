@@ -115,6 +115,25 @@ export const MACHINES: PracticeMachine[] = [
     courseId: "c-op-killchain",
   },
   {
+    id: "m-ot-planta",
+    name: "Planta Industrial (OT)",
+    host: "plc.planta.nande",
+    ip: "10.10.77.20",
+    os: "Red OT/SCADA (10.10.77.0/24)",
+    difficulty: "experto",
+    tags: ["ot", "scada", "ics", "pivoting", "it-ot"],
+    points: 500,
+    brief:
+      "El nivel más profundo de la red: la planta industrial (OT). La base central (db-core) es el historian y está doble-homed — puentea IT con OT. Saltá de la red corporativa a la red industrial, tomá la consola de operador (HMI) y llegá al PLC que gobierna el proceso físico. Es el peor caso de un incidente real: por eso IT y OT se aíslan. Corré 'netmap' en cada host — el mapa de la planta sólo aparece desde adentro.",
+    tasks: [
+      { label: "Salto IT→OT: tomá la consola HMI", flag: "ND{ot_hmi_tomado}" },
+      { label: "Controlá el PLC del proceso físico", flag: "ND{ot_plc_control}" },
+    ],
+    entry: "connect server.nande soporte Verano2024",
+    hint: "Llegá a db-core (server → nas → db-core); cat /etc/historian/ot-uplink.conf revela la HMI (operador/Planta#2024); connect hmi.planta.nande; cat /etc/scada/plc-links.conf revela el PLC (ingenieria/PlcÑande!2024); connect plc.planta.nande; cat /root/flag.txt. Alt: db-core llega directo al PLC.",
+    courseId: "c-op-killchain",
+  },
+  {
     id: "m-fotos",
     name: "Arandú Fotos",
     host: "fotos.arandu.nande",
