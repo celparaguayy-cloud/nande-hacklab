@@ -4,6 +4,7 @@ import { crack, WORDLIST } from "../crypto/cracker";
 import { decodeJwt, signJwt, verifyJwt, crackJwtSecret } from "../crypto/jwt";
 import { randomMac } from "../security/Anonymity";
 import { MsfConsole, type MsfResult } from "../security/Metasploit";
+import type { SubnetHost } from "../net/HostRuntime";
 
 /** MACs de fábrica de las interfaces (para saber si el jugador las cambió). */
 const DEFAULT_MACS: Record<string, string> = {
@@ -97,8 +98,8 @@ const MANPAGES: Record<string, ManPage> = {
     desc: "Los humanos usamos nombres (server.nande); las máquinas usan números (IP). Esto traduce el nombre a su número, como una guía telefónica (DNS).", examples: ["nslookup banco.nande"] },
   nmap: { name: "escanear puertos y servicios", synopsis: "nmap <ip|host>",
     desc: "Golpea todas las 'puertas' (puertos) de una máquina y te dice cuáles están abiertas y qué servicio hay detrás (web, ssh, base de datos...). Es el primer paso de casi todo ataque y defensa.", examples: ["nmap 10.10.5.20", "nmap server.nande"] },
-  netmap: { name: "mapa de la red del sandbox", synopsis: "netmap",
-    desc: "Dibuja el mapa de la red virtual de ÑANDE (10.10.0.0/16): las subredes alcanzables y los hosts de cada una, derivado del estado real (misma fuente que nmap y el grafo). Los segmentos INTERNOS no se ven desde tu red: se descubren pivotando (nmap dentro de un host comprometido). 100% dentro del sandbox.", examples: ["netmap"] },
+  netmap: { name: "mapa de la red del sandbox (según dónde estés)", synopsis: "netmap",
+    desc: "Dibuja el mapa de la red virtual de ÑANDE (10.10.0.0/16) DESDE donde estás parado, derivado del estado real (misma fuente que nmap y connect). En tu equipo: las subredes alcanzables y sus hosts; los segmentos INTERNOS no aparecen. Dentro de una sesión remota (tras connect): la ruta de pivoting que recorriste y los segmentos internos que se ven desde ese host, con los servicios que responden ahora. Un host apagado figura como tal; un servicio detenido no se cuenta. 100% dentro del sandbox.", examples: ["netmap", "connect server.nande soporte Verano2024", "netmap   (ahora desde server.nande)"] },
   connect: { name: "conectarse a otra máquina (pivotar)", synopsis: "connect <host> <usuario> <clave>",
     desc: "Si tenés credenciales, entrás a otra máquina y desde ahí ves su red interna. Así se 'pivota' hacia lo que no se ve desde afuera.", examples: ["connect server.nande soporte Verano2024"] },
   curl: { name: "pedir una página desde la terminal", synopsis: "curl <url>",
@@ -679,6 +680,7 @@ export class VirtualTerminal {
    * regla 5/12: refleja la reachability real, no inventa). 100% offline.
    */
   private netmapCmd(): { output: string; isError: boolean } {
+    if (this.remoteHost) return this.remoteNetmapCmd(this.remoteHost);
     const subnets = this.kernel.hosts.subnets();
     const publicSubnets = subnets.filter((sn) => sn.hosts.some((h) => !h.internal));
     let visibleHosts = 0;
@@ -690,11 +692,7 @@ export class VirtualTerminal {
       const visibles = sn.hosts.filter((h) => !h.internal);
       visibleHosts += visibles.length;
       lines.push(`# ${sn.cidr}  (${visibles.length} host${visibles.length === 1 ? "" : "s"})`);
-      for (const h of visibles) {
-        lines.push(
-          `    ${h.ip.padEnd(15)} ${h.hostname.padEnd(28)} ${h.services} svc`,
-        );
-      }
+      for (const h of visibles) lines.push(this.netmapRow(h));
       lines.push("");
     }
     lines.push(`Total alcanzable: ${visibleHosts} hosts en ${publicSubnets.length} subredes.`);
@@ -703,6 +701,67 @@ export class VirtualTerminal {
     );
     lines.push(
       "compromete un host y corre 'nmap' adentro para descubrir su red interna (pivoting).",
+    );
+    return { output: lines.join("\n") + "\n", isError: false };
+  }
+
+  /** Una fila del mapa: lo que el host muestra AHORA (estado real). */
+  private netmapRow(h: SubnetHost): string {
+    const estado = h.up ? `${h.open} svc` : "apagado (no responde)";
+    return `    ${h.ip.padEnd(15)} ${h.hostname.padEnd(28)} ${estado}`;
+  }
+
+  /**
+   * netmap DENTRO de una sesión remota — el mapa visto desde el host
+   * pivoteado. Muestra la ruta real de saltos (remoteStack) y los segmentos
+   * internos que se alcanzan desde ese host (hosts.internalSubnetsFrom, la
+   * misma relación reachableFrom que valida connect). No revela nada que no
+   * se pueda alcanzar desde acá: coherencia regla 5/12.
+   */
+  private remoteNetmapCmd(hostname: string): { output: string; isError: boolean } {
+    const hosts = this.kernel.hosts;
+    const here = hosts.resolve(hostname);
+    if (!here) return { output: "netmap: sesión perdida.\n", isError: true };
+
+    const hop = (name: string, user: string) => {
+      const h = hosts.resolve(name);
+      return `${name}${h ? ` (${h.ip})` : ""} [${user}]`;
+    };
+    const ruta = [
+      "tu equipo (10.10.0.10)",
+      ...this.remoteStack.map((s) => hop(s.host, s.user)),
+      hop(here.hostname, this.remoteUser),
+    ];
+
+    const internas = hosts.internalSubnetsFrom(here.hostname);
+    const publicas = hosts.subnets().filter((sn) => sn.hosts.some((h) => !h.internal));
+    const nPublicos = publicas.reduce((n, sn) => n + sn.hosts.filter((h) => !h.internal).length, 0);
+
+    const lines: string[] = [];
+    lines.push(`=== Mapa de red desde ${here.hostname} (${here.ip}) — sesión de ${this.remoteUser} ===`);
+    lines.push(`Ruta de pivoting: ${ruta.join(" -> ")}`);
+    lines.push("");
+    if (internas.length === 0) {
+      lines.push(`Desde ${here.hostname} no se ve ninguna red interna nueva.`);
+    } else {
+      let n = 0;
+      lines.push(`Segmentos INTERNOS alcanzables desde ${here.hostname} (invisibles desde tu equipo):`);
+      lines.push("");
+      for (const sn of internas) {
+        n += sn.hosts.length;
+        lines.push(`# ${sn.cidr}  [interno]  (${sn.hosts.length} host${sn.hosts.length === 1 ? "" : "s"})`);
+        for (const h of sn.hosts) lines.push(this.netmapRow(h));
+        lines.push("");
+      }
+      lines.push(`Total interno desde acá: ${n} host${n === 1 ? "" : "s"} en ${internas.length} segmento${internas.length === 1 ? "" : "s"}.`);
+    }
+    lines.push(
+      `También se alcanzan los ${nPublicos} hosts públicos (${publicas.length} subredes) que ve tu equipo.`,
+    );
+    lines.push(
+      internas.length
+        ? "Siguiente paso: nmap (servicios de la red interna) · connect <host|ip> <usuario> <clave>"
+        : "Siguiente paso: buscá credenciales o notas en este host (ls, cat) o volvé con exit.",
     );
     return { output: lines.join("\n") + "\n", isError: false };
   }
@@ -2204,12 +2263,7 @@ export class VirtualTerminal {
     }
 
     const origin = this.remoteHost; // desde dónde nos conectamos (null = jugador)
-    const alcanzable =
-      this.kernel.hosts.isPublic(host.hostname) ||
-      (origin !== null &&
-        (host.reachableFrom ?? []).includes(origin.toLowerCase()));
-
-    if (!alcanzable) {
+    if (!this.kernel.hosts.canReach(origin, host.hostname)) {
       return {
         output:
           `connect: ${host.hostname} no es alcanzable desde acá.\n` +
@@ -2247,7 +2301,7 @@ export class VirtualTerminal {
       output:
         `✔ conectado a ${host.hostname} (${host.ip}) como ${this.remoteUser}.\n` +
         (host.files["/etc/motd"] ? `${host.files["/etc/motd"]}\n` : "") +
-        `Comandos: ls · cat <archivo> · ps · services · service-stop <s> · kill <pid> · nmap · flag · exit\n`,
+        `Comandos: ls · cat <archivo> · ps · services · service-stop <s> · kill <pid> · nmap · netmap · flag · exit\n`,
       isError: false,
     };
   }
@@ -2374,11 +2428,17 @@ export class VirtualTerminal {
       case "service-restart":
         return this.serviceCtlCmd(command, [args[0] ?? "", hostname]);
 
+      case "netmap":
+      case "netmapa":
+        return this.remoteNetmapCmd(hostname);
+
       case "nmap": {
-        // Pivoting: revela la red interna alcanzable desde este host.
-        const internos = this.kernel.hosts.reachableFrom(hostname);
+        // Pivoting: revela la red interna alcanzable desde este host. Un host
+        // apagado no responde al escaneo, y sólo cuentan los servicios que
+        // están abiertos AHORA (misma verdad que openServices / netmap).
+        const internos = this.kernel.hosts.reachableFrom(hostname).filter((h) => h.up);
         const lines = internos.map(
-          (h) => `  ${h.ip.padEnd(14)} ${h.hostname}  (${h.services.length} servicios)`,
+          (h) => `  ${h.ip.padEnd(14)} ${h.hostname}  (${this.kernel.hosts.openServices(h.hostname).length} servicios)`,
         );
         return {
           output:
@@ -2397,7 +2457,7 @@ export class VirtualTerminal {
             `  ls, cat <archivo>, pwd, whoami, id, hostname\n` +
             `  sudo -l (permisos), sudo <cmd> (escalar), ps, kill <pid>\n` +
             `  services, service-stop/start <s>\n` +
-            `  nmap (red interna), connect <host> <u> <c> (pivotar), flag, exit\n`,
+            `  nmap (red interna), netmap (mapa desde acá), connect <host> <u> <c> (pivotar), flag, exit\n`,
           isError: false,
         };
 

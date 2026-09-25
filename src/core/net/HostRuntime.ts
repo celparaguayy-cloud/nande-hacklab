@@ -123,8 +123,13 @@ export interface HostRuntimeOptions {
 export interface SubnetHost {
   hostname: string;
   ip: string;
-  /** Cantidad de servicios expuestos. */
+  /** Cantidad de servicios declarados en el host (corran o no). */
   services: number;
+  /** Servicios que un escáner ve AHORA (corriendo y sin filtrar): los mismos
+   *  que devuelve openServices(), así netmap y nmap nunca se contradicen. */
+  open: number;
+  /** Estado real del host: apagado = no responde. */
+  up: boolean;
   /** true si el host sólo se alcanza pivotando (no desde la red del jugador). */
   internal: boolean;
 }
@@ -262,20 +267,41 @@ export class HostRuntime {
    * leen de acá, no de listas paralelas. 100% dentro del sandbox (10.10.0.0/16).
    */
   subnets(): Subnet[] {
+    return this.groupBySubnet(this.all());
+  }
+
+  /**
+   * La red INTERNA que se ve desde un host (vista de pivoting): los hosts que
+   * sólo se alcanzan desde `fromHost`, agrupados por /24. Deriva de
+   * reachableFrom — la misma relación que usan connect y nmap —, así que el
+   * mapa desde adentro nunca muestra algo que no se pueda alcanzar de verdad.
+   */
+  internalSubnetsFrom(fromHost: string): Subnet[] {
+    return this.groupBySubnet(this.reachableFrom(fromHost));
+  }
+
+  private groupBySubnet(hosts: VirtualHost[]): Subnet[] {
     const map = new Map<string, SubnetHost[]>();
-    for (const h of this.all()) {
+    for (const h of hosts) {
       const base = h.ip.split(".").slice(0, 3).join(".");
       const internal = !this.isPublic(h.hostname);
       const list = map.get(base) ?? [];
-      list.push({ hostname: h.hostname, ip: h.ip, services: h.services.length, internal });
+      list.push({
+        hostname: h.hostname,
+        ip: h.ip,
+        services: h.services.length,
+        open: this.openServices(h.hostname).length,
+        up: h.up,
+        internal,
+      });
       map.set(base, list);
     }
     const numeric = (a: string, b: string) =>
       a.localeCompare(b, undefined, { numeric: true });
     const out: Subnet[] = [];
-    for (const [base, hosts] of map) {
-      hosts.sort((a, b) => numeric(a.ip, b.ip));
-      out.push({ base, cidr: `${base}.0/24`, internal: hosts.every((h) => h.internal), hosts });
+    for (const [base, list] of map) {
+      list.sort((a, b) => numeric(a.ip, b.ip));
+      out.push({ base, cidr: `${base}.0/24`, internal: list.every((h) => h.internal), hosts: list });
     }
     out.sort((a, b) => numeric(a.base, b.base));
     return out;
@@ -474,11 +500,28 @@ export class HostRuntime {
 
   /**
    * Hosts alcanzables DESDE un host dado (pivoting): los internos cuya lista
-   * reachableFrom incluye a `fromHost`. Es lo que un `nmap` ve tras pivotar.
+   * reachableFrom incluye a `fromHost` (hostname o IP). Es lo que un `nmap`
+   * ve tras pivotar.
    */
   reachableFrom(fromHost: string): VirtualHost[] {
-    const key = fromHost.toLowerCase();
+    const key = (this.resolve(fromHost)?.hostname ?? fromHost).toLowerCase();
     return this.all().filter((h) => (h.reachableFrom ?? []).includes(key));
+  }
+
+  /**
+   * Regla ÚNICA de alcance (la usan connect y netmap; no duplicarla): ¿se
+   * llega a `target` desde `from`? `from = null` es la red del jugador. Un
+   * host público se alcanza desde cualquier lado; uno interno, sólo desde un
+   * host que figura en su reachableFrom (pivoting). No mira si está
+   * encendido: "alcanzable" (ruta) y "responde" (up) son preguntas distintas.
+   */
+  canReach(from: string | null, target: string): boolean {
+    const host = this.resolve(target);
+    if (!host) return false;
+    if (this.isPublic(host.hostname)) return true;
+    if (from === null) return false;
+    const key = (this.resolve(from)?.hostname ?? from).toLowerCase();
+    return (host.reachableFrom ?? []).includes(key);
   }
 
   /** Registra que una conexión fue rechazada (la llama el navegador/curl). */
