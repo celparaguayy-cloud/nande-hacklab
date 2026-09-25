@@ -6,6 +6,7 @@ import {
   type WebApp,
 } from "../types";
 import { field, notice, page } from "./layout";
+import { THREAT_ACTORS } from "../../threat/ThreatActors";
 
 /**
  * ÑANDE TIP — plataforma de Threat Intelligence (§35).
@@ -24,14 +25,6 @@ interface Indicator {
   fuente: string;
 }
 
-interface Actor {
-  id: string;
-  nombre: string;
-  alias: string;
-  motivacion: string;
-  infra: string[];
-}
-
 const INDICADORES: Indicator[] = [
   { valor: "update.badcorp.invalid", tipo: "dominio", confianza: "alta", fuente: "Sandbox interno (cuckoo)" },
   { valor: "NANDE_LOCK", tipo: "mutex", confianza: "alta", fuente: "Sandbox interno (cuckoo)" },
@@ -39,22 +32,10 @@ const INDICADORES: Indicator[] = [
   { valor: "203.0.113.66", tipo: "ip", confianza: "baja", fuente: "Rumor en foro (sin confirmar)" },
 ];
 
-const ACTORES: Actor[] = [
-  {
-    id: "gris-fantasma",
-    nombre: "GRIS FANTASMA",
-    alias: "GhostGrey",
-    motivacion: "Ransomware con fines económicos.",
-    infra: ["update.badcorp.invalid", "NANDE_LOCK", "pago.badcorp.invalid"],
-  },
-  {
-    id: "lobo-azul",
-    nombre: "LOBO AZUL",
-    alias: "BlueWolf",
-    motivacion: "Phishing y robo de credenciales.",
-    infra: ["login-seguro.invalid", "correo-alertas.invalid"],
-  },
-];
+// Los actores salen del registro ÚNICO (regla 2): estos son EXACTAMENTE los que
+// atacan tu data center (ThreatEngine) y corren kill-chains (RedTeamAgent), así
+// que la atribución del curso se apoya en ataques reales del mundo (regla 16).
+const ACTORES = THREAT_ACTORS;
 
 export class ThreatIntel implements WebApp {
   readonly hostname = "ti.nande";

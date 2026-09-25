@@ -1,4 +1,5 @@
 import type { HostRuntime } from "../net/HostRuntime";
+import { actorAliases } from "../threat/ThreatActors";
 
 /**
  * RedTeamAgent — un adversario AUTÓNOMO que actúa sobre el mundo de verdad. No
@@ -23,7 +24,9 @@ export interface RedStep {
 }
 
 export const REDTEAM_TARGET = "objetivo.corp.nande";
-const RIVALS = ["GhostGrey", "K1llJoy", "Vórtex Negro", "elMago", "Zeta0"];
+// Los atacantes salen del registro ÚNICO de actores de amenaza (regla 2/8):
+// el mismo que te ataca es el que documenta/atribuís en la plataforma de TI.
+const RIVALS = actorAliases();
 const KNOWN_USER = "svc-backup";
 const KNOWN_PASS = "Backup#2024";
 

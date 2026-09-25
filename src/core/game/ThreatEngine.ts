@@ -1,4 +1,5 @@
 import type { HostRuntime } from "../net/HostRuntime";
+import { actorAliases } from "../threat/ThreatActors";
 
 /**
  * ThreatEngine — el mundo ataca de vuelta. Cada tanto, un hacker rival golpea
@@ -20,7 +21,9 @@ export interface Incident {
   resolved: boolean;
 }
 
-const RIVALS = ["GhostGrey", "K1llJoy", "Vórtex Negro", "elMago", "Zeta0"];
+// Los atacantes del data center salen del registro ÚNICO de actores de amenaza
+// (regla 2/8): el que te golpea es el que documentás/atribuís en TI.
+const RIVALS = actorAliases();
 const DEFENSE_HOST = "midc.nande";
 
 interface ThreatState {
