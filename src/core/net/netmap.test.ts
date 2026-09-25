@@ -113,4 +113,72 @@ describe("Mapa de red (subnets + netmap)", () => {
     expect(man).toContain("sesión remota");
     expect(man).toContain("ruta de pivoting");
   });
+
+  it("LAN interna crecida: segmentación y pivote multi-salto (una fuente de verdad)", () => {
+    const h = kernel.hosts;
+    // Los segmentos internos existen y están marcados como tales.
+    const by = new Map(h.subnets().map((sn) => [sn.base, sn]));
+    expect(by.get("10.10.66")?.internal).toBe(true);
+    expect(by.get("10.10.99")?.internal).toBe(true);
+    // La LAN corporativa (66) tiene ahora varios hosts, no uno solo.
+    expect(by.get("10.10.66")?.hosts.map((x) => x.hostname).sort()).toEqual(
+      ["caja.interna.nande", "nas.interna.nande"],
+    );
+    expect(by.get("10.10.99")?.hosts.map((x) => x.hostname)).toEqual(["db-core.interna.nande"]);
+
+    // Regla de alcance = topología real (defensa en profundidad):
+    // el jugador no llega a ningún host interno.
+    for (const t of ["nas.interna.nande", "db-core.interna.nande"]) {
+      expect(h.canReach(null, t)).toBe(false);
+    }
+    // El jump host ve toda la LAN corporativa; la caja ve a su par el NAS.
+    expect(h.canReach("server.nande", "nas.interna.nande")).toBe(true);
+    expect(h.canReach("caja.interna.nande", "nas.interna.nande")).toBe(true);
+    // Pero el segmento restringido SÓLO se alcanza desde el NAS (un salto más).
+    expect(h.canReach("server.nande", "db-core.interna.nande")).toBe(false);
+    expect(h.canReach("caja.interna.nande", "db-core.interna.nande")).toBe(false);
+    expect(h.canReach("nas.interna.nande", "db-core.interna.nande")).toBe(true);
+  });
+
+  it("los hosts internos nuevos NO se filtran al mapa del jugador (sin fakery)", () => {
+    const out = term.execute("netmap");
+    expect(out).not.toContain("nas.interna.nande");
+    expect(out).not.toContain("db-core.interna.nande");
+    expect(out).not.toContain("10.10.66");
+    expect(out).not.toContain("10.10.99");
+  });
+
+  it("netmap context-aware: cada salto revela un mapa distinto de la LAN", () => {
+    // Salto 1: desde el jump host se ve toda la LAN corporativa 10.10.66.0/24.
+    term.execute("connect server.nande soporte Verano2024");
+    const desdeServer = term.execute("netmap");
+    expect(desdeServer).toContain("10.10.66.0/24  [interno]  (2 hosts)");
+    expect(desdeServer).toContain("nas.interna.nande");
+    expect(desdeServer).not.toContain("db-core.interna.nande"); // el 99 no se ve todavía
+
+    // Salto 2: desde el NAS aparece el segmento restringido 10.10.99.0/24.
+    term.execute("connect nas.interna.nande respaldo NasÑande#2024");
+    const desdeNas = term.execute("netmap");
+    expect(desdeNas).toContain("Mapa de red desde nas.interna.nande");
+    expect(desdeNas).toContain("10.10.99.0/24  [interno]");
+    expect(desdeNas).toContain("db-core.interna.nande");
+    expect(desdeNas).toContain(
+      "tu equipo (10.10.0.10) -> server.nande (10.10.0.42) [soporte] -> nas.interna.nande (10.10.66.20) [respaldo]",
+    );
+  });
+
+  it("pivote multi-salto completo captura las dos banderas de la LAN (motor real)", () => {
+    for (const step of [
+      "connect server.nande soporte Verano2024",
+      "connect nas.interna.nande respaldo NasÑande#2024",
+      "cat /etc/backup/targets.conf",
+      "connect db-core.interna.nande dbadmin Core-DB!2024",
+      "cat /root/flag.txt",
+    ]) {
+      term.execute(step);
+    }
+    const flags = kernel.player.capturedFlags();
+    expect(flags).toContain("ND{nas_backup_expuesto}");
+    expect(flags).toContain("ND{segmento_restringido_ok}");
+  });
 });

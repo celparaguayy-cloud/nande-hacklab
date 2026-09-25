@@ -122,6 +122,49 @@ export const RETOS: Challenge[] = [
     reward: { xp: 300, coins: 230 },
   },
   {
+    id: "r-lan-nas",
+    title: "Los backups son oro",
+    scenario:
+      "Ya dentro de la LAN interna (server.nande → caja.interna), la nota del admin apunta a otro host del segmento: el NAS de respaldos (nas.interna.nande). Es un par de la misma red 10.10.66.0/24: se alcanza pivotando por el jump host. Entrá y buscá su configuración de backup — suele filtrar credenciales.",
+    objective: "Pivotá al NAS interno y leé la config de respaldos world-readable.",
+    flag: "ND{nas_backup_expuesto}",
+    difficulty: "difícil",
+    hints: [
+      "Primero foothold en la LAN: connect server.nande soporte Verano2024.",
+      "El NAS (10.10.66.20) es par de la caja en el segmento: se llega desde el jump host. connect nas.interna.nande respaldo NasÑande#2024.",
+      "La credencial del NAS está en la nota de la caja: connect caja.interna.nande admin GiraSol#2024 y cat /home/admin/red-interna.txt. Ya en el NAS: cat /etc/backup/targets.conf",
+    ],
+    steps: [
+      "connect server.nande soporte Verano2024",
+      "connect nas.interna.nande respaldo NasÑande#2024",
+      "cat /etc/backup/targets.conf",
+    ],
+    courseId: "c-op-killchain",
+    reward: { xp: 240, coins: 190 },
+  },
+  {
+    id: "r-lan-restringido",
+    title: "Dos saltos hasta la joya",
+    scenario:
+      "El config del NAS filtra el destino de los respaldos: db-core.interna.nande, la base central, en un segmento RESTRINGIDO (10.10.99.0/24) que NO se ve desde la LAN corporativa. Sólo el NAS está puenteado a esa red. Pivotá el segundo salto —desde el NAS— y llevate la bandera de la joya de la corona.",
+    objective: "Pivote multi-salto hasta el segmento restringido y leé /root/flag.txt de db-core.",
+    flag: "ND{segmento_restringido_ok}",
+    difficulty: "difícil",
+    hints: [
+      "Estando en el NAS, corré 'netmap': aparece el segmento 10.10.99.0/24 que no veías antes.",
+      "Las credenciales de db-core están en el config del NAS: cat /etc/backup/targets.conf (dbadmin / Core-DB!2024).",
+      "connect db-core.interna.nande dbadmin Core-DB!2024   y luego   cat /root/flag.txt",
+    ],
+    steps: [
+      "connect server.nande soporte Verano2024",
+      "connect nas.interna.nande respaldo NasÑande#2024",
+      "connect db-core.interna.nande dbadmin Core-DB!2024",
+      "cat /root/flag.txt",
+    ],
+    courseId: "c-op-killchain",
+    reward: { xp: 300, coins: 240 },
+  },
+  {
     id: "r-web01-user",
     title: "Pie adentro (foothold)",
     scenario:
@@ -484,7 +527,7 @@ export const TRACKS: LearningTrack[] = [
     hue: 0,
     requires: "t-acceso",
     courseIds: ["c-exploit-msf", "c-ad-directorio", "c-op-killchain"],
-    finalChallenges: ["r-ad-dominio", "r-web01-user", "r-privesc-sudo", "r-pivot"],
+    finalChallenges: ["r-ad-dominio", "r-web01-user", "r-privesc-sudo", "r-pivot", "r-lan-nas", "r-lan-restringido"],
   },
 ];
 

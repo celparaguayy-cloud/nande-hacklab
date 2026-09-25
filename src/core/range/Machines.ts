@@ -96,6 +96,25 @@ export const MACHINES: PracticeMachine[] = [
     courseId: "c-op-killchain",
   },
   {
+    id: "m-lan-interna",
+    name: "Red Interna Corporativa",
+    host: "db-core.interna.nande",
+    ip: "10.10.99.10",
+    os: "LAN segmentada (10.10.66.0/24 → 10.10.99.0/24)",
+    difficulty: "experto",
+    tags: ["pivoting", "multi-salto", "lateral", "segmentación"],
+    points: 400,
+    brief:
+      "Detrás de server.nande no hay una sola caja: hay una LAN corporativa entera y, más adentro, un segmento restringido con la base central. Tomá el jump host, movete lateral por la red 10.10.66.0/24 hasta el NAS de respaldos, y usá lo que filtra para dar el segundo salto al segmento 10.10.99.0/24. Usá 'netmap' dentro de cada host: el mapa cambia según dónde estés parado.",
+    tasks: [
+      { label: "Saqueá el NAS de respaldos (config expuesta)", flag: "ND{nas_backup_expuesto}" },
+      { label: "Pivote multi-salto al segmento restringido", flag: "ND{segmento_restringido_ok}" },
+    ],
+    entry: "connect server.nande soporte Verano2024",
+    hint: "connect server.nande soporte Verano2024; netmap (ves 10.10.66.0/24); connect caja.interna.nande admin GiraSol#2024 y cat /home/admin/red-interna.txt (revela el NAS); exit; connect nas.interna.nande respaldo NasÑande#2024; netmap (ahora ves 10.10.99.0/24); cat /etc/backup/targets.conf; connect db-core.interna.nande dbadmin Core-DB!2024; cat /root/flag.txt.",
+    courseId: "c-op-killchain",
+  },
+  {
     id: "m-fotos",
     name: "Arandú Fotos",
     host: "fotos.arandu.nande",

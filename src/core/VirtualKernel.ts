@@ -787,10 +787,90 @@ export class VirtualKernel {
       files: {
         "/root/flag.txt": "Bandera: ND{pivoting_red_interna}",
         "/var/lib/pg/clientes.sql": "-- 12.400 registros de clientes (ficticios).",
+        // Inventario de la LAN interna: el que toma esta caja descubre que la
+        // red 10.10.66.0/24 tiene más de un host, y una nota apunta al NAS de
+        // respaldos (movimiento lateral real, no adivinanza — regla 4/10).
+        "/home/admin/red-interna.txt":
+          "Mapa de la LAN corporativa (10.10.66.0/24 — sólo desde el jump host):\n" +
+          "  - caja.interna.nande  (10.10.66.10)  esta máquina (Postgres)\n" +
+          "  - nas.interna.nande   (10.10.66.20)  respaldos NAS. Acceso: respaldo / NasÑande#2024\n" +
+          "OJO: detrás del NAS hay un segmento RESTRINGIDO (10.10.99.0/24) con la base\n" +
+          "de datos central. No se llega desde acá: hay que pivotar por el NAS.\n" +
+          "Corré 'netmap' cuando estés en el NAS para verlo.",
       },
       creds: [{ user: "admin", password: "GiraSol#2024" }],
       reachableFrom: ["server.nande"],
       flag: "ND{pivoting_red_interna}",
+    });
+
+    // Crecimiento "poco a poco" de la LAN interna (regla 1/9/10/11): el
+    // segmento 10.10.66.0/24 deja de ser un solo host y se vuelve una red
+    // corporativa con propósito — enseña movimiento lateral MULTI-SALTO y
+    // segmentación en profundidad. Dos hosts nuevos, ambos 100% dentro del
+    // sandbox, alcanzables sólo pivotando (los ve el netmap context-aware).
+    //
+    //   1) nas.interna.nande — servidor de respaldos en la MISMA LAN que la
+    //      caja (se alcanza desde el jump host y desde la caja: son pares del
+    //      segmento). Un config de backup world-readable filtra las
+    //      credenciales de la base central: el clásico "los backups son oro".
+    this.dns.register("nas.interna.nande", "10.10.66.20");
+    this.hosts.register({
+      hostname: "nas.interna.nande",
+      ip: "10.10.66.20",
+      os: "ÑandeNAS 2.4 (respaldos)",
+      up: true,
+      services: [
+        { name: "sshd", port: 22, protocol: "tcp", version: "OpenÑSSH 9.6", kind: "ssh", state: "running", enabled: true },
+        { name: "rsync", port: 873, protocol: "tcp", version: "rsyncd 3.2 (ÑANDE)", kind: "other", state: "running", enabled: true },
+      ],
+      firewall: [],
+      processes: [],
+      files: {
+        "/etc/motd": "nas.interna.nande — respaldos corporativos. Uso interno.",
+        // Config de respaldos legible por cualquiera: filtra el destino y sus
+        // credenciales. Encontrarlo es la bandera del NAS (evidencia real).
+        "/etc/backup/targets.conf":
+          "# targets.conf — orígenes y destinos de respaldo (NO versionar)\n" +
+          "[origen] path=/srv/datos\n" +
+          "[destino:db-core]\n" +
+          "  host = db-core.interna.nande   # 10.10.99.10 (segmento restringido)\n" +
+          "  user = dbadmin\n" +
+          "  pass = Core-DB!2024\n" +
+          "# Nota de auditoría: este archivo NO debería ser world-readable.\n" +
+          "# ND{nas_backup_expuesto}",
+        "/srv/datos/README":
+          "Snapshots nocturnos de la base central. Restaurar con: rsync desde db-core.",
+      },
+      creds: [{ user: "respaldo", password: "NasÑande#2024" }],
+      reachableFrom: ["server.nande", "caja.interna.nande"],
+      flag: "ND{nas_backup_expuesto}",
+    });
+
+    //   2) db-core.interna.nande — la base de datos central, en un segmento
+    //      RESTRINGIDO (10.10.99.0/24) que SÓLO se alcanza desde el NAS (el
+    //      único host puenteado a esa red). Enseña defensa en profundidad:
+    //      dos saltos de distancia. La bandera vive en /root (mismo patrón que
+    //      la caja: sin sudoers, admin la lee).
+    this.dns.register("db-core.interna.nande", "10.10.99.10");
+    this.hosts.register({
+      hostname: "db-core.interna.nande",
+      ip: "10.10.99.10",
+      os: "ÑandeServer 3.0 (segmento restringido)",
+      up: true,
+      services: [
+        { name: "sshd", port: 22, protocol: "tcp", version: "OpenÑSSH 9.6", kind: "ssh", state: "running", enabled: true },
+        { name: "postgres", port: 5432, protocol: "tcp", version: "ÑandePG 14", kind: "db", state: "running", enabled: true },
+      ],
+      firewall: [],
+      processes: [],
+      files: {
+        "/root/flag.txt": "Bandera: ND{segmento_restringido_ok}",
+        "/var/lib/pg/maestra.sql":
+          "-- Base de datos MAESTRA de la organización (ficticia). Joya de la corona.",
+      },
+      creds: [{ user: "dbadmin", password: "Core-DB!2024" }],
+      reachableFrom: ["nas.interna.nande"],
+      flag: "ND{segmento_restringido_ok}",
     });
 
     // Máquina de ESCALADA DE PRIVILEGIOS (estilo HTB): entrás como un usuario

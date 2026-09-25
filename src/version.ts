@@ -3,5 +3,5 @@
  * qué build estás corriendo (y confirmar que tomaste la última actualización).
  * Subí el número cuando haya un cambio que el jugador deba poder distinguir.
  */
-export const NANDE_VERSION = "5.43.0";
-export const NANDE_BUILD = "netmap-sesion-remota";
+export const NANDE_VERSION = "5.44.0";
+export const NANDE_BUILD = "lan-interna-multisalto";
