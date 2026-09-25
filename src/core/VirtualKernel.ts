@@ -16,6 +16,7 @@ import { ServerApp } from "./http/apps/server";
 import { ControlPanelApp } from "./http/apps/panel";
 import { HostRuntime, type VirtualService } from "./net/HostRuntime";
 import { NetworkLife } from "./net/NetworkLife";
+import { Duel } from "./game/Duel";
 import { CodeExecutionSandbox, type SandboxHost } from "./code/Sandbox";
 import { ToolRuntime } from "./code/ToolRuntime";
 import { NpcToolForge } from "./code/NpcToolForge";
@@ -168,6 +169,7 @@ export class VirtualKernel {
   /** Red team autónomo: un adversario NPC que corre una kill-chain real. */
   public redteam: RedTeamAgent;
   public netlife: NetworkLife;
+  public duel: Duel;
   /** Generador de retos procedurales: banderas reales detrás de apps reales. */
   public ctfForge: CtfForge;
   /** Rastreo OPSEC: el mundo te rastrea si atacás sin anonimato (heat/bust). */
@@ -367,6 +369,8 @@ export class VirtualKernel {
     // derivados del mismo reloj del mundo. Da la sensación de multijugador
     // dentro del sandbox (who/w te muestran quién más está en el host).
     this.netlife = new NetworkLife(() => this.world.getState().clock.tick);
+    // PvP en vivo: duelo contra un bot del ranking por el mismo objetivo.
+    this.duel = new Duel();
     this.ctfForge = new CtfForge(this.web, this.dns, this.hosts);
     this.opsec = new OpsecTracer(
       this.events,
@@ -960,6 +964,30 @@ export class VirtualKernel {
       flag: "ND{ot_plc_control}",
     });
 
+    // Objetivo de DUELO (PvP en vivo): un box simple y simétrico para correr
+    // una carrera contra un bot. Entrada rápida y conocida (credencial de
+    // "visitante" débil): el desafío es la VELOCIDAD y trabar al rival, no el
+    // puzzle. Público (lo alcanzás desde tu equipo). Bandera: ND{duelo_ganado}.
+    this.dns.register("duelo.corp.nande", "10.10.9.90");
+    this.hosts.register({
+      hostname: "duelo.corp.nande",
+      ip: "10.10.9.90",
+      os: "ÑandeLinux (arena de duelo)",
+      up: true,
+      services: [
+        { name: "sshd", port: 22, protocol: "tcp", version: "OpenÑSSH 9.6", kind: "ssh", state: "running", enabled: true },
+        { name: "nginx", port: 80, protocol: "tcp", version: "nginx/1.24 (ÑANDE)", kind: "http", state: "running", enabled: true },
+      ],
+      firewall: [],
+      processes: [],
+      files: {
+        "/etc/motd": "duelo.corp.nande — arena de duelo. ¡Ganá antes que el rival!",
+        "/root/flag.txt": "Bandera: ND{duelo_ganado}",
+      },
+      creds: [{ user: "visitante", password: "Duelo2024" }],
+      flag: "ND{duelo_ganado}",
+    });
+
     // Máquina de ESCALADA DE PRIVILEGIOS (estilo HTB): entrás como un usuario
     // sin privilegios y tenés que llegar a root. El foothold (devops) puede
     // correr /usr/bin/find como root sin contraseña (sudo NOPASSWD) — y find
@@ -1214,6 +1242,13 @@ export class VirtualKernel {
         );
         this.events.emit("world.news.created", { signal: `redteam:${this.redteam.rival()}` });
       }
+    }
+
+    // Duelo PvP en vivo: mientras haya uno abierto, el bot avanza con el reloj
+    // y el resultado se resuelve contra el estado real (banderas del jugador).
+    // Así el duelo termina aunque no estés mirando la pantalla del duelo.
+    if (this.duel.active) {
+      this.duel.sync(worldState.clock.tick, this.player.capturedFlags());
     }
 
     // El mundo sigue vivo: cada tanto, un habitante en línea programa y

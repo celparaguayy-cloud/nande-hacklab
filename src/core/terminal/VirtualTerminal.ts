@@ -100,6 +100,8 @@ const MANPAGES: Record<string, ManPage> = {
     desc: "Golpea todas las 'puertas' (puertos) de una máquina y te dice cuáles están abiertas y qué servicio hay detrás (web, ssh, base de datos...). Es el primer paso de casi todo ataque y defensa.", examples: ["nmap 10.10.5.20", "nmap server.nande"] },
   netmap: { name: "mapa de la red del sandbox (según dónde estés)", synopsis: "netmap",
     desc: "Dibuja el mapa de la red virtual de ÑANDE (10.10.0.0/16) DESDE donde estás parado, derivado del estado real (misma fuente que nmap y connect). En tu equipo: las subredes alcanzables y sus hosts; los segmentos INTERNOS no aparecen. Dentro de una sesión remota (tras connect): la ruta de pivoting que recorriste y los segmentos internos que se ven desde ese host, con los servicios que responden ahora. Un host apagado figura como tal; un servicio detenido no se cuenta. 100% dentro del sandbox.", examples: ["netmap", "connect server.nande soporte Verano2024", "netmap   (ahora desde server.nande)"] },
+  duel: { name: "duelo PvP en vivo contra un bot", synopsis: "duel [empezar|trabar]",
+    desc: "Competís contra un rival con nombre (el mismo del ranking) por capturar la MISMA bandera en el mismo objetivo. El bot avanza con el reloj del mundo (ritmo determinista según su skill); vos ganás capturando la bandera de verdad (connect + cat) antes que él. 'duel empezar' arranca la carrera, 'duel trabar' hace retroceder al rival. Sin red real: es multijugador contra bots, dentro del sandbox.", examples: ["duel empezar", "duel", "duel trabar"] },
   who: { name: "quién más está logueado (en sesión remota)", synopsis: "who   |   w",
     desc: "Dentro de una máquina comprometida, muestra qué OTROS usuarios están conectados ahora mismo (staff que trabaja + otros operadores/rivales) y qué están haciendo, además de tu propia sesión. La red está poblada: no sos el único adentro. El estado es real y determinista (sale del reloj del mundo), no texto inventado.", examples: ["who", "w"] },
   connect: { name: "conectarse a otra máquina (pivotar)", synopsis: "connect <host> <usuario> <clave>",
@@ -1306,6 +1308,10 @@ export class VirtualTerminal {
         case "redteam":
         case "adversario":
           return this.redteamCmd(commandArgs);
+
+        case "duel":
+        case "duelo":
+          return this.duelCmd(commandArgs);
 
         case "retos":
         case "ctf-gen":
@@ -3559,6 +3565,76 @@ export class VirtualTerminal {
         (lines.length ? lines.join("\n") + "\n" : "  (el adversario todavía no actuó)\n") +
         `\nTip: sus operaciones son reales; miralas en 'mitre' y en el SOC.\n` +
         (rt.compromised() ? `Expulsalo con: redteam expulsar\n` : ""),
+      isError: false,
+    };
+  }
+
+  /**
+   * duel / duelo — PvP EN VIVO contra un bot del ranking. Carrera por la misma
+   * bandera en el mismo objetivo: gana el primero. El bot avanza con el reloj
+   * del mundo (determinista); vos ganás capturando la bandera de verdad
+   * (connect + cat). Podés trabarlo con una acción que lo hace retroceder.
+   *   duel             → estado de la carrera (barra del bot + tu situación).
+   *   duel empezar     → arranca un duelo nuevo contra el próximo rival.
+   *   duel trabar      → interferencia: el rival retrocede.
+   */
+  private duelCmd(args: string[]): { output: string; isError: boolean } {
+    const d = this.kernel.duel;
+    const tick = this.kernel.world.getState().clock.tick;
+    const flags = this.kernel.player.capturedFlags();
+    const sub = (args[0] ?? "").toLowerCase();
+
+    if (sub === "empezar" || sub === "start" || sub === "nuevo") {
+      const s = d.start(tick);
+      return {
+        output:
+          `⚔  DUELO PvP — vos vs. ${s.rival} (skill ${s.skill})\n` +
+          `Objetivo: capturá ${s.flag} en ${s.target} ANTES que el rival.\n` +
+          `Entrada conocida (es una carrera de velocidad):\n` +
+          `  connect ${s.target} visitante Duelo2024   →   cat /root/flag.txt\n` +
+          `El rival ya arrancó (ETA ~${s.botEta} ticks). Trabalo con: duel trabar\n`,
+        isError: false,
+      };
+    }
+
+    if (sub === "trabar" || sub === "sabotear" || sub === "disrupt") {
+      const r = d.disrupt(tick);
+      if (!r.ok) return { output: "No hay un duelo abierto para trabar (empezá con: duel empezar).\n", isError: false };
+      const s = d.sync(tick, flags);
+      return {
+        output:
+          `🩹 Trabaste a ${s.rival}: retrocedió ${r.setback}%. Progreso del rival: ${s.botProgress}%.\n` +
+          `¡Aprovechá para capturar la bandera ya!\n`,
+        isError: false,
+      };
+    }
+
+    const s = d.sync(tick, flags);
+    if (!s.active && s.winner === null) {
+      return {
+        output:
+          `No hay un duelo en curso.\n` +
+          `Empezá uno con: duel empezar  (competís contra un bot del ranking por una bandera).\n`,
+        isError: false,
+      };
+    }
+    // Barra de progreso del bot.
+    const filled = Math.round(s.botProgress / 5);
+    const bar = "█".repeat(filled) + "░".repeat(20 - filled);
+    const yo = flags.includes(s.flag) ? "✔ capturaste la bandera" : "… todavía no capturaste la bandera";
+    let estado: string;
+    if (s.winner === "vos") estado = `🏆 ¡GANASTE! Capturaste ${s.flag} antes que ${s.rival}.`;
+    else if (s.winner) estado = `💀 Te ganó ${s.winner}: capturó ${s.flag} primero. Revancha: duel empezar.`;
+    else estado = `Carrera abierta — ¡apurate!`;
+    const tl = d.timeline(6).map((x) => `  t=${String(x.tick).padStart(5)} [${x.who}] ${x.action} — ${x.detail}`);
+    return {
+      output:
+        `⚔  DUELO PvP · vos vs. ${s.rival} (skill ${s.skill}) · ${s.target}\n` +
+        `Rival:  [${bar}] ${s.botProgress}%\n` +
+        `Vos:    ${yo}\n` +
+        `${estado}\n\n` +
+        (tl.length ? tl.join("\n") + "\n" : "") +
+        (s.winner === null ? `\nGaná: connect ${s.target} visitante Duelo2024 → cat /root/flag.txt · Trabalo: duel trabar\n` : ""),
       isError: false,
     };
   }
