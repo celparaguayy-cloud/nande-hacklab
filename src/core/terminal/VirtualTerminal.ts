@@ -100,6 +100,8 @@ const MANPAGES: Record<string, ManPage> = {
     desc: "Golpea todas las 'puertas' (puertos) de una máquina y te dice cuáles están abiertas y qué servicio hay detrás (web, ssh, base de datos...). Es el primer paso de casi todo ataque y defensa.", examples: ["nmap 10.10.5.20", "nmap server.nande"] },
   netmap: { name: "mapa de la red del sandbox (según dónde estés)", synopsis: "netmap",
     desc: "Dibuja el mapa de la red virtual de ÑANDE (10.10.0.0/16) DESDE donde estás parado, derivado del estado real (misma fuente que nmap y connect). En tu equipo: las subredes alcanzables y sus hosts; los segmentos INTERNOS no aparecen. Dentro de una sesión remota (tras connect): la ruta de pivoting que recorriste y los segmentos internos que se ven desde ese host, con los servicios que responden ahora. Un host apagado figura como tal; un servicio detenido no se cuenta. 100% dentro del sandbox.", examples: ["netmap", "connect server.nande soporte Verano2024", "netmap   (ahora desde server.nande)"] },
+  coop: { name: "co-op hot-seat: dos personas, mismo dispositivo", synopsis: "coop empezar <rojo> <azul>",
+    desc: "Dos personas juegan en la misma pantalla, por turnos, sobre el mismo mundo (sin red). Rojo ataca (tira servicios de midc.nande) y Azul defiende (los restaura): acciones reales del motor, gana quien más puntos hace. 'coop empezar <rojo> <azul>' arranca; 'coop rojo <servicio>' y 'coop azul <servicio>' son las jugadas en cada turno.", examples: ["coop empezar Ana Beto", "coop rojo nginx", "coop azul nginx"] },
   duel: { name: "duelo PvP en vivo contra un bot", synopsis: "duel [empezar|trabar]",
     desc: "Competís contra un rival con nombre (el mismo del ranking) por capturar la MISMA bandera en el mismo objetivo. El bot avanza con el reloj del mundo (ritmo determinista según su skill); vos ganás capturando la bandera de verdad (connect + cat) antes que él. 'duel empezar' arranca la carrera, 'duel trabar' hace retroceder al rival. Sin red real: es multijugador contra bots, dentro del sandbox.", examples: ["duel empezar", "duel", "duel trabar"] },
   who: { name: "quién más está logueado (en sesión remota)", synopsis: "who   |   w",
@@ -1312,6 +1314,10 @@ export class VirtualTerminal {
         case "duel":
         case "duelo":
           return this.duelCmd(commandArgs);
+
+        case "coop":
+        case "co-op":
+          return this.coopCmd(commandArgs);
 
         case "retos":
         case "ctf-gen":
@@ -3635,6 +3641,75 @@ export class VirtualTerminal {
         `${estado}\n\n` +
         (tl.length ? tl.join("\n") + "\n" : "") +
         (s.winner === null ? `\nGaná: connect ${s.target} visitante Duelo2024 → cat /root/flag.txt · Trabalo: duel trabar\n` : ""),
+      isError: false,
+    };
+  }
+
+  /**
+   * coop / co-op — co-op EN EL MISMO DISPOSITIVO (hot-seat): dos personas, un
+   * mundo, por turnos. Rojo ataca (tira servicios de midc.nande), Azul defiende
+   * (los restaura). Acciones REALES del runtime; gana quien más puntos hace.
+   *   coop empezar <rojo> <azul> → arranca una ronda (empieza Rojo).
+   *   coop rojo <servicio>       → Rojo tira ese servicio (en su turno).
+   *   coop azul <servicio>       → Azul restaura ese servicio (en su turno).
+   *   coop                       → tablero y de quién es el turno.
+   */
+  private coopCmd(args: string[]): { output: string; isError: boolean } {
+    const c = this.kernel.coop;
+    const sub = (args[0] ?? "").toLowerCase();
+
+    if (sub === "empezar" || sub === "start" || sub === "nuevo") {
+      const s = c.start(args[1] ?? "Rojo", args[2] ?? "Azul");
+      const svcs = c.services().map((x) => x.name).join(", ");
+      return {
+        output:
+          `🤝 CO-OP hot-seat (mismo dispositivo) — ${s.rojo.name} (rojo/ataque) vs ${s.azul.name} (azul/defensa)\n` +
+          `Objetivo: ${s.target}. Servicios en juego: ${svcs}.\n` +
+          `Por turnos: Rojo tira un servicio, Azul lo restaura. ${s.turnsLeft} jugadas.\n` +
+          `Empieza ${s.rojo.name}:  coop rojo <servicio>\n`,
+        isError: false,
+      };
+    }
+
+    if (sub === "rojo" || sub === "azul") {
+      const service = args[1] ?? "";
+      if (!service) return { output: `uso: coop ${sub} <servicio>\n`, isError: true };
+      const r = c.move(sub, service);
+      const s = c.snapshot();
+      const cierre = s.winner
+        ? (s.winner === "empate"
+            ? `\n🤝 EMPATE ${s.rojo.score}–${s.azul.score}. Revancha: coop empezar <rojo> <azul>\n`
+            : `\n🏆 Ganó ${s.winner} (${s.rojo.name} ${s.rojo.score} – ${s.azul.name} ${s.azul.score}). Revancha: coop empezar\n`)
+        : `\nTurno de ${s.turn === "rojo" ? s.rojo.name : s.azul.name} (${s.turn}). Quedan ${s.turnsLeft} jugadas.\n`;
+      return {
+        output: `${r.ok ? "✔" : "✘"} ${r.message}\n` + (r.ok ? cierre : ""),
+        isError: !r.ok,
+      };
+    }
+
+    // Estado / tablero.
+    const s = c.snapshot();
+    if (!s.active && s.winner === null) {
+      return {
+        output:
+          `No hay una ronda de co-op en curso.\n` +
+          `Empezá una con: coop empezar <nombreRojo> <nombreAzul>  (hot-seat, mismo dispositivo).\n`,
+        isError: false,
+      };
+    }
+    const svcs = c.services().map((x) => `${x.running ? "🟢" : "🔴"} ${x.name}`).join("  ");
+    const tl = c.timeline(6).map((x) => `  [${x.who}] ${x.action} — ${x.detail}`);
+    let estado: string;
+    if (s.winner === "empate") estado = `🤝 EMPATE ${s.rojo.score}–${s.azul.score}.`;
+    else if (s.winner) estado = `🏆 Ganó ${s.winner}.`;
+    else estado = `Turno de ${s.turn === "rojo" ? s.rojo.name : s.azul.name} (${s.turn}) · quedan ${s.turnsLeft} jugadas.`;
+    return {
+      output:
+        `🤝 CO-OP · ${s.rojo.name} (rojo) ${s.rojo.score} — ${s.azul.score} ${s.azul.name} (azul) · ${s.target}\n` +
+        `Servicios: ${svcs}\n` +
+        `${estado}\n\n` +
+        (tl.length ? tl.join("\n") + "\n" : "") +
+        (s.winner === null ? `\nJugá: coop rojo <servicio> / coop azul <servicio>\n` : ""),
       isError: false,
     };
   }

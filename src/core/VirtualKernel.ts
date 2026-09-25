@@ -17,6 +17,7 @@ import { ControlPanelApp } from "./http/apps/panel";
 import { HostRuntime, type VirtualService } from "./net/HostRuntime";
 import { NetworkLife } from "./net/NetworkLife";
 import { Duel } from "./game/Duel";
+import { CoopArena } from "./game/CoopArena";
 import { CodeExecutionSandbox, type SandboxHost } from "./code/Sandbox";
 import { ToolRuntime } from "./code/ToolRuntime";
 import { NpcToolForge } from "./code/NpcToolForge";
@@ -170,6 +171,7 @@ export class VirtualKernel {
   public redteam: RedTeamAgent;
   public netlife: NetworkLife;
   public duel: Duel;
+  public coop: CoopArena;
   /** Generador de retos procedurales: banderas reales detrás de apps reales. */
   public ctfForge: CtfForge;
   /** Rastreo OPSEC: el mundo te rastrea si atacás sin anonimato (heat/bust). */
@@ -371,6 +373,9 @@ export class VirtualKernel {
     this.netlife = new NetworkLife(() => this.world.getState().clock.tick);
     // PvP en vivo: duelo contra un bot del ranking por el mismo objetivo.
     this.duel = new Duel();
+    // Co-op hot-seat: dos personas en el mismo dispositivo (rojo vs azul)
+    // jugando por turnos sobre el mismo mundo (acciones reales de servicios).
+    this.coop = new CoopArena(this.hosts);
     this.ctfForge = new CtfForge(this.web, this.dns, this.hosts);
     this.opsec = new OpsecTracer(
       this.events,
