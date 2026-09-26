@@ -102,6 +102,8 @@ const MANPAGES: Record<string, ManPage> = {
     desc: "Dibuja el mapa de la red virtual de ÑANDE (10.10.0.0/16) DESDE donde estás parado, derivado del estado real (misma fuente que nmap y connect). En tu equipo: las subredes alcanzables y sus hosts; los segmentos INTERNOS no aparecen. Dentro de una sesión remota (tras connect): la ruta de pivoting que recorriste y los segmentos internos que se ven desde ese host, con los servicios que responden ahora. Un host apagado figura como tal; un servicio detenido no se cuenta. 100% dentro del sandbox.", examples: ["netmap", "connect server.nande soporte Verano2024", "netmap   (ahora desde server.nande)"] },
   coop: { name: "co-op hot-seat: dos personas, mismo dispositivo", synopsis: "coop empezar <rojo> <azul>",
     desc: "Dos personas juegan en la misma pantalla, por turnos, sobre el mismo mundo (sin red). Rojo ataca (tira servicios de midc.nande) y Azul defiende (los restaura): acciones reales del motor, gana quien más puntos hace. 'coop empezar <rojo> <azul>' arranca; 'coop rojo <servicio>' y 'coop azul <servicio>' son las jugadas en cada turno.", examples: ["coop empezar Ana Beto", "coop rojo nginx", "coop azul nginx"] },
+  killchain: { name: "tu cadena de ataque, en orden de kill-chain", synopsis: "killchain",
+    desc: "Muestra las fases del ciclo de vida de un ataque (reconocimiento, acceso, descubrimiento, movimiento lateral, recolección, escalada, impacto…) y cuáles alcanzaste, derivado de las detecciones REALES del SOC (mismas que 'mitre'). Sirve para ver, como Purple Team, la historia completa de lo que ejecutaste. No inventa nada: cada fase marcada la encendió una acción ofensiva tuya.", examples: ["killchain"] },
   duel: { name: "duelo PvP en vivo contra un bot", synopsis: "duel [empezar|trabar]",
     desc: "Competís contra un rival con nombre (el mismo del ranking) por capturar la MISMA bandera en el mismo objetivo. El bot avanza con el reloj del mundo (ritmo determinista según su skill); vos ganás capturando la bandera de verdad (connect + cat) antes que él. 'duel empezar' arranca la carrera, 'duel trabar' hace retroceder al rival. Sin red real: es multijugador contra bots, dentro del sandbox.", examples: ["duel empezar", "duel", "duel trabar"] },
   who: { name: "quién más está logueado (en sesión remota)", synopsis: "who   |   w",
@@ -1310,6 +1312,10 @@ export class VirtualTerminal {
         case "mitre":
         case "attack":
           return this.mitreCmd();
+
+        case "killchain":
+        case "cadena":
+          return this.killchainCmd();
 
         case "redteam":
         case "adversario":
@@ -2543,6 +2549,11 @@ export class VirtualTerminal {
       case "netmapa":
         return this.remoteNetmapCmd(hostname);
 
+      case "killchain":
+      case "cadena":
+        // Análisis del SOC (estado global): útil mirar tu cadena mid-operación.
+        return this.killchainCmd();
+
       case "nmap": {
         // Pivoting: revela la red interna alcanzable desde este host. Un host
         // apagado no responde al escaneo, y sólo cuentan los servicios que
@@ -3617,6 +3628,64 @@ export class VirtualTerminal {
         `═══ MITRE ATT&CK · Purple Team ═══\n` +
         `Técnicas detectadas por táctica:\n${matrix}\n\n` +
         `Detecciones recientes:\n${timeline}\n`,
+      isError: false,
+    };
+  }
+
+  /**
+   * killchain — TU cadena de ataque, en orden de kill-chain. Derivada de las
+   * detecciones REALES del SOC (mismas que 'mitre'), pero ordenadas por las
+   * fases del ciclo de vida de un ataque, para ver qué etapas alcanzaste y
+   * cuáles faltan. No inventa nada: cada fase marcada la encendió una acción
+   * ofensiva real (pivote, recolección, escalada…).
+   */
+  private killchainCmd(): { output: string; isError: boolean } {
+    const techs = this.kernel.mitre.techniques();
+    if (techs.length === 0) {
+      return {
+        output:
+          "Kill-chain: todavía no se detectó ninguna técnica tuya.\n" +
+          "Ejecutá pasos ofensivos (nmap interno, pivotar con connect, leer el\n" +
+          "loot, escalar…) y cada uno enciende su fase acá.\n",
+        isError: false,
+      };
+    }
+    // Fases del ciclo de vida (ATT&CK), en orden. Se marca cada una según la
+    // táctica de las técnicas detectadas (una táctica compuesta cuenta en las
+    // fases que menciona).
+    const PHASES: [string, string][] = [
+      ["Reconocimiento", "Reconnaissance"],
+      ["Acceso inicial", "Initial Access"],
+      ["Ejecución", "Execution"],
+      ["Persistencia", "Persistence"],
+      ["Escalada de privilegios", "Privilege Escalation"],
+      ["Evasión de defensas", "Defense Evasion"],
+      ["Acceso a credenciales", "Credential Access"],
+      ["Descubrimiento", "Discovery"],
+      ["Movimiento lateral", "Lateral Movement"],
+      ["Recolección", "Collection"],
+      ["Command & Control", "Command and Control"],
+      ["Exfiltración", "Exfiltration"],
+      ["Impacto", "Impact"],
+    ];
+    const lines: string[] = [];
+    let reached = 0;
+    for (const [label, key] of PHASES) {
+      const hits = techs.filter((t) => t.tactic.toLowerCase().includes(key.toLowerCase()));
+      if (hits.length) {
+        reached += 1;
+        lines.push(`  ✔ ${label}`);
+        for (const h of hits) lines.push(`      [${h.mitreId}] ${h.technique}${h.count > 1 ? ` ×${h.count}` : ""}`);
+      } else {
+        lines.push(`  ·  ${label}`);
+      }
+    }
+    return {
+      output:
+        `═══ Kill-chain ejecutada (detectada por el SOC) ═══\n` +
+        `Fases alcanzadas: ${reached}/${PHASES.length}\n\n` +
+        `${lines.join("\n")}\n\n` +
+        `Sale de detecciones reales (mirá 'mitre'). Cada fase marcada la encendió una acción tuya.\n`,
       isError: false,
     };
   }

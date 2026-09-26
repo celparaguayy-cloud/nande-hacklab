@@ -305,4 +305,23 @@ describe("Mapa de red (subnets + netmap)", () => {
     term.execute("nmap");
     expect(kernel.mitre.recent(30).filter((d) => d.mitreId === "T1046").length).toBe(1);
   });
+
+  it("killchain muestra tu cadena en orden de kill-chain, desde detecciones reales", () => {
+    // Sin nada ejecutado, no hay cadena.
+    expect(term.execute("killchain")).toContain("todavía no se detectó");
+    // Ejecutá la cadena de post-explotación.
+    term.execute("connect server.nande soporte Verano2024");
+    term.execute("nmap");                                        // Discovery T1046
+    term.execute("connect caja.interna.nande admin GiraSol#2024"); // Lateral T1021
+    term.execute("cat /root/flag.txt");                          // Collection T1005
+    const kc = term.execute("killchain");
+    expect(kc).toContain("Fases alcanzadas: 3/13");
+    // Las tres fases marcadas, con sus técnicas.
+    expect(kc).toMatch(/✔ Descubrimiento[\s\S]*T1046/);
+    expect(kc).toMatch(/✔ Movimiento lateral[\s\S]*T1021/);
+    expect(kc).toMatch(/✔ Recolección[\s\S]*T1005/);
+    // El orden de kill-chain: Descubrimiento antes que Movimiento lateral antes que Recolección.
+    expect(kc.indexOf("Descubrimiento")).toBeLessThan(kc.indexOf("Movimiento lateral"));
+    expect(kc.indexOf("Movimiento lateral")).toBeLessThan(kc.indexOf("Recolección"));
+  });
 });
