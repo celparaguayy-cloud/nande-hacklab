@@ -4,6 +4,20 @@ Este servidor no tiene dependencias y corre como un proceso Node normal, así qu
 cualquier free tier que corra Node sirve. La ruta más simple y **sin tarjeta**
 es **Render**. Al final está cómo conectarlo con el juego.
 
+## 🚀 Deploy en un clic
+
+Con el repo abierto, tocá el botón, iniciá sesión en Render y confirmá — el
+`render.yaml` de este repo hace toda la configuración sola:
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/celparaguayy-cloud/nande-hacklab)
+
+`https://render.com/deploy?repo=https://github.com/celparaguayy-cloud/nande-hacklab`
+
+Cuando termine te da una URL **https**; pegala en el juego (app **Comunidad** →
+Activar). Abajo están los pasos manuales por si preferís hacerlo a mano.
+
+---
+
 > Recordá: esto sólo mueve estado del juego (apodos, presencia, ranking). El
 > hacking sigue 100% dentro del sandbox del dispositivo. El chat llega recién
 > cuando sumes moderación.
