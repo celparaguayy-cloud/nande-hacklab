@@ -178,10 +178,14 @@ describe("aislamiento del sandbox", () => {
           continue;
         }
 
-        // MODO CONECTADO (opt-in): la IA con la clave del propio jugador es la
-        // única excepción documentada al aislamiento. Su red vive aislada en
-        // src/core/ai/net/. Todo lo demás sigue 100% offline.
-        if (full.replace(/\\/g, "/").includes("src/core/ai/net/")) {
+        // MODO CONECTADO (opt-in): la red real vive SÓLO en dos carpetas
+        // documentadas, y siempre opt-in (sin config → offline):
+        //   - src/core/ai/net/    → asistente IA con la clave del propio jugador.
+        //   - src/core/net/online/ → multijugador de comunidad (servidor propio).
+        // Todo el resto del juego —incluidas TODAS las herramientas ofensivas—
+        // sigue 100% offline: el hacking nunca sale del sandbox.
+        const rel = full.replace(/\\/g, "/");
+        if (rel.includes("src/core/ai/net/") || rel.includes("src/core/net/online/")) {
           continue;
         }
 
@@ -198,6 +202,24 @@ describe("aislamiento del sandbox", () => {
     walk("src/core");
 
     expect(ofensas).toEqual([]);
+  });
+
+  it("el multijugador de comunidad es OFFLINE por defecto (sin servidor → cero red)", async () => {
+    // Sin servidor configurado (el default y la build en vivo), el cliente de
+    // comunidad usa NullTransport: unirse, puntuar y latir NO tocan la red.
+    const { OnlineClient } = await import("../core/net/online/OnlineClient");
+    const { isOnlineConfigured } = await import("../core/net/online/config");
+
+    expect(isOnlineConfigured()).toBe(false); // resetStorage() dejó todo limpio
+    const client = OnlineClient.fromConfig();
+    expect(client.isOnline()).toBe(false);
+    client.join("tester");
+    client.submitScore(123);
+    client.heartbeat();
+    client.leave();
+
+    // Ni una sola salida de red: el modo comunidad no se enciende solo.
+    expect(traps.calls).toEqual([]);
   });
 
   it("las herramientas de seguridad no alcanzan objetivos reales", () => {
