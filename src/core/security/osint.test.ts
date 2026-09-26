@@ -61,6 +61,26 @@ describe("OSINT — recon sobre el estado real del mundo", () => {
     expect(r.output).not.toContain("TLS 1.0  aceptado"); // nada de handshake inventado
   });
 
+  it("sherlock busca perfiles REALES en la red social del mundo (Pulso)", () => {
+    const r = k.tools.run("sherlock", ["ana"]);
+    expect(r.output).not.toMatch(/ficticio/);
+    expect(r.output).toContain("Pulso");
+    // Encuentra al menos un perfil real (@handle) del mundo.
+    expect(r.output).toMatch(/\[\+\] Pulso: @/);
+    expect(r.output).toMatch(/perfil\(es\)/);
+  });
+
+  it("sherlock expone las fugas reales de los posts (OSINT → contraseña)", () => {
+    // 'ana' matchea muchos perfiles; alguno filtra un dato sensible real.
+    const r = k.tools.run("sherlock", ["ana"]);
+    expect(r.output).toMatch(/⚠ fuga en un post/);
+  });
+
+  it("sherlock es honesto cuando el alias no existe", () => {
+    const r = k.tools.run("sherlock", ["zzxq-no-existe-999"]);
+    expect(r.output).toContain("sin perfiles públicos");
+  });
+
   it("las OSINT siguen respetando el sandbox (nada de dominios reales)", () => {
     expect(k.tools.run("whois", ["google.com"]).output).toContain("solo dominios");
     expect(k.tools.run("theharvester", ["google.com"]).output).toContain("solo dominios");

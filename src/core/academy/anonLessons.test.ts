@@ -65,7 +65,7 @@ describe("Anonimato / OPSEC — comandos reales y lecciones completables", () =>
   it("l-osint: whois y sherlock reúnen rastro público", () => {
     const steps = lesson("l-osint").steps;
     expect(steps[0].check!("whois banco.nande", term.execute("whois banco.nande"))).toBe(true);
-    expect(steps[1].check!("sherlock kamba", term.execute("sherlock kamba"))).toBe(true);
+    expect(steps[1].check!("sherlock ana", term.execute("sherlock ana"))).toBe(true);
   });
 
   it("l-wifi: la cadena real airmon → deauth → aircrack crackea un WPA2 débil", () => {

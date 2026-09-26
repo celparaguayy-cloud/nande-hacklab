@@ -31,6 +31,19 @@ interface ToolContext {
    *  nmap la consulta para reflejar el estado real (servicios apagados,
    *  puertos bloqueados). Sin ella, cae al catálogo estático de LabNetwork. */
   hosts?: HostRuntime;
+  /** Red social real del mundo (Pulso) para OSINT: sherlock busca perfiles reales. */
+  pulso?: PulsoSearch;
+}
+
+/** Vista mínima de Pulso que necesita OSINT (sherlock): buscar perfiles. */
+export interface PulsoSearch {
+  search(query: string): {
+    name: string;
+    handle: string;
+    bio: string;
+    followers: number;
+    posts: { leak?: string; leakValue?: string }[];
+  }[];
 }
 
 /**
@@ -55,6 +68,11 @@ export class SecurityTools {
       radio,
       web,
     };
+  }
+
+  /** Conecta la red social real del mundo (Pulso) para OSINT (sherlock). */
+  attachPulso(pulso: PulsoSearch): void {
+    this.context.pulso = pulso;
   }
 
   /** Máquinas del laboratorio, para sembrarlas en el HostRuntime. */
@@ -2198,15 +2216,54 @@ const RUNNERS: Record<string, Runner> = {
     };
   },
 
-  sherlock(args) {
-    const user = args[0] ?? "yvoty";
+  sherlock(args, ctx) {
+    const user = (args.find((a) => !a.startsWith("-")) ?? "").trim();
+    if (!user) {
+      return { output: `sherlock: pasá un nombre o alias. Ej: sherlock ana\n`, isError: true };
+    }
+    if (!ctx.pulso) {
+      return { output: `sherlock: sin índice social en este contexto.\n`, isError: false };
+    }
 
+    // OSINT real: busca el alias en la red social del mundo (Pulso). Los
+    // perfiles, sus datos y las filtraciones salen del estado real, no de una
+    // lista fija. Reusar un alias conecta identidades: eso rompe el OPSEC.
+    const results = ctx.pulso.search(user);
+    if (results.length === 0) {
+      return {
+        output:
+          `sherlock "${user}" → red social del mundo (Pulso)\n` +
+          `[-] sin perfiles públicos con ese nombre/alias.\n` +
+          `Probá otro alias, o mirá 'pulso' para ver quién publica.\n`,
+        isError: false,
+      };
+    }
+
+    const lines: string[] = [];
+    let leaks = 0;
+    for (const p of results.slice(0, 8)) {
+      lines.push(`[+] Pulso: ${p.handle}  (${p.name} · ${p.followers} seguidores)`);
+      if (p.bio) lines.push(`    bio: ${p.bio}`);
+      for (const post of p.posts) {
+        if (post.leak && post.leakValue) {
+          leaks += 1;
+          const etiqueta =
+            post.leak === "password" ? "posible contraseña"
+            : post.leak === "pet" ? "nombre de mascota (respuesta de seguridad)"
+            : post.leak === "birthday" ? "fecha de nacimiento"
+            : "dato laboral";
+          lines.push(`    ⚠ fuga en un post — ${etiqueta}: "${post.leakValue}"`);
+        }
+      }
+    }
     return {
       output:
-        `sherlock "${user}" (perfiles ficticios de ÑANDE)\n` +
-        `[+] social.nande/${user}\n` +
-        `[+] git.nande/user/${user}\n` +
-        `[-] video.nande/${user} (no encontrado)\n`,
+        `sherlock "${user}" → red social del mundo (Pulso)\n` +
+        lines.join("\n") + "\n" +
+        `${results.length} perfil(es); ${leaks} dato(s) sensible(s) filtrado(s).\n` +
+        (leaks
+          ? `Con eso se adivina una contraseña o se responde una pregunta de seguridad. Defensa: no publiques eso y no reuses el alias.\n`
+          : `Reusar el mismo alias conecta todos tus perfiles: eso es lo que rompe el anonimato.\n`),
       isError: false,
     };
   },

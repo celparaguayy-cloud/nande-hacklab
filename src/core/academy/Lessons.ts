@@ -1060,12 +1060,12 @@ export const LESSONS: Lesson[] = [
       },
       {
         explain:
-          "'sherlock' busca un mismo nombre de usuario en muchos sitios: si alguien reusa su alias, lo encontrás en todos.",
-        task: "Escribí: sherlock kamba",
-        hint: "sherlock kamba",
+          "'sherlock' busca un alias en la red social del mundo (Pulso): si alguien reusa su nombre, aparecen sus perfiles… y lo que filtró en sus posts.",
+        task: "Escribí: sherlock ana",
+        hint: "sherlock ana",
         check: (cmd, out) => usedTool(cmd, "sherlock") && /\[\+\]/.test(out),
         debrief:
-          "Reusar el mismo alias conecta todos tus perfiles: eso es lo que rompe el anonimato. Defensa/OPSEC: separá identidades y minimizá lo que publicás.",
+          "Reusar el mismo alias conecta todos tus perfiles, y un post con la mascota o el cumpleaños regala una contraseña o una pregunta de seguridad. Defensa/OPSEC: separá identidades y minimizá lo que publicás.",
       },
     ],
   },

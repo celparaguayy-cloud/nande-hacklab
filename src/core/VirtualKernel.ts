@@ -338,6 +338,8 @@ export class VirtualKernel {
         latestNews: () => this.news.peek(8),
       },
     );
+    // OSINT real: sherlock consulta la red social del mundo (fuente única).
+    this.tools.attachPulso(this.pulso);
     this.consequences = new Consequences({
       economy: this.economy,
       news: this.news,
