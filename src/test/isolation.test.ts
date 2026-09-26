@@ -204,13 +204,16 @@ describe("aislamiento del sandbox", () => {
     expect(ofensas).toEqual([]);
   });
 
-  it("el multijugador de comunidad es OFFLINE por defecto (sin servidor → cero red)", async () => {
-    // Sin servidor configurado (el default y la build en vivo), el cliente de
-    // comunidad usa NullTransport: unirse, puntuar y latir NO tocan la red.
+  it("la comunidad es el ÚNICO canal de red, y tiene opt-out real (100% offline)", async () => {
+    // Por decisión del dueño el juego trae un servidor de comunidad por defecto,
+    // pero el jugador puede DESCONECTARSE y quedar 100% offline: en ese modo,
+    // unirse/puntuar/latir NO tocan la red. (El mundo y las herramientas de
+    // ataque nunca salen — lo cubren los otros tests de este archivo.)
     const { OnlineClient } = await import("../core/net/online/OnlineClient");
-    const { isOnlineConfigured } = await import("../core/net/online/config");
+    const { setOnlineServerUrl, isOnlineConfigured } = await import("../core/net/online/config");
 
-    expect(isOnlineConfigured()).toBe(false); // resetStorage() dejó todo limpio
+    setOnlineServerUrl(""); // opt-out explícito
+    expect(isOnlineConfigured()).toBe(false);
     const client = OnlineClient.fromConfig();
     expect(client.isOnline()).toBe(false);
     client.join("tester");
@@ -218,7 +221,7 @@ describe("aislamiento del sandbox", () => {
     client.heartbeat();
     client.leave();
 
-    // Ni una sola salida de red: el modo comunidad no se enciende solo.
+    // Modo offline: ni una sola salida de red.
     expect(traps.calls).toEqual([]);
   });
 

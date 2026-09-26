@@ -22,9 +22,16 @@ describe("Multijugador de comunidad (online)", () => {
     resetStorage();
   });
 
-  it("por defecto NO hay servidor: el cliente es offline (NullTransport)", () => {
+  it("por defecto se conecta al servidor de comunidad público (decisión del dueño)", () => {
+    expect(isOnlineConfigured()).toBe(true);
+    expect(onlineServerUrl()).toContain("onrender.com");
+    const client = OnlineClient.fromConfig();
+    expect(client.isOnline()).toBe(true); // transporte real (aún sin conectar)
+  });
+
+  it("el jugador puede DESCONECTARSE (opt-out): queda offline de verdad", () => {
+    setOnlineServerUrl(""); // opt-out explícito
     expect(isOnlineConfigured()).toBe(false);
-    expect(onlineServerUrl()).toBe("");
     const client = OnlineClient.fromConfig();
     expect(client.isOnline()).toBe(false);
   });
@@ -58,7 +65,8 @@ describe("Multijugador de comunidad (online)", () => {
   });
 
   it("join rechaza apodos inválidos y acepta uno saneado", () => {
-    const client = OnlineClient.fromConfig(); // offline
+    // Cliente offline explícito: probamos la validación sin tocar la red.
+    const client = new OnlineClient(new NullTransport());
     expect(client.join("ab").ok).toBe(false);
     const r = client.join("0xMbói");
     expect(r.ok).toBe(true);

@@ -161,13 +161,13 @@ export function CommunityView({ kernel }: Props) {
         </div>
       </div>
 
-      {/* Encender / apagar la comunidad. */}
+      {/* Servidor de comunidad (conectado por defecto). */}
       <div style={card}>
-        <strong>{isConfigured ? "Servidor de comunidad" : "Activar la comunidad (opcional)"}</strong>
+        <strong>{isConfigured ? "Servidor de comunidad" : "Estás desconectado (offline)"}</strong>
         <p style={{ color: "var(--nd-text-dim, #8b949e)", fontSize: 12, margin: "6px 0 10px" }}>
-          Conectá el juego a un servidor de comunidad (el tuyo, gratis). Sin
-          servidor, ÑANDE es 100% offline y esto no toca la red. El hacking
-          siempre queda dentro del sandbox.
+          {isConfigured
+            ? "Ya estás conectado al servidor de comunidad de ÑANDE. Podés apuntar al tuyo, o Desconectar para jugar 100% offline."
+            : "Te desconectaste: ÑANDE está 100% offline y esto no toca la red. Volvé a Activar para entrar a la comunidad. El hacking siempre queda dentro del sandbox."}
         </p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <input
