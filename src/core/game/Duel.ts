@@ -97,14 +97,17 @@ export class Duel {
     this.winner = null;
     this.active = true;
     this.counterStage = 0;
-    // Capturar el estado limpio del objetivo y restaurarlo.
+    // Capturar el estado limpio del objetivo. OJO al orden: primero deshacemos
+    // cualquier sabotaje que haya quedado de un duelo anterior y RECIÉN DESPUÉS
+    // leemos la credencial. Si capturáramos antes de restaurar, tomaríamos la
+    // credencial ROTADA como "original" y el host quedaría bricked para siempre.
     const host = this.hosts?.resolve(this.target);
     if (host) {
       const ssh = host.services.find((s) => s.kind === "ssh");
       this.sshPort = ssh?.port ?? 22;
+      this.restoreTarget();
       const cred = host.creds[0];
       if (cred) this.origCred = { user: cred.user, password: cred.password };
-      this.restoreTarget();
     }
     this.log = [
       {
@@ -163,6 +166,9 @@ export class Duel {
       } else if (this.botProgressAt(tick) >= 100) {
         this.winner = this.rival.alias;
         this.active = false;
+        // El duelo terminó: el rival deja de sabotear el objetivo. Sin esto el
+        // host quedaba con la credencial rotada y el SSH filtrado tras la derrota.
+        this.restoreTarget();
         this.log.push({ tick, who: this.rival.alias, action: "Te ganó", detail: `${this.rival.alias} completó la intrusión y capturó ${this.flag} primero.` });
       }
     }
@@ -242,8 +248,7 @@ export class Duel {
     return undone;
   }
 
-  snapshot(tick: number, playerFlags: readonly string[]): DuelSnapshot {
-    const won = this.winner === null && playerFlags.includes(this.flag);
+  snapshot(tick: number, _playerFlags: readonly string[]): DuelSnapshot {
     const sabotage: string[] = [];
     if (this.credRotated) sabotage.push(`credencial de ${this.origCred?.user ?? "acceso"} rotada`);
     if (this.portBlocked) sabotage.push(`SSH ${this.sshPort}/tcp filtrado`);
@@ -258,7 +263,10 @@ export class Duel {
       botProgress: this.botProgressAt(tick),
       botEta: this.etaTicks(this.rival.skill),
       sabotage,
-      winner: this.winner ?? (won ? "vos" : null),
+      // El resultado sale SIEMPRE del estado ya resuelto por sync/advance (que
+      // duelCmd corre antes de leer el snapshot); nada de "ganador tentativo"
+      // que dejaría winner!=null con finished=false (estado incoherente).
+      winner: this.winner,
     };
   }
 

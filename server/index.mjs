@@ -67,9 +67,13 @@ function handleMsg(msg) {
     case "hello":
       if (alias && clients.has(alias)) clients.get(alias).lastSeen = Date.now();
       break;
-    case "hb":
-      for (const c of clients.values()) c.lastSeen = Math.max(c.lastSeen, Date.now());
+    case "hb": {
+      // Sólo el EMISOR renueva su presencia. Antes se bumpeaba a TODOS: un solo
+      // cliente activo mantenía "vivos" a los fantasmas (nunca expiraban por TTL).
+      const c = alias && clients.get(alias);
+      if (c) c.lastSeen = Date.now();
       break;
+    }
     case "score":
       if (alias && typeof msg.notoriety === "number") {
         const n = Math.max(0, Math.round(msg.notoriety));
@@ -102,8 +106,14 @@ const server = createServer((req, res) => {
       connection: "keep-alive",
     });
     res.write(`data: ${JSON.stringify({ t: "welcome", alias })}\n\n`);
-    clients.set(alias, { res, lastSeen: Date.now(), notoriety: 0 });
-    req.on("close", () => clients.delete(alias));
+    const entry = { res, lastSeen: Date.now(), notoriety: 0 };
+    clients.set(alias, entry);
+    // Al cerrarse ESTE stream, borrar sólo si el registro sigue siendo el nuestro.
+    // Si el mismo alias se reconectó (nueva entry), el close viejo NO debe borrar
+    // la conexión nueva (condición de carrera en reconexiones).
+    req.on("close", () => {
+      if (clients.get(alias) === entry) clients.delete(alias);
+    });
     return;
   }
 

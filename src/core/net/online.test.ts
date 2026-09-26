@@ -42,7 +42,7 @@ describe("Multijugador de comunidad (online)", () => {
     // No debería lanzar ni intentar nada.
     expect(() => {
       t.connect("x");
-      t.send({ t: "hb" });
+      t.send({ t: "hb", alias: "x" });
       t.onMessage(() => {});
       t.disconnect();
     }).not.toThrow();
@@ -104,5 +104,41 @@ describe("Multijugador de comunidad (online)", () => {
     expect(presencia).toBe(3);
     expect(client.onlinePlayers().length).toBe(3);
     expect(client.leaderboard()[0]).toEqual({ alias: "kurupi", notoriety: 77 });
+  });
+
+  it("el heartbeat identifica al emisor (el servidor renueva SÓLO su presencia)", () => {
+    // Si el hb no llevara alias, un solo cliente activo mantendría vivos a los
+    // fantasmas en el servidor. El latido debe nombrar a quién renovar.
+    const sent: unknown[] = [];
+    const fake = {
+      online: true,
+      connect: vi.fn(),
+      send: (m: unknown) => sent.push(m),
+      onMessage: vi.fn(),
+      disconnect: vi.fn(),
+    };
+    const client = new OnlineClient(fake as never);
+    client.join("kurupi");
+    client.heartbeat();
+    expect(sent).toContainEqual({ t: "hb", alias: "kurupi" });
+  });
+
+  it("leave() limpia AMBAS fotos (presencia y ranking), no sólo presencia", () => {
+    let handler: ((m: unknown) => void) | null = null;
+    const fake = {
+      online: true,
+      connect: vi.fn(),
+      send: vi.fn(),
+      onMessage: (cb: (m: unknown) => void) => { handler = cb; },
+      disconnect: vi.fn(),
+    };
+    const client = new OnlineClient(fake as never);
+    client.join("kurupi");
+    handler!({ t: "presence", online: 2, players: [{ alias: "kurupi" }, { alias: "otro" }] });
+    handler!({ t: "board", rows: [{ alias: "kurupi", notoriety: 50 }] });
+    expect(client.leaderboard().length).toBe(1);
+    client.leave();
+    expect(client.onlinePlayers()).toEqual([]);
+    expect(client.leaderboard()).toEqual([]); // antes quedaba el ranking colgado
   });
 });

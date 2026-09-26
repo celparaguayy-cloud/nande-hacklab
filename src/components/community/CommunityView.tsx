@@ -3,7 +3,7 @@ import type { CSSProperties } from "react";
 import type { VirtualKernel } from "../../core/VirtualKernel";
 import { OnlineClient } from "../../core/net/online/OnlineClient";
 import { onlineServerUrl, setOnlineServerUrl } from "../../core/net/online/config";
-import type { BoardRow, PresencePlayer } from "../../core/net/online/protocol";
+import { sanitizeAlias, type BoardRow, type PresencePlayer } from "../../core/net/online/protocol";
 import { leaderboard } from "../../core/game/RivalHackers";
 
 interface Props {
@@ -22,6 +22,10 @@ interface Props {
  */
 export function CommunityView({ kernel }: Props) {
   const player = kernel.player.getState();
+  // Tu apodo TAL COMO viaja al ranking global: saneado igual que en el cliente
+  // (join() manda sanitizeAlias(name)). Comparar contra el nombre crudo no
+  // resaltaría tu fila cuando el saneo cambia algo (mayúsculas, PII, símbolos).
+  const meAlias = sanitizeAlias(player.name);
   const noto = kernel.notoriety.getState();
   const rep = kernel.reputation();
   const day = Math.floor(kernel.world.getState().clock.tick / 1440) + 1;
@@ -124,7 +128,7 @@ export function CommunityView({ kernel }: Props) {
             <div style={{ marginTop: 12 }}>
               <strong>Ranking global</strong>
               {board.map((r, i) => (
-                <div key={r.alias} style={rowStyle(r.alias === player.name.toLowerCase())}>
+                <div key={r.alias} style={rowStyle(r.alias === meAlias)}>
                   <span>#{i + 1} {r.alias}</span>
                   <span>{r.notoriety}</span>
                 </div>

@@ -133,4 +133,21 @@ describe("Duel — carrera PvP contra un bot", () => {
     expect(host.creds[0].password).toBe("Duelo2024");
     expect(host.firewall).not.toContain(22);
   });
+
+  it("si GANA el bot el objetivo también queda limpio, y el próximo duelo no lo brickea", () => {
+    const d = new Duel(kernel.hosts);
+    const cleanPass = kernel.hosts.resolve("duelo.corp.nande")!.creds[0].password;
+    d.start(0);
+    d.advance(18, []); // sabotaje: credencial rotada + SSH filtrado
+    d.advance(1000, []); // el bot llega a 100 y gana
+    expect(d.snapshot(1000, []).winner).not.toBe("vos");
+    const host = kernel.hosts.resolve("duelo.corp.nande")!;
+    // Tras la derrota, el rival se repliega: nada de sabotaje colgado.
+    expect(host.creds[0].password).toBe(cleanPass);
+    expect(host.firewall).not.toContain(22);
+    // Y arrancar otro duelo NO captura una credencial rotada como "original".
+    d.start(2000);
+    d.advance(2000, []); // sin llegar al umbral de rotación todavía
+    expect(kernel.hosts.resolve("duelo.corp.nande")!.creds[0].password).toBe(cleanPass);
+  });
 });

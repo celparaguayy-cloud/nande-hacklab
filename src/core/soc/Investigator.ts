@@ -46,6 +46,20 @@ export interface Ioc {
   why: string;
 }
 
+/**
+ * Incidente atribuible que le llega al DFIR desde el motor de amenazas
+ * (data center + adversario autónomo): trae el IOC del actor y, si fue
+ * contenido, cuándo. Una sola forma, consumida por `iocs()` y `pivot()`.
+ */
+export interface AttributableIncident {
+  host: string;
+  rival: string;
+  tick: number;
+  ioc?: string;
+  resolved?: boolean;
+  resolvedTick?: number;
+}
+
 /** Recolección en vivo de un host: lo que un respondedor saca primero. */
 export interface HostArtifacts {
   host: string;
@@ -73,14 +87,7 @@ export class Investigator {
   private clock?: () => number;
   /** Incidentes del data center (ThreatEngine): traen el IOC del actor y el
    *  rastro de la respuesta (si fue contenido y cuándo). */
-  private incidents?: () => {
-    host: string;
-    rival: string;
-    tick: number;
-    ioc?: string;
-    resolved?: boolean;
-    resolvedTick?: number;
-  }[];
+  private incidents?: () => AttributableIncident[];
 
   constructor(
     store: EventStore,
@@ -89,14 +96,7 @@ export class Investigator {
       hosts?: HostRuntime;
       shark?: PacketCapture;
       clock?: () => number;
-      incidents?: () => {
-        host: string;
-        rival: string;
-        tick: number;
-        ioc?: string;
-        resolved?: boolean;
-        resolvedTick?: number;
-      }[];
+      incidents?: () => AttributableIncident[];
     } = {},
   ) {
     this.store = store;

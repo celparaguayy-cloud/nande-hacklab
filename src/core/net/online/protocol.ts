@@ -28,9 +28,9 @@ export function isValidAlias(alias: string): boolean {
 
 export type ClientMsg =
   | { t: "hello"; alias: string }
-  | { t: "hb" } // heartbeat de presencia
+  | { t: "hb"; alias: string } // heartbeat de presencia (identifica al emisor)
   | { t: "score"; alias: string; notoriety: number }
-  | { t: "bye" };
+  | { t: "bye"; alias: string };
 
 /* --------------------------------- servidor → cliente -------------------- */
 

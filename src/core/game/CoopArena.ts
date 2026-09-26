@@ -65,9 +65,10 @@ export class CoopArena {
   /**
    * Arranca una ronda hot-seat. Rojo ataca primero. Deja todos los servicios
    * del objetivo ARRIBA para empezar parejo. `turns` es el total de jugadas
-   * (repartidas por turnos alternos).
+   * (repartidas por turnos alternos). Por defecto IMPAR: con un total par y
+   * juego perfecto los puntajes empatan siempre; el impar deja un desempate real.
    */
-  start(rojoName: string, azulName: string, turns = 6): CoopSnapshot {
+  start(rojoName: string, azulName: string, turns = 7): CoopSnapshot {
     this.target = DEFAULT_TARGET;
     this.rojo = { name: rojoName.trim().slice(0, 20) || "Rojo", role: "rojo", score: 0 };
     this.azul = { name: azulName.trim().slice(0, 20) || "Azul", role: "azul", score: 0 };

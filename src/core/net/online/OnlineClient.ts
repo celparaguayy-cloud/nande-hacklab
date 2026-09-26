@@ -69,14 +69,17 @@ export class OnlineClient {
 
   /** Latido de presencia (mantené "vivo" tu lugar en la lista). */
   heartbeat(): void {
-    if (this.connected) this.transport.send({ t: "hb" });
+    if (this.connected && this.alias) this.transport.send({ t: "hb", alias: this.alias });
   }
 
   leave(): void {
     if (!this.connected) return;
     this.transport.disconnect();
     this.connected = false;
+    // Al salir se limpian AMBAS fotos (presencia y ranking): si no, la UI
+    // seguiría mostrando el último leaderboard como si siguiéramos conectados.
     this.online = [];
+    this.board = [];
   }
 
   /** Jugadores en línea (última foto recibida del servidor). */

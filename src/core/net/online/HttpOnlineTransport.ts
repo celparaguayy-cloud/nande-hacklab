@@ -55,7 +55,7 @@ export class HttpOnlineTransport implements Transport {
   }
 
   disconnect(): void {
-    if (this.alias) this.send({ t: "bye" });
+    if (this.alias) this.send({ t: "bye", alias: this.alias });
     this.source?.close();
     this.source = null;
     this.cb = null;
