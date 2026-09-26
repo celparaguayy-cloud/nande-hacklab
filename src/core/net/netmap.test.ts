@@ -261,4 +261,17 @@ describe("Mapa de red (subnets + netmap)", () => {
     solveDirecto();
     expect(kernel.player.capturedFlags()).toContain("ND{ot_plc_control}");
   });
+
+  it("pivotar a un host interno enciende Movimiento Lateral en el SOC/MITRE (coherencia)", () => {
+    // Entrar desde tu equipo NO es movimiento lateral (acceso inicial).
+    term.execute("connect server.nande soporte Verano2024");
+    expect(kernel.mitre.recent(20).some((d) => d.mitreId === "T1021")).toBe(false);
+    // Pivotar de un host comprometido a otro SÍ lo es: enciende la detección.
+    term.execute("connect caja.interna.nande admin GiraSol#2024");
+    const lateral = kernel.mitre.recent(20).find((d) => d.mitreId === "T1021");
+    expect(lateral, "el pivote debería encender Movimiento Lateral").toBeTruthy();
+    expect(lateral!.tactic).toBe("Lateral Movement");
+    expect(lateral!.host).toBe("caja.interna.nande");
+    expect(lateral!.detail).toContain("server.nande");
+  });
 });

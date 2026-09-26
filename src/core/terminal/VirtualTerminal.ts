@@ -2362,6 +2362,20 @@ export class VirtualTerminal {
       this.remoteUser = "root";
     }
 
+    // Coherencia ofensiva↔defensiva (regla 3/5/10): pivotar DESDE un host ya
+    // comprometido hacia otro es MOVIMIENTO LATERAL. Enciende la misma capa
+    // defensiva que privesc y AD —SOC/MITRE, DFIR, OpsecTracer— sin fabricar
+    // nada: la alerta nace del pivote real.
+    if (origin !== null) {
+      this.kernel.noteAttackTechnique({
+        technique: "Remote Services (pivoting)",
+        tactic: "Lateral Movement",
+        mitreId: "T1021",
+        detail: `Movimiento lateral: pivote a ${host.hostname} (${host.ip}) desde ${origin} como ${this.remoteUser}.`,
+        host: host.hostname,
+      });
+    }
+
     return {
       output:
         `✔ conectado a ${host.hostname} (${host.ip}) como ${this.remoteUser}.\n` +
