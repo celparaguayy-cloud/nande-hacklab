@@ -3,5 +3,5 @@
  * qué build estás corriendo (y confirmar que tomaste la última actualización).
  * Subí el número cuando haya un cambio que el jugador deba poder distinguir.
  */
-export const NANDE_VERSION = "5.76.0";
-export const NANDE_BUILD = "searchsploit-base-real-cruzada";
+export const NANDE_VERSION = "5.77.0";
+export const NANDE_BUILD = "forense-lee-filesystem-real";

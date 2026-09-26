@@ -11,6 +11,12 @@ import type { HostRuntime } from "../net/HostRuntime";
 
 export type { ToolDef, ToolCategory, ToolLevel } from "./toolCatalog";
 
+/** Vista mínima del filesystem que necesitan los forenses (strings/file). */
+export interface FsView {
+  exists(path: string): boolean;
+  getFile(path: string): { type: "file" | "directory"; content: string } | undefined;
+}
+
 export interface ToolRunResult {
   output: string;
   isError: boolean;
@@ -33,6 +39,8 @@ interface ToolContext {
   hosts?: HostRuntime;
   /** Red social real del mundo (Pulso) para OSINT: sherlock busca perfiles reales. */
   pulso?: PulsoSearch;
+  /** Filesystem real del sandbox: strings/file leen los archivos de verdad. */
+  fs?: FsView;
 }
 
 /** Vista mínima de Pulso que necesita OSINT (sherlock): buscar perfiles. */
@@ -58,7 +66,7 @@ export class SecurityTools {
   private tools: Map<string, ToolDef>;
   private context: ToolContext;
 
-  constructor(network: VirtualNetwork, dns: VirtualDNS, hosts?: HostRuntime, radio?: WirelessRadio, web?: WebServer) {
+  constructor(network: VirtualNetwork, dns: VirtualDNS, hosts?: HostRuntime, radio?: WirelessRadio, web?: WebServer, fs?: FsView) {
     this.tools = new Map(TOOL_CATALOG.map((tool) => [tool.id, tool]));
     this.context = {
       lab: new LabNetwork(),
@@ -67,6 +75,7 @@ export class SecurityTools {
       hosts,
       radio,
       web,
+      fs,
     };
   }
 
@@ -452,6 +461,39 @@ function targetHost(args: string[]): string {
 /** Bandera (ND{...} o NANDE{...}) presente en un cuerpo, o null. */
 function flagInBody(body: string): string | null {
   return body.match(/N(?:ANDE|D)\{[^}]+\}/)?.[0] ?? null;
+}
+
+/** Extrae secuencias imprimibles (como el `strings` real), mínimo n chars. */
+function extractStrings(content: string, min = 4): string[] {
+  const out: string[] = [];
+  let run = "";
+  for (const ch of content) {
+    const code = ch.charCodeAt(0);
+    const printable = (code >= 32 && code < 127) || code > 160 || ch === "\t";
+    if (printable) {
+      run += ch;
+    } else {
+      if (run.length >= min) out.push(run);
+      run = "";
+    }
+  }
+  if (run.length >= min) out.push(run);
+  return out;
+}
+
+/** Clasifica un archivo por su contenido y extensión (como el `file` real). */
+function classifyContent(path: string, content: string): string {
+  const ext = path.toLowerCase().match(/\.(\w+)$/)?.[1] ?? "";
+  const nonPrintable = [...content].filter((c) => {
+    const n = c.charCodeAt(0);
+    return n < 9 || (n > 13 && n < 32);
+  }).length;
+  if (content.length > 0 && nonPrintable / content.length > 0.1) return "data (binario)";
+  if (ext === "js" || /\b(function|var |const |=>)\b/.test(content)) return "JavaScript source, ASCII text";
+  if (ext === "json" || /^\s*[[{]/.test(content)) return "JSON data";
+  if (ext === "sh" || content.startsWith("#!")) return "shell script, ASCII text";
+  if (/[ -￿]/.test(content)) return "UTF-8 Unicode text";
+  return "ASCII text";
 }
 
 /** Versión del servicio HTTP del host, desde la fuente única de hosts (o null). */
@@ -2112,30 +2154,40 @@ const RUNNERS: Record<string, Runner> = {
   },
 
   strings(args, ctx) {
-    const path = args[0] ?? "";
+    const path = args.find((a) => !a.startsWith("-")) ?? "";
+    // 1) Filesystem REAL del sandbox (archivos del jugador, reportes, tools…).
+    const real = ctx.fs?.getFile(path);
+    if (real && real.type === "file") {
+      const cadenas = extractStrings(real.content);
+      return {
+        output: cadenas.length ? cadenas.join("\n") + "\n" : `strings: ${path} sin cadenas legibles (≥4).\n`,
+        isError: false,
+      };
+    }
+    // 2) Fallback: archivos de máquinas de laboratorio.
     const machine = ctx.lab.all().find((m) => m.files.some((f) => f.path === path));
     const file = machine?.files.find((f) => f.path === path);
-
     if (!file) {
       return {
         output: `strings: ${path} sin cadenas legibles o no existe.\n`,
         isError: false,
       };
     }
-
-    return { output: `${file.content}\n`, isError: false };
+    return { output: extractStrings(file.content).join("\n") + "\n", isError: false };
   },
 
   file(args, ctx) {
-    const path = args[0] ?? "";
-    const known = ctx.lab.all().some((m) => m.files.some((f) => f.path === path));
-
-    return {
-      output: known
-        ? `${path}: texto ASCII (archivo de laboratorio)\n`
-        : `${path}: no se puede determinar (¿existe?)\n`,
-      isError: false,
-    };
+    const path = args.find((a) => !a.startsWith("-")) ?? "";
+    // Clasifica por el CONTENIDO real del archivo del sandbox, no por una
+    // etiqueta fija: JS, JSON, texto ASCII/UTF-8, o datos binarios.
+    const real = ctx.fs?.getFile(path);
+    if (real) {
+      if (real.type === "directory") return { output: `${path}: directory\n`, isError: false };
+      return { output: `${path}: ${classifyContent(path, real.content)}\n`, isError: false };
+    }
+    const labFile = ctx.lab.all().flatMap((m) => m.files).find((f) => f.path === path);
+    if (labFile) return { output: `${path}: ${classifyContent(path, labFile.content)}\n`, isError: false };
+    return { output: `${path}: no se puede determinar (¿existe?)\n`, isError: false };
   },
 
   base64(args) {
