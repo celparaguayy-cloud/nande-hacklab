@@ -419,6 +419,78 @@ function crackCli(
   return { lines, cracked, flag };
 }
 
+/* ============================================================= *
+ *  Sondas HTTP REALES para las tools web (dalfox/commix/nikto…)  *
+ *  Nada pre-calculado: mandan el payload a la app del mundo y     *
+ *  leen la respuesta de verdad (misma fuente que curl/gobuster).  *
+ * ============================================================= */
+
+/** Extrae el host de un argumento tipo URL (http://host/x) o nombre pelado. */
+function targetHost(args: string[]): string {
+  const url = args.find((a) => a.startsWith("http")) ?? args.find((a) => !a.startsWith("-")) ?? "";
+  return url.replace(/^https?:\/\//i, "").split("/")[0].toLowerCase();
+}
+
+/** Bandera (ND{...} o NANDE{...}) presente en un cuerpo, o null. */
+function flagInBody(body: string): string | null {
+  return body.match(/N(?:ANDE|D)\{[^}]+\}/)?.[0] ?? null;
+}
+
+/** Versión del servicio HTTP del host, desde la fuente única de hosts (o null). */
+function httpVersionOf(ctx: ToolContext, host: string): string | null {
+  const h = ctx.hosts?.resolve(host);
+  const svc = h?.services.find((s) => s.name.includes("http") || s.port === 80 || s.name === "nginx");
+  return svc?.version ?? null;
+}
+
+/** Parámetros y rutas típicos donde vive un reflejo/inyección (recon real). */
+const XSS_PARAMS = ["q", "search", "buscar", "s", "query", "term", "name", "input"];
+const XSS_PATHS = ["/buscar", "/search", "/"];
+const CMDI_PARAMS = ["host", "ip", "cmd", "target", "addr", "ping", "domain"];
+const CMDI_PATHS = ["/ping", "/exec", "/"];
+
+interface WebFinding {
+  path: string;
+  param: string;
+  payload: string;
+  flag: string | null;
+  evidence: string;
+}
+
+/** Prueba XSS reflejado REAL: inyecta y confirma que el payload vuelve sin filtrar. */
+function probeReflectedXss(web: WebServer, host: string): WebFinding | null {
+  const payload = "<script>alert(1)</script>";
+  for (const path of XSS_PATHS) {
+    for (const param of XSS_PARAMS) {
+      const res = web.request("GET", host, `${path}?${param}=${payload}`, "", {});
+      const body = res.body ?? "";
+      if (body.includes(payload)) {
+        return { path, param, payload, flag: flagInBody(body), evidence: "el payload volvió reflejado sin escapar" };
+      }
+    }
+  }
+  return null;
+}
+
+/** Prueba inyección de comandos REAL: encadena con ; y confirma salida de comando. */
+function probeCmdInjection(web: WebServer, host: string): WebFinding | null {
+  const payloads = ["127.0.0.1;cat flag", "127.0.0.1;id", "127.0.0.1 && whoami"];
+  for (const path of CMDI_PATHS) {
+    for (const param of CMDI_PARAMS) {
+      for (const payload of payloads) {
+        const res = web.request("GET", host, `${path}?${param}=${payload}`, "", {});
+        const body = res.body ?? "";
+        const flag = flagInBody(body);
+        if (flag || /uid=\d+|www-data|Linux [\w.-]+/.test(body)) {
+          const line = body.match(/uid=\d+[^\n<]*|www-data|Linux [\w.\- ]+/)?.[0] ?? "salida de comando";
+          return { path, param, payload, flag, evidence: line };
+        }
+      }
+    }
+  }
+  return null;
+}
+
 const RUNNERS: Record<string, Runner> = {
   ping(args, ctx) {
     const target = args[0] ?? "";
@@ -978,21 +1050,65 @@ const RUNNERS: Record<string, Runner> = {
   },
 
   nikto(args, ctx) {
-    const target = args[0] ?? "";
+    const target = args.find((a) => !a.startsWith("-")) ?? "";
     const guard = requireVirtualTarget(target);
 
     if (guard) {
       return { output: `nikto: ${guard}\n`, isError: true };
     }
 
-    const machine = ctx.lab.resolve(target);
+    // Contra una app REAL del mundo: probamos rutas comunes y disparamos las
+    // vulns de verdad (XSS/CMDi), reportando sólo lo que el servidor confirma.
+    const host = target.replace(/^https?:\/\//i, "").split("/")[0].toLowerCase();
+    if (ctx.web?.has(host)) {
+      const ip = ctx.dns.resolve(host) ?? "";
+      const root = ctx.web.request("GET", host, "/", "", {});
+      const server = root.headers.Server ?? httpVersionOf(ctx, host) ?? "?";
+      const findings: string[] = [];
 
+      // Línea base soft-404: muchas apps devuelven 200 para CUALQUIER ruta. Un
+      // scanner real pide una ruta imposible y sólo reporta lo que DIFIERE de
+      // esa base (así no infla falsos positivos). Nada inventado.
+      const baseline = ctx.web.request("GET", host, "/zzz-nikto-4f2a9c-noexiste", "", {});
+      const baseLen = (baseline.body ?? "").length;
+      const interesting = (r: { status: number; body?: string }) =>
+        r.status !== baseline.status || Math.abs((r.body ?? "").length - baseLen) > 16;
+
+      // Archivos/rutas sensibles expuestas (status real + diferencia real).
+      const SENSITIVE = ["/robots.txt", "/.env", "/backup.txt", "/config.bak", "/.git/config", "/admin", "/api", "/api/clientes", "/server-status"];
+      for (const p of SENSITIVE) {
+        const r = ctx.web.request("GET", host, p, "", {});
+        if (r.status !== 0 && r.status !== 404 && interesting(r)) {
+          const flag = flagInBody(r.body ?? "");
+          findings.push(`+ ${p}: [${r.status}] accesible${flag ? ` — bandera: ${flag}` : ""}`);
+        }
+      }
+
+      // Vulns confirmadas mandando el payload real.
+      const xss = probeReflectedXss(ctx.web, host);
+      if (xss) findings.push(`+ OSVDB-XSS: XSS reflejado en ${xss.path}?${xss.param}= (payload vuelve sin escapar)`);
+      const cmdi = probeCmdInjection(ctx.web, host);
+      if (cmdi) findings.push(`+ OSVDB-CMDi: inyección de comandos en ${cmdi.path}?${cmdi.param}= (${cmdi.evidence})`);
+
+      const capturedFlag = xss?.flag ?? cmdi?.flag ?? null;
+      return {
+        output:
+          `- Nikto v(edición ÑANDE)\n` +
+          `+ Target: http://${host}/${ip ? `  (${ip})` : ""}\n` +
+          `+ Server: ${server}\n` +
+          (findings.length ? findings.join("\n") : "+ Sin hallazgos evidentes por estas firmas.") +
+          `\n+ ${findings.length} hallazgo(s) reportado(s).\n`,
+        isError: false,
+        flag: capturedFlag ?? undefined,
+      };
+    }
+
+    // Fallback: máquina de laboratorio (modelo estático de vulns).
+    const machine = ctx.lab.resolve(target);
     if (!machine) {
       return { output: `nikto: objetivo no válido.\n`, isError: false };
     }
-
     const web = machine.vulns.filter((v) => v.category === "web");
-
     return {
       output:
         `nikto sobre ${machine.hostname} (${machine.ip})\n` +
@@ -2086,6 +2202,29 @@ const RUNNERS: Record<string, Runner> = {
       return { output: `whatweb: ${guard}\n`, isError: true };
     }
 
+    // Contra una app REAL: leemos la respuesta y su fingerprint de verdad.
+    const host = target.replace(/^https?:\/\//i, "").split("/")[0].toLowerCase();
+    if (ctx.web?.has(host)) {
+      const res = ctx.web.request("GET", host, "/", "", {});
+      const server = res.headers.Server ?? httpVersionOf(ctx, host) ?? "servidor web";
+      const title = (res.body ?? "").match(/<title>([^<]*)<\/title>/i)?.[1]
+        ?? (res.body ?? "").match(/<h1>([^<]*)<\/h1>/i)?.[1]
+        ?? "";
+      const ip = ctx.dns.resolve(host) ?? "";
+      const tech: string[] = [`HTTPServer[${server}]`, `Status[${res.status}]`];
+      if (res.setCookies && Object.keys(res.setCookies).length) tech.push("Cookies");
+      const body = res.body ?? "";
+      if (/name="csrf|csrf_token/i.test(body)) tech.push("CSRF-Token");
+      if (/<form[^>]*method="post"/i.test(body)) tech.push("HTML-Form");
+      return {
+        output:
+          `whatweb http://${host}/\n` +
+          `${ip ? "[" + ip + "] " : ""}${tech.join(", ")}` +
+          (title ? `, Title[${title.trim()}]` : "") + `\n`,
+        isError: false,
+      };
+    }
+
     const machine = ctx.lab.resolve(target);
     const http = machine?.services.find((s) => s.name.includes("http"));
 
@@ -2120,18 +2259,46 @@ const RUNNERS: Record<string, Runner> = {
     };
   },
 
-  wpscan(args) {
-    const target = args[0] ?? "";
+  wpscan(args, ctx) {
+    const target = args.find((a) => !a.startsWith("-")) ?? "";
     const guard = requireVirtualTarget(target);
     if (guard) return { output: `wpscan: ${guard}\n`, isError: true };
 
+    const host = target.replace(/^https?:\/\//i, "").split("/")[0].toLowerCase();
+    if (!ctx.web?.has(host)) {
+      return {
+        output: `wpscan: ${target} no responde como aplicación web en este mundo.\n`,
+        isError: false,
+      };
+    }
+
+    // Fingerprint REAL de WordPress: sondeamos las rutas típicas y sólo
+    // afirmamos lo que el servidor confirma (§219: nada de hallazgos ficticios).
+    const WP_MARKERS = ["/wp-login.php", "/wp-admin/", "/wp-json/", "/readme.html", "/wp-content/"];
+    const hits: string[] = [];
+    for (const p of WP_MARKERS) {
+      const r = ctx.web.request("GET", host, p, "", {});
+      if (r.status !== 0 && r.status !== 404) hits.push(`+ ${p} [${r.status}]`);
+    }
+    const root = ctx.web.request("GET", host, "/", "", {});
+    const looksWp = hits.length > 0 || /wp-content|wordpress/i.test(root.body ?? "");
+
+    if (!looksWp) {
+      return {
+        output:
+          `wpscan → http://${host}/\n` +
+          `[i] Server: ${root.headers.Server ?? httpVersionOf(ctx, host) ?? "?"}\n` +
+          `[-] No se detectó WordPress (ninguna ruta wp-* respondió). No es un sitio WordPress.\n` +
+          `Tip: para una web genérica usá whatweb / nikto / gobuster.\n`,
+        isError: false,
+      };
+    }
     return {
       output:
-        `wpscan sobre ${target} (simulación)\n` +
-        `[+] WordPress 5.2 (desactualizado)\n` +
-        `[!] plugin 'contact-form' 1.0 — vulnerable (ficticio)\n` +
-        `[+] usuarios: admin, editor\n` +
-        `Lección: actualizá núcleo y plugins; quitá los que no uses.\n`,
+        `wpscan → http://${host}/\n` +
+        `[+] WordPress detectado (rutas wp-* accesibles):\n` +
+        hits.map((h) => "  " + h).join("\n") + "\n" +
+        `Lección: actualizá núcleo y plugins; ocultá /wp-login.php y quitá lo que no uses.\n`,
       isError: false,
     };
   },
@@ -2157,14 +2324,38 @@ const RUNNERS: Record<string, Runner> = {
   },
 
   dalfox(args, ctx) {
-    const url = args.find((a) => a.startsWith("http")) ?? "";
-    const host = url.match(/^https?:\/\/([^/]+)/i)?.[1] ?? "";
+    const host = targetHost(args);
     const guard = requireVirtualTarget(host);
     if (guard) return { output: `dalfox: ${guard}\n`, isError: true };
 
+    // Contra una app REAL del mundo: mandamos el payload y confirmamos el reflejo.
+    if (ctx.web?.has(host)) {
+      const find = probeReflectedXss(ctx.web, host);
+      if (find) {
+        return {
+          output:
+            `dalfox scan → http://${host}${find.path}\n` +
+            `[*] parám probado: ${find.param}=${find.payload}\n` +
+            `[POC] VULN: XSS reflejado — ${find.evidence}.\n` +
+            `      GET ${find.path}?${find.param}=${find.payload}\n` +
+            (find.flag ? `[grep] bandera: ${find.flag}\n` : "") +
+            `Defensa: escapá la salida (HTML-encode) y aplicá Content-Security-Policy.\n`,
+          isError: false,
+          flag: find.flag ?? undefined,
+        };
+      }
+      return {
+        output:
+          `dalfox scan → http://${host}/\n` +
+          `[*] probé ${XSS_PARAMS.length} parámetros en ${XSS_PATHS.length} rutas.\n` +
+          `[-] no se reflejó ningún payload sin filtrar: sin XSS por estas vías.\n`,
+        isError: false,
+      };
+    }
+
+    // Fallback: máquina de laboratorio (modelo estático de vulns).
     const machine = ctx.lab.resolve(host);
     const xss = machine?.vulns.find((v) => v.id.includes("XSS"));
-
     return {
       output: xss
         ? `dalfox: ${host}\n[POC] XSS reflejado en el buscador — ${xss.hint}\n` +
@@ -2175,11 +2366,36 @@ const RUNNERS: Record<string, Runner> = {
   },
 
   commix(args, ctx) {
-    const url = args.find((a) => a.startsWith("http")) ?? "";
-    const host = url.match(/^https?:\/\/([^/]+)/i)?.[1] ?? "";
+    const host = targetHost(args);
     const guard = requireVirtualTarget(host);
     if (guard) return { output: `commix: ${guard}\n`, isError: true };
 
+    // Contra una app REAL del mundo: encadenamos comandos y leemos la salida.
+    if (ctx.web?.has(host)) {
+      const find = probeCmdInjection(ctx.web, host);
+      if (find) {
+        return {
+          output:
+            `commix → http://${host}${find.path}\n` +
+            `[*] parám probado: ${find.param}=${find.payload}\n` +
+            `[!] VULNERABLE a inyección de comandos.\n` +
+            `[*] salida del servidor: ${find.evidence}\n` +
+            (find.flag ? `bandera: ${find.flag}\n` : "") +
+            `Defensa: nunca pasar entrada del usuario a comandos del sistema.\n`,
+          isError: false,
+          flag: find.flag ?? undefined,
+        };
+      }
+      return {
+        output:
+          `commix → http://${host}/\n` +
+          `[-] ningún parámetro pasó entrada al shell: no inyectable por estas vías.\n` +
+          `Lección: nunca pases datos del usuario a comandos del sistema.\n`,
+        isError: false,
+      };
+    }
+
+    // Fallback: máquina de laboratorio (modelo estático de vulns).
     const machine = ctx.lab.resolve(host);
     const cmdi = machine?.vulns.find((v) => v.id.includes("CMDI"));
 

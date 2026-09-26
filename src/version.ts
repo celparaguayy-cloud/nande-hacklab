@@ -3,5 +3,5 @@
  * qué build estás corriendo (y confirmar que tomaste la última actualización).
  * Subí el número cuando haya un cambio que el jugador deba poder distinguir.
  */
-export const NANDE_VERSION = "5.72.0";
-export const NANDE_BUILD = "generador-ia-profundo-auto-exploit";
+export const NANDE_VERSION = "5.73.0";
+export const NANDE_BUILD = "defakery-escaneres-web-reales";
