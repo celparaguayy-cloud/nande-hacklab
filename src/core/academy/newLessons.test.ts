@@ -75,4 +75,21 @@ describe("Lecciones nuevas — completables con salida real", () => {
       expect(steps[i].check!(cmd, out), `paso ${i}: ${cmd}`).toBe(true);
     });
   });
+
+  it("l-dfir-atribucion: el ciclo azul (drill→dfir→atribuir→contener) pasa cada check con el motor real", () => {
+    const steps = lesson("l-dfir-atribucion").steps;
+    const cmds = [
+      "defensa drill",
+      "defensa",
+      "dfir",
+      "dfir iocs",
+      'curl "http://ti.nande/atribuir?ioc=cdn-sync.invalid&actor=RedViper"',
+      "contener all",
+    ];
+    expect(cmds.length).toBe(steps.length);
+    cmds.forEach((cmd, i) => {
+      const out = term.execute(cmd);
+      expect(steps[i].check!(cmd, out), `paso ${i}: ${cmd}`).toBe(true);
+    });
+  });
 });

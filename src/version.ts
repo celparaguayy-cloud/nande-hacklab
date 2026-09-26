@@ -3,5 +3,5 @@
  * qué build estás corriendo (y confirmar que tomaste la última actualización).
  * Subí el número cuando haya un cambio que el jugador deba poder distinguir.
  */
-export const NANDE_VERSION = "5.66.0";
-export const NANDE_BUILD = "defensa-drill-practica";
+export const NANDE_VERSION = "5.67.0";
+export const NANDE_BUILD = "leccion-azul-dfir-atribucion";

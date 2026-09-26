@@ -848,6 +848,80 @@ export const LESSONS: Lesson[] = [
   },
 
   /* ===================================================================
+     BLUE TEAM — investigar y ATRIBUIR un incidente con el motor real:
+     drill (incidente de práctica) → DFIR → atribución en TI → contención.
+     El complemento defensivo del capstone rojo (rojo↔azul sobre un caso).
+     =================================================================== */
+  {
+    id: "l-dfir-atribucion",
+    title: "Blue Team: investigar y atribuir un incidente (DFIR → TI)",
+    level: "avanzado",
+    summary: "Generar un incidente real, reconstruirlo con DFIR, atribuir al actor y contenerlo.",
+    concept:
+      "Defender no es sólo apagar el fuego: es entender qué pasó, quién fue y con qué evidencia. Vas a generar un incidente de práctica, reconstruirlo con DFIR, sacar sus indicadores (IOCs), atribuirlo a un actor documentado en la plataforma de Threat Intelligence, y recién ahí contenerlo. Todo con el motor real: el mismo incidente que produce el mundo.",
+    reward: { xp: 260, coins: 200 },
+    steps: [
+      {
+        explain:
+          "Generá un incidente de práctica: un ataque real contra tu data center, con el IOC que deja el actor.",
+        task: "Escribí: defensa drill",
+        hint: "defensa drill",
+        check: (cmd, out) =>
+          usedTool(cmd, "defensa") && /PRÁCTICA/i.test(out) && /IOC dejado/i.test(out),
+        debrief:
+          "Se cayó un servicio de tu data center y el atacante dejó un IOC. Ese indicador es tu hilo para atribuirlo.",
+      },
+      {
+        explain: "Mirá el estado del Blue Team: el incidente abierto y su indicador.",
+        task: "Escribí: defensa",
+        hint: "defensa",
+        check: (cmd, out) => usedTool(cmd, "defensa") && /🔴/.test(out),
+        debrief:
+          "Ahí está el incidente en rojo, con el IOC que dejó. Antes de contener, investiguemos.",
+      },
+      {
+        explain: "Reconstruí el incidente con DFIR: la línea de tiempo de lo que pasó, desde la evidencia real.",
+        task: "Escribí: dfir",
+        hint: "dfir",
+        check: (cmd, out) => usedTool(cmd, "dfir") && /(reconstrucción|Severidad|Técnicas MITRE)/i.test(out),
+        debrief:
+          "El DFIR arma el timeline desde los eventos reales del mundo, no de un guion.",
+      },
+      {
+        explain: "Extraé los indicadores de compromiso (IOCs). El del actor aparece como 'amenaza'.",
+        task: "Escribí: dfir iocs",
+        hint: "dfir iocs",
+        check: (cmd, out) =>
+          usedTool(cmd, "dfir") && /Indicadores de compromiso/i.test(out) && /amenaza/i.test(out),
+        debrief:
+          "El IOC de 'amenaza' es el que atribuye: pertenece a la infraestructura de un actor documentado.",
+      },
+      {
+        explain:
+          "Atribuí el ataque en la plataforma de TI: nombrás al actor y fundamentás con SU IOC. (Mirá los actores en: curl http://ti.nande/actores)",
+        task: 'Escribí: curl "http://ti.nande/atribuir?ioc=cdn-sync.invalid&actor=RedViper"',
+        hint: 'curl "http://ti.nande/atribuir?ioc=cdn-sync.invalid&actor=RedViper"',
+        hints: [
+          "Un IOC bien atribuido vale más que mil rumores: usá uno de confianza alta (el que dejó el actor), no un rumor.",
+          "El actor es aquel cuya infraestructura conocida incluye ese IOC. Buscalo en curl http://ti.nande/actores.",
+          'curl "http://ti.nande/atribuir?ioc=cdn-sync.invalid&actor=RedViper"',
+        ],
+        check: (_cmd, out) => out.includes("ND{ti_atribucion}"),
+        debrief:
+          "Atribución correcta y fundada (bandera ND{ti_atribucion}). Sabés qué pasó y quién fue. Ahora, a contener.",
+      },
+      {
+        explain: "Contené el incidente: restaurá el servicio caído. Responder rápido puntúa (sube tu reputación defensiva).",
+        task: "Escribí: contener all",
+        hint: "contener all",
+        check: (cmd, out) => usedTool(cmd, "contener") && /(Contuviste|contenido|restaurad)/i.test(out),
+        debrief:
+          "Incidente cerrado: investigado, atribuido y contenido. Ese es el ciclo azul completo. En un cyber range, esto vale igual que el ataque — suma a tu reputación.",
+      },
+    ],
+  },
+
+  /* ===================================================================
      ANONIMATO Y OPSEC — cuidar tu rastro. Aprendizaje avanzado: qué te
      delata y cómo bajás tu huella (sin creer en la "invisibilidad total").
      =================================================================== */
