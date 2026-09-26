@@ -36,7 +36,7 @@ export interface Incident {
 
 /** Un indicador de compromiso extraído de la evidencia real. */
 export interface Ioc {
-  kind: "ip" | "host" | "usuario" | "puerto" | "credencial";
+  kind: "ip" | "host" | "usuario" | "puerto" | "credencial" | "amenaza";
   value: string;
   /** Cuántas veces aparece en la evidencia. */
   hits: number;
@@ -71,17 +71,25 @@ export class Investigator {
   private hosts?: HostRuntime;
   private shark?: PacketCapture;
   private clock?: () => number;
+  /** Incidentes del data center (ThreatEngine): traen el IOC del actor. */
+  private incidents?: () => { host: string; rival: string; tick: number; ioc?: string }[];
 
   constructor(
     store: EventStore,
     mitre: MitreCorrelator,
-    deps: { hosts?: HostRuntime; shark?: PacketCapture; clock?: () => number } = {},
+    deps: {
+      hosts?: HostRuntime;
+      shark?: PacketCapture;
+      clock?: () => number;
+      incidents?: () => { host: string; rival: string; tick: number; ioc?: string }[];
+    } = {},
   ) {
     this.store = store;
     this.mitre = mitre;
     this.hosts = deps.hosts;
     this.shark = deps.shark;
     this.clock = deps.clock;
+    this.incidents = deps.incidents;
   }
 
   /**
@@ -235,6 +243,18 @@ export class Investigator {
     for (const h of this.hosts?.all() ?? []) {
       const seen = map.get(`host:${h.hostname}`);
       if (seen) bump("ip", h.ip, seen.firstTick, `IP de ${h.hostname}`);
+    }
+
+    // Incidentes del data center (ThreatEngine): si el ataque cayó sobre un host
+    // que aparece en la reconstrucción, sumamos el IOC del ACTOR que dejó. Así
+    // el DFIR recupera el indicador atribuible, no sólo "un servicio se cayó":
+    // se pivotea y se atribuye en TI (cierra el lazo SOC → DFIR → TI).
+    const afectados = new Set((inc?.hostsAffected ?? []).map((h) => h.toLowerCase()));
+    for (const it of this.incidents?.() ?? []) {
+      if (!it.ioc) continue;
+      if (afectados.size > 0 && !afectados.has(it.host.toLowerCase())) continue;
+      bump("host", it.host, it.tick, "objetivo de un incidente del data center");
+      bump("amenaza", it.ioc, it.tick, `IOC dejado por ${it.rival} — atribuilo en ti.nande`);
     }
 
     return [...map.values()].sort((a, b) => b.hits - a.hits || a.value.localeCompare(b.value));

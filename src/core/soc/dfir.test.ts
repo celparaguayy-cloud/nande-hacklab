@@ -117,4 +117,26 @@ describe("Investigator / DFIR — forense sobre el mundo real", () => {
     expect(term.execute("dfir iocs")).toContain("server.nande");
     expect(term.execute("dfir report")).toContain("INFORME DE INCIDENTE");
   });
+
+  it("el DFIR recupera el IOC del ACTOR de un incidente del data center (lazo SOC→DFIR→TI)", () => {
+    // El mundo ataca tu data center: el incidente trae el IOC del actor.
+    const inc = kernel.threats.maybeAttack(100)!;
+    expect(inc.ioc, "el incidente debería traer un IOC").toBeTruthy();
+
+    // El DFIR, además de ver la caída del servicio, ahora surfacea ese IOC como
+    // indicador atribuible (antes sólo veía 'un servicio se cayó').
+    const iocs = kernel.dfir.iocs();
+    const amenaza = iocs.find((i) => i.kind === "amenaza" && i.value === inc.ioc);
+    expect(amenaza, `el DFIR debería exponer el IOC del actor (${inc.ioc})`).toBeTruthy();
+    expect(amenaza!.why).toContain(inc.rival);
+
+    // Y ese mismo IOC + su actor cierran la atribución en la plataforma de TI.
+    const findActor = (rival: string) => rival; // el alias del incidente es el actor
+    const body = kernel.browser.request(
+      "GET",
+      "ti.nande",
+      "/atribuir?ioc=" + encodeURIComponent(inc.ioc!) + "&actor=" + encodeURIComponent(findActor(inc.rival)),
+    ).response.body;
+    expect(body).toContain("ND{ti_atribucion}");
+  });
 });

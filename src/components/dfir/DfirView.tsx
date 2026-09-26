@@ -17,6 +17,7 @@ const IOC_COLOR: Record<Ioc["kind"], string> = {
   usuario: "#c4b5fd",
   puerto: "#fbbf24",
   credencial: "#f87171",
+  amenaza: "#fb7185",
 };
 
 type Tab = "caso" | "ioc" | "triaje";

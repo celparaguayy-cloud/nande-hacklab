@@ -395,6 +395,8 @@ export class VirtualKernel {
       hosts: this.hosts,
       shark: this.shark,
       clock: () => this.runtime.clock.tick(),
+      // Incidentes del data center: le dan al DFIR el IOC del actor atacante.
+      incidents: () => this.threats.list(),
     });
 
     // academy.nande y tools.nande: la biblioteca y la ruta de aprendizaje,
