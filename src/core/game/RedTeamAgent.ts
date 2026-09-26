@@ -1,5 +1,5 @@
 import type { HostRuntime } from "../net/HostRuntime";
-import { actorAliases } from "../threat/ThreatActors";
+import { actorAliases, findActor } from "../threat/ThreatActors";
 
 /**
  * RedTeamAgent — un adversario AUTÓNOMO que actúa sobre el mundo de verdad. No
@@ -38,6 +38,10 @@ export class RedTeamAgent {
   private rivalIdx = 0;
   /** ¿El adversario está operando ahora mismo? */
   active = true;
+  /** IOC que dejó este actor en su intrusión (evidencia para atribuirlo en TI). */
+  private ioc?: string;
+  /** Tick del primer paso de esta campaña (>0 = hay incidente en curso). */
+  private firstTick = 0;
 
   constructor(hosts: HostRuntime) {
     this.hosts = hosts;
@@ -54,6 +58,13 @@ export class RedTeamAgent {
    */
   act(tick: number): RedStep | null {
     if (!this.active || this.phase === "done") return null;
+    // Al arrancar la campaña, el actor "deja" uno de sus IOCs conocidos: es la
+    // evidencia con la que el defensor lo atribuye en TI (igual que el atacante
+    // del data center). Un solo mundo, un solo trato para los adversarios.
+    if (this.firstTick === 0) {
+      this.firstTick = tick;
+      this.ioc = findActor(this.rival())?.infra[0];
+    }
 
     let step: RedStep;
     switch (this.phase) {
@@ -128,6 +139,8 @@ export class RedTeamAgent {
     this.bruteCount = 0;
     this.rivalIdx += 1;
     this.active = true;
+    this.ioc = undefined;
+    this.firstTick = 0; // la campaña se cerró: ya no hay incidente en curso
     this.log.push({
       tick,
       phase: "recon",
@@ -135,6 +148,23 @@ export class RedTeamAgent {
       detail: `Expulsaste al adversario. Servicio restaurado; el siguiente rival es ${this.rival()}.`,
     });
     return wasActive;
+  }
+
+  /**
+   * Incidente en curso del adversario autónomo, con el IOC de su actor —de la
+   * misma forma que los incidentes del data center—, para que el DFIR lo vea y
+   * el defensor lo atribuya en TI. null si no hay campaña activa (o fue
+   * expulsada).
+   */
+  incident(): { host: string; rival: string; tick: number; ioc?: string; resolved: boolean } | null {
+    if (this.firstTick === 0) return null;
+    return {
+      host: REDTEAM_TARGET,
+      rival: this.rival(),
+      tick: this.firstTick,
+      ioc: this.ioc,
+      resolved: false,
+    };
   }
 
   currentPhase(): Phase {

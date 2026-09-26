@@ -88,4 +88,29 @@ describe("Actores de amenaza — una sola fuente de verdad", () => {
     const otro = THREAT_ACTORS.find((a) => a.id !== actor.id)!;
     expect(attribute(otro.nombre, inc.ioc!)).not.toContain("ND{ti_atribucion}");
   });
+
+  it("el adversario AUTÓNOMO también deja IOC y es atribuible (paridad con el data center)", () => {
+    // Antes de actuar no hay incidente del adversario autónomo.
+    expect(kernel.redteam.incident()).toBeNull();
+    // Avanzá su kill-chain: deja el IOC de su actor y produce eventos reales.
+    kernel.redteam.act(45);
+    kernel.redteam.act(90);
+    const inc = kernel.redteam.incident();
+    expect(inc, "debería haber un incidente del adversario autónomo").toBeTruthy();
+    expect(inc!.ioc, "el adversario debería dejar un IOC").toBeTruthy();
+    const actor = findActor(inc!.rival)!;
+    expect(actor.infra.map((i) => i.toLowerCase())).toContain(inc!.ioc!.toLowerCase());
+    // El DFIR lo surfacea como indicador de amenaza (investigable).
+    expect(kernel.dfir.iocs().some((i) => i.kind === "amenaza" && i.value === inc!.ioc)).toBe(true);
+    // Y se atribuye en TI con el actor + su IOC (igual que el ataque al data center).
+    const body = kernel.browser.request(
+      "GET",
+      "ti.nande",
+      "/atribuir?ioc=" + encodeURIComponent(inc!.ioc!) + "&actor=" + encodeURIComponent(actor.nombre),
+    ).response.body;
+    expect(body).toContain("ND{ti_atribucion}");
+    // Expulsarlo cierra el incidente (deja de estar en curso).
+    kernel.redteam.evict(120);
+    expect(kernel.redteam.incident()).toBeNull();
+  });
 });

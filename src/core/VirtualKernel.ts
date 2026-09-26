@@ -395,8 +395,13 @@ export class VirtualKernel {
       hosts: this.hosts,
       shark: this.shark,
       clock: () => this.runtime.clock.tick(),
-      // Incidentes del data center: le dan al DFIR el IOC del actor atacante.
-      incidents: () => this.threats.list(),
+      // Incidentes que le dan al DFIR el IOC del actor atacante: los del data
+      // center (ThreatEngine) y el del adversario autónomo (RedTeamAgent). Así
+      // cualquier ataque del mundo es investigable y atribuible, no sólo uno.
+      incidents: () => {
+        const rt = this.redteam.incident();
+        return rt ? [...this.threats.list(), rt] : this.threats.list();
+      },
     });
 
     // academy.nande y tools.nande: la biblioteca y la ruta de aprendizaje,
