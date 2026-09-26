@@ -13,6 +13,7 @@ import { DfirView } from "../dfir/DfirView";
 import { AnonView } from "../anon/AnonView";
 import { AsistenteView } from "../ai/AsistenteView";
 import { ArenaView } from "../arena/ArenaView";
+import { CommunityView } from "../community/CommunityView";
 import { Files } from "../files/Files";
 import { ProcessMonitor } from "../processes/ProcessMonitor";
 import { Settings } from "../settings/Settings";
@@ -289,6 +290,7 @@ function Desktop() {
       asistente: <AsistenteView kernel={kernel} onOpenApp={openWindow} />,
       maquinas: <MachinesView kernel={kernel} onOpenApp={openWindow} />,
       arena: <ArenaView kernel={kernel} onOpenApp={openWindow} />,
+      community: <CommunityView kernel={kernel} onOpenApp={openWindow} />,
       files: <Files kernel={kernel} />,
       processes: <ProcessMonitor kernel={kernel} />,
       settings: <Settings kernel={kernel} />,

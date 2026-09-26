@@ -165,6 +165,16 @@ export const APPS: AppMeta[] = [
     dock: true,
   },
   {
+    id: "community",
+    name: "Comunidad",
+    title: "Comunidad ÑANDE — mundo multijugador (opcional)",
+    summary: "Ranking del mundo y, con un servidor, comunidad online en vivo. Offline por defecto",
+    category: "Juegos",
+    from: "#7dd3fc",
+    to: "#0369a1",
+    dock: true,
+  },
+  {
     id: "asistente",
     name: "Ñandú IA",
     title: "Ñandú — Asistente que HACE",

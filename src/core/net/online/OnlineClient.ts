@@ -34,7 +34,15 @@ export class OnlineClient {
    * juego decide, una sola vez, si toca la red.
    */
   static fromConfig(): OnlineClient {
-    const url = onlineServerUrl();
+    return OnlineClient.forServer(onlineServerUrl());
+  }
+
+  /**
+   * Crea el cliente para una URL de servidor explícita: con URL → transporte
+   * real; vacío → NullTransport (offline). Útil cuando la UI cambia el servidor
+   * y quiere recrear el cliente para esa URL puntual.
+   */
+  static forServer(url: string): OnlineClient {
     return new OnlineClient(url ? new HttpOnlineTransport(url) : new NullTransport());
   }
 
