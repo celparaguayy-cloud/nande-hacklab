@@ -1,0 +1,13 @@
+{
+  "name": "nande-community-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Servidor de comunidad de ÑANDE (presencia + ranking global). Cero dependencias.",
+  "scripts": {
+    "start": "node index.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

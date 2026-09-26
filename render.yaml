@@ -1,0 +1,14 @@
+# Blueprint de Render para el servidor de comunidad de ÑANDE (plan free).
+# Deploy en un clic: en Render → "New" → "Blueprint" → elegí este repo.
+# (También podés crearlo a mano como Web Service; ver server/DEPLOY.md.)
+services:
+  - type: web
+    name: nande-community
+    runtime: node
+    plan: free
+    rootDir: server
+    # Sin dependencias: no hace falta build.
+    buildCommand: echo "sin build"
+    startCommand: node index.mjs
+    healthCheckPath: /health
+    autoDeploy: true
