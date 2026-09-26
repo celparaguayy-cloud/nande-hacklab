@@ -165,4 +165,22 @@ describe("Investigator / DFIR — forense sobre el mundo real", () => {
     expect(cont!.tick).toBe(130);
     expect(cont!.detail).toContain(inc.rival);
   });
+
+  it("defensa drill genera un incidente de práctica investigable, atribuible y contenible", () => {
+    const out = term.execute("defensa drill");
+    expect(out).toContain("PRÁCTICA");
+    const inc = kernel.threats.openIncidents()[0];
+    expect(inc, "el drill debería abrir un incidente").toBeTruthy();
+    expect(inc.ioc, "con IOC de actor").toBeTruthy();
+    // Investigable: el DFIR surfacea su IOC.
+    expect(kernel.dfir.iocs().some((i) => i.kind === "amenaza" && i.value === inc.ioc)).toBe(true);
+    // Contenible: cierra el incidente y suma puntaje defensivo (reputación).
+    const before = kernel.reputation().defensive;
+    expect(term.execute("contener " + inc.id)).toContain("contenido");
+    expect(kernel.reputation().defensive).toBeGreaterThan(before);
+    // No encima dos: con uno abierto, un segundo drill avisa.
+    term.execute("defensa drill");
+    const segundo = term.execute("defensa drill");
+    expect(segundo).toContain("ya hay uno abierto");
+  });
 });

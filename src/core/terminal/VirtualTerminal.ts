@@ -2956,6 +2956,33 @@ export class VirtualTerminal {
     const t = this.kernel.threats;
     const tick = this.kernel.world.getState().clock.tick;
 
+    // defensa drill — genera un incidente de PRÁCTICA a demanda (ataque real,
+    // con IOC de actor documentado) para ensayar el flujo azul completo cuando
+    // quieras, sin esperar al atacante autónomo: investigar (dfir), atribuir
+    // (ti.nande) y contener. Es la práctica del Blue Team pedida por el req 10.
+    if (command === "defensa" && /^(drill|practic|simul|ensay)/i.test(args[0] ?? "")) {
+      const inc = t.maybeAttack(tick);
+      if (!inc) {
+        return {
+          output:
+            "No se pudo generar un incidente de práctica: ya hay uno abierto " +
+            "(contené el actual: 'contener all') o no hay servicios que atacar.\n",
+          isError: false,
+        };
+      }
+      return {
+        output:
+          `🎯 Incidente de PRÁCTICA generado (Blue Team):\n` +
+          `  ${inc.rival} tiró ${inc.service} de ${inc.host} (t=${inc.tick}).` +
+          (inc.ioc ? `  IOC dejado: ${inc.ioc}\n` : "\n") +
+          `\nPracticá el flujo completo:\n` +
+          `  1) Investigá:  dfir · dfir iocs${inc.ioc ? ` · dfir pivot ${inc.ioc}` : ""}\n` +
+          `  2) Atribuí:    llevá el IOC a http://ti.nande/atribuir y nombrá al actor\n` +
+          `  3) Contené:    contener ${inc.id}\n`,
+        isError: false,
+      };
+    }
+
     if (command === "contener") {
       const id = args[0];
       if (!id) {
@@ -2990,7 +3017,8 @@ export class VirtualTerminal {
         (abiertos.length ? `\nContené con: contener ${abiertos[0].id}  (o 'contener all')\n` : "") +
         (conIoc
           ? `Atribuí el ataque: llevá el IOC (${conIoc.ioc}) a http://ti.nande/atribuir y nombrá al actor.\n`
-          : ""),
+          : "") +
+        (abiertos.length === 0 ? `Practicá cuando quieras: 'defensa drill' genera un incidente para investigar.\n` : ""),
       isError: false,
     };
   }
