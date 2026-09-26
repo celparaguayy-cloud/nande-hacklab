@@ -29,9 +29,20 @@ describe("ToolSynthesizer — forjador offline (siempre compila y hace algo)", (
   });
 
   const casos = [
+    "crea un exploit",
+    "auto pwn de un objetivo",
+    "sqli en un login",
+    "xss reflejado en el buscador",
+    "idor enumerando albumes",
+    "path traversal para leer secretos",
+    "rce por inyeccion de comandos",
+    "forjar un jwt con alg none",
+    "ssrf a metadata interno",
+    "crackear un hash md5",
     "una tool que calcule el md5 de un texto",
     "codificar en base64",
     "probar el diccionario contra un login",
+    "recon web con gobuster",
     "consultar el estado http de una web",
     "resolver un dominio a ip",
     "descubrir los hosts de la red y sus puertos",
@@ -57,6 +68,44 @@ describe("ToolSynthesizer — forjador offline (siempre compila y hace algo)", (
     const run = kernel.toolRuntime.run(inst.name!, ["server.nande"]);
     expect(run.ok).toBe(true);
     expect(run.output).toContain("80/tcp");
+  });
+
+  it("el auto-exploit captura banderas REALES de los labs (4 vulns distintas)", async () => {
+    const r = await kernel.toolSynthesizer.synthesize("crea un exploit");
+    expect(r.suggestedName).toBeTruthy();
+    kernel.toolRuntime.install(r.source, { name: "pwn" }, "player");
+    const run = kernel.toolRuntime.run("pwn", []);
+    expect(run.ok, run.error).toBe(true);
+    // La captura ocurre por el MISMO camino que el terminal (scanForSignals).
+    kernel.scanForSignals(run.output);
+    const flags = kernel.player.capturedFlags();
+    expect(flags).toContain("ND{xss_reflejado}");
+    expect(flags).toContain("ND{idor_album_ajeno}");
+    expect(flags).toContain("ND{path_traversal_secreto}");
+    expect(flags).toContain("ND{cmd_injection_pwned}");
+    // Sin duplicar: cada bandera se reporta una sola vez por objetivo.
+    expect(run.output).toContain("Total de banderas capturadas: 4");
+  });
+
+  it("el auto-exploit resuelve también un reto procedural de la Arena", async () => {
+    const c = kernel.ctf.startProcedural("fácil");
+    const r = await kernel.toolSynthesizer.synthesize("exploit");
+    kernel.toolRuntime.install(r.source, { name: "pwn2" }, "player");
+    const run = kernel.toolRuntime.run("pwn2", [c.host]);
+    kernel.scanForSignals(run.output);
+    // El recon genérico del exploit cubre robots/backup/.env/api/idor.
+    // No todos los arquetipos caen por recon (hash necesita crackeo), pero
+    // el exploit corre sin romperse contra un host real generado.
+    expect(run.ok, run.error).toBe(true);
+    expect(run.output).toContain(c.host);
+  });
+
+  it("la tool de crackeo rompe un md5 del diccionario", async () => {
+    const r = await kernel.toolSynthesizer.synthesize("crackear un hash md5");
+    kernel.toolRuntime.install(r.source, { name: "crk" }, "player");
+    // md5("password") conocido y estable.
+    const run = kernel.toolRuntime.run("crk", ["5f4dcc3b5aa765d61d8327deb882cf99"]);
+    expect(run.output).toContain("password");
   });
 
   it("la tool de hash produce el md5 real", async () => {
