@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { THREAT_ACTORS, actorAliases, findActor } from "./ThreatActors";
 import { VirtualKernel } from "../VirtualKernel";
+import { VirtualTerminal } from "../terminal/VirtualTerminal";
 import { resetStorage, seedRandom } from "../../test/setup";
 
 /**
@@ -58,5 +59,33 @@ describe("Actores de amenaza — una sola fuente de verdad", () => {
       "/atribuir?ioc=" + encodeURIComponent("update.badcorp.invalid") + "&actor=GRIS+FANTASMA",
     );
     expect(ok.response.body).toContain("ND{ti_atribucion}");
+  });
+
+  it("el ataque deja un IOC del actor (evidencia real) y se surfacea en defensa", () => {
+    const inc = kernel.threats.maybeAttack(100)!;
+    expect(inc.ioc, "el incidente debería traer un IOC").toBeTruthy();
+    const actor = findActor(inc.rival)!;
+    // El IOC pertenece de verdad a la infraestructura de ese actor.
+    expect(actor.infra.map((i) => i.toLowerCase())).toContain(inc.ioc!.toLowerCase());
+    // El comando 'defensa' muestra el IOC y guía a atribuir en TI.
+    const out = new VirtualTerminal(kernel).execute("defensa");
+    expect(out).toContain(inc.ioc!);
+    expect(out).toContain("ti.nande");
+  });
+
+  it("atribuir el incidente vivido (actor + su IOC) da la bandera; el actor equivocado no", () => {
+    const inc = kernel.threats.maybeAttack(100)!;
+    const actor = findActor(inc.rival)!;
+    const attribute = (nombre: string, ioc: string) =>
+      kernel.browser.request(
+        "GET",
+        "ti.nande",
+        "/atribuir?ioc=" + encodeURIComponent(ioc) + "&actor=" + encodeURIComponent(nombre),
+      ).response.body;
+    // Correcto: el actor que te atacó + el IOC que dejó.
+    expect(attribute(actor.nombre, inc.ioc!)).toContain("ND{ti_atribucion}");
+    // Otro actor documentado, con el MISMO IOC, no cierra (correlación real).
+    const otro = THREAT_ACTORS.find((a) => a.id !== actor.id)!;
+    expect(attribute(otro.nombre, inc.ioc!)).not.toContain("ND{ti_atribucion}");
   });
 });

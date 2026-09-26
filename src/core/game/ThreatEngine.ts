@@ -1,5 +1,5 @@
 import type { HostRuntime } from "../net/HostRuntime";
-import { actorAliases } from "../threat/ThreatActors";
+import { THREAT_ACTORS } from "../threat/ThreatActors";
 
 /**
  * ThreatEngine — el mundo ataca de vuelta. Cada tanto, un hacker rival golpea
@@ -19,11 +19,10 @@ export interface Incident {
   rival: string;
   tick: number;
   resolved: boolean;
+  /** IOC que dejó el actor (evidencia real para atribuirlo en TI). */
+  ioc?: string;
 }
 
-// Los atacantes del data center salen del registro ÚNICO de actores de amenaza
-// (regla 2/8): el que te golpea es el que documentás/atribuís en TI.
-const RIVALS = actorAliases();
 const DEFENSE_HOST = "midc.nande";
 
 interface ThreatState {
@@ -92,7 +91,10 @@ export class ThreatEngine {
     if (this.incidents.some((i) => !i.resolved)) return null;
 
     const svc = corriendo[Math.floor(this.rng() * corriendo.length)];
-    const rival = RIVALS[Math.floor(this.rng() * RIVALS.length)];
+    // El atacante es un actor DOCUMENTADO (fuente única): deja además uno de sus
+    // IOCs, evidencia real para atribuirlo después en la plataforma de TI.
+    const actor = THREAT_ACTORS[Math.floor(this.rng() * THREAT_ACTORS.length)];
+    const ioc = actor.infra[Math.floor(this.rng() * actor.infra.length)];
 
     // El ataque tira el servicio: el SOC lo verá como caída (evento real).
     this.hosts.stopService(DEFENSE_HOST, svc.name);
@@ -101,9 +103,10 @@ export class ThreatEngine {
       id: `inc${++this.seq}`,
       host: DEFENSE_HOST,
       service: svc.name,
-      rival,
+      rival: actor.alias,
       tick,
       resolved: false,
+      ioc,
     };
     this.incidents.unshift(incident);
     return incident;

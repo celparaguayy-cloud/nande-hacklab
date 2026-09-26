@@ -88,22 +88,34 @@ export class ThreatIntel implements WebApp {
     const ioc = (req.query.ioc ?? "").trim().toLowerCase();
     const actor = (req.query.actor ?? "").trim().toLowerCase();
     if (ioc || actor) {
-      // El IOC tiene que ser de confianza alta y pertenecer al actor correcto.
-      const iocValido = ["update.badcorp.invalid", "nande_lock"].includes(ioc);
-      const actorOk = /gris|fantasma|ghostgrey/.test(actor);
+      // El IOC del feed marcado como RUMOR (baja confianza) nunca atribuye:
+      // acusar con eso es el error clásico de inteligencia.
       const rumor = ioc === "203.0.113.66";
       if (rumor) {
         return html(page(this.title, notice(
           "Atribuiste con un indicador de confianza BAJA (un rumor sin confirmar). En inteligencia, eso es un error: podés acusar al equivocado.", "err") + this.form(req)));
       }
-      if (iocValido && actorOk) {
+      // Atribución correcta = nombrás un actor DOCUMENTADO (por alias o nombre,
+      // aunque sea parcial: "gris" → GRIS FANTASMA) Y el IOC pertenece a SU
+      // infraestructura confirmada (regla 16: cualquiera de los actores que te
+      // ataca es atribuible con el IOC que dejó, no sólo uno hardcodeado). El
+      // IOC desempata: sólo cierra el actor cuya infra contiene ese indicador.
+      const found =
+        actor.length >= 3
+          ? THREAT_ACTORS.find(
+              (a) =>
+                (a.alias.toLowerCase().includes(actor) || a.nombre.toLowerCase().includes(actor)) &&
+                a.infra.some((i) => i.toLowerCase() === ioc),
+            )
+          : undefined;
+      if (found) {
         return html(page(this.title, `
 ${notice("Atribución correcta y bien fundada.", "ok")}
-<pre class="lab-file">IOC: ${escapeHtml(ioc)} (confianza alta, del sandbox)
-Actor: GRIS FANTASMA (GhostGrey) — ransomware
+<pre class="lab-file">IOC: ${escapeHtml(ioc)} (confianza alta, infraestructura confirmada)
+Actor: ${escapeHtml(found.nombre)} (${escapeHtml(found.alias)}) — ${escapeHtml(found.motivacion)}
 Infraestructura compartida confirmada.
 Bandera: ND{ti_atribucion}</pre>`),
-          { debug: { note: "atribución correcta" } });
+          { debug: { note: `atribución correcta: ${found.id}` } });
       }
       return html(page(this.title, notice(
         "No cierra. Usá un IOC de confianza alta y el actor cuya infraestructura coincide.", "err") + this.form(req)));

@@ -2909,15 +2909,21 @@ export class VirtualTerminal {
     const sc = t.scoreState();
     const abiertos = t.openIncidents();
     const lines = t.list(10).map(
-      (i) => `  ${i.resolved ? "✅" : "🔴"} ${i.id}  ${i.rival} tiró ${i.service} de ${i.host}  (t=${i.tick})`,
+      (i) =>
+        `  ${i.resolved ? "✅" : "🔴"} ${i.id}  ${i.rival} tiró ${i.service} de ${i.host}  (t=${i.tick})` +
+        (i.ioc ? `\n         IOC dejado: ${i.ioc}` : ""),
     );
+    const conIoc = abiertos.find((i) => i.ioc);
     return {
       output:
         `═══ DEFENSA · Blue Team ═══\n` +
         `Rango: ${t.rank()} · Puntaje: ${sc.score} · Contenidos: ${sc.contained}\n` +
         `Incidentes abiertos: ${abiertos.length}\n` +
         (lines.length ? lines.join("\n") + "\n" : "  (sin incidentes por ahora)\n") +
-        (abiertos.length ? `\nContené con: contener ${abiertos[0].id}  (o 'contener all')\n` : ""),
+        (abiertos.length ? `\nContené con: contener ${abiertos[0].id}  (o 'contener all')\n` : "") +
+        (conIoc
+          ? `Atribuí el ataque: llevá el IOC (${conIoc.ioc}) a http://ti.nande/atribuir y nombrá al actor.\n`
+          : ""),
       isError: false,
     };
   }
