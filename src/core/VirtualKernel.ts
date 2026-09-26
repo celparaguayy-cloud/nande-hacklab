@@ -996,6 +996,68 @@ export class VirtualKernel {
       flag: "ND{duelo_ganado}",
     });
 
+    // CAPSTONE "Yvytu Cloud" — cadena de intrusión completa y DETECTABLE, de la
+    // web/CI al robo de artefactos. Escenario real (pipeline CI/CD comprometido):
+    //   1) deploy.yvytu.nande: box de despliegue expuesto. El usuario 'ci' tiene
+    //      clave floja (foothold) y sudo NOPASSWD sobre awk (de un script viejo
+    //      de parseo de logs). awk escapa a shell (GTFOBins) → root. En /root,
+    //      la credencial del host de artefactos interno.
+    //   2) artefactos.yvytu.nande: repositorio de artefactos, en un segmento que
+    //      SÓLO se alcanza desde deploy (lateral). Guarda el secreto final.
+    // Cada paso enciende su técnica (privesc T1548, lateral T1021, recolección
+    // T1005): se resuelve con el motor y se ve en el SOC / killchain.
+    this.dns.register("deploy.yvytu.nande", "10.10.7.50");
+    this.hosts.register({
+      hostname: "deploy.yvytu.nande",
+      ip: "10.10.7.50",
+      os: "ÑandeLinux 4.0 (runner CI/CD)",
+      up: true,
+      services: [
+        { name: "sshd", port: 22, protocol: "tcp", version: "OpenÑSSH 9.6", kind: "ssh", state: "running", enabled: true },
+        { name: "nginx", port: 80, protocol: "tcp", version: "nginx/1.24 (ÑANDE)", kind: "http", state: "running", enabled: true },
+      ],
+      firewall: [],
+      processes: [],
+      files: {
+        "/etc/motd": "deploy.yvytu.nande — runner de CI/CD. Uso autorizado.",
+        "/home/ci/user.txt": "Bandera de usuario: ND{yvytu_foothold}",
+        "/home/ci/notas.txt":
+          "TODO: sacarme el sudo de awk, quedó de un script viejo que parsea logs de deploy.",
+        "/root/flag.txt": "Bandera de root: ND{yvytu_root}",
+        "/root/deploy.env":
+          "# credenciales del pipeline (NO commitear)\n" +
+          "ARTIFACTS_HOST=artefactos.yvytu.nande   # 10.10.55.10 (segmento interno)\n" +
+          "ARTIFACTS_USER=deployer\n" +
+          "ARTIFACTS_PASS=Art3f@cts!2024",
+      },
+      creds: [{ user: "ci", password: "Deploy2024" }],
+      sudoers: { ci: ["/usr/bin/awk"] },
+      flag: "ND{yvytu_root}",
+    });
+
+    this.dns.register("artefactos.yvytu.nande", "10.10.55.10");
+    this.hosts.register({
+      hostname: "artefactos.yvytu.nande",
+      ip: "10.10.55.10",
+      os: "ÑandeServer 3.0 (repositorio de artefactos)",
+      up: true,
+      services: [
+        { name: "sshd", port: 22, protocol: "tcp", version: "OpenÑSSH 9.6", kind: "ssh", state: "running", enabled: true },
+        { name: "nginx", port: 80, protocol: "tcp", version: "nginx/1.24 (registry)", kind: "http", state: "running", enabled: true },
+      ],
+      firewall: [],
+      processes: [],
+      files: {
+        "/root/flag.txt": "Bandera: ND{yvytu_exfil}",
+        "/srv/registry/prod-secrets.yaml":
+          "# secretos de producción (ficticios). El botín de la cadena.\n" +
+          "db_password: no-es-real\napi_token: nd-demo-token",
+      },
+      creds: [{ user: "deployer", password: "Art3f@cts!2024" }],
+      reachableFrom: ["deploy.yvytu.nande"],
+      flag: "ND{yvytu_exfil}",
+    });
+
     // Máquina de ESCALADA DE PRIVILEGIOS (estilo HTB): entrás como un usuario
     // sin privilegios y tenés que llegar a root. El foothold (devops) puede
     // correr /usr/bin/find como root sin contraseña (sudo NOPASSWD) — y find

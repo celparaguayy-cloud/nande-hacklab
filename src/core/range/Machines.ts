@@ -115,6 +115,26 @@ export const MACHINES: PracticeMachine[] = [
     courseId: "c-op-killchain",
   },
   {
+    id: "m-yvytu",
+    name: "Yvytu Cloud (CI/CD)",
+    host: "artefactos.yvytu.nande",
+    ip: "10.10.55.10",
+    os: "Pipeline CI/CD (runner → repo de artefactos)",
+    difficulty: "experto",
+    tags: ["ci-cd", "privesc", "sudo", "pivoting", "cadena-completa"],
+    points: 450,
+    brief:
+      "Un pipeline CI/CD comprometido de punta a punta, como en la vida real. Entrás por el runner expuesto (deploy.yvytu.nande) con una credencial floja, escalás a root abusando un sudo NOPASSWD sobre awk (GTFOBins), y usás las credenciales del pipeline para pivotar al repositorio de artefactos interno y robar el secreto de producción. Cada paso enciende su técnica en el SOC: mirá tu 'killchain' al terminar (privesc → lateral → recolección).",
+    tasks: [
+      { label: "Foothold en el runner (user.txt)", flag: "ND{yvytu_foothold}" },
+      { label: "Escalá a root (sudo awk GTFOBins)", flag: "ND{yvytu_root}" },
+      { label: "Pivotá y robá los artefactos", flag: "ND{yvytu_exfil}" },
+    ],
+    entry: "nmap -p- -sV deploy.yvytu.nande",
+    hint: "nmap -sV deploy.yvytu.nande (SSH); connect deploy.yvytu.nande ci Deploy2024; sudo -l revela awk; sudo awk 'BEGIN{system(\"/bin/sh\")}' te vuelve root; cat /root/deploy.env revela el repo (deployer/Art3f@cts!2024); connect artefactos.yvytu.nande; cat /root/flag.txt. Al final: killchain.",
+    courseId: "c-op-killchain",
+  },
+  {
     id: "m-ot-planta",
     name: "Planta Industrial (OT)",
     host: "plc.planta.nande",

