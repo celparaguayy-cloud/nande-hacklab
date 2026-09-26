@@ -23,6 +23,7 @@ interface Props {
 export function CommunityView({ kernel }: Props) {
   const player = kernel.player.getState();
   const noto = kernel.notoriety.getState();
+  const rep = kernel.reputation();
   const day = Math.floor(kernel.world.getState().clock.tick / 1440) + 1;
 
   // Ranking LOCAL (siempre disponible, offline): rivales del mundo + vos.
@@ -47,10 +48,12 @@ export function CommunityView({ kernel }: Props) {
     client.onPresence((p) => setPlayers([...p]));
     client.onLeaderboard((rows) => setBoard([...rows]));
     client.join(player.name);
-    client.submitScore(kernel.notoriety.getState().notoriety);
+    // Publicamos la REPUTACIÓN total (ofensiva + defensa), no sólo la
+    // notoriedad: en el ranking de comunidad cuenta todo tu perfil.
+    client.submitScore(kernel.reputation().total);
     const id = setInterval(() => {
       client.heartbeat();
-      client.submitScore(kernel.notoriety.getState().notoriety);
+      client.submitScore(kernel.reputation().total);
     }, 10_000);
     return () => {
       clearInterval(id);
@@ -130,6 +133,20 @@ export function CommunityView({ kernel }: Props) {
           )}
         </div>
       )}
+
+      {/* Tu reputación: ofensiva + defensa en un solo perfil. */}
+      <div style={card}>
+        <strong>Tu reputación</strong>
+        <div style={{ display: "flex", gap: 18, marginTop: 8, flexWrap: "wrap" }}>
+          <span>⚔ Ofensiva: <b>{rep.offensive}</b></span>
+          <span>🛡 Defensa: <b>{rep.defensive}</b></span>
+          <span>★ Total: <b>{rep.total}</b></span>
+        </div>
+        <p style={{ color: "var(--nd-text-dim, #8b949e)", fontSize: 11, margin: "8px 0 0" }}>
+          En un cyber range, atacar y defender valen igual: los dos suman a tu
+          reputación, y es la que compite en el ranking global.
+        </p>
+      </div>
 
       {/* Ranking LOCAL: siempre visible (offline y online). */}
       <div style={card}>

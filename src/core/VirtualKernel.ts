@@ -1381,6 +1381,20 @@ export class VirtualKernel {
   }
 
   /**
+   * Reputación TOTAL del jugador: una sola fuente de verdad para "cuánto valés"
+   * en ÑANDE, sumando lo OFENSIVO (notoriedad ganada atacando) y lo DEFENSIVO
+   * (puntaje del Blue Team por contener incidentes). Antes la defensa no
+   * contaba en ningún ranking: un gran defensor era invisible. Ahora ofensiva y
+   * defensa cuentan en el MISMO perfil (regla 2/10/16). Es lo que el ranking de
+   * comunidad publica: en un cyber range, red y blue valen igual.
+   */
+  reputation(): { total: number; offensive: number; defensive: number } {
+    const offensive = this.notoriety.getState().notoriety;
+    const defensive = this.threats.scoreState().score;
+    return { offensive, defensive, total: offensive + defensive };
+  }
+
+  /**
    * Resumen barato para la UI: contadores y las ultimas entidades, sin
    * clonar el registro entero en cada refresco.
    */

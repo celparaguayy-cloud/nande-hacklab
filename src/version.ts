@@ -3,5 +3,5 @@
  * qué build estás corriendo (y confirmar que tomaste la última actualización).
  * Subí el número cuando haya un cambio que el jugador deba poder distinguir.
  */
-export const NANDE_VERSION = "5.53.0";
-export const NANDE_BUILD = "pantalla-comunidad";
+export const NANDE_VERSION = "5.54.0";
+export const NANDE_BUILD = "reputacion-ofensiva-defensa";
