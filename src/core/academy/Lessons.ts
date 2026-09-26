@@ -768,6 +768,86 @@ export const LESSONS: Lesson[] = [
   },
 
   /* ===================================================================
+     CAPSTONE "YVYTU CLOUD" — una intrusión completa, guiada paso a paso:
+     foothold → escalada (sudo awk) → pivote lateral → exfiltración. Cada
+     paso enciende su técnica en el SOC (mirá 'killchain' al final).
+     =================================================================== */
+  {
+    id: "l-yvytu",
+    title: "Capstone: comprometer un pipeline CI/CD de punta a punta",
+    level: "avanzado",
+    summary: "Una cadena real: foothold, escalar con sudo awk, pivotar y robar el botín.",
+    concept:
+      "Un ataque real no es un solo comando: es una cadena. Acá entrás a un runner de CI/CD con una clave floja, escalás a root abusando un sudo NOPASSWD sobre awk (GTFOBins), y usás las credenciales del pipeline para pivotar a un repositorio interno y robar el secreto. Cada paso deja rastro: el SOC lo ve.",
+    reward: { xp: 320, coins: 240 },
+    steps: [
+      {
+        explain:
+          "El runner deploy.yvytu.nande expone SSH y el usuario de servicio 'ci' tiene una clave floja. Entrá.",
+        task: "Escribí: connect deploy.yvytu.nande ci Deploy2024",
+        hint: "connect deploy.yvytu.nande ci Deploy2024",
+        check: (cmd, out) =>
+          usedTool(cmd, "connect") && /conectado a deploy\.yvytu\.nande/i.test(out),
+        debrief:
+          "Tenés foothold como ci. Tu terminal ahora opera contra el runner.",
+      },
+      {
+        explain: "Llevate la bandera de usuario para confirmar el acceso.",
+        task: "Escribí: cat /home/ci/user.txt",
+        hint: "cat /home/ci/user.txt",
+        check: (_cmd, out) => out.includes("ND{yvytu_foothold}"),
+        debrief:
+          "Foothold confirmado. Pero 'ci' no es root: todavía no ves /root. Hay que escalar.",
+      },
+      {
+        explain:
+          "Mirá qué podés correr como root sin contraseña. Ese suele ser el vector de escalada.",
+        task: "Escribí: sudo -l",
+        hint: "sudo -l",
+        check: (cmd, out) => usedTool(cmd, "sudo") && /awk/i.test(out) && /NOPASSWD/i.test(out),
+        debrief:
+          "ci puede correr awk como root sin clave. awk puede ejecutar comandos del sistema: es tu escape.",
+      },
+      {
+        explain:
+          "awk ejecuta comandos con BEGIN{system(...)}. Corrido como root, te abre una shell de root (GTFOBins).",
+        task: "Escribí: sudo awk 'BEGIN{system(\"/bin/sh\")}'",
+        hint: "sudo awk 'BEGIN{system(\"/bin/sh\")}'",
+        check: (cmd, out) => usedTool(cmd, "sudo") && /sos root/i.test(out),
+        debrief:
+          "Sos root en el runner. La escalada IMPORTA: recién ahora leés /root. (SOC: se encendió Privilege Escalation, T1548.)",
+      },
+      {
+        explain:
+          "Ya root, el pipeline guarda en /root la credencial del repositorio de artefactos. Leela.",
+        task: "Escribí: cat /root/deploy.env",
+        hint: "cat /root/deploy.env",
+        check: (_cmd, out) => /artefactos\.yvytu\.nande/i.test(out) && /deployer/i.test(out),
+        debrief:
+          "El .env filtra host y credencial del repo interno. Reusar credenciales del pipeline es un clásico: así se pivota.",
+      },
+      {
+        explain:
+          "El repositorio de artefactos vive en un segmento interno que SÓLO se ve desde el runner. Pivotá.",
+        task: "Escribí: connect artefactos.yvytu.nande deployer Art3f@cts!2024",
+        hint: "connect artefactos.yvytu.nande deployer Art3f@cts!2024",
+        check: (cmd, out) =>
+          usedTool(cmd, "connect") && /conectado a artefactos\.yvytu\.nande/i.test(out),
+        debrief:
+          "Movimiento lateral logrado (SOC: T1021). Estás en el repo que era invisible desde afuera.",
+      },
+      {
+        explain: "Robá el botín: el secreto de producción del repositorio.",
+        task: "Escribí: cat /root/flag.txt",
+        hint: "cat /root/flag.txt",
+        check: (_cmd, out) => out.includes("ND{yvytu_exfil}"),
+        debrief:
+          "Cadena completa: foothold → escalada → lateral → exfiltración (SOC: T1005). Corré 'killchain' y vas a ver toda tu historia. Defensa (Blue Team): quitar el sudo de awk, no guardar credenciales en /root ni reusarlas, y segmentar el repo cortan esta cadena.",
+      },
+    ],
+  },
+
+  /* ===================================================================
      ANONIMATO Y OPSEC — cuidar tu rastro. Aprendizaje avanzado: qué te
      delata y cómo bajás tu huella (sin creer en la "invisibilidad total").
      =================================================================== */

