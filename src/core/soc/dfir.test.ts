@@ -150,4 +150,19 @@ describe("Investigator / DFIR — forense sobre el mundo real", () => {
     const porActor = kernel.dfir.pivot(inc.rival);
     expect(porActor.some((e) => e.host === inc.host)).toBe(true);
   });
+
+  it("la RESPUESTA es trazable: contener deja el rastro (ataque → contención)", () => {
+    const inc = kernel.threats.maybeAttack(100)!;
+    // Antes de contener: pivot muestra el ataque, no la respuesta.
+    const antes = kernel.dfir.pivot(inc.rival);
+    expect(antes.some((e) => e.kind === "contención")).toBe(false);
+    // Contené el incidente (respuesta defensiva) más tarde.
+    expect(kernel.threats.contain(inc.id, 130).ok).toBe(true);
+    // Ahora el pivot muestra el ciclo completo: ataque + contención trazada.
+    const despues = kernel.dfir.pivot(inc.rival);
+    const cont = despues.find((e) => e.kind === "contención");
+    expect(cont, "el pivot debería mostrar la contención").toBeTruthy();
+    expect(cont!.tick).toBe(130);
+    expect(cont!.detail).toContain(inc.rival);
+  });
 });

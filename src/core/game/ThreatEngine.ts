@@ -21,6 +21,8 @@ export interface Incident {
   resolved: boolean;
   /** IOC que dejó el actor (evidencia real para atribuirlo en TI). */
   ioc?: string;
+  /** Tick en que el defensor lo CONTUVO (rastro de la respuesta). */
+  resolvedTick?: number;
 }
 
 const DEFENSE_HOST = "midc.nande";
@@ -132,6 +134,7 @@ export class ThreatEngine {
 
     this.hosts.startService(inc.host, inc.service);
     inc.resolved = true;
+    inc.resolvedTick = tick; // rastro de la respuesta (cuándo se contuvo)
 
     const demora = Math.max(0, tick - inc.tick);
     const points = Math.max(20, 200 - demora); // rápido = más puntos

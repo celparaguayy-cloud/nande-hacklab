@@ -71,8 +71,16 @@ export class Investigator {
   private hosts?: HostRuntime;
   private shark?: PacketCapture;
   private clock?: () => number;
-  /** Incidentes del data center (ThreatEngine): traen el IOC del actor. */
-  private incidents?: () => { host: string; rival: string; tick: number; ioc?: string }[];
+  /** Incidentes del data center (ThreatEngine): traen el IOC del actor y el
+   *  rastro de la respuesta (si fue contenido y cuándo). */
+  private incidents?: () => {
+    host: string;
+    rival: string;
+    tick: number;
+    ioc?: string;
+    resolved?: boolean;
+    resolvedTick?: number;
+  }[];
 
   constructor(
     store: EventStore,
@@ -81,7 +89,14 @@ export class Investigator {
       hosts?: HostRuntime;
       shark?: PacketCapture;
       clock?: () => number;
-      incidents?: () => { host: string; rival: string; tick: number; ioc?: string }[];
+      incidents?: () => {
+        host: string;
+        rival: string;
+        tick: number;
+        ioc?: string;
+        resolved?: boolean;
+        resolvedTick?: number;
+      }[];
     } = {},
   ) {
     this.store = store;
@@ -288,6 +303,16 @@ export class Investigator {
         host: it.host,
         detail: `${it.rival} atacó ${it.host}${it.ioc ? ` — IOC ${it.ioc}` : ""} (atribuible en ti.nande)`,
       });
+      // La RESPUESTA también es evidencia: si el defensor lo contuvo, dejá el
+      // rastro (ataque → contención) en la investigación (regla 18).
+      if (it.resolved && it.resolvedTick != null) {
+        out.push({
+          tick: it.resolvedTick,
+          kind: "contención",
+          host: it.host,
+          detail: `Contención: ${it.host} restaurado (respuesta al ataque de ${it.rival}, ${Math.max(0, it.resolvedTick - it.tick)} tick(s) después)`,
+        });
+      }
       matchedHosts.add(it.host.toLowerCase());
     }
     // Contexto: los eventos reales en el host golpeado por ese actor.
