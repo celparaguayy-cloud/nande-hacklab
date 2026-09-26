@@ -20,12 +20,33 @@
  * host) NO depende de eso: se sostiene por el sombreado y la validación.
  */
 
+import { md5, sha256 } from "../crypto/hash";
+import { WORDLIST } from "../crypto/cracker";
+
 export type Capability =
   | "print"
   | "network.virtual.inspect"
   | "http.virtual.request"
   | "dns.resolve"
+  | "fs.virtual.read"
+  | "fs.virtual.write"
   | "execution.run";
+
+/** Petición HTTP que el código arma (GET por defecto; POST con formulario). */
+export interface SandboxHttpRequest {
+  method?: "GET" | "POST";
+  body?: Record<string, string>;
+}
+
+/** Respuesta HTTP del mundo virtual tal como la ve el código. */
+export interface SandboxHttpResponse {
+  status: number;
+  /** Texto visible (HTML sin etiquetas). */
+  text: string;
+  /** Cuerpo crudo (HTML/JSON tal cual lo sirvió la app). */
+  body?: string;
+  headers?: Record<string, string>;
+}
 
 export interface SandboxHost {
   /** Tick del mundo (determinista). */
@@ -37,7 +58,13 @@ export interface SandboxHost {
   /** Resolución DNS del mundo (dns.resolve). */
   resolve(host: string): string | undefined;
   /** Petición HTTP al mundo virtual (http.virtual.request). */
-  http(url: string): { status: number; text: string };
+  http(url: string, req?: SandboxHttpRequest): SandboxHttpResponse;
+  /** Hosts alcanzables desde la máquina del jugador (network.virtual.inspect). */
+  hosts?(): { hostname: string; ip: string; up: boolean }[];
+  /** Lee un archivo del filesystem virtual (fs.virtual.read); undefined si no existe o no hay permiso. */
+  readFile?(path: string): string | undefined;
+  /** Escribe un archivo del filesystem virtual (fs.virtual.write). */
+  writeFile?(path: string, content: string): { ok: boolean; error?: string };
 }
 
 export interface CompileResult {
@@ -115,6 +142,53 @@ const SHADOW = [
 ];
 
 const MAX_OUTPUT = 8_000;
+
+/** base64 sobre UTF-8 (sin btoa/atob, que no aceptan Unicode). */
+const B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+export function base64Encode(text: string): string {
+  const bytes = new TextEncoder().encode(text);
+  let out = "";
+  for (let i = 0; i < bytes.length; i += 3) {
+    const n = (bytes[i] << 16) | ((bytes[i + 1] ?? 0) << 8) | (bytes[i + 2] ?? 0);
+    out += B64[(n >> 18) & 63] + B64[(n >> 12) & 63];
+    out += i + 1 < bytes.length ? B64[(n >> 6) & 63] : "=";
+    out += i + 2 < bytes.length ? B64[n & 63] : "=";
+  }
+  return out;
+}
+export function base64Decode(b64: string): string {
+  const clean = b64.replace(/[^A-Za-z0-9+/]/g, "");
+  const bytes: number[] = [];
+  for (let i = 0; i < clean.length; i += 4) {
+    const c = [0, 1, 2, 3].map((k) => B64.indexOf(clean[i + k] ?? "A"));
+    const n = (c[0] << 18) | (c[1] << 12) | (Math.max(c[2], 0) << 6) | Math.max(c[3], 0);
+    bytes.push((n >> 16) & 255);
+    if (i + 2 < clean.length) bytes.push((n >> 8) & 255);
+    if (i + 3 < clean.length) bytes.push(n & 255);
+  }
+  return new TextDecoder().decode(new Uint8Array(bytes));
+}
+
+/**
+ * La API `nande.*` que ve el código, documentada en UN lugar: la usan el
+ * IDE (referencia), el prompt de la IA y el sintetizador offline. Si agregás
+ * una función al sandbox, agregala acá o la IA no la va a conocer.
+ */
+export const SANDBOX_API_DOC = [
+  "args[]                          argumentos de la línea (strings)",
+  "print(...xs)                    escribe una línea de salida",
+  "nande.scan(host)                → [{port, service, state: open|closed|filtered}] (sólo hosts alcanzables)",
+  "nande.hosts()                   → [{hostname, ip, up}] hosts alcanzables desde tu máquina",
+  "nande.resolve(host)             → IP o undefined (DNS del mundo)",
+  "nande.http(url)                 → {status, text, body, headers} GET a una webapp del mundo",
+  "nande.post(url, {campo: valor}) → {status, text, body, headers} POST de formulario",
+  "nande.read(ruta)                → contenido de un archivo del filesystem virtual (o undefined)",
+  "nande.write(ruta, texto)        → {ok, error} escribe en /home/student o /tmp",
+  "nande.md5(s) / nande.sha256(s)  → hash hex",
+  "nande.b64encode(s) / nande.b64decode(s)",
+  "nande.wordlist()                → diccionario de contraseñas comunes del juego",
+  "nande.now() / nande.rng()       → tick del mundo / azar determinista",
+];
 const DEFAULT_BUDGET = 2_000;
 
 export class CodeExecutionSandbox {
@@ -229,6 +303,40 @@ export class CodeExecutionSandbox {
         spend("http");
         return opts.host.http(String(url));
       },
+      post: (url: string, body?: Record<string, unknown>) => {
+        need("http.virtual.request");
+        spend("post");
+        const form: Record<string, string> = {};
+        for (const [k, v] of Object.entries(body ?? {})) form[k] = String(v);
+        return opts.host.http(String(url), { method: "POST", body: form });
+      },
+      hosts: () => {
+        need("network.virtual.inspect");
+        spend("hosts");
+        return opts.host.hosts ? opts.host.hosts() : [];
+      },
+      read: (path: string) => {
+        need("fs.virtual.read");
+        spend("read");
+        return opts.host.readFile ? opts.host.readFile(String(path)) : undefined;
+      },
+      write: (path: string, content: unknown) => {
+        need("fs.virtual.write");
+        spend("write");
+        if (!opts.host.writeFile) return { ok: false, error: "sin filesystem" };
+        return opts.host.writeFile(String(path), String(content));
+      },
+      md5: (x: unknown) => {
+        spend("md5");
+        return md5(String(x));
+      },
+      sha256: (x: unknown) => {
+        spend("sha256");
+        return sha256(String(x));
+      },
+      b64encode: (x: unknown) => base64Encode(String(x)),
+      b64decode: (x: unknown) => base64Decode(String(x)),
+      wordlist: () => [...WORDLIST],
     };
 
     try {

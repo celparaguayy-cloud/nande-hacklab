@@ -30,6 +30,8 @@ export function CodeIDE({ kernel }: CodeIDEProps) {
   const [args, setArgs] = useState("server.nande");
   const [output, setOutput] = useState("");
   const [aiBusy, setAiBusy] = useState(false);
+  const [genBusy, setGenBusy] = useState(false);
+  const [wish, setWish] = useState("");
   const [status, setStatus] = useState<{ kind: "ok" | "err" | ""; msg: string }>({
     kind: "",
     msg: "",
@@ -92,6 +94,36 @@ export function CodeIDE({ kernel }: CodeIDEProps) {
     }
   };
 
+  const generar = async () => {
+    const pedido = wish.trim();
+    if (!pedido) {
+      setStatus({ kind: "err", msg: "Describí qué herramienta querés (ej: «una tool que pruebe el diccionario contra un login»)." });
+      return;
+    }
+    setGenBusy(true);
+    setStatus({ kind: "", msg: `🪄 generando con ${kernel.ai.mode() === "connected" ? "tu IA" : "el forjador offline"}…` });
+    try {
+      const r = await kernel.toolSynthesizer.synthesize(pedido);
+      setSource(r.source);
+      setName(r.suggestedName);
+      setOutput(
+        `🪄 ${r.note}\n` +
+          `motor: ${r.engine}` +
+          (r.warnings.length ? `\navisos: ${r.warnings.join("; ")}` : "") +
+          "\n\n// Revisá el código, tocá ▶ Probar y después Instalar.",
+      );
+      setStatus(
+        r.ok
+          ? { kind: "ok", msg: `✔ código listo (${r.engine}). Probalo e instalalo.` }
+          : { kind: "err", msg: "✘ " + (r.error ?? "no compiló") },
+      );
+    } catch {
+      setStatus({ kind: "err", msg: "no se pudo generar la herramienta" });
+    } finally {
+      setGenBusy(false);
+    }
+  };
+
   const nueva = () => {
     setName(`tool-${kernel.toolRuntime.count() + 1}`);
     setSource(STARTER);
@@ -149,6 +181,26 @@ export function CodeIDE({ kernel }: CodeIDEProps) {
           <button onClick={install} style={{ ...btn, background: "#15803d" }}>Instalar</button>
           <button onClick={askAI} disabled={aiBusy} style={{ ...btn, background: "#6d28d9", opacity: aiBusy ? 0.6 : 1 }}>
             🤖 Ayuda IA
+          </button>
+        </div>
+
+        <div style={wishRow}>
+          <input
+            value={wish}
+            onChange={(e) => setWish(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !genBusy) generar();
+            }}
+            style={wishInput}
+            spellCheck={false}
+            placeholder="Describí la herramienta que querés… (ej: escanear la red y guardar un reporte)"
+          />
+          <button
+            onClick={generar}
+            disabled={genBusy}
+            style={{ ...btn, background: "#b45309", opacity: genBusy ? 0.6 : 1, whiteSpace: "nowrap" }}
+          >
+            🪄 Generar
           </button>
         </div>
 
@@ -287,6 +339,17 @@ const editor: CSSProperties = {
   resize: "none",
   whiteSpace: "pre",
   overflow: "auto",
+};
+const wishRow: CSSProperties = { display: "flex", gap: 6, alignItems: "center" };
+const wishInput: CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+  background: "#0b1016",
+  color: "#e6edf3",
+  border: "1px solid #b4530955",
+  borderRadius: 6,
+  padding: "7px 10px",
+  fontSize: 13,
 };
 const argsRow: CSSProperties = { display: "flex", gap: 8, alignItems: "center" };
 const argsInput: CSSProperties = {

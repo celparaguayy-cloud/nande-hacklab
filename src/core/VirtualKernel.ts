@@ -20,6 +20,7 @@ import { NetworkLife } from "./net/NetworkLife";
 import { Duel } from "./game/Duel";
 import { CoopArena } from "./game/CoopArena";
 import { CodeExecutionSandbox, type SandboxHost } from "./code/Sandbox";
+import { ToolSynthesizer } from "./code/ToolSynthesizer";
 import { ToolRuntime } from "./code/ToolRuntime";
 import { NpcToolForge } from "./code/NpcToolForge";
 import { BlueTeamSOC } from "./security/BlueTeam";
@@ -149,6 +150,7 @@ export class VirtualKernel {
   /** Sandbox de ejecución de código y registro de herramientas funcionales. */
   public sandbox: CodeExecutionSandbox;
   public toolRuntime: ToolRuntime;
+  public toolSynthesizer!: ToolSynthesizer;
   public npcForge: NpcToolForge;
   /** Centro de operaciones (Blue Team): consume eventos reales del runtime. */
   public soc: BlueTeamSOC;
@@ -362,6 +364,7 @@ export class VirtualKernel {
     this.npcForge = new NpcToolForge(this.toolRuntime);
     this.soc = new BlueTeamSOC(this.events);
     this.ai = new AIService();
+    this.toolSynthesizer = new ToolSynthesizer(this.ai, this.toolRuntime);
     this.snapshots = new SnapshotManager(() => this.world.getState().clock.tick);
     this.databases = new DatabaseRuntime();
     this.anonymity = new Anonymity();
@@ -720,9 +723,16 @@ export class VirtualKernel {
         return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
       },
       resolve: (host) => this.dns.resolve(host),
+      // El código corre en TU máquina: ve lo mismo que tu nmap sin pivotar.
+      // Un host interno no tiene ruta (misma regla única que connect/netmap).
+      hosts: () =>
+        this.hosts
+          .all()
+          .filter((h) => this.hosts.canReach(null, h.hostname))
+          .map((h) => ({ hostname: h.hostname, ip: h.ip, up: h.up })),
       scan: (host) => {
         const h = this.hosts.resolve(host);
-        if (!h || !h.up) return [];
+        if (!h || !h.up || !this.hosts.canReach(null, h.hostname)) return [];
         return h.services.map((s) => ({
           port: s.port,
           service: s.name,
@@ -733,7 +743,36 @@ export class VirtualKernel {
               : "closed",
         }));
       },
-      http: (url) => {
+      readFile: (path) => {
+        const fs = this.filesystem;
+        const f = fs.getFile(path);
+        if (!f || f.type !== "file" || !fs.canAccess(path, "student", "read", ["users"])) {
+          return undefined;
+        }
+        return f.content;
+      },
+      writeFile: (path, content) => {
+        const fs = this.filesystem;
+        if (!/^\/(home\/student|tmp)\/[\w./-]+$/.test(path) || path.includes("..")) {
+          return { ok: false, error: "sólo se escribe en /home/student o /tmp" };
+        }
+        const parent = path.slice(0, path.lastIndexOf("/")) || "/";
+        if (!fs.exists(parent)) return { ok: false, error: `no existe ${parent}` };
+        try {
+          if (fs.exists(path)) {
+            if (!fs.canAccess(path, "student", "write", ["users"])) {
+              return { ok: false, error: `permiso denegado: ${path}` };
+            }
+            fs.writeFile(path, content);
+          } else {
+            fs.createFile(path, content, "student", "users", "644");
+          }
+          return { ok: true };
+        } catch (e) {
+          return { ok: false, error: e instanceof Error ? e.message : "error" };
+        }
+      },
+      http: (url, req) => {
         const clean = url.replace(/^https?:\/\//i, "");
         const slash = clean.indexOf("/");
         const hostname = (slash === -1 ? clean : clean.slice(0, slash)).toLowerCase();
@@ -742,13 +781,23 @@ export class VirtualKernel {
           return { status: 0, text: `host no es una webapp del mundo: ${hostname}` };
         }
         try {
-          const { response } = this.browser.request("GET", hostname, path);
+          const { response } = this.browser.request(
+            req?.method ?? "GET",
+            hostname,
+            path,
+            req?.body ?? {},
+          );
           const text = response.body
             .replace(/<style[\s\S]*?<\/style>/gi, "")
             .replace(/<[^>]+>/g, " ")
             .replace(/\s+/g, " ")
             .trim();
-          return { status: response.status, text };
+          return {
+            status: response.status,
+            text,
+            body: response.body,
+            headers: { ...response.headers },
+          };
         } catch (e) {
           return { status: 0, text: e instanceof Error ? e.message : "error" };
         }

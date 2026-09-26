@@ -53,8 +53,12 @@ const STORAGE_KEY = "nande-tools";
 export function inferCapabilities(source: string): Capability[] {
   const caps: Capability[] = ["print"];
   if (/\bnande\s*\.\s*scan\b/.test(source)) caps.push("network.virtual.inspect");
-  if (/\bnande\s*\.\s*http\b/.test(source)) caps.push("http.virtual.request");
+  if (/\bnande\s*\.\s*hosts\b/.test(source) && !caps.includes("network.virtual.inspect"))
+    caps.push("network.virtual.inspect");
+  if (/\bnande\s*\.\s*(http|post)\b/.test(source)) caps.push("http.virtual.request");
   if (/\bnande\s*\.\s*resolve\b/.test(source)) caps.push("dns.resolve");
+  if (/\bnande\s*\.\s*read\b/.test(source)) caps.push("fs.virtual.read");
+  if (/\bnande\s*\.\s*write\b/.test(source)) caps.push("fs.virtual.write");
   return caps;
 }
 
@@ -144,6 +148,15 @@ export class ToolRuntime {
     this.save();
 
     return { ok: true, name, errors: [], warnings: compiled.warnings };
+  }
+
+  /**
+   * Valida código sin instalarlo, devolviendo el resultado del compilador.
+   * Lo usa el sintetizador con IA para saber si lo generado es válido.
+   */
+  compileSource(source: string): { ok: boolean; errors: string[]; warnings: string[] } {
+    const c = this.sandbox.compile(source);
+    return { ok: c.ok, errors: c.errors, warnings: c.warnings };
   }
 
   /* --------------------------------------------------------------- consulta */
