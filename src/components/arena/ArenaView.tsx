@@ -39,11 +39,11 @@ export function ArenaView({ kernel, onOpenApp }: Props) {
     return () => { un(); clearInterval(id); };
   }, [kernel]);
 
-  const start = (n?: CtfNivel) => {
+  const start = (n?: CtfNivel, procedural = false) => {
     setFlash(null);
     setMani(null);
     setHintsUsed(0);
-    const c = kernel.ctf.start(n);
+    const c = procedural ? kernel.ctf.startProcedural(n) : kernel.ctf.start(n);
     setCurrent(c);
     setElapsed(0);
     // Deja el objetivo listo para atacar: abre el navegador en el host.
@@ -70,6 +70,9 @@ export function ArenaView({ kernel, onOpenApp }: Props) {
       <div style={header}>
         <div style={{ fontWeight: 700, fontSize: 16 }}>🏁 Arena CTF</div>
         <div style={{ marginLeft: "auto", fontSize: 12, color: "#8b98a5" }}>
+          {kernel.ctf.currentStreak() > 0 && (
+            <span style={{ color: "#ff8f5a", marginRight: 10 }}>🔥 racha {kernel.ctf.currentStreak()}</span>
+          )}
           Mejor puntaje: <b style={{ color: "#ffd479" }}>{kernel.ctf.best()}</b>
         </div>
       </div>
@@ -78,7 +81,12 @@ export function ArenaView({ kernel, onOpenApp }: Props) {
 
       {current ? (
         <div style={card}>
-          <div style={{ fontSize: 13, color: "#8b98a5" }}>Objetivo activo · {current.nivel}</div>
+          <div style={{ fontSize: 13, color: "#8b98a5" }}>
+            Objetivo activo · {current.nivel}
+            {current.procedural && (
+              <span style={procBadge}>🎲 procedural{current.archetype ? ` · ${current.archetype}` : ""}</span>
+            )}
+          </div>
           <div style={{ fontSize: 22, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{mmss(elapsed)}</div>
           <div style={{ marginTop: 8 }}>
             <div><b>IP:</b> <code style={code}>{current.ip}</code></div>
@@ -102,6 +110,7 @@ export function ArenaView({ kernel, onOpenApp }: Props) {
             <button style={btnPrimary} onClick={() => onOpenApp?.("browser")}>Abrir Navegador</button>
             <button style={btnGhost} onClick={() => onOpenApp?.("terminal")}>Abrir Terminal</button>
             <button style={btnMani} onClick={pedirPista}>🥜 Pista de La Mani</button>
+            <button style={btnCode} onClick={() => onOpenApp?.("code")}>🪄 Generá una tool</button>
             <button style={btnGhost} onClick={() => onOpenApp?.("asistente")}>🤖 Ñandú IA</button>
             <button style={btnDanger} onClick={rendir}>Rendirme</button>
           </div>
@@ -116,8 +125,26 @@ export function ArenaView({ kernel, onOpenApp }: Props) {
             <button style={btnLevel("#7cc4ff")} onClick={() => start(undefined)}>Sorpresa</button>
           </div>
           <div style={{ fontSize: 12, color: "#8b98a5", marginTop: 10 }}>
-            Puntaje = base del nivel − segundos. ¡Cuanto más rápido, más puntos!
+            Puntaje = base del nivel − segundos − pistas + bonus de racha. ¡Cuanto más rápido, más puntos!
           </div>
+
+          {kernel.ctf.hasProcedural() && (
+            <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid #1b2733" }}>
+              <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                🎲 Retos procedurales <span style={{ color: "#7ee2a8", fontSize: 12 }}>(infinitos)</span>
+              </div>
+              <div style={{ fontSize: 12, color: "#8b98a5", marginBottom: 8 }}>
+                Hosts reales generados al vuelo: recon, IDOR, dotfiles, API vieja, hash para crackear.
+                Cada uno es único y se vulnera con el motor de verdad (nmap, curl, tus tools).
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button style={btnLevel("#7ee2a8")} onClick={() => start("fácil", true)}>Fácil ∞</button>
+                <button style={btnLevel("#ffd479")} onClick={() => start("medio", true)}>Medio ∞</button>
+                <button style={btnLevel("#ff8f8f")} onClick={() => start("difícil", true)}>Difícil ∞</button>
+                <button style={btnLevel("#c48fff")} onClick={() => start(undefined, true)}>Aleatorio ∞</button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -127,8 +154,10 @@ export function ArenaView({ kernel, onOpenApp }: Props) {
         {board.map((s, i) => (
           <div key={i} style={row}>
             <span style={{ width: 22, color: "#8b98a5" }}>{i + 1}.</span>
-            <span style={{ flex: 1 }}>{s.host}</span>
-            <span style={{ color: "#8b98a5", fontSize: 12 }}>{s.nivel} · {s.seconds}s</span>
+            <span style={{ flex: 1 }}>{s.procedural ? "🎲 " : ""}{s.host}</span>
+            <span style={{ color: "#8b98a5", fontSize: 12 }}>
+              {s.nivel} · {s.seconds}s{s.streakBonus ? ` · +${s.streakBonus}🔥` : ""}
+            </span>
             <b style={{ color: "#ffd479", width: 60, textAlign: "right" }}>{s.score}</b>
           </div>
         ))}
@@ -147,6 +176,8 @@ const btnPrimary: CSSProperties = { background: "#0284c7", color: "#fff", border
 const btnGhost: CSSProperties = { background: "#111820", color: "#e6edf3", border: "1px solid #1b2733", borderRadius: 8, padding: "8px 12px", fontSize: 13, cursor: "pointer" };
 const btnDanger: CSSProperties = { background: "transparent", color: "#fca5a5", border: "1px solid #7f1d1d", borderRadius: 8, padding: "8px 12px", fontSize: 13, cursor: "pointer" };
 const btnMani: CSSProperties = { background: "#3a2a0f", color: "#ffd479", border: "1px solid #7a5a1a", borderRadius: 8, padding: "8px 12px", fontSize: 13, cursor: "pointer" };
+const btnCode: CSSProperties = { background: "#3a220f", color: "#ffb480", border: "1px solid #7a4a1a", borderRadius: 8, padding: "8px 12px", fontSize: 13, cursor: "pointer" };
+const procBadge: CSSProperties = { marginLeft: 8, background: "#2a1f3a", color: "#c48fff", border: "1px solid #5a3a7a", borderRadius: 999, padding: "1px 8px", fontSize: 11 };
 const maniBubble: CSSProperties = { marginTop: 10, background: "#1c1608", border: "1px solid #4a3a12", borderRadius: 8, padding: "8px 12px", color: "#ffe9b0", fontSize: 13, lineHeight: 1.5 };
 const btnLevel = (c: string): CSSProperties => ({ background: "#111820", color: c, border: `1px solid ${c}55`, borderRadius: 8, padding: "10px 16px", fontSize: 14, fontWeight: 600, cursor: "pointer" });
 

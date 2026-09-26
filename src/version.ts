@@ -3,5 +3,5 @@
  * qué build estás corriendo (y confirmar que tomaste la última actualización).
  * Subí el número cuando haya un cambio que el jugador deba poder distinguir.
  */
-export const NANDE_VERSION = "5.70.0";
-export const NANDE_BUILD = "ide-programa-cualquier-tool-con-ia";
+export const NANDE_VERSION = "5.71.0";
+export const NANDE_BUILD = "arena-ctf-procedural-infinita";

@@ -7,6 +7,8 @@
  * es de tiempo real del jugador (inyectable para tests).
  */
 
+import type { GeneratedChallenge, ForgeNivel } from "./CtfForge";
+
 export type CtfNivel = "fácil" | "medio" | "difícil";
 
 export interface CtfChallenge {
@@ -18,7 +20,80 @@ export interface CtfChallenge {
   pista: string;
   /** Pistas de La Mani en escalera: empujón → técnica → comando exacto. */
   hints: string[];
+  /** true si el reto lo fabricó el CtfForge (procedural, rejugable ∞). */
+  procedural?: boolean;
+  /** Arquetipo de la falla (sólo procedurales), para mostrarlo en la UI. */
+  archetype?: string;
 }
+
+/** Genera un reto procedural fresco (mismo motor que el terminal `retos`). */
+export type ProceduralProvider = (nivel: ForgeNivel | undefined, seed: number) => GeneratedChallenge;
+
+/** Base de puntos por nivel (procedurales), alineada con el POOL curado. */
+const BASE_POR_NIVEL: Record<CtfNivel, number> = { "fácil": 300, "medio": 500, "difícil": 800 };
+
+/** Pistas escalonadas por arquetipo procedural: empujón → técnica → comando. */
+function hintsFor(ch: GeneratedChallenge): string[] {
+  const h = ch.hostname;
+  switch (ch.archetype) {
+    case "robots":
+      return [
+        "🥜 Todo pentest arranca con recon. ¿Qué archivo le dice a los buscadores qué NO indexar?",
+        "🥜 Ese archivo lista rutas 'ocultas' en Disallow. Una de ellas tiene la bandera.",
+        `🥜 Comando: curl http://${h}/robots.txt  y después pedí la ruta que aparece.`,
+      ];
+    case "backup":
+      return [
+        "🥜 Alguien dejó un backup olvidado. Probá nombres típicos.",
+        "🥜 backup.txt o config.bak suelen filtrar rutas internas.",
+        `🥜 Comando: curl http://${h}/backup.txt`,
+      ];
+    case "apiv1":
+      return [
+        "🥜 La API tiene versiones. La nueva pide auth… ¿y las viejas?",
+        "🥜 Mirá qué versiones declara y pedí la vieja sin auth.",
+        `🥜 Comando: curl http://${h}/api  → después curl http://${h}/api/v1/flag`,
+      ];
+    case "env":
+      return [
+        "🥜 Muchos deploys dejan archivos de entorno accesibles.",
+        "🥜 Los dotfiles empiezan con un punto: .env guarda secretos.",
+        `🥜 Comando: curl http://${h}/.env`,
+      ];
+    case "idor":
+      return [
+        "🥜 Los álbumes se abren por número: /album?id=1. ¿Y si probás otros?",
+        "🥜 El del admin es un número bajo pero no el 1 (IDOR: acceso roto).",
+        `🥜 Comando: for i en 2..9 → curl "http://${h}/album?id=<i>"`,
+      ];
+    case "hash":
+      return [
+        "🥜 La página filtró el md5 de la clave. Hay que crackearlo.",
+        "🥜 Es una clave común: probá el diccionario. En ÑANDE Code tenés nande.wordlist() y nande.md5().",
+        `🥜 Generá una tool que pruebe cada palabra, o logueate en http://${h}/login?pass=CLAVE`,
+      ];
+    default:
+      return [`🥜 ${ch.clue}`, "🥜 Accedé al recurso real: la bandera se captura sola al verla.", `🥜 Empezá con: curl http://${h}/`];
+  }
+}
+
+/** Convierte un reto del forge al formato de la Arena. */
+function fromGenerated(ch: GeneratedChallenge): CtfChallenge {
+  return {
+    ip: ch.ip,
+    host: ch.hostname,
+    nivel: ch.nivel,
+    flag: ch.flag,
+    base: BASE_POR_NIVEL[ch.nivel],
+    pista: ch.clue,
+    hints: hintsFor(ch),
+    procedural: true,
+    archetype: ch.archetype,
+  };
+}
+
+/** Bonus por racha (retos resueltos seguidos sin rendirse), tope 5. */
+const STREAK_BONUS = 20;
 
 export interface CtfScore {
   host: string;
@@ -27,6 +102,10 @@ export interface CtfScore {
   score: number;
   /** Marca de tiempo (ms) en que se resolvió. */
   at: number;
+  /** Bonus de racha aplicado a este puntaje. */
+  streakBonus?: number;
+  /** true si el reto era procedural. */
+  procedural?: boolean;
 }
 
 const POOL: CtfChallenge[] = [
@@ -102,10 +181,26 @@ export class CtfArena {
   private active: ActiveRound | null = null;
   private board: CtfScore[] = [];
   private rngState = 0x1234abcd;
+  private provider: ProceduralProvider | null = null;
+  private streak = 0;
 
-  constructor(now: () => number = () => Date.now()) {
+  constructor(
+    now: () => number = () => Date.now(),
+    opts: { procedural?: ProceduralProvider } = {},
+  ) {
     this.now = now;
+    this.provider = opts.procedural ?? null;
     this.board = this.load();
+  }
+
+  /** Conecta (o reemplaza) el generador procedural (lo hace el kernel). */
+  setProceduralProvider(p: ProceduralProvider): void {
+    this.provider = p;
+  }
+
+  /** ¿La Arena puede fabricar retos procedurales infinitos? */
+  hasProcedural(): boolean {
+    return this.provider != null;
   }
 
   private load(): CtfScore[] {
@@ -146,6 +241,25 @@ export class CtfArena {
   }
 
   /**
+   * Empieza un reto PROCEDURAL fresco: bandera real, host real, nmap-visible,
+   * infinito y determinista por semilla. Es "todo el motor" dentro de la
+   * Arena. Si no hay proveedor conectado, cae a un reto curado del POOL.
+   */
+  startProcedural(nivel?: CtfNivel): CtfChallenge {
+    if (!this.provider) return this.start(nivel);
+    const seed = ((this.now() >>> 0) ^ Math.floor(this.nextRng() * 0xffffffff)) >>> 0;
+    const gen = this.provider(nivel as ForgeNivel | undefined, seed);
+    const challenge = fromGenerated(gen);
+    this.active = { challenge, startedAt: this.now(), hintsUsed: 0 };
+    return challenge;
+  }
+
+  /** Racha actual de retos resueltos seguidos (sin rendirse). */
+  currentStreak(): number {
+    return this.streak;
+  }
+
+  /**
    * La Mani te da la siguiente pista del reto activo (escalera: empujón →
    * técnica → comando exacto). Cada pista descuenta puntos del resultado.
    * Devuelve el texto y cuántas quedan, o null si no hay reto o ya no hay más.
@@ -177,6 +291,7 @@ export class CtfArena {
 
   abandon(): void {
     this.active = null;
+    this.streak = 0;
   }
 
   /**
@@ -187,9 +302,11 @@ export class CtfArena {
   solve(): CtfScore | null {
     if (!this.active) return null;
     const seconds = this.elapsed();
+    // Bonus por racha: usa la racha ANTES de este reto (el primero no suma).
+    const streakBonus = Math.min(this.streak, 5) * STREAK_BONUS;
     const score = Math.max(
       10,
-      this.active.challenge.base - seconds - this.active.hintsUsed * HINT_PENALTY,
+      this.active.challenge.base - seconds - this.active.hintsUsed * HINT_PENALTY + streakBonus,
     );
     const entry: CtfScore = {
       host: this.active.challenge.host,
@@ -197,7 +314,10 @@ export class CtfArena {
       seconds,
       score,
       at: this.now(),
+      streakBonus,
+      procedural: this.active.challenge.procedural,
     };
+    this.streak += 1;
     this.board.unshift(entry);
     this.board.sort((a, b) => b.score - a.score);
     this.board = this.board.slice(0, 50);

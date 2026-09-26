@@ -389,6 +389,13 @@ export class VirtualKernel {
     // jugando por turnos sobre el mismo mundo (acciones reales de servicios).
     this.coop = new CoopArena(this.hosts);
     this.ctfForge = new CtfForge(this.web, this.dns, this.hosts);
+    // La Arena CTF usa el MISMO motor procedural que el terminal `retos`:
+    // sus retos "sorpresa" son hosts reales, nmap-visibles, con bandera real.
+    // Así "todo lo que existe" (motor web, DNS, nmap, captura de banderas,
+    // cripto para el arquetipo hash) vive también dentro de la Arena.
+    this.ctf.setProceduralProvider((nivel, seed) =>
+      this.ctfForge.spawnForArena(seed, nivel),
+    );
     this.opsec = new OpsecTracer(
       this.events,
       this.notoriety,
