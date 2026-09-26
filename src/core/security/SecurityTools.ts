@@ -543,8 +543,8 @@ const RUNNERS: Record<string, Runner> = {
     };
   },
 
-  whois(args) {
-    const target = args[0] ?? "";
+  whois(args, ctx) {
+    const target = (args.find((a) => !a.startsWith("-")) ?? "").toLowerCase();
 
     if (!target.endsWith(".nande") && !target.endsWith(".lab")) {
       return {
@@ -553,25 +553,55 @@ const RUNNERS: Record<string, Runner> = {
       };
     }
 
+    // Datos derivados del ESTADO REAL del mundo: IP del DNS, si es alcanzable
+    // desde internet o es interno, y qué servicios publica.
+    const ip = ctx.dns.resolve(target);
+    const host = ctx.hosts?.resolve(target);
+    if (!ip && !host) {
+      return { output: `whois: ${target} no está registrado en el DNS del mundo.\n`, isError: false };
+    }
+    const visibilidad = ctx.hosts?.isPublic(target) ? "público (alcanzable desde tu red)" : "interno (sólo por pivoting)";
+    const svc = host?.services.filter((s) => s.state === "running").map((s) => `${s.name}/${s.port}`) ?? [];
     return {
       output:
-        `Dominio: ${target}\n` +
-        `Registrante: Habitante virtual de ÑANDE (ficticio)\n` +
-        `Creado: día 1 del mundo\n` +
-        `Servidores: dns.nande\n` +
-        `(Todos los datos son ficticios del sandbox.)\n`,
+        `Dominio:      ${target}\n` +
+        `Dirección:    ${ip ?? host?.ip ?? "?"}\n` +
+        `Visibilidad:  ${visibilidad}\n` +
+        (host ? `Sistema:      ${host.os}\n` : "") +
+        (svc.length ? `Servicios:    ${svc.join(", ")}\n` : "") +
+        `Servidor DNS: dns.nande\n` +
+        `(Dominio del sandbox; los datos salen del estado real del mundo, no de un registro inventado.)\n`,
       isError: false,
     };
   },
 
-  harvester(args) {
-    const target = args[0] ?? "startup.nande";
-
+  theharvester(args, ctx) {
+    // OSINT real: enumera subdominios/hosts REALES bajo el dominio, leyendo el
+    // DNS del mundo (fuente única). Nada inventado a partir del nombre.
+    const raw = (args.find((a) => a.startsWith("-d")) ? args[args.indexOf("-d") + 1] : args[0]) ?? "nande";
+    const domain = raw.replace(/^https?:\/\//i, "").split("/")[0].toLowerCase().replace(/^www\./, "");
+    if (!domain.endsWith("nande") && !domain.endsWith("lab")) {
+      return { output: `theHarvester: solo dominios del sandbox (.nande/.lab). Objetivos reales no.\n`, isError: false };
+    }
+    const records = ctx.dns.listRecords()
+      .filter((r) => r.hostname === domain || r.hostname.endsWith("." + domain))
+      .sort((a, b) => a.hostname.localeCompare(b.hostname));
+    const subs = records.map((r) => `  ${r.hostname.padEnd(28)} ${r.address}`);
+    // Correos "corporativos" derivados de los hosts web REALES del dominio: son
+    // direcciones plausibles del propio dominio, no de un tercero inventado.
+    const webHosts = records.filter((r) => ctx.hosts?.resolve(r.hostname)?.services.some((s) => s.kind === "http" || s.kind === "https" || s.port === 80));
+    const correos = webHosts.length
+      ? [`  soporte@${domain}`, `  info@${domain}`, `  admin@${domain}`]
+      : [];
     return {
       output:
-        `harvester sobre ${target} (datos ficticios de ÑANDE)\n` +
-        `Correos:\n  info@${target}\n  soporte@${target}\n` +
-        `Subdominios:\n  www.${target}\n  api.${target}\n`,
+        `theHarvester → dominio ${domain} (DNS del mundo)\n` +
+        `Hosts/subdominios (${records.length}):\n` +
+        (subs.length ? subs.join("\n") : "  (ninguno registrado)") + "\n" +
+        (correos.length
+          ? `Correos probables (por convención del dominio):\n` + correos.join("\n") + "\n"
+          : "") +
+        `Cada host es una superficie de ataque: pasale nmap/whatweb/nikto.\n`,
       isError: false,
     };
   },
@@ -2181,15 +2211,32 @@ const RUNNERS: Record<string, Runner> = {
     };
   },
 
-  shodan(args) {
-    const q = args[0] ?? "http";
-
+  shodan(args, ctx) {
+    // Buscador de servicios expuestos: lee los hosts REALES del mundo (fuente
+    // única) y filtra por la consulta. Nada de catálogo fijo (§2/§6/§12).
+    const q = (args.filter((a) => !a.startsWith("-")).join(" ") || "").toLowerCase();
+    if (!ctx.hosts) {
+      return { output: `shodan: sin índice de hosts en este contexto.\n`, isError: false };
+    }
+    // Sólo lo que se ve desde internet del sandbox: hosts públicos (no internos).
+    const publicos = ctx.hosts.all().filter((h) => ctx.hosts!.isPublic(h.hostname));
+    const rows: string[] = [];
+    for (const h of publicos) {
+      for (const s of h.services) {
+        if (s.state !== "running") continue;
+        const blob = `${h.hostname} ${h.ip} ${s.name} ${s.kind} ${s.version} ${s.port}`.toLowerCase();
+        // q vacío o "http" (default histórico) → todo; si no, filtra de verdad.
+        const match = !q || q === "http" ? true : blob.includes(q);
+        if (match) {
+          rows.push(`${h.ip.padEnd(15)} ${(s.name + "/" + s.port).padEnd(16)} ${s.version}  [${h.hostname}]`);
+        }
+      }
+    }
     return {
       output:
-        `shodan "${q}" (catálogo virtual de ÑANDE)\n` +
-        `10.10.5.10  ÑandeHTTPd/1.4  puerto 80\n` +
-        `10.10.5.20  ÑandeSQL 5.7  puerto 3306\n` +
-        `Solo servicios del sandbox. Nada real.\n`,
+        `shodan — servicios expuestos del sandbox${q && q !== "http" ? ` · filtro: "${q}"` : ""}\n` +
+        (rows.length ? rows.join("\n") : "(sin resultados para esa consulta)") +
+        `\n${rows.length} servicio(s) en ${publicos.length} host(s) público(s). Cada uno es una superficie a auditar.\n`,
       isError: false,
     };
   },
@@ -2450,16 +2497,33 @@ const RUNNERS: Record<string, Runner> = {
   },
 
   sslscan(args, ctx) {
-    const target = args[0] ?? "";
-    const ip = ctx.dns.resolve(target) ?? ctx.lab.resolve(target)?.ip;
+    const target = (args.find((a) => !a.startsWith("-")) ?? "").replace(/^https?:\/\//i, "").split("/")[0];
+    const host = ctx.hosts?.resolve(target);
+    const ip = ctx.dns.resolve(target) ?? host?.ip ?? ctx.lab.resolve(target)?.ip;
     if (!ip) return { output: `sslscan: no se resolvió ${target}\n`, isError: false };
 
+    // En ÑANDE los servicios web sirven HTTP en claro (sin capa TLS modelada):
+    // no inventamos un handshake TLS. Eso ES la lección — todo viaja visible.
+    const tls = host?.services.find((s) => /https|tls|ssl/i.test(s.name) || s.port === 443);
+    if (tls) {
+      return {
+        output:
+          `sslscan ${target} (${ip}:${tls.port})\n` +
+          `  Servicio: ${tls.version}\n` +
+          `Revisá versión de TLS y cifrados con el material del curso de cripto.\n`,
+        isError: false,
+      };
+    }
+    const web = host?.services.find((s) => s.kind === "http" || s.kind === "https" || s.port === 80);
     return {
       output:
-        `sslscan ${target} (laboratorio)\n` +
-        `  TLS 1.2  aceptado\n  TLS 1.0  aceptado  ⚠ obsoleto\n` +
-        `  Cifrado débil detectado ⚠\n` +
-        `Defensa: desactivá TLS viejo y cifrados débiles.\n`,
+        `sslscan ${target} (${ip})\n` +
+        (web
+          ? `  ⚠ ${web.name}/${web.port} sirve HTTP en claro: no hay capa TLS.\n` +
+            `  Todo el tráfico (credenciales incluidas) viaja visible.\n` +
+            `Comprobalo vos: capturá con 'sniff'/'tcpdump ${target}' y vas a leer los datos.\n` +
+            `Defensa: poné HTTPS (TLS) para cifrar el transporte.\n`
+          : `  Sin servicio web/TLS detectable en ${target}.\n`),
       isError: false,
     };
   },

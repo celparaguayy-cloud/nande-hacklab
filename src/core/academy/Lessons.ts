@@ -1054,9 +1054,9 @@ export const LESSONS: Lesson[] = [
           "Empezá por el dominio: 'whois' dice quién y cuándo lo registró.",
         task: "Escribí: whois banco.nande",
         hint: "whois banco.nande",
-        check: (cmd, out) => usedTool(cmd, "whois") && /Registrante/i.test(out),
+        check: (cmd, out) => usedTool(cmd, "whois") && /(Direcci[oó]n|Visibilidad|Servidor DNS)/i.test(out),
         debrief:
-          "Con eso ya tenés un punto de partida. Ahora busquemos a una persona.",
+          "Con eso ya tenés un punto de partida (IP, visibilidad, servicios). Ahora busquemos a una persona.",
       },
       {
         explain:
