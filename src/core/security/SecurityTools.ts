@@ -509,6 +509,70 @@ function probeCmdInjection(web: WebServer, host: string): WebFinding | null {
   return null;
 }
 
+/* ============================================================= *
+ *  Base de exploits para searchsploit — mapeada al software REAL  *
+ *  de ÑANDE (mismas versiones que sirven los hosts/labs). Cada    *
+ *  entrada cruza contra el mundo: qué hosts corren esa versión y  *
+ *  con qué módulo de metasploit se explota. Nada ficticio.        *
+ * ============================================================= */
+
+interface ExploitEntry {
+  id: string;
+  title: string;
+  type: "remote" | "webapps" | "local" | "dos";
+  /** Palabras para el buscador (producto, protocolo, clase de fallo). */
+  keywords: string[];
+  /** Versión de servicio afectada (se cruza con service.version del mundo). */
+  affects?: RegExp;
+  /** Módulo de metasploit que lo explota en ÑANDE, si existe. */
+  msf?: string;
+  /** Cómo se explota fuera de msf (curl/tool), si aplica. */
+  via?: string;
+}
+
+const EXPLOIT_DB: ExploitEntry[] = [
+  {
+    id: "NDB-SSH-0079", title: "OpenÑSSH < 8.3 — enumeración de usuarios (timing)",
+    type: "remote", keywords: ["ssh", "openssh", "openÑssh", "enum", "username"],
+    affects: /OpenÑSSH\s*(7\.|8\.[0-2])/i, via: "hydra/enum + fuerza bruta con users.txt",
+  },
+  {
+    id: "NDB-FTP-0200", title: "ÑandeFTP 2.0 — acceso anónimo (lectura de archivos)",
+    type: "remote", keywords: ["ftp", "ñandeftp", "nandeftp", "anonymous", "anon"],
+    affects: /ÑandeFTP/i, msf: "auxiliary/scanner/ftp/anonymous",
+  },
+  {
+    id: "NDB-TEL-0001", title: "Ñandelnetd — credenciales Telnet en texto plano",
+    type: "remote", keywords: ["telnet", "cleartext", "ñandelnetd", "sniff"],
+    affects: /Ñandelnetd|telnet/i, msf: "auxiliary/sniffer/telnet_cleartext",
+  },
+  {
+    id: "NDB-HTTPD-0102", title: "ÑandeHTTPd 1.0–1.4 — path traversal (../ lee archivos)",
+    type: "webapps", keywords: ["httpd", "ñandehttpd", "nandehttpd", "traversal", "lfi", "http", "web"],
+    affects: /ÑandeHTTPd\s*1\.[0-4]/i, via: "curl ?archivo=../config/secrets.env",
+  },
+  {
+    id: "NDB-SQL-0570", title: "ÑandeSQL 5.7 — bypass de login por SQL injection",
+    type: "webapps", keywords: ["sql", "ñandesql", "nandesql", "sqli", "mysql", "login", "bypass"],
+    affects: /ÑandeSQL/i, msf: "exploit/nande/http/sqli_login_bypass", via: "sqlmap / ' OR '1'='1",
+  },
+  {
+    id: "NDB-WEB-CMDI", title: "Herramienta de ping web — inyección de comandos (RCE)",
+    type: "webapps", keywords: ["cmd", "command", "injection", "rce", "ping", "commix", "shell"],
+    msf: "exploit/nande/http/cmd_injection", via: "commix / curl ?host=127.0.0.1;cat flag",
+  },
+  {
+    id: "NDB-WEB-XSS", title: "Buscador reflejado — XSS sin sanitizar",
+    type: "webapps", keywords: ["xss", "reflejado", "script", "dalfox"],
+    via: "dalfox / ?q=<script>alert(1)</script>",
+  },
+  {
+    id: "NDB-LNX-SUID", title: "Binario SUID mal configurado — escalada a root (local)",
+    type: "local", keywords: ["suid", "privesc", "local", "root", "linpeas", "gtfobins"],
+    msf: "exploit/nande/local/suid_privesc", via: "linpeas → GTFOBins",
+  },
+];
+
 const RUNNERS: Record<string, Runner> = {
   ping(args, ctx) {
     const target = args[0] ?? "";
@@ -1994,17 +2058,57 @@ const RUNNERS: Record<string, Runner> = {
     };
   },
 
-  searchsploit(args) {
-    const query = args.join(" ") || "?";
+  searchsploit(args, ctx) {
+    const query = args.filter((a) => !a.startsWith("-")).join(" ").trim().toLowerCase();
+    if (!query) {
+      return { output: `searchsploit: pasá un término. Ej: searchsploit ftp | searchsploit ÑandeHTTPd\n`, isError: true };
+    }
 
-    return {
-      output:
-        `searchsploit "${query}" (catálogo educativo de ÑANDE)\n` +
-        `- ${query}: desbordamiento conocido (ficticio) — severidad alta\n` +
-        `- ${query}: bypass de autenticación (ficticio) — severidad media\n` +
-        `Nota: relacioná versión + fallo, y verificá en un lab.\n`,
-      isError: false,
-    };
+    // Filtro real por término (producto/protocolo/clase de fallo o versión).
+    const hits = EXPLOIT_DB.filter((e) => {
+      const blob = (e.title + " " + e.keywords.join(" ") + " " + e.type).toLowerCase();
+      return blob.includes(query) || e.keywords.some((k) => query.includes(k));
+    });
+
+    if (hits.length === 0) {
+      return {
+        output:
+          `searchsploit "${query}"\n` +
+          `Exploits: sin resultados.\n` +
+          `Probá por producto (ftp, ssh, ÑandeHTTPd, ÑandeSQL) o clase (rce, sqli, xss, traversal, suid).\n`,
+        isError: false,
+      };
+    }
+
+    // Cruce con el mundo REAL: qué hosts corren una versión afectada (fuente
+    // única). Es lo que convierte una búsqueda en un objetivo concreto.
+    const services: { host: string; version: string }[] = [];
+    for (const h of ctx.hosts?.all() ?? []) {
+      for (const s of h.services) services.push({ host: h.hostname, version: s.version });
+    }
+    for (const m of ctx.lab.all()) {
+      for (const s of m.services) services.push({ host: m.hostname, version: s.version });
+    }
+
+    const lines: string[] = [
+      `------------------------------------------------------------`,
+      ` Exploit Title                                    |  Path`,
+      `------------------------------------------------------------`,
+    ];
+    for (const e of hits) {
+      lines.push(` ${e.title}`);
+      lines.push(`   ${e.id} · tipo: ${e.type}` + (e.msf ? ` · msf: ${e.msf}` : ""));
+      if (e.via) lines.push(`   vía: ${e.via}`);
+      if (e.affects) {
+        const afectados = [...new Set(services.filter((s) => e.affects!.test(s.version)).map((s) => s.host))];
+        if (afectados.length) {
+          lines.push(`   ⮕ en ESTE mundo lo corren: ${afectados.slice(0, 6).join(", ")}${afectados.length > 6 ? "…" : ""}`);
+        }
+      }
+    }
+    lines.push(`------------------------------------------------------------`);
+    lines.push(`${hits.length} exploit(s). Los que traen 'msf:' se lanzan con metasploit; el resto con la tool indicada en 'vía'.`);
+    return { output: lines.join("\n") + "\n", isError: false };
   },
 
   strings(args, ctx) {
