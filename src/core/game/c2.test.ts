@@ -9,6 +9,16 @@ describe("C2 / botnet simulado (tanda 23)", () => {
     expect(bots.some((b) => b.host === "banco-justicia.nande")).toBe(true);
   });
 
+  it("prioriza los hosts comprometidos DE VERDAD y deduplica por host", () => {
+    // Un host tomado por el motor (fuente única) + un lab homónimo no se cuenta
+    // dos veces; el host real aparece primero.
+    const bots = buildBotnet(["caja.interna.nande"], ["ND{acceso:banco}"], ["caja.interna.nande", "server.nande"]);
+    expect(bots[0].host).toBe("caja.interna.nande"); // lo real, primero
+    expect(bots.filter((b) => b.host === "caja.interna.nande").length).toBe(1); // dedup
+    expect(bots.some((b) => b.host === "server.nande")).toBe(true);
+    expect(bots.some((b) => b.host === "banco.nande")).toBe(true);
+  });
+
   it("una tarea devuelve salida conceptual del bot", () => {
     const bots = buildBotnet(["lab-web-01"], []);
     const out = runTask(bots[0], "recon");

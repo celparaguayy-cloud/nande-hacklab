@@ -104,6 +104,8 @@ const MANPAGES: Record<string, ManPage> = {
     desc: "Dos personas juegan en la misma pantalla, por turnos, sobre el mismo mundo (sin red). Rojo ataca (tira servicios de midc.nande) y Azul defiende (los restaura): acciones reales del motor, gana quien más puntos hace. 'coop empezar <rojo> <azul>' arranca; 'coop rojo <servicio>' y 'coop azul <servicio>' son las jugadas en cada turno.", examples: ["coop empezar Ana Beto", "coop rojo nginx", "coop azul nginx"] },
   killchain: { name: "tu cadena de ataque, en orden de kill-chain", synopsis: "killchain",
     desc: "Muestra las fases del ciclo de vida de un ataque (reconocimiento, acceso, descubrimiento, movimiento lateral, recolección, escalada, impacto…) y cuáles alcanzaste, derivado de las detecciones REALES del SOC (mismas que 'mitre'). Sirve para ver, como Purple Team, la historia completa de lo que ejecutaste. No inventa nada: cada fase marcada la encendió una acción ofensiva tuya.", examples: ["killchain"] },
+  botin: { name: "tus hosts comprometidos y su botín", synopsis: "botin",
+    desc: "Lista los hosts que COMPROMETISTE de verdad (fuente única de compromisos, regla 2): con qué usuario entraste, si escalaste a root, por dónde pivoteaste para tomarlos y qué botín (banderas) sacaste de cada uno. Persiste aunque salgas de la sesión remota (a diferencia de la sesión del terminal). Responde '¿qué conseguí?' y es de donde el panel C2 arma tu botnet. Se llena solo con tus acciones reales (connect, sudo/escalada, cat de loot).", examples: ["botin", "loot"] },
   duel: { name: "duelo PvP en vivo contra un bot", synopsis: "duel [empezar|trabar]",
     desc: "Competís contra un rival con nombre (el mismo del ranking) por capturar la MISMA bandera en el mismo objetivo. El bot avanza con el reloj del mundo (ritmo determinista según su skill); vos ganás capturando la bandera de verdad (connect + cat) antes que él. 'duel empezar' arranca la carrera, 'duel trabar' hace retroceder al rival. Sin red real: es multijugador contra bots, dentro del sandbox.", examples: ["duel empezar", "duel", "duel trabar"] },
   who: { name: "quién más está logueado (en sesión remota)", synopsis: "who   |   w",
@@ -717,10 +719,14 @@ export class VirtualTerminal {
     return { output: lines.join("\n") + "\n", isError: false };
   }
 
-  /** Una fila del mapa: lo que el host muestra AHORA (estado real). */
+  /** Una fila del mapa: lo que el host muestra AHORA (estado real). Marca los
+   *  hosts que ya comprometiste (fuente única, regla 12: el mapa refleja los
+   *  compromisos reales, no una lista aparte). */
   private netmapRow(h: SubnetHost): string {
     const estado = h.up ? `${h.open} svc` : "apagado (no responde)";
-    return `    ${h.ip.padEnd(15)} ${h.hostname.padEnd(28)} ${estado}`;
+    const c = this.kernel.compromises.get(h.hostname);
+    const owned = c ? `  ⊙ tuyo (${c.level})` : "";
+    return `    ${h.ip.padEnd(15)} ${h.hostname.padEnd(28)} ${estado}${owned}`;
   }
 
   /**
@@ -1316,6 +1322,11 @@ export class VirtualTerminal {
         case "killchain":
         case "cadena":
           return this.killchainCmd();
+
+        case "botin":
+        case "botín":
+        case "loot":
+          return this.botinCmd();
 
         case "redteam":
         case "adversario":
@@ -2372,6 +2383,18 @@ export class VirtualTerminal {
       this.remoteUser = "root";
     }
 
+    // Fuente única de verdad (regla 2): registrar el compromiso REAL. Persiste
+    // al salir de la sesión; netmap, el panel C2 y las stats lo leen. El nivel
+    // sale del usuario con el que entraste (root si el host no pedía credencial).
+    this.kernel.compromises.record({
+      hostname: host.hostname,
+      ip: host.ip,
+      os: host.os,
+      user: this.remoteUser,
+      level: this.remoteUser === "root" ? "root" : "user",
+      via: origin,
+    });
+
     // Coherencia ofensiva↔defensiva (regla 3/5/10): pivotar DESDE un host ya
     // comprometido hacia otro es MOVIMIENTO LATERAL. Enciende la misma capa
     // defensiva que privesc y AD —SOC/MITRE, DFIR, OpsecTracer— sin fabricar
@@ -2405,6 +2428,10 @@ export class VirtualTerminal {
   private noteRemoteCollection(hostname: string, path: string, content: string): void {
     for (const m of content.matchAll(/ND\{[^}]+\}/g)) {
       const flag = m[0];
+      // El botín queda registrado en el host comprometido (fuente única, regla
+      // 2): 'botin' lo muestra por host y el C2 lo usa. Aditivo a la dedup de
+      // técnicas de abajo (que evita re-emitir el evento en re-lecturas).
+      this.kernel.compromises.addLoot(hostname, flag);
       if (this.collectedLoot.has(flag)) continue;
       this.collectedLoot.add(flag);
       this.kernel.noteAttackTechnique({
@@ -2600,6 +2627,12 @@ export class VirtualTerminal {
       case "clear":
         return { output: "\x1b[2J\x1b[H", isError: false };
 
+      case "botin":
+      case "botín":
+      case "loot":
+        // Consulta de estado del mundo: útil también adentro de una sesión.
+        return this.botinCmd();
+
       default:
         return {
           output: `${command}: no disponible en sesión remota (escribí 'help' o 'exit').\n`,
@@ -2664,6 +2697,9 @@ export class VirtualTerminal {
     const argStr = args.slice(1).join(" ");
     if (this.gtfobinsEscape(base, argStr)) {
       this.remoteUser = "root";
+      // El compromiso sube a root en la fuente única de verdad (regla 2/10): el
+      // estado del host cambia de verdad, no sólo el texto de la sesión.
+      this.kernel.compromises.upgradeToRoot(host.hostname);
       // Consecuencia real y coherente (regla maestra 3/5/18): la escalada
       // enciende una detección en la capa defensiva, igual que el AD. La
       // acción ofensiva se propaga al correlador MITRE (SOC/SIEM), a DFIR y
@@ -3716,6 +3752,39 @@ export class VirtualTerminal {
         `Sale de detecciones reales (mirá 'mitre'). Cada fase marcada la encendió una acción tuya.\n`,
       isError: false,
     };
+  }
+
+  /**
+   * botin / loot — tus hosts comprometidos y su botín, desde la fuente única de
+   * verdad (kernel.compromises, regla 2). Responde "¿qué conseguí?" (regla 15):
+   * con qué usuario entraste, si escalaste a root, la ruta de pivoting y las
+   * banderas que sacaste de cada host. Persiste al salir de la sesión remota.
+   */
+  private botinCmd(): { output: string; isError: boolean } {
+    const list = this.kernel.compromises.all();
+    if (list.length === 0) {
+      return {
+        output:
+          "Botín: todavía no comprometiste ningún host.\n" +
+          "Entrá a una máquina con 'connect <host> <usuario> <clave>' (pivotá si es interna),\n" +
+          "escalá a root donde puedas y leé el loot con 'cat'. Cada toma aparece acá.\n",
+        isError: false,
+      };
+    }
+    const roots = this.kernel.compromises.rootCount();
+    const loot = this.kernel.compromises.lootCount();
+    const lines: string[] = [];
+    lines.push(`═══ Tu botín — ${list.length} host(s) comprometido(s), ${roots} como root, ${loot} bandera(s) ═══`);
+    lines.push("");
+    for (const c of list) {
+      const nivel = c.level === "root" ? "root ⚑" : `${c.user}`;
+      const ruta = c.via ? `vía ${c.via}` : "desde tu equipo";
+      lines.push(`  ⊙ ${c.hostname.padEnd(26)} ${c.ip.padEnd(15)} [${nivel}]  (${ruta})`);
+      if (c.loot.length) lines.push(`      botín: ${c.loot.join(", ")}`);
+    }
+    lines.push("");
+    lines.push("Es la MISMA realidad que ve netmap (⊙) y de la que el panel C2 arma tu botnet.");
+    return { output: lines.join("\n") + "\n", isError: false };
   }
 
   /**

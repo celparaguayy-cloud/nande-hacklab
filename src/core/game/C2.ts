@@ -31,11 +31,16 @@ function hashNum(text: string): number {
 }
 
 /**
- * Arma la botnet a partir de lo comprometido: cada laboratorio resuelto y
- * cada toma de cuenta suma un "bot" (una máquina ficticia bajo tu control).
+ * Arma la botnet a partir de lo que comprometiste. Prioriza los hosts que
+ * tomaste DE VERDAD por el motor (kernel.compromises, la fuente única de
+ * verdad — regla 2/5): pivoteás por la LAN y ese host aparece acá, sin listas
+ * paralelas. Los labs resueltos y las tomas de cuenta (banderas ND{acceso:…})
+ * se suman como fuentes adicionales, y todo se deduplica por host.
  */
-export function buildBotnet(solvedLabs: string[], flags: string[]): Bot[] {
+export function buildBotnet(solvedLabs: string[], flags: string[], ownedHosts: string[] = []): Bot[] {
   const fuentes = [
+    // Primero lo real: hosts comprometidos por el motor (connect/pivote/escalada).
+    ...ownedHosts.map((host) => ({ key: `owned:${host}`, host })),
     ...solvedLabs.map((id) => ({ key: id, host: id })),
     ...flags
       .filter((f) => /^ND\{acceso:(.+)\}$/.test(f))
@@ -45,7 +50,16 @@ export function buildBotnet(solvedLabs: string[], flags: string[]): Bot[] {
       }),
   ];
 
-  return fuentes.map((src, i) => {
+  // Un mismo host no debe contarse dos veces (comprometido real + lab homónimo).
+  const seen = new Set<string>();
+  const unicas = fuentes.filter((s) => {
+    const h = s.host.toLowerCase();
+    if (seen.has(h)) return false;
+    seen.add(h);
+    return true;
+  });
+
+  return unicas.map((src, i) => {
     const h = hashNum(src.key);
     return {
       id: `bot-${i}`,

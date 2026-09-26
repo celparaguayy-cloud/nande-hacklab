@@ -15,6 +15,7 @@ import { BankApp } from "./http/apps/bank";
 import { ServerApp } from "./http/apps/server";
 import { ControlPanelApp } from "./http/apps/panel";
 import { HostRuntime, type VirtualService } from "./net/HostRuntime";
+import { CompromiseLog } from "./net/CompromiseLog";
 import { NetworkLife } from "./net/NetworkLife";
 import { Duel } from "./game/Duel";
 import { CoopArena } from "./game/CoopArena";
@@ -170,6 +171,9 @@ export class VirtualKernel {
   /** Red team autónomo: un adversario NPC que corre una kill-chain real. */
   public redteam: RedTeamAgent;
   public netlife: NetworkLife;
+  /** Fuente única de verdad: qué hosts comprometió EL JUGADOR (regla 2). La
+   *  llena el terminal al pivotar/escalar; netmap, C2 y las stats la leen. */
+  public compromises: CompromiseLog;
   public duel: Duel;
   public coop: CoopArena;
   /** Generador de retos procedurales: banderas reales detrás de apps reales. */
@@ -371,6 +375,10 @@ export class VirtualKernel {
     // derivados del mismo reloj del mundo. Da la sensación de multijugador
     // dentro del sandbox (who/w te muestran quién más está en el host).
     this.netlife = new NetworkLife(() => this.world.getState().clock.tick);
+    // Registro central de compromisos del jugador (regla 2/5/10/12): lo llena
+    // el terminal cuando entrás/escalás/recolectás de verdad, y lo leen netmap,
+    // el panel C2 y las estadísticas. Persiste al salir de la sesión remota.
+    this.compromises = new CompromiseLog(() => this.world.getState().clock.tick);
     // PvP en vivo: duelo contra un bot del ranking por el mismo objetivo. El
     // rival contraataca de verdad (rota credencial, filtra SSH) sobre el host.
     this.duel = new Duel(this.hosts);

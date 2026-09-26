@@ -3,5 +3,5 @@
  * qué build estás corriendo (y confirmar que tomaste la última actualización).
  * Subí el número cuando haya un cambio que el jugador deba poder distinguir.
  */
-export const NANDE_VERSION = "5.68.0";
-export const NANDE_BUILD = "calidad-duelo-coop-online-dfir";
+export const NANDE_VERSION = "5.69.0";
+export const NANDE_BUILD = "compromisos-fuente-unica-botin";

@@ -20,9 +20,17 @@ function C2View({ kernel }: C2ViewProps) {
   const flags = kernel.player.capturedFlags();
   const solvedKey = solved.join();
   const flagsKey = flags.join();
+  // Fuente única de verdad (regla 2): los hosts que comprometiste DE VERDAD por
+  // el motor (pivote/escalada), no una lista paralela. Así el panel refleja la
+  // misma realidad que netmap (⊙) y el comando 'botin'.
+  const ownedKey = kernel.compromises.hostnames().join();
   const bots = useMemo(
-    () => buildBotnet(solvedKey ? solvedKey.split(",") : [], flagsKey ? flagsKey.split(",") : []),
-    [solvedKey, flagsKey],
+    () => buildBotnet(
+      solvedKey ? solvedKey.split(",") : [],
+      flagsKey ? flagsKey.split(",") : [],
+      ownedKey ? ownedKey.split(",") : [],
+    ),
+    [solvedKey, flagsKey, ownedKey],
   );
   const risk = detectionRisk(bots);
 
@@ -62,8 +70,9 @@ function C2View({ kernel }: C2ViewProps) {
 
       {bots.length === 0 ? (
         <div style={{ ...card, color: "#8b98a5" }}>
-          Todavía no controlás ninguna máquina. Resolvé laboratorios o tomá la
-          cuenta de un sitio y acá aparecen como bots.
+          Todavía no controlás ninguna máquina. Comprometé un host de verdad
+          (connect/pivote por la LAN), resolvé laboratorios o tomá la cuenta de
+          un sitio, y acá aparecen como bots. Mirá tu botín con 'botin'.
         </div>
       ) : (
         <>
