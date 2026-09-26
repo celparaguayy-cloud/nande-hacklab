@@ -150,6 +150,8 @@ export class VirtualTerminal {
   private remoteStack: { host: string; user: string }[] = [];
   /** Loot ya recolectado en sesiones remotas (dedupe de la técnica T1005). */
   private collectedLoot = new Set<string>();
+  /** Hosts desde los que ya se escaneó la red interna (dedupe de T1046). */
+  private scannedFrom = new Set<string>();
   /** Consola de explotación (msfconsole). Viva mientras dura la sesión. */
   private msf: MsfConsole | null = null;
   /** ¿Estamos dentro de la consola msf? (las líneas se enrutan al motor). */
@@ -2549,6 +2551,20 @@ export class VirtualTerminal {
         const lines = internos.map(
           (h) => `  ${h.ip.padEnd(14)} ${h.hostname}  (${this.kernel.hosts.openServices(h.hostname).length} servicios)`,
         );
+        // Coherencia ofensiva↔defensiva (regla 3/5/10): escanear la red interna
+        // desde un host comprometido es Descubrimiento (T1046, Network Service
+        // Scanning). Enciende la misma capa defensiva que el pivote y la
+        // recolección. Sólo si REVELA hosts, y deduplicado por host de origen.
+        if (internos.length > 0 && !this.scannedFrom.has(hostname.toLowerCase())) {
+          this.scannedFrom.add(hostname.toLowerCase());
+          this.kernel.noteAttackTechnique({
+            technique: "Network Service Scanning (descubrimiento interno)",
+            tactic: "Discovery",
+            mitreId: "T1046",
+            detail: `Descubrimiento: escaneo de red interna desde ${hostname} — ${internos.length} host(s) alcanzable(s).`,
+            host: hostname,
+          });
+        }
         return {
           output:
             `Escaneo interno desde ${hostname}:\n` +

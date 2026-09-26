@@ -290,4 +290,19 @@ describe("Mapa de red (subnets + netmap)", () => {
     term.execute("cat /root/flag.txt");
     expect(kernel.mitre.recent(30).filter((d) => d.mitreId === "T1005").length).toBe(1);
   });
+
+  it("escanear la red interna desde un host comprometido enciende Discovery (T1046)", () => {
+    term.execute("connect server.nande soporte Verano2024");
+    // Antes de escanear no hay Discovery.
+    expect(kernel.mitre.recent(30).some((d) => d.mitreId === "T1046")).toBe(false);
+    // nmap interno revela la red → enciende Descubrimiento.
+    term.execute("nmap");
+    const disc = kernel.mitre.recent(30).find((d) => d.mitreId === "T1046");
+    expect(disc, "el nmap interno debería encender Discovery").toBeTruthy();
+    expect(disc!.tactic).toBe("Discovery");
+    expect(disc!.host).toBe("server.nande");
+    // Re-escanear desde el mismo host no duplica (dedupe por origen).
+    term.execute("nmap");
+    expect(kernel.mitre.recent(30).filter((d) => d.mitreId === "T1046").length).toBe(1);
+  });
 });
