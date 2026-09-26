@@ -267,9 +267,36 @@ export class Investigator {
   pivot(value: string): TimelineEntry[] {
     const needle = value.toLowerCase();
     const inc = this.reconstruct();
-    return (inc?.timeline ?? []).filter(
+    const timeline = inc?.timeline ?? [];
+    const out: TimelineEntry[] = timeline.filter(
       (e) => e.host.toLowerCase().includes(needle) || e.detail.toLowerCase().includes(needle),
     );
+
+    // Pivot sobre el IOC o el actor de un incidente del data center: conectá el
+    // indicador con el ataque REAL que lo dejó (antes el IOC del actor no vivía
+    // en la línea de tiempo, así que pivotar sobre él no traía nada). Aditivo:
+    // no toca el resultado base (misma evidencia de siempre).
+    const already = new Set(out);
+    const matchedHosts = new Set<string>();
+    for (const it of this.incidents?.() ?? []) {
+      const hit =
+        (it.ioc && it.ioc.toLowerCase().includes(needle)) || it.rival.toLowerCase().includes(needle);
+      if (!hit) continue;
+      out.push({
+        tick: it.tick,
+        kind: "amenaza",
+        host: it.host,
+        detail: `${it.rival} atacó ${it.host}${it.ioc ? ` — IOC ${it.ioc}` : ""} (atribuible en ti.nande)`,
+      });
+      matchedHosts.add(it.host.toLowerCase());
+    }
+    // Contexto: los eventos reales en el host golpeado por ese actor.
+    if (matchedHosts.size > 0) {
+      for (const e of timeline) {
+        if (matchedHosts.has(e.host.toLowerCase()) && !already.has(e)) out.push(e);
+      }
+    }
+    return out;
   }
 
   /** Filtra la línea de tiempo por host, tipo de evento o texto libre. */

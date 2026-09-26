@@ -139,4 +139,15 @@ describe("Investigator / DFIR — forense sobre el mundo real", () => {
     ).response.body;
     expect(body).toContain("ND{ti_atribucion}");
   });
+
+  it("dfir pivot sobre el IOC (o el actor) de un incidente conecta con el ataque real", () => {
+    const inc = kernel.threats.maybeAttack(100)!;
+    // Pivot sobre el IOC del actor: ahora trae la conexión con el ataque real
+    // (antes no traía nada porque el IOC no estaba en la línea de tiempo).
+    const porIoc = kernel.dfir.pivot(inc.ioc!);
+    expect(porIoc.some((e) => e.detail.includes(inc.rival) && e.host === inc.host)).toBe(true);
+    // Pivot sobre el actor también lo encuentra.
+    const porActor = kernel.dfir.pivot(inc.rival);
+    expect(porActor.some((e) => e.host === inc.host)).toBe(true);
+  });
 });
