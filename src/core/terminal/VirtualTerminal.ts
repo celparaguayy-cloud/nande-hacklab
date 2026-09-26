@@ -148,6 +148,8 @@ export class VirtualTerminal {
   private remoteUser = "root";
   /** Pila de hosts para volver con exit al pivotar en cadena. */
   private remoteStack: { host: string; user: string }[] = [];
+  /** Loot ya recolectado en sesiones remotas (dedupe de la técnica T1005). */
+  private collectedLoot = new Set<string>();
   /** Consola de explotación (msfconsole). Viva mientras dura la sesión. */
   private msf: MsfConsole | null = null;
   /** ¿Estamos dentro de la consola msf? (las líneas se enrutan al motor). */
@@ -2386,6 +2388,28 @@ export class VirtualTerminal {
   }
 
   /**
+   * Recolección de datos sensibles en un host comprometido (regla 3/5/10): si
+   * lo que leíste contiene una bandera (el loot), es Collection/Exfiltración
+   * (T1005). Enciende la misma capa defensiva que el pivoting y el privesc —el
+   * SOC/MITRE lo detecta, DFIR lo ve, Opsec suma exposición—, nace de la lectura
+   * real. Se deduplica por bandera para no spamear en re-lecturas.
+   */
+  private noteRemoteCollection(hostname: string, path: string, content: string): void {
+    for (const m of content.matchAll(/ND\{[^}]+\}/g)) {
+      const flag = m[0];
+      if (this.collectedLoot.has(flag)) continue;
+      this.collectedLoot.add(flag);
+      this.kernel.noteAttackTechnique({
+        technique: "Data from Local System (exfiltración)",
+        tactic: "Collection",
+        mitreId: "T1005",
+        detail: `Recolección: leíste ${path} en ${hostname} y te llevaste ${flag}.`,
+        host: hostname,
+      });
+    }
+  }
+
+  /**
    * Ejecuta un comando DENTRO de una sesión remota: opera contra el host
    * remoto (su filesystem, procesos y servicios), y `nmap` revela la red
    * interna alcanzable desde ahí (pivoting). `exit` cierra o vuelve un salto.
@@ -2452,6 +2476,7 @@ export class VirtualTerminal {
         }
         // Un flag en un archivo cuenta como capturado (consecuencias reales).
         const notes = this.kernel.scanForSignals(content);
+        this.noteRemoteCollection(hostname, path, content);
         const suffix = notes.length ? "\n" + notes.join("\n") + "\n" : "";
         return { output: content + "\n" + suffix, isError: false };
       }
@@ -2470,6 +2495,7 @@ export class VirtualTerminal {
         const content = host.files["/root/flag.txt"] ?? host.flag;
         if (!content) return { output: "no hay bandera acá.\n", isError: false };
         const notes = this.kernel.scanForSignals(content);
+        this.noteRemoteCollection(hostname, "/root/flag.txt", content);
         const suffix = notes.length ? "\n" + notes.join("\n") + "\n" : "";
         return { output: content + "\n" + suffix, isError: false };
       }

@@ -274,4 +274,20 @@ describe("Mapa de red (subnets + netmap)", () => {
     expect(lateral!.host).toBe("caja.interna.nande");
     expect(lateral!.detail).toContain("server.nande");
   });
+
+  it("recolectar la bandera de un host comprometido enciende Collection (T1005)", () => {
+    term.execute("connect server.nande soporte Verano2024");
+    term.execute("connect caja.interna.nande admin GiraSol#2024");
+    // Antes de leer el loot no hay Collection.
+    expect(kernel.mitre.recent(30).some((d) => d.mitreId === "T1005")).toBe(false);
+    // Leer la bandera = recolección/exfiltración: enciende la técnica.
+    term.execute("cat /root/flag.txt");
+    const col = kernel.mitre.recent(30).find((d) => d.mitreId === "T1005");
+    expect(col, "leer el loot debería encender Collection").toBeTruthy();
+    expect(col!.tactic).toBe("Collection");
+    expect(col!.host).toBe("caja.interna.nande");
+    // Re-leer no duplica la técnica (dedupe por bandera).
+    term.execute("cat /root/flag.txt");
+    expect(kernel.mitre.recent(30).filter((d) => d.mitreId === "T1005").length).toBe(1);
+  });
 });
