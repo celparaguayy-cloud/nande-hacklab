@@ -153,6 +153,70 @@ export class PacketCapture {
     // ya viven en el EventStore/SOC. NandeShark sólo captura lo que viaja.
   }
 
+  /**
+   * Registra un eco ICMP (ping) que salió al cable. En una red real un ping es
+   * tráfico VISIBLE: el sniffer y un IDS lo ven. Antes ping era "silencioso"
+   * (incoherencia §5/§19); ahora deja su rastro como cualquier otra cosa que
+   * viaja. `reply` = si el destino contestó el eco. Lo llama la terminal.
+   */
+  recordIcmp(dst: string, hostname: string, reply: boolean, tick: number): void {
+    const host = hostname || dst;
+    const wire =
+      `ICMP ${this.myIp} > ${dst}: echo request  id=${tick % 65535} seq=1\r\n` +
+      (reply
+        ? `ICMP ${dst} > ${this.myIp}: echo reply  ttl=64`
+        : `(sin respuesta al echo request)`);
+    this.push({
+      tick,
+      src: this.myIp,
+      dst,
+      proto: "ICMP",
+      summary: `ICMP echo ${reply ? "request → reply" : "request (sin respuesta)"} ${host}`,
+      detail: wire.replace(/\r?\n/g, "  "),
+      wire,
+      length: wire.length,
+      host,
+    });
+  }
+
+  /**
+   * Registra un intento de conexión TCP (nc / banner grabbing). Muestra el SYN
+   * y la respuesta del handshake: SYN-ACK (abierto), RST (cerrado) o silencio
+   * (filtrado), más el banner si el servicio saludó. Es lo que un sniffer ve de
+   * un escaneo: por eso escanear es RUIDOSO. Lo llama la terminal.
+   */
+  recordTcp(
+    dst: string,
+    hostname: string,
+    port: number,
+    state: "open" | "closed" | "filtered",
+    tick: number,
+    banner?: string,
+  ): void {
+    const host = hostname || dst;
+    const sport = 40000 + ((tick + port) % 20000);
+    const resp =
+      state === "open"
+        ? `${dst}:${port} > ${this.myIp}:${sport} [SYN, ACK]`
+        : state === "closed"
+          ? `${dst}:${port} > ${this.myIp}:${sport} [RST, ACK]`
+          : `(sin respuesta — puerto filtrado)`;
+    const wire =
+      `TCP ${this.myIp}:${sport} > ${dst}:${port} [SYN]\r\n${resp}` +
+      (banner ? `\r\n${banner}` : "");
+    this.push({
+      tick,
+      src: this.myIp,
+      dst,
+      proto: "TCP",
+      summary: `TCP ${host}:${port} ${state}${banner ? " · " + banner.split("\r")[0] : ""}`,
+      detail: wire.replace(/\r?\n/g, "  "),
+      wire,
+      length: wire.length,
+      host,
+    });
+  }
+
   /* -------------------------------------------------------------- consulta */
 
   count(): number {

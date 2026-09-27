@@ -874,6 +874,7 @@ export class VirtualTerminal {
       // DNS aunque no sean hosts del runtime: existen y responden.
       const ip = this.kernel.dns.resolve(target);
       if (ip && (from !== null || this.kernel.network.isReachable(ip))) {
+        if (from === null) this.kernel.shark.recordIcmp(ip, target, true, this.kernel.world.getState().clock.tick);
         return { output: this.pingReplies(target, ip), isError: false };
       }
       return {
@@ -895,6 +896,8 @@ export class VirtualTerminal {
     }
 
     if (echo.status === "down") {
+      // El echo request igual sale al cable aunque no haya respuesta: se ve.
+      if (from === null) this.kernel.shark.recordIcmp(echo.ip, echo.hostname ?? "", false, this.kernel.world.getState().clock.tick);
       return {
         output:
           `PING ${echo.hostname ?? target} (${echo.ip})\n` +
@@ -903,6 +906,9 @@ export class VirtualTerminal {
       };
     }
 
+    // Reply: el ping deja su rastro real en NandeShark (coherencia §5): un IDS
+    // o un analista ven el eco. Sólo desde el equipo del jugador (from=null).
+    if (from === null) this.kernel.shark.recordIcmp(echo.ip, echo.hostname ?? "", true, this.kernel.world.getState().clock.tick);
     return { output: this.pingReplies(echo.hostname ?? target, echo.ip), isError: false };
   }
 
@@ -1012,6 +1018,15 @@ export class VirtualTerminal {
     if (from === null && !this.hasLocalUplink()) {
       return { output: "nc: la red no tiene salida (eth0/wlan0 abajo).\n", isError: true };
     }
+    const tick = this.kernel.world.getState().clock.tick;
+    // Cada sondeo TCP deja rastro REAL en NandeShark: escanear es RUIDOSO (§5),
+    // como avisa la ficha de nc. Sólo desde el equipo del jugador (from=null);
+    // en pivoting el sniffer local no vería tráfico originado en el host remoto.
+    const sniff = (r: { status: string; ip: string; hostname?: string; banner?: string }, port: number) => {
+      if (from === null && (r.status === "open" || r.status === "closed" || r.status === "filtered")) {
+        this.kernel.shark.recordTcp(r.ip, r.hostname ?? host, port, r.status as "open" | "closed" | "filtered", tick, r.banner);
+      }
+    };
 
     // Parsear puerto(s): "22" | "20-100" | "22,80,443".
     let ports: number[] = [];
@@ -1028,6 +1043,7 @@ export class VirtualTerminal {
       const port = ports[0];
       const r = this.kernel.hosts.probePort(from, host, port);
       const name = r.hostname ?? host;
+      sniff(r, port);
       switch (r.status) {
         case "no-host":
           return { output: `nc: ${host}: nombre o servicio desconocido\n`, isError: true };
@@ -1069,6 +1085,7 @@ export class VirtualTerminal {
       const r = this.kernel.hosts.probePort(from, host, port);
       ip = r.ip;
       name = r.hostname ?? host;
+      sniff(r, port);
       if (r.status === "no-host") return { output: `nc: ${host}: nombre o servicio desconocido\n`, isError: true };
       if (r.status === "no-route") { unreachable = `nc: ${name} (${r.ip}) es interno; no hay ruta (pivoteá).\n`; break; }
       if (r.status === "down") { unreachable = `nc: ${name} (${r.ip}) está apagado.\n`; break; }

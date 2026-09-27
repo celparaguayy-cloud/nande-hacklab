@@ -138,4 +138,34 @@ describe("Motor de conectividad (ping/traceroute/arp/nc/netstat)", () => {
     // Tu propia sesión entrante aparece como ESTABLISHED.
     expect(out).toContain("«vos»");
   });
+
+  /* ------------------------------------------------ tráfico real (sniffer) */
+
+  it("ping deja un eco ICMP real en NandeShark (§5: se ve en el cable)", () => {
+    const before = kernel.shark.count();
+    term.execute("ping server.nande");
+    expect(kernel.shark.count()).toBeGreaterThan(before);
+    // Se ve en el sniffer y con el filtro BPF icmp de tcpdump.
+    expect(term.execute("sniff")).toMatch(/ICMP echo.*server\.nande/);
+    expect(term.execute("tcpdump icmp")).toMatch(/icmp/i);
+  });
+
+  it("nc deja el handshake TCP real (con banner) y el escaneo es RUIDOSO", () => {
+    term.execute("nc -v server.nande 22");
+    // El SYN/ACK y el banner SSH quedan capturados.
+    const shark = kernel.shark.all();
+    const tcp = shark.filter((p) => p.proto === "TCP" && p.dst === "10.10.0.42");
+    expect(tcp.some((p) => p.wire.includes("SYN, ACK") && p.wire.includes("SSH-2.0-"))).toBe(true);
+    // Un barrido -z genera un paquete por puerto: escanear se ve.
+    const before = kernel.shark.count();
+    term.execute("nc -z server.nande 20-25");
+    expect(kernel.shark.count() - before).toBeGreaterThanOrEqual(6);
+  });
+
+  it("desde una sesión remota el sniffer local NO captura el tráfico del pivot", () => {
+    term.execute("connect server.nande soporte Verano2024");
+    const before = kernel.shark.count();
+    term.execute("ping caja.interna.nande"); // originado en el host pivoteado
+    expect(kernel.shark.count()).toBe(before); // no lo ve el sniffer del jugador
+  });
 });
