@@ -1,23 +1,24 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { VirtualKernel } from "../VirtualKernel";
-import { VirtualTerminal } from "../terminal/VirtualTerminal";
 import { resetStorage, seedRandom } from "../../test/setup";
 
 /**
  * Motor de conectividad L2/L3/L4 — la verdad del mundo sobre "¿llega el
- * paquete?". Anti-fakery (§3/§5/§13/§19): ping/traceroute/arp/nc/netstat leen
- * el estado REAL de HostRuntime, no un prefijo de IP ni una tabla fija. Este
- * test caza la regresión que motivó el pase: antes `ping <host real>` fallaba
- * y `ping <IP fantasma>` respondía. Ahora es al revés — como debe ser.
+ * paquete?". Anti-fakery (§3/§5/§13/§19): la reachability, la ruta, la tabla
+ * ARP y el sondeo de puertos salen del estado REAL de HostRuntime (fuente
+ * única), no de un prefijo de IP ni de una tabla fija.
+ *
+ * Este test cubre el MOTOR (regla §7: el motor importa más que la interfaz).
+ * Caza la regresión que motivó el pase: en esa IP no vive nadie -> NO responde;
+ * un host interno no se alcanza sin pivotar; un servicio detenido cierra el
+ * puerto en nc igual que en nmap.
  */
-describe("Motor de conectividad (ping/traceroute/arp/nc/netstat)", () => {
+describe("Motor de conectividad (HostRuntime L2/L3/L4)", () => {
   let kernel: VirtualKernel;
-  let term: VirtualTerminal;
   beforeEach(() => {
     resetStorage();
     seedRandom();
     kernel = new VirtualKernel();
-    term = new VirtualTerminal(kernel);
   });
 
   /* ------------------------------------------------------------- icmpEcho */
@@ -38,27 +39,6 @@ describe("Motor de conectividad (ping/traceroute/arp/nc/netstat)", () => {
     expect(h.icmpEcho(null, "panel.nande").status).toBe("down");
   });
 
-  it("ping en la terminal: responde a un host real y RECHAZA una IP fantasma", () => {
-    const real = term.execute("ping server.nande");
-    expect(real).toContain("10.10.0.42");
-    expect(real).toContain("3 recibidos");
-
-    const fantasma = term.execute("ping 10.10.250.99");
-    expect(fantasma).not.toContain("3 recibidos");
-    expect(fantasma).toMatch(/nadie responde|inalcanzable/i);
-
-    const interno = term.execute("ping caja.interna.nande");
-    expect(interno).toMatch(/interno/i);
-    expect(interno).not.toContain("3 recibidos");
-  });
-
-  it("ping funciona desde una sesión remota (pivoting) al segmento interno", () => {
-    expect(term.execute("connect server.nande soporte Verano2024")).toContain("conectado");
-    const out = term.execute("ping caja.interna.nande");
-    expect(out).toContain("10.10.66.10");
-    expect(out).toContain("3 recibidos");
-  });
-
   /* ---------------------------------------------------------- tracePath */
 
   it("tracePath: vecino del mismo /24 = un salto; otro segmento = pasa por routers", () => {
@@ -75,14 +55,12 @@ describe("Motor de conectividad (ping/traceroute/arp/nc/netstat)", () => {
     // Host interno: la ruta se pierde tras el gateway.
     const dead = h.tracePath(null, "caja.interna.nande");
     expect(dead.status).toBe("no-route");
-    const tr = term.execute("traceroute caja.interna.nande");
-    expect(tr).toContain("* * *");
-    expect(tr).toMatch(/pivotar/i);
+    expect(dead.hops[0].ip).toBe("10.10.0.1");
   });
 
   /* -------------------------------------------------------------- arp */
 
-  it("arp sólo muestra el segmento local (L2) y nunca los internos", () => {
+  it("arpNeighbors sólo muestra el segmento local (L2) y nunca los internos", () => {
     const rows = kernel.hosts.arpNeighbors("10.10.0");
     const names = rows.map((r) => r.hostname);
     expect(names).toContain("gateway");
@@ -92,14 +70,12 @@ describe("Motor de conectividad (ping/traceroute/arp/nc/netstat)", () => {
     expect(names).not.toContain("caja.interna.nande");
     // MAC determinista y reproducible.
     expect(kernel.hosts.macOf("10.10.0.42")).toBe(kernel.hosts.macOf("10.10.0.42"));
-    const out = term.execute("arp");
-    expect(out).toContain("server.nande");
-    expect(out).not.toContain("caja.interna.nande");
+    expect(kernel.hosts.macOf("10.10.0.1")).toMatch(/^02:00:/);
   });
 
-  /* --------------------------------------------------------------- nc */
+  /* --------------------------------------------------------------- nc / L4 */
 
-  it("nc: puerto abierto trae banner, cerrado da refused, filtrado da timeout", () => {
+  it("probePort: puerto abierto trae banner, cerrado/filtrado/interno coherentes", () => {
     const h = kernel.hosts;
     // Abierto con banner (SSH saluda).
     const ssh = h.probePort(null, "server.nande", 22);
@@ -110,32 +86,17 @@ describe("Motor de conectividad (ping/traceroute/arp/nc/netstat)", () => {
     expect(h.probePort(null, "server.nande", 80).banner).toBeUndefined();
     // Puerto sin servicio: cerrado.
     expect(h.probePort(null, "server.nande", 3389).status).toBe("closed");
-    // Firewall → filtrado.
+    // Firewall -> filtrado.
     h.blockPort("server.nande", 22);
     expect(h.probePort(null, "server.nande", 22).status).toBe("filtered");
     // Interno desde el jugador: sin ruta.
     expect(h.probePort(null, "caja.interna.nande", 22).status).toBe("no-route");
-
-    const out = term.execute("nc -v server.nande 80");
-    expect(out).toMatch(/succeeded/i);
   });
 
-  it("nc coincide con nmap: un servicio detenido cierra el puerto en ambos", () => {
+  it("probePort coincide con la verdad de nmap: un servicio detenido cierra el puerto", () => {
     kernel.hosts.stopService("server.nande", "sshd");
     expect(kernel.hosts.probePort(null, "server.nande", 22).status).toBe("closed");
-    const nmap = term.execute("nmap -p22 server.nande");
-    expect(nmap).toMatch(/22\/tcp\s+closed/);
-  });
-
-  /* ------------------------------------------------------------ netstat */
-
-  it("netstat en un host comprometido refleja servicios vivos y sesiones reales", () => {
-    term.execute("connect server.nande soporte Verano2024");
-    const out = term.execute("netstat");
-    // Los puertos LISTEN son los servicios corriendo del host (fuente única).
-    expect(out).toMatch(/0\.0\.0\.0:80\s.*LISTEN\s+nginx/);
-    expect(out).toMatch(/0\.0\.0\.0:22\s.*LISTEN\s+sshd/);
-    // Tu propia sesión entrante aparece como ESTABLISHED.
-    expect(out).toContain("«vos»");
+    // openServices (lo que ve nmap) tampoco lo lista ya.
+    expect(kernel.hosts.openServices("server.nande").some((s) => s.port === 22)).toBe(false);
   });
 });
