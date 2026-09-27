@@ -11,10 +11,62 @@ import type { HostRuntime } from "../net/HostRuntime";
 
 export type { ToolDef, ToolCategory, ToolLevel } from "./toolCatalog";
 
-/** Vista mínima del filesystem que necesitan los forenses (strings/file). */
+/** Vista mínima del filesystem que necesitan los forenses (strings/file/yara/clamav). */
 export interface FsView {
   exists(path: string): boolean;
   getFile(path: string): { type: "file" | "directory"; content: string } | undefined;
+  /** Archivos (no directorios) bajo un prefijo, recursivo (clamav). */
+  filesUnder(prefix: string): { path: string; content: string }[];
+}
+
+/** Firmas de malware reales/conocidas que usan yara y clamav (fuente única). */
+interface MalwareSig {
+  rule: string;
+  re: RegExp;
+  sev: "test" | "critical" | "high" | "medium";
+  desc: string;
+}
+const MALWARE_SIGS: MalwareSig[] = [
+  {
+    rule: "eicar_test_file",
+    re: /X5O!P%@AP\[4\\PZX54\(P\^\)7CC\)7\}\$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!\$H\+H\*/,
+    sev: "test",
+    desc: "Cadena de prueba EICAR (estándar para verificar el antivirus)",
+  },
+  {
+    rule: "php_webshell",
+    re: /<\?php[\s\S]{0,200}?(eval|assert|system|passthru|shell_exec|popen|proc_open)\s*\(/i,
+    sev: "critical",
+    desc: "Webshell PHP: ejecuta comandos del sistema por HTTP",
+  },
+  {
+    rule: "obfuscated_eval",
+    re: /eval\s*\(\s*(base64_decode|gzinflate|str_rot13|\$_(POST|GET|REQUEST|COOKIE))/i,
+    sev: "critical",
+    desc: "Código ofuscado que se auto-ejecuta desde la entrada del usuario",
+  },
+  {
+    rule: "reverse_shell",
+    re: /(bash|sh)\s+-i\s*>&?\s*\/dev\/tcp\/|nc(\.traditional)?\s+-e\b|mkfifo\s+\/tmp\/|python.{0,40}socket.{0,80}(\/bin\/sh|exec)/i,
+    sev: "high",
+    desc: "Reverse shell: devuelve una consola al atacante",
+  },
+  {
+    rule: "windows_dropper",
+    re: /powershell\s+-(enc|e|nop|w\s+hidden)\b|certutil\s+-urlcache|Invoke-(WebRequest|Expression)\b/i,
+    sev: "high",
+    desc: "Dropper de Windows (descarga/ejecuta carga en memoria)",
+  },
+];
+
+/** Escanea un contenido contra las firmas; devuelve las reglas que coinciden. */
+function scanSignatures(content: string): { sig: MalwareSig; match: string }[] {
+  const hits: { sig: MalwareSig; match: string }[] = [];
+  for (const sig of MALWARE_SIGS) {
+    const m = content.match(sig.re);
+    if (m) hits.push({ sig, match: m[0].slice(0, 60) });
+  }
+  return hits;
 }
 
 export interface ToolRunResult {
@@ -951,15 +1003,23 @@ const RUNNERS: Record<string, Runner> = {
   },
 
   netdiscover(_args, ctx) {
-    const hosts = ctx.lab.all();
-
+    // Descubre los hosts REALES alcanzables (fuente única) + los de laboratorio.
+    const filas: string[] = [];
+    const vistos = new Set<string>();
+    for (const h of ctx.hosts?.all() ?? []) {
+      if (!ctx.hosts!.isPublic(h.hostname) || !h.up) continue;
+      vistos.add(h.ip);
+      filas.push(`${h.ip.padEnd(15)}${h.hostname}`);
+    }
+    for (const m of ctx.lab.all()) {
+      if (vistos.has(m.ip)) continue;
+      filas.push(`${m.ip.padEnd(15)}${m.hostname}  (${m.difficulty})`);
+    }
     return {
       output:
-        `netdiscover — hosts vivos en la red de laboratorio\n` +
-        hosts
-          .map((m) => `${m.ip.padEnd(14)}${m.hostname}  (${m.difficulty})`)
-          .join("\n") +
-        `\n${hosts.length} máquinas descubiertas.\n`,
+        `netdiscover — hosts vivos en la red\n` +
+        filas.join("\n") +
+        `\n${filas.length} host(s) descubierto(s). Afiná con: nmap <ip/host>\n`,
       isError: false,
     };
   },
@@ -2786,23 +2846,58 @@ const RUNNERS: Record<string, Runner> = {
     };
   },
 
-  yara(args) {
+  yara(args, ctx) {
+    // yara <archivo> — escanea el CONTENIDO real del archivo contra el ruleset.
+    const path = args.filter((a) => !a.startsWith("-")).pop() ?? "";
+    if (!path) {
+      return { output: `yara: uso: yara <archivo>. Reglas cargadas: ${MALWARE_SIGS.map((s) => s.rule).join(", ")}\n`, isError: true };
+    }
+    const f = ctx.fs?.getFile(path);
+    if (!f || f.type !== "file") {
+      return { output: `yara: no se pudo abrir "${path}" (¿existe?).\n`, isError: false };
+    }
+    const hits = scanSignatures(f.content);
+    if (hits.length === 0) {
+      return { output: `yara: 0 reglas coincidieron en ${path}. Limpio por estas firmas.\n`, isError: false };
+    }
     return {
       output:
-        `yara ${args.join(" ")} (laboratorio)\n` +
-        `[MATCH] regla 'ejemplo_malware' en la muestra\n` +
-        `Clasificación educativa. Mantené las reglas actualizadas.\n`,
+        hits.map((h) => `${h.sig.rule} ${path}\n  [${h.sig.sev}] ${h.sig.desc}\n  → "${h.match}"`).join("\n") +
+        `\n${hits.length} regla(s) coincidieron.\n`,
       isError: false,
     };
   },
 
-  clamav(args) {
-    const path = args[0] ?? "/home/student";
+  clamav(args, ctx) {
+    // clamscan <ruta> — recorre archivos REALES y los coteja con las firmas.
+    const path = args.find((a) => !a.startsWith("-")) ?? "/home/student";
+    if (!ctx.fs) {
+      return { output: `clamav: sin filesystem en este contexto.\n`, isError: false };
+    }
+    const target = ctx.fs.getFile(path);
+    const files = target?.type === "file"
+      ? [{ path, content: target.content }]
+      : ctx.fs.filesUnder(path);
+    if (files.length === 0) {
+      return { output: `clamav: no hay archivos en ${path}.\n`, isError: false };
+    }
+    const hallazgos: string[] = [];
+    const infectedFiles = new Set<string>();
+    for (const f of files) {
+      const hits = scanSignatures(f.content);
+      for (const h of hits) {
+        hallazgos.push(`${f.path}: ${h.sig.rule}.UNOFFICIAL FOUND`);
+        infectedFiles.add(f.path);
+      }
+    }
     return {
       output:
-        `clamav escaneando ${path} (laboratorio)\n` +
-        `  3 archivos revisados, 0 infectados\n` +
-        `Primera línea de defensa: combinala con otras capas.\n`,
+        `----------- SCAN SUMMARY -----------\n` +
+        (hallazgos.length ? hallazgos.join("\n") + "\n" : "") +
+        `Escaneados: ${files.length}  ·  Infectados: ${infectedFiles.size}\n` +
+        (infectedFiles.size
+          ? `Poné en cuarentena y analizá con yara/cuckoo. Detección real por firmas.\n`
+          : `Sin amenazas por estas firmas. (Tip: creá un archivo EICAR para probar que detecta.)\n`),
       isError: false,
     };
   },

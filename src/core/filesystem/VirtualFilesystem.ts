@@ -253,6 +253,15 @@ export class VirtualFilesystem {
     });
   }
 
+  /** Todos los archivos (no directorios) bajo un prefijo, recursivo. */
+  filesUnder(prefix: string): VirtualFile[] {
+    const base = prefix === "/" ? "/" : prefix.replace(/\/+$/, "");
+    const scope = base === "/" ? "/" : base + "/";
+    return Array.from(this.files.values()).filter(
+      (f) => f.type === "file" && (f.path === base || f.path.startsWith(scope)),
+    );
+  }
+
   remove(path: string): void {
     if (path === "/") {
       throw new Error("No se puede eliminar el directorio raíz");
