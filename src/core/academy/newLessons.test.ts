@@ -44,6 +44,22 @@ describe("Lecciones nuevas — completables con salida real", () => {
     });
   });
 
+  it("l-recon-red: ping→traceroute→nmap→nc→sniff pasa cada check con salida real", () => {
+    const steps = lesson("l-recon-red").steps;
+    const cmds = [
+      "ping server.nande",
+      "traceroute server.nande",
+      "nmap server.nande",
+      "nc -v server.nande 22",
+      "sniff",
+    ];
+    expect(cmds.length).toBe(steps.length);
+    cmds.forEach((cmd, i) => {
+      const out = term.execute(cmd);
+      expect(steps[i].check!(cmd, out), `paso ${i}: ${cmd}`).toBe(true);
+    });
+  });
+
   it("l-pivoting: conectar, escanear interno y leer la bandera pasa cada check", () => {
     const steps = lesson("l-pivoting").steps;
 

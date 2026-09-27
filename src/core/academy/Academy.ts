@@ -419,7 +419,7 @@ export const COURSE_LESSONS: Record<string, string[]> = {
   computacion: ["l-cero-consola", "l-cero-mirar", "l-cero-moverse"],
   linux: ["l-cero-consola", "l-cero-mirar", "l-cero-moverse", "l-servicios", "l-codigo"],
   redes: ["l-dns"],
-  reconocimiento: ["l-nmap", "l-gobuster", "l-osint"],
+  reconocimiento: ["l-nmap", "l-recon-red", "l-gobuster", "l-osint"],
   "web-basics": ["l-dns", "l-http-xss"],
   "web-security": ["l-sqli", "l-web-sqli-login", "l-web-sqli-union", "l-web-idor", "l-web-cmdi", "l-http-xss", "l-jwt"],
   owasp: ["l-owasp-cmdi", "l-owasp-ssrf", "l-owasp-misconf", "l-owasp-auth"],

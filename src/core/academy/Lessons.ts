@@ -202,6 +202,70 @@ export const LESSONS: Lesson[] = [
     ],
   },
   {
+    id: "l-recon-red",
+    title: "Reconocimiento de red REAL: del ping al banner (y su rastro)",
+    level: "intermedio",
+    summary: "Recorré la red como en la vida real: ¿está viva? ¿por dónde se llega? ¿qué puertos? ¿qué versión? …y ¿qué rastro dejaste?",
+    concept:
+      "Reconocer una máquina es una escalera: primero confirmás que está viva (ping), después ves el camino hasta ella (traceroute), después qué puertas tiene (nmap) y qué software corre detrás de cada una (nc, leyendo el 'banner'). Y algo clave que casi nadie te enseña: TODO eso deja rastro en el cable. Un analista con un sniffer ve tus pings y tu escaneo. En ÑANDE la red es de verdad: el ping responde según el estado real del host, y tu tráfico queda capturado.",
+    reward: { xp: 170, coins: 130 },
+    steps: [
+      {
+        explain:
+          "Primer escalón: ¿la máquina está viva? 'ping' le manda un eco y espera respuesta. En ÑANDE responde según el estado REAL del host (no porque sí): si estuviera apagado o fuera interno, te lo diría.",
+        task: "Tocá el timbre de server.nande: ping server.nande",
+        hint: "Escribí: ping server.nande",
+        hints: ["El comando que 'toca el timbre' es ping.", "Escribí exactamente: ping server.nande"],
+        check: (cmd, out) =>
+          usedTool(cmd, "ping") && cmd.includes("server.nande") && out.includes("recibidos"),
+        debrief:
+          "Está viva: '3 recibidos, 0% perdidos'. Ese eco es real; si el host estuviera apagado no contestaría, y si fuera interno te diría que hace falta pivotar. Defensa: se puede configurar una máquina para no responder pings, pero eso no la esconde de un escaneo.",
+      },
+      {
+        explain:
+          "¿Por dónde viaja tu paquete hasta ella? 'traceroute' lista cada salto del camino. Un vecino de tu misma subred (/24) está a UN salto directo; una máquina de otro segmento pasa por el gateway y el router de destino. El mapa sale de la topología real del mundo.",
+        task: "Mirá el camino hasta el objetivo: traceroute server.nande",
+        hint: "Escribí: traceroute server.nande",
+        hints: ["Es traceroute seguido del host.", "Escribí: traceroute server.nande"],
+        check: (cmd, out) =>
+          usedTool(cmd, "traceroute") && cmd.includes("server.nande") && /ms\b/.test(out),
+        debrief:
+          "server.nande es vecino de tu subred (10.10.0.x), así que aparece a un salto directo. Si hubieras traceado a banco.nande (otro segmento) verías el gateway y el router en el medio. La ruta no es decorativa: sale de dónde vive de verdad cada host.",
+      },
+      {
+        explain:
+          "Ya sabés que está viva y cómo llegar. Ahora: ¿qué puertas tiene abiertas? 'nmap' golpea los puertos y te dice cuáles están abiertos y qué servicio hay detrás.",
+        task: "Escaneá los puertos: nmap server.nande",
+        hint: "Escribí: nmap server.nande",
+        hints: ["Es nmap seguido del host.", "Escribí: nmap server.nande"],
+        check: (cmd, out) => usedTool(cmd, "nmap") && cmd.includes("server.nande") && out.includes("open"),
+        debrief:
+          "Cada 'open' es un servicio vivo. Pero 'open' no te dice QUÉ versión corre — y la versión es lo que decide si es explotable. Para eso, el próximo paso.",
+      },
+      {
+        explain:
+          "'nc' (netcat) abre una conexión cruda a un puerto y te muestra lo que el servicio 'saluda' al conectarse: su BANNER. El banner suele delatar el software y la versión exacta — oro para elegir un exploit. Esto es 'banner grabbing'.",
+        task: "Agarrá el banner del SSH: nc -v server.nande 22",
+        hint: "Escribí: nc -v server.nande 22",
+        hints: ["Es nc, con -v, el host y el puerto 22.", "Escribí: nc -v server.nande 22"],
+        check: (cmd, out) =>
+          usedTool(cmd, "nc") && cmd.includes("22") && /SSH-2\.0-|succeeded/i.test(out),
+        debrief:
+          "El servicio se presentó: 'SSH-2.0-OpenÑSSH_9.6'. Ya no tenés 'un puerto abierto', tenés 'OpenÑSSH 9.6' — con eso buscás vulnerabilidades de esa versión concreta (searchsploit). Defensa: ocultar/cambiar los banners de versión le quita ese regalo al atacante.",
+      },
+      {
+        explain:
+          "Lo que casi nadie te muestra: TODO tu reconocimiento viajó por el cable y quedó capturado. En ÑANDE el sniffer (NandeShark) ve el tráfico REAL que generaste. Un analista o un IDS ven tus pings y tu escaneo: por eso escanear es RUIDOSO.",
+        task: "Mirá tu propio rastro: sniff",
+        hint: "Escribí: sniff",
+        hints: ["El sniffer se llama con 'sniff'.", "Escribí: sniff (a secas)"],
+        check: (cmd, out) => usedTool(cmd, "sniff") && /ICMP/.test(out),
+        debrief:
+          "Ahí está tu huella: el eco ICMP de tu ping y el handshake TCP de tu nc, con IP de origen y todo. El reconocimiento NO es invisible. Un buen atacante lo sabe (por eso mide su ruido); un buen defensor lo caza mirando el tráfico. Con 'tcpdump icmp' o 'sniff' cualquiera reconstruye lo que hiciste.",
+      },
+    ],
+  },
+  {
     id: "l-sqli",
     title: "Encontrá el login vulnerable (SQL Injection)",
     level: "intermedio",

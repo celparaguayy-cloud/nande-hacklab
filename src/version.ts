@@ -3,5 +3,5 @@
  * qué build estás corriendo (y confirmar que tomaste la última actualización).
  * Subí el número cuando haya un cambio que el jugador deba poder distinguir.
  */
-export const NANDE_VERSION = "5.80.0";
-export const NANDE_BUILD = "trafico-real-ping-nc-en-el-cable";
+export const NANDE_VERSION = "5.81.0";
+export const NANDE_BUILD = "leccion-recon-red-real";
