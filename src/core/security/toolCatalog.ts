@@ -535,6 +535,50 @@ export const TOOL_CATALOG: ToolDef[] = [
 
   // ---------------- REDES / SNIFFING ----------------
   t({
+    id: "arp",
+    name: "arp",
+    category: "redes",
+    level: "principiante",
+    simple:
+      "Muestra la 'agenda' que asocia las IP de tus vecinos con su número de placa (MAC).",
+    whatItDoes:
+      "Lista la tabla ARP: qué IP de TU misma red (mismo /24) va con qué dirección MAC.",
+    whyExists:
+      "En una red local, para hablar con un vecino primero hay que saber su MAC. ARP la resuelve.",
+    whenToUse:
+      "Cuando ya estás dentro de una red y querés saber quiénes son tus vecinos de segmento.",
+    resultMeaning:
+      "Cada línea es un vecino vivo de tu subred con su MAC. ARP sólo ve tu propio segmento (es local).",
+    howToDetect:
+      "Muchas consultas ARP seguidas (barrido ARP) se ven como reconocimiento de la LAN.",
+    howToDefend:
+      "ARP estático en equipos críticos y detección de ARP spoofing en el switch.",
+    usage: "arp -a",
+    runnable: true,
+  }),
+  t({
+    id: "nc",
+    name: "netcat (nc)",
+    category: "redes",
+    level: "intermedio",
+    simple:
+      "La 'navaja suiza' de las redes: abre una conexión cruda a un puerto y te deja hablarle.",
+    whatItDoes:
+      "Conecta a host:puerto por TCP. Sirve para ver si un puerto está abierto y leer su banner (banner grabbing), o escanear con -z.",
+    whyExists:
+      "Es la forma más directa de tocar un servicio: sin navegador ni cliente especial, texto crudo sobre el socket.",
+    whenToUse:
+      "Tras nmap, para confirmar un puerto y ver qué software corre (su banner suele delatar la versión).",
+    resultMeaning:
+      "Conexión aceptada + banner → servicio vivo e identificable. 'refused' → cerrado. Sin respuesta → filtrado.",
+    howToDetect:
+      "Conexiones a puertos raros o barridos con -z quedan en los logs y los ve un IDS.",
+    howToDefend:
+      "Cerrar puertos que no se usan, firewall por defecto-deny y ocultar banners de versión.",
+    usage: "nc -v 10.10.0.42 22   ·   nc -z 10.10.0.42 20-100",
+    runnable: true,
+  }),
+  t({
     id: "netstat",
     name: "netstat",
     category: "redes",

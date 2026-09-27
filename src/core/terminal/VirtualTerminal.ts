@@ -821,36 +821,351 @@ export class VirtualTerminal {
     return { output: header + "\n" + rows.join("\n") + "\n" + warn, isError: false };
   }
 
+  /** ¿Hay salida a la red virtual desde el equipo del jugador? (cable o wifi) */
+  private hasLocalUplink(): boolean {
+    return (
+      this.kernel.network.getInterface("eth0")?.up === true ||
+      this.kernel.network.getInterface("wlan0")?.up === true
+    );
+  }
+
+  /** Tres réplicas de ping con latencia coherente (formato ping real). */
+  private pingReplies(label: string, ip: string): string {
+    const lines = [1, 2, 3].map(
+      (n) => `64 bytes desde ${ip}: icmp_seq=${n} ttl=64 tiempo=${(0.7 + n * 0.1).toFixed(1)} ms`,
+    );
+    return (
+      `PING ${label} (${ip}) 56(84) bytes de datos.\n` +
+      lines.join("\n") +
+      `\n--- ${label} estadísticas ping ---\n` +
+      `3 paquetes transmitidos, 3 recibidos, 0% perdidos, tiempo 2003ms\n`
+    );
+  }
+
+  /**
+   * ping — ahora consulta el MOTOR DE CONECTIVIDAD real (HostRuntime), no un
+   * prefijo de IP. Un host que existe y está alcanzable y encendido responde;
+   * uno interno avisa que hay que pivotar; uno apagado no contesta; y una IP
+   * donde no vive nadie es inalcanzable (se acabó el "ping fantasma"). Desde una
+   * sesión remota, el punto de vista es el host pivoteado (regla 2/5/13).
+   */
   private executePing(args: string[]): {
     output: string;
     isError: boolean;
   } {
-    const target = args[0];
+    const target = args.find((a) => !a.startsWith("-"));
 
     if (!target) {
+      return { output: "ping: falta la dirección de destino\n", isError: true };
+    }
+
+    const from = this.remoteHost; // null = red del jugador
+    if (from === null && !this.hasLocalUplink()) {
       return {
-        output: "ping: falta la dirección de destino\n",
+        output: `ping: la red no tiene salida (eth0/wlan0 abajo). Levantá una interfaz con 'ip'/'wifi'.\n`,
         isError: true,
       };
     }
 
-    if (!this.kernel.network.isReachable(target)) {
+    const echo = this.kernel.hosts.icmpEcho(from, target);
+
+    if (echo.status === "no-host") {
+      // Sitios dinámicos del mundo (academy.nande, foro.nande…) resuelven por
+      // DNS aunque no sean hosts del runtime: existen y responden.
+      const ip = this.kernel.dns.resolve(target);
+      if (ip && (from !== null || this.kernel.network.isReachable(ip))) {
+        return { output: this.pingReplies(target, ip), isError: false };
+      }
       return {
         output:
           `PING ${target}\n` +
-          "Host de laboratorio no alcanzable.\n",
+          `ping: nadie responde en ${target} (nombre sin resolver o dirección vacía en la red).\n`,
         isError: true,
       };
     }
 
+    if (echo.status === "no-route") {
+      return {
+        output:
+          `PING ${echo.hostname ?? target} (${echo.ip})\n` +
+          `Destino inalcanzable: es un host INTERNO, no hay ruta desde acá.\n` +
+          `(Pivoteá: comprometé un host de su red y hacé ping desde ahí — connect <host> <u> <c>.)\n`,
+        isError: false,
+      };
+    }
+
+    if (echo.status === "down") {
+      return {
+        output:
+          `PING ${echo.hostname ?? target} (${echo.ip})\n` +
+          `Destino inalcanzable: el host está apagado (no responde al eco).\n`,
+        isError: false,
+      };
+    }
+
+    return { output: this.pingReplies(echo.hostname ?? target, echo.ip), isError: false };
+  }
+
+  /**
+   * traceroute — la RUTA real hasta el destino, derivada de la topología del
+   * mundo (HostRuntime.tracePath). Un vecino del mismo /24 es un salto directo;
+   * otro segmento pasa por el gateway y el router de destino; un host interno se
+   * pierde tras el gateway (no hay ruta sin pivotar). Nada inventado.
+   */
+  private tracerouteCmd(args: string[]): { output: string; isError: boolean } {
+    const target = args.find((a) => !a.startsWith("-"));
+    if (!target) return { output: "traceroute: falta el destino\n", isError: true };
+
+    const from = this.remoteHost;
+    if (from === null && !this.hasLocalUplink()) {
+      return { output: "traceroute: la red no tiene salida (eth0/wlan0 abajo).\n", isError: true };
+    }
+
+    const t = this.kernel.hosts.tracePath(from, target);
+    if (t.status === "no-host") {
+      const ip = this.kernel.dns.resolve(target);
+      if (ip) {
+        return {
+          output:
+            `traceroute a ${target} (${ip}), 30 saltos máximo\n` +
+            ` 1  gateway (10.10.0.1)  0.5 ms\n` +
+            ` 2  ${target} (${ip})  1.3 ms\n`,
+          isError: false,
+        };
+      }
+      return { output: `traceroute: nombre o dirección desconocida: ${target}\n`, isError: true };
+    }
+
+    const destIp = this.kernel.hosts.resolve(target)?.ip ?? target;
+    const rows = t.hops.map(
+      (h, i) =>
+        ` ${String(i + 1).padStart(2)}  ${h.hostname ? `${h.hostname} ` : ""}(${h.ip})  ${(0.4 + i * 0.6).toFixed(1)} ms`,
+    );
+    let tail = "";
+    if (t.status === "no-route")
+      tail = ` ${String(t.hops.length + 1).padStart(2)}  * * *  (sin ruta: host interno; hace falta pivotar)\n`;
+    if (t.status === "down")
+      tail = ` ${String(t.hops.length + 1).padStart(2)}  * * *  (destino apagado)\n`;
+    return {
+      output: `traceroute a ${target} (${destIp}), 30 saltos máximo\n` + rows.join("\n") + "\n" + tail,
+      isError: false,
+    };
+  }
+
+  /**
+   * arp — la tabla ARP del segmento LOCAL (mismo /24 que el punto de vista):
+   * vecinos vivos con su MAC, derivados del estado real. ARP es de capa 2 y
+   * local: sólo ve su propia subred, nunca otra (por eso no filtra internos).
+   */
+  private arpCmd(_args: string[]): { output: string; isError: boolean } {
+    const from = this.remoteHost;
+    const vip = from === null ? "10.10.0.10" : this.kernel.hosts.resolve(from)?.ip ?? "10.10.0.10";
+    const base = vip.split(".").slice(0, 3).join(".");
+    const rows = this.kernel.hosts.arpNeighbors(base);
+    const lines = rows
+      .filter((r) => r.ip !== vip) // no me listo a mí mismo
+      .map((r) => `${r.ip.padEnd(15)} ether   ${r.mac}   C   ${r.hostname ?? ""}`.trimEnd());
     return {
       output:
-        `PING ${target}\n` +
-        `64 bytes from ${target}: virtual_seq=1 ttl=64 time=1 ms\n` +
-        `64 bytes from ${target}: virtual_seq=2 ttl=64 time=1 ms\n` +
-        `64 bytes from ${target}: virtual_seq=3 ttl=64 time=1 ms\n` +
-        `--- ${target} ping statistics ---\n` +
-        "3 packets transmitted, 3 received, 0% packet loss\n",
+        `Tabla ARP — segmento local ${base}.0/24 (vista desde ${vip})\n` +
+        `Dirección       Tipo    MAC                 Flags  Host\n` +
+        (lines.length ? lines.join("\n") : "(sin vecinos vivos en este segmento)") +
+        `\n(ARP es LOCAL: sólo ves tu propio /24. Otros segmentos se alcanzan por ruteo, no por ARP.)\n`,
+      isError: false,
+    };
+  }
+
+  /**
+   * nc / netcat — conexión TCP cruda contra el motor L4 real (HostRuntime.
+   * probePort): confirma si un puerto está abierto y, si el servicio saluda,
+   * trae su banner (banner grabbing → identificás la versión, como en la vida
+   * real). Con -z escanea un rango/lista. La misma verdad que nmap y connect.
+   */
+  private ncCmd(args: string[]): { output: string; isError: boolean } {
+    const scan = args.includes("-z");
+    const listen = args.includes("-l") || /-\w*l\w*/.test(args.find((a) => /^-\w*l/.test(a)) ?? "");
+    // -w toma un operando (timeout): no es objetivo ni puerto.
+    const skip = new Set<number>();
+    args.forEach((a, i) => {
+      if (a === "-w" || a === "-p" || a === "-s") skip.add(i + 1);
+    });
+    const positional = args.filter((a, i) => !a.startsWith("-") && !skip.has(i));
+
+    if (listen) {
+      const port = positional[0] ?? "4444";
+      return {
+        output:
+          `nc: escuchando en 0.0.0.0:${port} (listener crudo).\n` +
+          `(En ÑANDE, una reverse shell entrante se maneja con la sesión de msfconsole; ` +
+          `este listener queda abierto de forma inofensiva dentro del sandbox.)\n`,
+        isError: false,
+      };
+    }
+
+    const host = positional[0];
+    const portSpec = positional[1];
+    if (!host || !portSpec) {
+      return { output: "uso: nc [-v] [-z] [-w seg] <host> <puerto|rango|lista>\n", isError: true };
+    }
+
+    const from = this.remoteHost;
+    if (from === null && !this.hasLocalUplink()) {
+      return { output: "nc: la red no tiene salida (eth0/wlan0 abajo).\n", isError: true };
+    }
+
+    // Parsear puerto(s): "22" | "20-100" | "22,80,443".
+    let ports: number[] = [];
+    if (/^\d+-\d+$/.test(portSpec)) {
+      const [a, b] = portSpec.split("-").map((n) => parseInt(n, 10));
+      for (let p = Math.min(a, b); p <= Math.max(a, b) && ports.length < 1024; p += 1) ports.push(p);
+    } else {
+      ports = portSpec.split(",").map((n) => parseInt(n, 10)).filter((n) => Number.isFinite(n));
+    }
+    if (ports.length === 0) return { output: `nc: puerto inválido: ${portSpec}\n`, isError: true };
+
+    // Un solo puerto sin -z: conexión con banner grabbing.
+    if (!scan && ports.length === 1) {
+      const port = ports[0];
+      const r = this.kernel.hosts.probePort(from, host, port);
+      const name = r.hostname ?? host;
+      switch (r.status) {
+        case "no-host":
+          return { output: `nc: ${host}: nombre o servicio desconocido\n`, isError: true };
+        case "no-route":
+          return {
+            output: `nc: no hay ruta hasta ${name} (${r.ip}): es un host interno, pivoteá primero.\n`,
+            isError: false,
+          };
+        case "down":
+          return { output: `nc: ${name} (${r.ip}) está apagado; conexión imposible.\n`, isError: false };
+        case "filtered":
+          return {
+            output: `nc: ${name} (${r.ip}) ${port} — sin respuesta (filtrado por firewall). Timeout.\n`,
+            isError: false,
+          };
+        case "closed":
+          return {
+            output: `nc: connect to ${r.ip} port ${port} (tcp) failed: Connection refused\n`,
+            isError: false,
+          };
+        case "open": {
+          const head = `Connection to ${r.ip} ${port} port [tcp/${r.service ?? "?"}] succeeded!\n`;
+          if (r.banner) return { output: head + r.banner + "\n", isError: false };
+          const hint =
+            port === 80 || port === 443
+              ? `(Servicio HTTP: no saluda solo. Mandá una petición, p.ej. escribí "GET / HTTP/1.0" — o usá curl ${name}.)\n`
+              : `(El servicio no envía banner al abrir el socket; probá enviar datos o usá una herramienta específica.)\n`;
+          return { output: head + hint, isError: false };
+        }
+      }
+    }
+
+    // -z o varios puertos: barrido. Sólo se reportan los abiertos (como nc -z).
+    const openRows: string[] = [];
+    let ip = "";
+    let name = host;
+    let unreachable = "";
+    for (const port of ports) {
+      const r = this.kernel.hosts.probePort(from, host, port);
+      ip = r.ip;
+      name = r.hostname ?? host;
+      if (r.status === "no-host") return { output: `nc: ${host}: nombre o servicio desconocido\n`, isError: true };
+      if (r.status === "no-route") { unreachable = `nc: ${name} (${r.ip}) es interno; no hay ruta (pivoteá).\n`; break; }
+      if (r.status === "down") { unreachable = `nc: ${name} (${r.ip}) está apagado.\n`; break; }
+      if (r.status === "open") {
+        openRows.push(
+          `Connection to ${r.ip} ${port} port [tcp/${r.service ?? "?"}] succeeded!` +
+            (r.banner ? `  ${r.banner.split("\r")[0]}` : ""),
+        );
+      }
+    }
+    if (unreachable) return { output: unreachable, isError: false };
+    return {
+      output:
+        `nc: barrido de ${ports.length} puerto(s) en ${name} (${ip})\n` +
+        (openRows.length ? openRows.join("\n") + "\n" : "(ningún puerto abierto en el rango)\n") +
+        `${openRows.length} abierto(s). Afiná: nmap -sV ${name}\n`,
+      isError: false,
+    };
+  }
+
+  /**
+   * netstat / ss — conexiones y puertos REALES, no una tabla fija. En el equipo
+   * del jugador: cada sesión remota abierta es una conexión TCP ESTABLISHED
+   * saliente (ssh:22), y los flujos web recientes capturados aparecen como
+   * TIME_WAIT (derivado de NandeShark). Nada decorativo (regla 3/18).
+   */
+  private netstatCmd(_args: string[]): { output: string; isError: boolean } {
+    // Dentro de una sesión remota, netstat mira el host remoto.
+    if (this.remoteHost) return this.remoteNetstat(this.remoteHost);
+
+    const me = "10.10.0.10";
+    const rows: { proto: string; local: string; remote: string; state: string; prog: string }[] = [];
+
+    // Sesiones remotas activas = TCP ESTABLISHED salientes al puerto 22.
+    const chain = [...this.remoteStack.map((s) => s.host)];
+    let lport = 45120;
+    for (const h of chain) {
+      const host = this.kernel.hosts.resolve(h);
+      if (host) rows.push({ proto: "tcp", local: `${me}:${lport++}`, remote: `${host.ip}:22`, state: "ESTABLISHED", prog: "ssh" });
+    }
+
+    // Flujos web recientes (salientes a :80/:443), deduplicados por destino.
+    const seen = new Set<string>();
+    for (const p of this.kernel.shark.recent(60)) {
+      if (p.proto !== "HTTP") continue;
+      const dst = p.dst;
+      if (seen.has(dst)) continue;
+      seen.add(dst);
+      rows.push({ proto: "tcp", local: `${me}:${lport++}`, remote: `${dst}:80`, state: "TIME_WAIT", prog: "nande-browser" });
+      if (seen.size >= 6) break;
+    }
+
+    const body = rows.length
+      ? rows
+          .map((r) => `${r.proto.padEnd(5)} ${r.local.padEnd(22)} ${r.remote.padEnd(22)} ${r.state.padEnd(12)} ${r.prog}`)
+          .join("\n")
+      : "(no hay conexiones activas — abrí una sesión con connect o navegá para generar tráfico)";
+
+    return {
+      output:
+        `Conexiones activas — equipo del jugador (${me})\n` +
+        `Proto Local                  Remoto                 Estado       Programa\n` +
+        body +
+        `\ntcp   0.0.0.0:—              0.0.0.0:*              (sin puertos en escucha)  —\n` +
+        `(Tu equipo no ofrece servicios: no expone puertos. Menos escucha = menos superficie.)\n`,
+      isError: false,
+    };
+  }
+
+  /**
+   * netstat DENTRO de un host comprometido: sus puertos en escucha son los
+   * servicios corriendo (fuente única), y las conexiones ESTABLISHED salen de
+   * quién más está logueado (NetworkLife: staff y rivales) más tu propia sesión.
+   * Estado vivo del host, coherente con services/who/nmap.
+   */
+  private remoteNetstat(hostname: string): { output: string; isError: boolean } {
+    const host = this.kernel.hosts.resolve(hostname);
+    if (!host) return { output: "netstat: sesión perdida.\n", isError: true };
+    const listen = host.services
+      .filter((s) => s.state === "running" && !host.firewall.includes(s.port))
+      .map((s) => `${s.protocol.padEnd(5)} ${`0.0.0.0:${s.port}`.padEnd(22)} ${"0.0.0.0:*".padEnd(22)} LISTEN       ${s.name}`);
+    const tick = this.kernel.world.getState().clock.tick;
+    const sessions = this.kernel.netlife.sessionsOn(hostname, tick);
+    const est = sessions.map(
+      (s) => `tcp   ${`${host.ip}:22`.padEnd(22)} ${`${s.fromIp}:${45000 + (s.user.length * 7) % 2000}`.padEnd(22)} ESTABLISHED  sshd: ${s.user}`,
+    );
+    // Tu propia sesión entrante.
+    const myFrom = this.remoteStack.length
+      ? this.kernel.hosts.resolve(this.remoteStack[this.remoteStack.length - 1].host)?.ip ?? "10.10.0.10"
+      : "10.10.0.10";
+    est.push(`tcp   ${`${host.ip}:22`.padEnd(22)} ${`${myFrom}:46001`.padEnd(22)} ESTABLISHED  sshd: ${this.remoteUser} «vos»`);
+    return {
+      output:
+        `Conexiones y puertos — ${hostname} (${host.ip})\n` +
+        `Proto Local                  Remoto                 Estado       Programa\n` +
+        [...listen, ...est].join("\n") +
+        `\n(Puertos LISTEN = servicios vivos del host; ESTABLISHED = quién está conectado ahora.)\n`,
       isError: false,
     };
   }
@@ -1153,6 +1468,22 @@ export class VirtualTerminal {
 
         case "ping":
           return this.executePing(commandArgs);
+
+        case "traceroute":
+        case "tracepath":
+          return this.tracerouteCmd(commandArgs);
+
+        case "arp":
+          return this.arpCmd(commandArgs);
+
+        case "nc":
+        case "ncat":
+        case "netcat":
+          return this.ncCmd(commandArgs);
+
+        case "netstat":
+        case "ss":
+          return this.netstatCmd(commandArgs);
 
         case "tools":
           return this.listTools(commandArgs);
@@ -2575,6 +2906,25 @@ export class VirtualTerminal {
       case "netmap":
       case "netmapa":
         return this.remoteNetmapCmd(hostname);
+
+      case "ping":
+        return this.executePing(args);
+
+      case "traceroute":
+      case "tracepath":
+        return this.tracerouteCmd(args);
+
+      case "arp":
+        return this.arpCmd(args);
+
+      case "nc":
+      case "ncat":
+      case "netcat":
+        return this.ncCmd(args);
+
+      case "netstat":
+      case "ss":
+        return this.netstatCmd(args);
 
       case "killchain":
       case "cadena":

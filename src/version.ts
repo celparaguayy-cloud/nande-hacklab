@@ -3,5 +3,5 @@
  * qué build estás corriendo (y confirmar que tomaste la última actualización).
  * Subí el número cuando haya un cambio que el jugador deba poder distinguir.
  */
-export const NANDE_VERSION = "5.78.0";
-export const NANDE_BUILD = "yara-clamav-firmas-reales";
+export const NANDE_VERSION = "5.79.0";
+export const NANDE_BUILD = "red-real-ping-nc-arp-traceroute";

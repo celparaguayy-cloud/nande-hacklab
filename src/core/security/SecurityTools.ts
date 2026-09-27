@@ -676,19 +676,38 @@ const RUNNERS: Record<string, Runner> = {
       return { output: `ping: ${err}\n`, isError: true };
     }
 
-    const ip = ctx.dns.resolve(target) ?? target;
-    const machine = ctx.lab.resolve(target);
-    const reachable = machine?.up || ctx.network.isReachable(ip);
-
-    if (!reachable) {
+    // Verdad del mundo primero (HostRuntime): un host que no existe NO responde
+    // (adiós al "ping fantasma" a cualquier 10.10.x.y), uno interno avisa que
+    // hace falta pivotar y uno apagado no contesta. Coherente con nmap/connect.
+    const echo = ctx.hosts?.icmpEcho(null, target);
+    if (echo && echo.status !== "no-host") {
+      if (echo.status === "no-route") {
+        return { output: `ping: ${echo.hostname ?? target} (${echo.ip}) es interno: no hay ruta (pivoteá primero).\n`, isError: false };
+      }
+      if (echo.status === "down") {
+        return { output: `ping: ${echo.hostname ?? target} (${echo.ip}) está apagado (no responde).\n`, isError: false };
+      }
+      const ip = echo.ip;
+      const lines = [0, 1, 2].map((n) => `64 bytes desde ${ip}: icmp_seq=${n + 1} ttl=64 tiempo=${8 + n}ms`);
       return {
-        output: `ping: ${target} no responde (host inalcanzable).\n`,
+        output:
+          `PING ${echo.hostname ?? target} (${ip}) en la red virtual de ÑANDE\n` +
+          lines.join("\n") +
+          `\n--- estadísticas ---\n3 enviados, 3 recibidos, 0% perdidos\n`,
         isError: false,
       };
     }
 
+    // No es un host del runtime: puede ser una máquina de laboratorio o un
+    // sitio dinámico resuelto por DNS. Sólo responde si de verdad existe algo.
+    const machine = ctx.lab.resolve(target);
+    const ip = machine?.ip ?? ctx.dns.resolve(target);
+    if (!ip || (!machine?.up && !ctx.dns.resolve(target))) {
+      return { output: `ping: ${target} no responde (nadie en esa dirección).\n`, isError: false };
+    }
+
     const lines = [0, 1, 2].map(
-      (n) => `64 bytes desde ${ip}: icmp_seq=${n + 1} tiempo=${8 + n}ms`,
+      (n) => `64 bytes desde ${ip}: icmp_seq=${n + 1} ttl=64 tiempo=${8 + n}ms`,
     );
 
     return {
@@ -696,6 +715,69 @@ const RUNNERS: Record<string, Runner> = {
         `PING ${target} (${ip}) en la red virtual de ÑANDE\n` +
         lines.join("\n") +
         `\n--- estadísticas ---\n3 enviados, 3 recibidos, 0% perdidos\n`,
+      isError: false,
+    };
+  },
+
+  nc(args, ctx) {
+    const scan = args.includes("-z");
+    const positional = args.filter((a) => !a.startsWith("-"));
+    const target = positional[0] ?? "";
+    const err = requireVirtualTarget(target);
+    if (err) return { output: `nc: ${err}\n`, isError: true };
+    const portSpec = positional[1];
+    if (!portSpec) return { output: "uso: nc [-v] [-z] <host> <puerto|rango>\n", isError: true };
+    if (!ctx.hosts) return { output: "nc: motor de red no disponible.\n", isError: true };
+
+    let ports: number[] = [];
+    if (/^\d+-\d+$/.test(portSpec)) {
+      const [a, b] = portSpec.split("-").map((n) => parseInt(n, 10));
+      for (let p = Math.min(a, b); p <= Math.max(a, b) && ports.length < 1024; p += 1) ports.push(p);
+    } else {
+      ports = portSpec.split(",").map((n) => parseInt(n, 10)).filter(Number.isFinite);
+    }
+    if (ports.length === 0) return { output: `nc: puerto inválido: ${portSpec}\n`, isError: true };
+
+    if (!scan && ports.length === 1) {
+      const r = ctx.hosts.probePort(null, target, ports[0]);
+      const name = r.hostname ?? target;
+      if (r.status === "no-host") return { output: `nc: ${target}: nombre o servicio desconocido\n`, isError: true };
+      if (r.status === "no-route") return { output: `nc: no hay ruta a ${name} (${r.ip}): host interno, pivoteá.\n`, isError: false };
+      if (r.status === "down") return { output: `nc: ${name} (${r.ip}) apagado.\n`, isError: false };
+      if (r.status === "filtered") return { output: `nc: ${name} (${r.ip}) ${ports[0]} — timeout (filtrado).\n`, isError: false };
+      if (r.status === "closed") return { output: `nc: connect to ${r.ip} port ${ports[0]} (tcp) failed: Connection refused\n`, isError: false };
+      const head = `Connection to ${r.ip} ${ports[0]} port [tcp/${r.service ?? "?"}] succeeded!\n`;
+      return { output: head + (r.banner ? r.banner + "\n" : `(el servicio no saluda al abrir; mandá datos o usá curl.)\n`), isError: false };
+    }
+
+    const open: string[] = [];
+    let ip = "";
+    let name = target;
+    for (const port of ports) {
+      const r = ctx.hosts.probePort(null, target, port);
+      ip = r.ip; name = r.hostname ?? target;
+      if (r.status === "no-host") return { output: `nc: ${target}: desconocido\n`, isError: true };
+      if (r.status === "no-route") return { output: `nc: ${name} (${r.ip}) es interno; pivoteá.\n`, isError: false };
+      if (r.status === "down") return { output: `nc: ${name} (${r.ip}) apagado.\n`, isError: false };
+      if (r.status === "open") open.push(`Connection to ${r.ip} ${port} port [tcp/${r.service ?? "?"}] succeeded!`);
+    }
+    return {
+      output: `nc: barrido de ${ports.length} puerto(s) en ${name} (${ip})\n` + (open.length ? open.join("\n") + "\n" : "(ninguno abierto)\n") + `${open.length} abierto(s).\n`,
+      isError: false,
+    };
+  },
+
+  arp(_args, ctx) {
+    if (!ctx.hosts) return { output: "arp: motor de red no disponible.\n", isError: true };
+    const base = "10.10.0"; // segmento local del jugador
+    const rows = ctx.hosts.arpNeighbors(base).filter((r) => r.ip !== "10.10.0.10");
+    const lines = rows.map((r) => `${r.ip.padEnd(15)} ether   ${r.mac}   C   ${r.hostname ?? ""}`.trimEnd());
+    return {
+      output:
+        `Tabla ARP — segmento local ${base}.0/24\n` +
+        `Dirección       Tipo    MAC                 Flags  Host\n` +
+        (lines.length ? lines.join("\n") : "(sin vecinos vivos)") +
+        `\n(ARP es LOCAL: sólo ve tu propio /24.)\n`,
       isError: false,
     };
   },
@@ -708,8 +790,20 @@ const RUNNERS: Record<string, Runner> = {
       return { output: `traceroute: ${err}\n`, isError: true };
     }
 
-    const ip = ctx.dns.resolve(target) ?? target;
+    // Ruta L3 real derivada de la topología (HostRuntime), no dos saltos fijos.
+    const t = ctx.hosts?.tracePath(null, target);
+    if (t && t.status !== "no-host") {
+      const destIp = ctx.hosts?.resolve(target)?.ip ?? target;
+      const rows = t.hops.map(
+        (h, i) => ` ${String(i + 1).padStart(2)}  ${h.hostname ? `${h.hostname} ` : ""}(${h.ip})  ${(0.4 + i * 0.6).toFixed(1)}ms`,
+      );
+      let tail = "";
+      if (t.status === "no-route") tail = ` ${t.hops.length + 1}  * * *  (host interno: sin ruta, hace falta pivotar)\n`;
+      if (t.status === "down") tail = ` ${t.hops.length + 1}  * * *  (destino apagado)\n`;
+      return { output: `traceroute a ${target} (${destIp}), red virtual de ÑANDE\n` + rows.join("\n") + "\n" + tail, isError: false };
+    }
 
+    const ip = ctx.dns.resolve(target) ?? ctx.lab.resolve(target)?.ip ?? target;
     return {
       output:
         `traceroute a ${target} (${ip}), red virtual de ÑANDE\n` +
@@ -2317,14 +2411,17 @@ const RUNNERS: Record<string, Runner> = {
   },
 
   netstat(_args, ctx) {
+    // Honesto: el equipo del jugador no ofrece servicios (no expone puertos) y
+    // sin sesiones/tráfico no hay conexiones. La terminal, con contexto de
+    // sesión, muestra las conexiones vivas reales; acá reflejamos el estado
+    // base sin inventar una conexión "ESTABLISHED" fija (§3, cero fakery).
     const iface = ctx.network.getInterface("eth0");
-
     return {
       output:
-        `Conexiones activas (máquina virtual)\n` +
-        `Proto  Local              Estado\n` +
-        `tcp    ${iface?.ip ?? "10.10.0.10"}:47001  ESTABLISHED\n` +
-        `tcp    0.0.0.0:22          LISTEN\n`,
+        `Conexiones activas — equipo del jugador (${iface?.ip ?? "10.10.0.10"})\n` +
+        `Proto Local                  Remoto                 Estado\n` +
+        `(sin conexiones activas ni puertos en escucha: tu equipo no ofrece servicios)\n` +
+        `Abrí una sesión (connect) o navegá para generar tráfico; después mirá con netstat.\n`,
       isError: false,
     };
   },
