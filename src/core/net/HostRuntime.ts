@@ -531,6 +531,166 @@ export class HostRuntime {
     this.log("connection.refused", host, undefined, why, port);
   }
 
+  /* ============================================================ *
+   *  MOTOR DE CONECTIVIDAD L2/L3/L4 — la verdad del mundo sobre   *
+   *  "¿llega el paquete?". ping, traceroute, arp y nc leen de     *
+   *  ACÁ (misma fuente única que nmap/connect, regla 2/5/8), no   *
+   *  de un prefijo de IP ni de una tabla fija. Todo determinista  *
+   *  y 100% dentro del sandbox (10.10.0.0/16).                    *
+   * ============================================================ */
+
+  /** IP y gateway del equipo del jugador (coherente con eth0/ifconfig). */
+  private static readonly PLAYER_IP = "10.10.0.10";
+
+  /** Prefijo /24 de una IP ("10.10.7.10" -> "10.10.7"). */
+  private seg(ip: string): string {
+    return ip.split(".").slice(0, 3).join(".");
+  }
+
+  /** IP del punto de vista: red del jugador (null) o un host pivoteado. */
+  private vantageIp(from: string | null): string {
+    if (from === null) return HostRuntime.PLAYER_IP;
+    return this.resolve(from)?.ip ?? HostRuntime.PLAYER_IP;
+  }
+
+  /**
+   * MAC determinista de una IP del sandbox: 02:00: + los cuatro octetos
+   * finales en hex. El .1 de cada /24 (gateway) lleva una MAC fija de router.
+   * Determinista = reproducible; el arp de dos corridas coincide (regla 10/13).
+   */
+  macOf(ip: string): string {
+    const o = ip.split(".").map((n) => parseInt(n, 10) || 0);
+    if (o[3] === 1) return "02:00:0a:0a:00:01"; // gateway/router del segmento
+    const hex = (n: number) => n.toString(16).padStart(2, "0");
+    return `02:00:${hex(o[0])}:${hex(o[1])}:${hex(o[2])}:${hex(o[3])}`;
+  }
+
+  /**
+   * ICMP echo (ping) desde `from` (null = jugador). Deriva del estado real:
+   *   - "no-host": en esa IP/nombre NO vive ningún host → no responde (mata el
+   *     "ping fantasma": antes cualquier 10.10.x.y contestaba).
+   *   - "no-route": el host existe pero es interno y no se alcanza desde acá.
+   *   - "down": alcanzable pero apagado.
+   *   - "reply": vivo y con ruta → responde.
+   */
+  icmpEcho(from: string | null, ref: string): {
+    status: "reply" | "no-host" | "no-route" | "down";
+    ref: string;
+    ip: string;
+    hostname?: string;
+  } {
+    const host = this.resolve(ref);
+    if (!host) return { status: "no-host", ref, ip: ref };
+    if (!this.canReach(from, host.hostname))
+      return { status: "no-route", ref, ip: host.ip, hostname: host.hostname };
+    if (!host.up) return { status: "down", ref, ip: host.ip, hostname: host.hostname };
+    return { status: "reply", ref, ip: host.ip, hostname: host.hostname };
+  }
+
+  /**
+   * Ruta L3 real hasta `ref` (traceroute) desde `from`. Refleja la topología:
+   * mismo /24 → un salto directo (sin router); distinto /24 → gateway del
+   * segmento origen y router del segmento destino antes del host. Un host
+   * interno sin ruta se pierde tras el gateway (como en la realidad).
+   */
+  tracePath(from: string | null, ref: string): {
+    status: "reply" | "no-host" | "no-route" | "down";
+    hops: { ip: string; hostname?: string; label: string }[];
+  } {
+    const host = this.resolve(ref);
+    if (!host) return { status: "no-host", hops: [] };
+    const vip = this.vantageIp(from);
+    const vseg = this.seg(vip);
+    if (!this.canReach(from, host.hostname)) {
+      return {
+        status: "no-route",
+        hops: [{ ip: `${vseg}.1`, hostname: "gateway", label: "gateway" }],
+      };
+    }
+    if (!host.up)
+      return { status: "down", hops: [{ ip: `${vseg}.1`, hostname: "gateway", label: "gateway" }] };
+    const tseg = this.seg(host.ip);
+    const hops: { ip: string; hostname?: string; label: string }[] = [];
+    if (tseg === vseg) {
+      // Vecino de la misma subred: se llega directo (ARP + un salto).
+      hops.push({ ip: host.ip, hostname: host.hostname, label: host.hostname });
+    } else {
+      hops.push({ ip: `${vseg}.1`, hostname: "gateway", label: "gateway" });
+      hops.push({ ip: `${tseg}.1`, hostname: `router-${tseg}`, label: `router ${tseg}.0/24` });
+      hops.push({ ip: host.ip, hostname: host.hostname, label: host.hostname });
+    }
+    return { status: "reply", hops };
+  }
+
+  /**
+   * Vecinos ARP (L2) del segmento `base` (/24) vistos desde ese mismo
+   * segmento: los hosts encendidos cuya IP cae en `base.x`, más el gateway.
+   * ARP es local: sólo ve su propia subred, nunca otra (por eso no revela
+   * segmentos internos). Deriva del estado vivo, no de una tabla inventada.
+   */
+  arpNeighbors(base: string): { ip: string; mac: string; hostname?: string }[] {
+    const rows: { ip: string; mac: string; hostname?: string }[] = [];
+    rows.push({ ip: `${base}.1`, mac: this.macOf(`${base}.1`), hostname: "gateway" });
+    for (const h of this.all()) {
+      if (this.seg(h.ip) !== base || !h.up) continue;
+      rows.push({ ip: h.ip, mac: this.macOf(h.ip), hostname: h.hostname });
+    }
+    const asNum = (ip: string) => parseInt(ip.split(".")[3] ?? "0", 10);
+    return rows.sort((a, b) => asNum(a.ip) - asNum(b.ip));
+  }
+
+  /**
+   * Banner de un servicio tal como aparece "en el cable" al conectarse (lo usa
+   * nc para banner-grabbing). Servicios que saludan solos (SSH, FTP, rsync)
+   * devuelven su línea; HTTP/DB no saludan hasta que el cliente habla, así que
+   * devuelven undefined (el que aprende debe MANDAR algo — realismo, no magia).
+   */
+  serviceBanner(svc: VirtualService): string | undefined {
+    const ver = svc.version.replace(/\s*\(.*\)\s*/, "").trim();
+    const name = svc.name.toLowerCase();
+    if (svc.kind === "ssh" || name.includes("ssh") || name.includes("dropbear")) {
+      return `SSH-2.0-${ver.replace(/\s+/g, "_")}`;
+    }
+    if (name.includes("ftp")) return `220 ${ver} listo.`;
+    if (name.includes("telnet")) return `${ver}\r\nlogin:`;
+    if (name.includes("smtp")) return `220 ${ver} ESMTP`;
+    if (name.includes("rsync")) return `@RSYNCD: ${ver.replace(/[^\d.]/g, "") || "3.2"}`;
+    return undefined; // http/https/db/modbus: no saludan al abrir el socket
+  }
+
+  /**
+   * Sondeo L4 de un puerto (lo usa nc): "open"/"closed"/"filtered" con la
+   * MISMA verdad que nmap (host up + servicio corriendo + no filtrado), más
+   * "no-route"/"down"/"no-host" para reflejar la ruta real. Cuando abre y el
+   * servicio saluda, trae el banner.
+   */
+  probePort(from: string | null, ref: string, port: number): {
+    status: "open" | "closed" | "filtered" | "no-route" | "down" | "no-host";
+    ip: string;
+    hostname?: string;
+    service?: string;
+    version?: string;
+    banner?: string;
+  } {
+    const host = this.resolve(ref);
+    if (!host) return { status: "no-host", ip: ref };
+    if (!this.canReach(from, host.hostname))
+      return { status: "no-route", ip: host.ip, hostname: host.hostname };
+    if (!host.up) return { status: "down", ip: host.ip, hostname: host.hostname };
+    if (host.firewall.includes(port))
+      return { status: "filtered", ip: host.ip, hostname: host.hostname };
+    const svc = host.services.find((s) => s.port === port && s.state === "running");
+    if (!svc) return { status: "closed", ip: host.ip, hostname: host.hostname };
+    return {
+      status: "open",
+      ip: host.ip,
+      hostname: host.hostname,
+      service: svc.name,
+      version: svc.version,
+      banner: this.serviceBanner(svc),
+    };
+  }
+
   /* ----------------------------------------------------------- eventos */
 
   private log(
