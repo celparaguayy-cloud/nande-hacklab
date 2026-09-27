@@ -1622,6 +1622,9 @@ export class VirtualTerminal {
         case "blue":
           return this.socCmd(commandArgs);
 
+        case "ids":
+          return this.idsCmd();
+
         case "defensa":
         case "contener":
           return this.defensaCmd(command, commandArgs);
@@ -3313,11 +3316,13 @@ export class VirtualTerminal {
 
     if (sub === "status" || sub === "resumen") {
       const top = this.kernel.soc.topSeverity();
+      const scans = this.kernel.shark.detectScans().length;
       return {
         output:
           `═══ SOC · Blue Team ═══\n` +
           `Alertas: ${total}  (crítica:${counts.critical} alta:${counts.high} media:${counts.medium} baja:${counts.low} info:${counts.info})\n` +
           `Nivel más alto: ${top ?? "sin alertas"}\n` +
+          (scans > 0 ? `IDS (tráfico): ${scans} escaneo(s) detectado(s) — mirá 'ids'.\n` : ``) +
           `Usá 'soc alerts' para ver el detalle. Cada alerta vino de un evento real del mundo.\n`,
         isError: false,
       };
@@ -3344,6 +3349,49 @@ export class VirtualTerminal {
     );
     return {
       output: `Alertas del SOC (${alerts.length}):\n` + lines.join("\n") + "\n",
+      isError: false,
+    };
+  }
+
+  /**
+   * ids — IDS PASIVO del Blue Team. Analiza el tráfico REAL que capturó
+   * NandeShark y marca los escaneos: port-scan (muchos puertos de un host),
+   * host-sweep (muchos hosts por TCP) y ping-sweep (muchos hosts por ICMP).
+   * Cierra el círculo recon ofensivo ↔ defensivo (§5/§25): lo que escaneás se
+   * ve en el cable y un defensor lo caza. No inventa alertas: sale del tráfico.
+   */
+  private idsCmd(): { output: string; isError: boolean } {
+    const findings = this.kernel.shark.detectScans();
+    if (findings.length === 0) {
+      return {
+        output:
+          "═══ IDS · análisis de tráfico (Blue Team) ═══\n" +
+          "Sin escaneos en el tráfico capturado.\n" +
+          "Generá uno y volvé a mirar:  nc -z server.nande 20-90  (barrido de puertos)\n" +
+          "El IDS lee lo que NandeShark capturó de verdad (mismo cable que 'sniff'); no inventa nada.\n",
+        isError: false,
+      };
+    }
+    const icon: Record<string, string> = { low: "🔵", medium: "🟠", high: "🔴" };
+    const lines = findings.map((f) => {
+      if (f.kind === "port-scan") {
+        const shown = f.ports.slice(0, 12).join(", ") + (f.ports.length > 12 ? ", …" : "");
+        return `  ${icon[f.severity]} PORT SCAN   ${f.src} → ${f.target}: ${f.ports.length} puertos distintos (${shown})  [t=${f.firstTick}–${f.lastTick}]`;
+      }
+      if (f.kind === "host-sweep") {
+        const shown = f.hosts.slice(0, 6).join(", ") + (f.hosts.length > 6 ? ", …" : "");
+        return `  ${icon[f.severity]} HOST SWEEP  ${f.src} → ${f.hosts.length} hosts por TCP (${shown})`;
+      }
+      const shown = f.hosts.slice(0, 6).join(", ") + (f.hosts.length > 6 ? ", …" : "");
+      return `  ${icon[f.severity]} PING SWEEP  ${f.src} → ${f.hosts.length} hosts por ICMP (${shown})`;
+    });
+    return {
+      output:
+        `═══ IDS · análisis de tráfico (Blue Team) ═══\n` +
+        `${findings.length} patrón(es) de escaneo en el tráfico REAL capturado:\n` +
+        lines.join("\n") +
+        `\n\nSale del cable que ves con 'sniff'/'tcpdump'. Por esto escanear es RUIDOSO:\n` +
+        `un defensor te caza mirando el tráfico, aunque el escaneo no rompa nada.\n`,
       isError: false,
     };
   }
@@ -6594,6 +6642,7 @@ export class VirtualTerminal {
       "  firewall block <host> <puerto>  Bloquea un puerto",
       "  firewall allow <host> <puerto>  Permite un puerto",
       "  soc / soc alerts   Centro de operaciones: alertas de eventos reales",
+      "  ids                IDS pasivo: detecta escaneos en el tráfico capturado",
       "  defensa / contener <id>   Blue Team: incidentes de tu data center",
       "",
       "ÑANDE 5.0 — el universo vivo (escribí 'universo' para el índice):",

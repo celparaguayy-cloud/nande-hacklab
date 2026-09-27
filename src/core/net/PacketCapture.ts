@@ -35,8 +35,28 @@ export interface Packet {
   host?: string;
   path?: string;
   status?: number;
+  /** Puerto destino (TCP): lo usa el IDS para detectar barridos de puertos. */
+  port?: number;
   /** Marca educativa: este paquete lleva una credencial en claro. */
   leak?: { field: string; value: string };
+}
+
+/** Un patrón de escaneo detectado por el IDS pasivo sobre el tráfico capturado. */
+export interface ScanFinding {
+  /** Quién escanea (IP de origen). */
+  src: string;
+  kind: "port-scan" | "host-sweep" | "ping-sweep";
+  /** Objetivo del port-scan (un host); en los barridos, vacío. */
+  target?: string;
+  /** Puertos distintos tocados (port-scan). */
+  ports: number[];
+  /** Hosts distintos tocados (host-sweep / ping-sweep). */
+  hosts: string[];
+  /** Paquetes involucrados. */
+  count: number;
+  firstTick: number;
+  lastTick: number;
+  severity: "low" | "medium" | "high";
 }
 
 /** Campos que, si viajan en claro, son una fuga de credenciales. */
@@ -214,7 +234,101 @@ export class PacketCapture {
       wire,
       length: wire.length,
       host,
+      port,
     });
+  }
+
+  /**
+   * IDS PASIVO: detecta patrones de escaneo en el tráfico REAL ya capturado
+   * (§5/§25 — cierra recon ofensivo ↔ defensivo). No inventa ni emite eventos:
+   * es análisis puro del cable, como un IDS de verdad. Reconoce tres patrones:
+   *   - port-scan: un origen toca muchos puertos DISTINTOS de un mismo host.
+   *   - host-sweep: un origen toca (TCP) muchos hosts DISTINTOS (barrido horizontal).
+   *   - ping-sweep: un origen hace ICMP a muchos hosts distintos (barrido de vida).
+   * Umbrales configurables; por defecto pensados para el sandbox.
+   */
+  detectScans(opts: { portThreshold?: number; hostThreshold?: number } = {}): ScanFinding[] {
+    const portTh = opts.portThreshold ?? 5;
+    const hostTh = opts.hostThreshold ?? 4;
+    const findings: ScanFinding[] = [];
+
+    // --- port-scan: agrupar TCP por (src, dst) y contar puertos distintos ---
+    const byPair = new Map<string, { src: string; dst: string; ports: Set<number>; first: number; last: number; count: number }>();
+    // --- barridos: por origen, hosts distintos (TCP e ICMP por separado) ---
+    const tcpHostsBySrc = new Map<string, { hosts: Set<string>; first: number; last: number; count: number }>();
+    const icmpHostsBySrc = new Map<string, { hosts: Set<string>; first: number; last: number; count: number }>();
+
+    for (const p of this.packets) {
+      if (p.proto === "TCP") {
+        const key = `${p.src}|${p.dst}`;
+        const e = byPair.get(key) ?? { src: p.src, dst: p.host || p.dst, ports: new Set<number>(), first: p.tick, last: p.tick, count: 0 };
+        if (typeof p.port === "number") e.ports.add(p.port);
+        e.first = Math.min(e.first, p.tick);
+        e.last = Math.max(e.last, p.tick);
+        e.count += 1;
+        byPair.set(key, e);
+
+        const t = tcpHostsBySrc.get(p.src) ?? { hosts: new Set<string>(), first: p.tick, last: p.tick, count: 0 };
+        t.hosts.add(p.dst);
+        t.first = Math.min(t.first, p.tick);
+        t.last = Math.max(t.last, p.tick);
+        t.count += 1;
+        tcpHostsBySrc.set(p.src, t);
+      } else if (p.proto === "ICMP") {
+        const i = icmpHostsBySrc.get(p.src) ?? { hosts: new Set<string>(), first: p.tick, last: p.tick, count: 0 };
+        i.hosts.add(p.dst);
+        i.first = Math.min(i.first, p.tick);
+        i.last = Math.max(i.last, p.tick);
+        i.count += 1;
+        icmpHostsBySrc.set(p.src, i);
+      }
+    }
+
+    for (const e of byPair.values()) {
+      if (e.ports.size >= portTh) {
+        findings.push({
+          src: e.src,
+          kind: "port-scan",
+          target: e.dst,
+          ports: [...e.ports].sort((a, b) => a - b),
+          hosts: [],
+          count: e.count,
+          firstTick: e.first,
+          lastTick: e.last,
+          severity: e.ports.size >= 20 ? "high" : "medium",
+        });
+      }
+    }
+    for (const [src, t] of tcpHostsBySrc) {
+      if (t.hosts.size >= hostTh) {
+        findings.push({
+          src,
+          kind: "host-sweep",
+          ports: [],
+          hosts: [...t.hosts].sort(),
+          count: t.count,
+          firstTick: t.first,
+          lastTick: t.last,
+          severity: t.hosts.size >= 16 ? "high" : "medium",
+        });
+      }
+    }
+    for (const [src, i] of icmpHostsBySrc) {
+      if (i.hosts.size >= hostTh) {
+        findings.push({
+          src,
+          kind: "ping-sweep",
+          ports: [],
+          hosts: [...i.hosts].sort(),
+          count: i.count,
+          firstTick: i.first,
+          lastTick: i.last,
+          severity: "medium",
+        });
+      }
+    }
+    // Los más ruidosos primero.
+    return findings.sort((a, b) => b.count - a.count);
   }
 
   /* -------------------------------------------------------------- consulta */

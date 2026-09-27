@@ -168,4 +168,35 @@ describe("Motor de conectividad (ping/traceroute/arp/nc/netstat)", () => {
     term.execute("ping caja.interna.nande"); // originado en el host pivoteado
     expect(kernel.shark.count()).toBe(before); // no lo ve el sniffer del jugador
   });
+
+  /* ---------------------------------------------- IDS pasivo (Blue Team) */
+
+  it("el IDS detecta un PORT SCAN a partir del tráfico real (recon ofensivo ↔ defensivo)", () => {
+    // Sin tráfico no inventa nada.
+    expect(kernel.shark.detectScans()).toHaveLength(0);
+    // Un barrido de puertos deja su patrón en el cable.
+    term.execute("nc -z server.nande 20-40");
+    const scans = kernel.shark.detectScans();
+    const ps = scans.find((f) => f.kind === "port-scan");
+    expect(ps, "debería detectarse un port-scan").toBeDefined();
+    expect(ps!.target).toBe("server.nande");
+    expect(ps!.ports.length).toBeGreaterThanOrEqual(20);
+    // El comando ids del Blue Team lo muestra.
+    const out = term.execute("ids");
+    expect(out).toMatch(/PORT SCAN/);
+    expect(out).toContain("server.nande");
+    // El SOC lo referencia en su resumen (sin romper el resto del panel).
+    expect(term.execute("soc")).toMatch(/IDS.*escaneo/i);
+  });
+
+  it("el IDS detecta un PING SWEEP (muchos hosts por ICMP) y es honesto sin escaneos", () => {
+    expect(term.execute("ids")).toMatch(/[Ss]in escaneos/);
+    for (const h of ["server.nande", "panel.nande", "midc.nande", "banco.nande", "blog.yvoty.nande"]) {
+      term.execute("ping " + h);
+    }
+    const sweep = kernel.shark.detectScans().find((f) => f.kind === "ping-sweep");
+    expect(sweep, "debería detectarse un ping-sweep").toBeDefined();
+    expect(sweep!.hosts.length).toBeGreaterThanOrEqual(4);
+    expect(term.execute("ids")).toMatch(/PING SWEEP/);
+  });
 });
