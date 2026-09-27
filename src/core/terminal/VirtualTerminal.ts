@@ -1109,6 +1109,91 @@ export class VirtualTerminal {
   }
 
   /**
+   * dnsspoof — DNS cache poisoning REAL dentro del sandbox. Envenena la
+   * resolución de un nombre en el DNS del mundo (fuente única): a partir de ahí
+   * TODO lo que resuelva ese nombre (nslookup, dig, curl, el navegador) cae en
+   * la IP del atacante. A diferencia del ARP spoofing, NO depende del segmento:
+   * el DNS es global. Si una víctima usa ese nombre para loguearse, su login se
+   * redirige al atacante y se captura. Motor real (kernel.dns.poison).
+   *   dnsspoof                       → nombres envenenados ahora.
+   *   dnsspoof <host> [ip-atacante]  → envenena (por defecto tu equipo).
+   *   dnsspoof stop [host]           → restaura el DNS.
+   */
+  private dnsspoofCmd(args: string[]): { output: string; isError: boolean } {
+    const sub = (args[0] ?? "").toLowerCase();
+
+    if (sub === "stop" || sub === "off" || sub === "restore" || sub === "detener") {
+      const name = args[1];
+      const n = this.kernel.dns.unpoison(name);
+      return {
+        output: n
+          ? `dnsspoof: limpié ${n} entrada(s) envenenada(s). El DNS vuelve a resolver lo real.\n`
+          : `dnsspoof: no había nombres envenenados.\n`,
+        isError: false,
+      };
+    }
+
+    const positional = args.filter((a) => !a.startsWith("-"));
+    const name = positional[0];
+    if (!name) {
+      const p = this.kernel.dns.poisonedNames();
+      return {
+        output:
+          `═══ DNS spoofing (cache poisoning) ═══\n` +
+          (p.length
+            ? p.map((x) => `  ☣ ${x.hostname} → ${x.address}${x.real ? `  (real: ${x.real})` : ""}`).join("\n") + "\n"
+            : "  (ningún nombre envenenado)\n") +
+          `\nEnvenená un nombre: dnsspoof <host> [ip-atacante]  (por defecto tu equipo 10.10.0.10)\n` +
+          `Es global (no como ARP): cualquiera que resuelva ese nombre cae en tu IP.\n` +
+          `Cortá con: dnsspoof stop [host]\n`,
+        isError: false,
+      };
+    }
+
+    const attacker = positional[1] ?? "10.10.0.10";
+    if (!attacker.startsWith("10.10.")) {
+      return {
+        output: `dnsspoof: la IP del atacante debe ser del sandbox (10.10.x.y). Nada de salir afuera.\n`,
+        isError: true,
+      };
+    }
+
+    const real = this.kernel.dns.resolve(name);
+    this.kernel.dns.poison(name, attacker);
+    const tick = this.kernel.world.getState().clock.tick;
+    // Consecuencia real y detectable (regla 3/5/10): envenenar el DNS es una
+    // técnica MITRE (AiTM). Enciende la capa defensiva como toda acción ofensiva.
+    this.kernel.noteAttackTechnique({
+      technique: "Adversary-in-the-Middle: DNS Spoofing",
+      tactic: "Credential Access",
+      mitreId: "T1557",
+      detail: `DNS cache poisoning: ${name} resuelve a ${attacker} (antes ${real ?? "sin registro"}).`,
+      host: name,
+    });
+
+    // Payoff GLOBAL (no depende del segmento): las víctimas que se loguean a
+    // ese nombre ahora caen en el atacante y su login se intercepta.
+    const victims = this.kernel.mitm.victimsForTarget(name);
+    for (const v of victims) {
+      this.kernel.shark.recordIntercepted(v.ip, v.role, name, attacker, v.method, v.path, v.user, v.field, v.secret, tick);
+    }
+    const loot = victims.length
+      ? `\n🎣 ${victims.length} víctima(s) resuelve(n) ${name} para loguearse: su login cayó en vos (${attacker}). Cosechá: sniff creds\n`
+      : `\n(Nadie del mundo se loguea a ${name} en claro por ahora: el envenenamiento está puesto, pero sin botín automático.)\n`;
+
+    return {
+      output:
+        `☣ DNS spoofing: ${name} → ${attacker}${real ? `  (era ${real})` : ""}.\n` +
+        `Ahora TODO lo que resuelva ${name} (nslookup / dig / curl / navegador) cae en tu IP.\n` +
+        `Comprobalo: nslookup ${name}\n` +
+        `⚠ A diferencia del ARP spoofing, esto es GLOBAL: no depende del segmento (DNS).\n` +
+        `Cortá con: dnsspoof stop ${name}\n` +
+        loot,
+      isError: false,
+    };
+  }
+
+  /**
    * nc / netcat — conexión TCP cruda contra el motor L4 real (HostRuntime.
    * probePort): confirma si un puerto está abierto y, si el servicio saluda,
    * trae su banner (banner grabbing → identificás la versión, como en la vida
@@ -1623,6 +1708,10 @@ export class VirtualTerminal {
         case "arpspoof":
         case "mitm":
           return this.arpspoofCmd(commandArgs);
+
+        case "dnsspoof":
+        case "dns-spoof":
+          return this.dnsspoofCmd(commandArgs);
 
         case "nc":
         case "ncat":
@@ -6758,6 +6847,7 @@ export class VirtualTerminal {
       "  anon on|off|new    Enrutar por la red de anonimato (tipo Tor)",
       "  macchanger <if> random   Cambiar tu MAC (MAC spoofing)",
       "  arpspoof <ip|host>       MITM por envenenamiento ARP (interceptá a un vecino)",
+      "  dnsspoof <host> [ip]     DNS cache poisoning: redirigí un nombre a tu IP (global)",
       "  exiftool <archivo>       Ver/limpiar metadatos que te delatan",
       "",
       "Acceso remoto y pivoting (ultra):",

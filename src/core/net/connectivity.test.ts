@@ -237,4 +237,47 @@ describe("Motor de conectividad (ping/traceroute/arp/nc/netstat)", () => {
     expect(term.execute("arpspoof stop")).toMatch(/detenido|restaurada/i);
     expect(kernel.mitm.active()).toHaveLength(0);
   });
+
+  /* ------------------------------------------ DNS spoofing / cache poisoning */
+
+  it("dnsspoof envenena la resolución: TODO lo que resuelve el nombre cae en el atacante", () => {
+    // Antes: el nombre resuelve a su IP real (fuente única = kernel.dns).
+    expect(kernel.dns.resolve("server.nande")).toBe("10.10.0.42");
+    const out = term.execute("dnsspoof server.nande");
+    expect(out).toMatch(/DNS spoofing/);
+    // Después: el motor DNS entero devuelve la IP del atacante (no un truco por
+    // comando): resolve, nslookup, y cualquier consumidor caen en 10.10.0.10.
+    expect(kernel.dns.resolve("server.nande")).toBe("10.10.0.10");
+    expect(term.execute("nslookup server.nande")).toContain("Address: 10.10.0.10");
+    expect(kernel.dns.poisonedAddress("server.nande")).toBe("10.10.0.10");
+    // Enciende la detección MITRE T1557 (Adversary-in-the-Middle: DNS Spoofing).
+    expect(kernel.mitre.recent(20).some((d) => d.mitreId === "T1557")).toBe(true);
+    // Y se corta, restaurando la resolución real.
+    expect(term.execute("dnsspoof stop server.nande")).toMatch(/limpié|vuelve a resolver/i);
+    expect(kernel.dns.resolve("server.nande")).toBe("10.10.0.42");
+    expect(kernel.dns.poisonedAddress("server.nande")).toBeUndefined();
+  });
+
+  it("dnsspoof es GLOBAL: intercepta un login cross-segment que ARP no alcanza", () => {
+    // pc-conta (10.10.0.7, segmento del jugador) se loguea a banco.nande
+    // (10.10.7.10, OTRO segmento). ARP no cruza routers: arpspoof lo rechaza.
+    expect(term.execute("arpspoof banco.nande")).toMatch(/no está en tu segmento local|no cruza routers/i);
+    expect(kernel.shark.credentials()).toHaveLength(0);
+    // Pero el DNS es global: envenenar el NOMBRE redirige a la víctima aunque
+    // el servicio viva en otro segmento. Su login en claro cae en el atacante.
+    const out = term.execute("dnsspoof banco.nande");
+    expect(out).toMatch(/víctima|cayó en vos/i);
+    expect(kernel.dns.resolve("banco.nande")).toBe("10.10.0.10");
+    const creds = kernel.shark.credentials();
+    expect(creds.some((c) => c.value === "Contadora#2024")).toBe(true);
+    expect(term.execute("sniff creds")).toContain("Contadora#2024");
+  });
+
+  it("dnsspoof rechaza una IP de atacante fuera del sandbox (no se sale del mundo)", () => {
+    const out = term.execute("dnsspoof server.nande 8.8.8.8");
+    expect(out).toMatch(/sandbox|10\.10/i);
+    // No quedó envenenado: la resolución sigue siendo la real.
+    expect(kernel.dns.resolve("server.nande")).toBe("10.10.0.42");
+    expect(kernel.dns.poisonedAddress("server.nande")).toBeUndefined();
+  });
 });

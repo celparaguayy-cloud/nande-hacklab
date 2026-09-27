@@ -81,6 +81,13 @@ export class MitmEngine {
     return VICTIMS.find((v) => v.ip === ref || v.hostname.toLowerCase() === r);
   }
 
+  /** Víctimas cuyo login en claro va dirigido a `targetName` (para DNS spoof:
+   *  si envenenás ese nombre, esas víctimas caen en el atacante). */
+  victimsForTarget(targetName: string): MitmVictim[] {
+    const t = targetName.toLowerCase();
+    return VICTIMS.filter((v) => v.target.toLowerCase() === t).map((v) => ({ ...v }));
+  }
+
   /** ¿Está esta IP siendo interceptada (ARP envenenado) ahora mismo? */
   isPoisoned(ip: string): boolean {
     return this.poisoned.has(ip);
