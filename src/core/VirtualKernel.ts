@@ -18,6 +18,7 @@ import { HostRuntime, type VirtualService } from "./net/HostRuntime";
 import { CompromiseLog } from "./net/CompromiseLog";
 import { NetworkLife } from "./net/NetworkLife";
 import { MitmEngine } from "./net/Mitm";
+import { PlcRuntime } from "./net/Plc";
 import { Duel } from "./game/Duel";
 import { CoopArena } from "./game/CoopArena";
 import { CodeExecutionSandbox, type SandboxHost } from "./code/Sandbox";
@@ -176,6 +177,8 @@ export class VirtualKernel {
   public netlife: NetworkLife;
   /** Motor de ARP spoofing / MITM: víctimas de la LAN y estado de envenenamiento. */
   public mitm: MitmEngine;
+  /** Motor Modbus/ICS de la planta OT: proceso físico stateful del PLC. */
+  public plc: PlcRuntime;
   /** Fuente única de verdad: qué hosts comprometió EL JUGADOR (regla 2). La
    *  llena el terminal al pivotar/escalar; netmap, C2 y las stats la leen. */
   public compromises: CompromiseLog;
@@ -384,6 +387,10 @@ export class VirtualKernel {
     // dentro del sandbox (who/w te muestran quién más está en el host).
     this.netlife = new NetworkLife(() => this.world.getState().clock.tick);
     this.mitm = new MitmEngine();
+    // Motor Modbus/ICS de la planta OT: fuente única del proceso físico del PLC
+    // (coils, holding/input registers). Lo leen/escriben el comando `modbus` y
+    // la HMI (proceso.status en vivo), reemplazando el string estático anterior.
+    this.plc = new PlcRuntime();
     // Registro central de compromisos del jugador (regla 2/5/10/12): lo llena
     // el terminal cuando entrás/escalás/recolectás de verdad, y lo leen netmap,
     // el panel C2 y las estadísticas. Persiste al salir de la sesión remota.

@@ -431,7 +431,7 @@ export const COURSE_LESSONS: Record<string, string[]> = {
   forense: ["l-reversing", "l-threatintel", "l-dfir-atribucion"],
   cripto: ["l-cripto"],
   reversing: ["l-reversing"],
-  "red-team": ["l-pivoting", "l-pivot", "l-privesc", "l-yvytu"],
+  "red-team": ["l-pivoting", "l-pivot", "l-privesc", "l-ot-modbus", "l-yvytu"],
   "blue-team-track": ["l-blue", "l-blueteam"],
   "purple-team": ["l-blueteam", "l-blue", "l-threatintel", "l-dfir-atribucion"],
   anonimato: ["l-anonimato", "l-opsec"],

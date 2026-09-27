@@ -1319,6 +1319,177 @@ export class VirtualTerminal {
   }
 
   /**
+   * modbus — cliente Modbus/TCP contra un PLC de la planta OT (puerto 502).
+   * Habla con el motor ICS REAL (kernel.plc): lee coils / holding / input
+   * registers y ESCRIBE control (bomba, válvula, setpoint, modo). Escribir
+   * cambia de verdad el proceso físico y puede provocar daño (sobrepresión,
+   * desborde, marcha en seco) — ese es el impacto que enseña por qué la OT se
+   * aísla. Requiere ALCANZAR el PLC (pivotear a la red industrial): la misma
+   * verdad de ruteo L4 que usan nc/nmap.
+   *   modbus <host>                       → estado del proceso + mapa de puntos.
+   *   modbus read <host> coils|holding|input
+   *   modbus write <host> coil <addr> <0|1>
+   *   modbus write <host> reg  <addr> <valor>
+   */
+  private modbusCmd(args: string[]): { output: string; isError: boolean } {
+    const positional = args.filter((a) => !a.startsWith("-"));
+    let verb = (positional[0] ?? "").toLowerCase();
+    let rest = positional.slice(1);
+    // `modbus <host>` sin verbo = estado. Detectamos si el primer token es un
+    // verbo conocido; si no, lo tratamos como host (atajo de estado).
+    if (verb !== "read" && verb !== "write" && verb !== "status") {
+      rest = positional;
+      verb = "status";
+    }
+
+    const target = rest[0];
+    if (!target) {
+      return { output: "uso: modbus <host> | modbus read <host> coils|holding|input | modbus write <host> coil|reg <addr> <valor>\n", isError: true };
+    }
+
+    // Ruteo L4 real: el puerto 502 tiene que estar ABIERTO y ALCANZABLE desde
+    // donde estás parado. Un PLC interno no se toca sin pivotear a la OT.
+    const from = this.remoteHost;
+    if (from === null && !this.hasLocalUplink()) {
+      return { output: "modbus: la red no tiene salida (eth0/wlan0 abajo).\n", isError: true };
+    }
+    const probe = this.kernel.hosts.probePort(from, target, 502);
+    if (probe.status === "no-host") {
+      return { output: `modbus: host desconocido: ${target}\n`, isError: true };
+    }
+    if (probe.status === "no-route") {
+      return {
+        output: `modbus: no hay ruta hasta ${probe.hostname ?? target} (${probe.ip}): la red industrial es interna, pivoteá hasta la OT primero.\n`,
+        isError: false,
+      };
+    }
+    if (probe.status === "down") {
+      return { output: `modbus: ${probe.hostname ?? target} (${probe.ip}) está apagado.\n`, isError: false };
+    }
+    if (probe.status !== "open" || !this.kernel.plc.has(target)) {
+      return {
+        output: `modbus: ${probe.hostname ?? target} (${probe.ip}) no expone Modbus/TCP (502 cerrado o no es un PLC).\n`,
+        isError: false,
+      };
+    }
+
+    const dev = this.kernel.plc.device(target)!;
+
+    if (verb === "status") {
+      return { output: this.plcStatusReport(dev.host), isError: false };
+    }
+
+    if (verb === "read") {
+      const bank = (rest[1] ?? "").toLowerCase();
+      if (bank === "coils" || bank === "coil") {
+        const rows = this.kernel.plc.readCoils(dev.host).map((c) => `  [${c.addr}] ${c.label.padEnd(20)} ${c.value ? "ON (1)" : "OFF (0)"}`);
+        return { output: `Coils de ${dev.host} (Modbus fn 01):\n${rows.join("\n")}\n`, isError: false };
+      }
+      if (bank === "holding" || bank === "hold" || bank === "reg" || bank === "regs") {
+        const rows = this.kernel.plc.readHolding(dev.host).map((h) => `  [${h.addr}] ${h.label.padEnd(24)} ${h.value} ${h.unit}`);
+        return { output: `Holding registers de ${dev.host} (Modbus fn 03, R/W):\n${rows.join("\n")}\n`, isError: false };
+      }
+      if (bank === "input" || bank === "inputs" || bank === "in") {
+        const rows = this.kernel.plc.readInputs(dev.host).map((h) => `  [${h.addr}] ${h.label.padEnd(24)} ${h.value} ${h.unit}`);
+        return { output: `Input registers de ${dev.host} (Modbus fn 04, solo lectura — variables de proceso):\n${rows.join("\n")}\n`, isError: false };
+      }
+      return { output: "modbus read: banco inválido. Usá: coils | holding | input\n", isError: true };
+    }
+
+    // verb === "write"
+    const kind = (rest[1] ?? "").toLowerCase();
+    const addr = parseInt(rest[2] ?? "", 10);
+    const rawVal = rest[3];
+    if (!kind || !Number.isFinite(addr) || rawVal === undefined) {
+      return { output: "uso: modbus write <host> coil <addr> <0|1>   |   modbus write <host> reg <addr> <valor>\n", isError: true };
+    }
+
+    let res;
+    if (kind === "coil" || kind === "coils") {
+      const v = rawVal === "1" || rawVal.toLowerCase() === "on" || rawVal.toLowerCase() === "true";
+      res = this.kernel.plc.writeCoil(dev.host, addr, v);
+    } else if (kind === "reg" || kind === "holding" || kind === "hold") {
+      const n = parseInt(rawVal, 10);
+      if (!Number.isFinite(n)) return { output: `modbus: valor inválido: ${rawVal}\n`, isError: true };
+      res = this.kernel.plc.writeHolding(dev.host, addr, n);
+    } else {
+      return { output: "modbus write: tipo inválido. Usá: coil | reg\n", isError: true };
+    }
+
+    if (!res.ok) return { output: `modbus: ${res.message}\n`, isError: true };
+
+    // Consecuencia REAL y detectable (regla 3/4/5): escribir un PLC es una
+    // acción ofensiva sobre control industrial → MITRE ATT&CK for ICS. Enciende
+    // la capa defensiva como cualquier ataque, con los mismos datos.
+    this.kernel.noteAttackTechnique({
+      technique: res.kind === "holding" ? "Modify Parameter" : "Unauthorized Command Message",
+      tactic: "Impair Process Control",
+      mitreId: res.kind === "holding" ? "T0836" : "T0855",
+      detail: `Escritura Modbus en ${dev.host}: ${res.message}.`,
+      host: dev.host,
+    });
+
+    // ¿Esta escritura empujó el proceso a un estado PELIGROSO? Eso es sabotaje
+    // físico: se registra como Impacto (T0831) y premia con bandera real —la
+    // consecuencia, no leer un archivo (regla 4/11).
+    let sabotage = "";
+    const before = res.hazardBefore ?? "none";
+    const after = res.hazardAfter ?? "none";
+    if (after !== "none" && after !== before) {
+      this.kernel.noteAttackTechnique({
+        technique: "Manipulation of Control",
+        tactic: "Impact",
+        mitreId: "T0831",
+        detail: `El proceso físico de ${dev.host} entró en estado peligroso (${after}) por escritura Modbus.`,
+        host: dev.host,
+      });
+      const flag = "ND{ot_sabotaje_fisico}";
+      const notes = this.kernel.scanForSignals(flag);
+      sabotage =
+        `\n☢ IMPACTO FÍSICO: el proceso entró en ${after.toUpperCase()}.\n` +
+        (notes.length ? notes.join("\n") + "\n" : `${flag}\n`);
+    }
+
+    return {
+      output:
+        `✓ Modbus write OK → ${dev.host}: ${res.message}\n` +
+        `⚠ Escribir control industrial es un ataque OT (MITRE ${res.kind === "holding" ? "T0836" : "T0855"}); el SOC lo ve.\n` +
+        this.plcStatusReport(dev.host) +
+        sabotage,
+      isError: false,
+    };
+  }
+
+  /**
+   * Reporte del proceso físico de un PLC, derivado EN VIVO del motor ICS (fuente
+   * única): lo usan `modbus` y el `cat` de la HMI. Reemplaza el texto estático.
+   */
+  private plcStatusReport(ref: string): string {
+    const p = this.kernel.plc.process(ref);
+    if (!p) return `(${ref}: sin proceso)\n`;
+    const bar = (v: number) => (v / 10).toFixed(1);
+    const state = p.hazard === "none" ? "OK" : `⚠ ${p.hazard.toUpperCase()}`;
+    let out =
+      `═══ Proceso físico — ${ref} (lectura en vivo del PLC) ═══\n` +
+      `  Tanque-1 nivel:   ${p.level}%\n` +
+      `  Bomba-A:          ${p.pump ? "ON" : "OFF"}\n` +
+      `  Válvula-3:        ${p.valve}%\n` +
+      `  Setpoint presión: ${bar(p.setpoint)} bar   Presión: ${bar(p.pressure)} bar\n` +
+      `  Modo:             ${p.auto ? "AUTO" : "MANUAL"}      Estado: ${state}\n`;
+    for (const a of p.alarms) out += `  🚨 ${a}\n`;
+    return out;
+  }
+
+  /** Archivos SCADA que se leen EN VIVO del motor ICS (coherencia, regla 5): la
+   *  consola de operador no muestra un texto fijo, muestra el proceso real. */
+  private liveScadaFile(hostname: string, path: string): string | undefined {
+    if (hostname.toLowerCase() === "hmi.planta.nande" && path === "/var/scada/proceso.status") {
+      return this.plcStatusReport("plc.planta.nande");
+    }
+    return undefined;
+  }
+
+  /**
    * netstat / ss — conexiones y puertos REALES, no una tabla fija. En el equipo
    * del jugador: cada sesión remota abierta es una conexión TCP ESTABLISHED
    * saliente (ssh:22), y los flujos web recientes capturados aparecen como
@@ -1712,6 +1883,11 @@ export class VirtualTerminal {
         case "dnsspoof":
         case "dns-spoof":
           return this.dnsspoofCmd(commandArgs);
+
+        case "modbus":
+        case "mbtget":
+        case "modbus-cli":
+          return this.modbusCmd(commandArgs);
 
         case "nc":
         case "ncat":
@@ -3076,7 +3252,11 @@ export class VirtualTerminal {
         if (host.sudoers && path.startsWith("/root/") && this.remoteUser !== "root") {
           return { output: `cat: ${path}: Permiso denegado\n`, isError: true };
         }
-        const content = host.files[path];
+        // La consola de operador (HMI) muestra el proceso EN VIVO del PLC, no un
+        // texto fijo: se deriva del motor ICS (coherencia, regla 5). Si escribís
+        // el PLC por Modbus, este `cat` refleja el cambio al instante.
+        const live = this.liveScadaFile(hostname, path);
+        const content = live ?? host.files[path];
         if (content === undefined) {
           return { output: `cat: ${path}: no existe\n`, isError: true };
         }
@@ -3161,6 +3341,11 @@ export class VirtualTerminal {
       case "ncat":
       case "netcat":
         return this.ncCmd(args);
+
+      case "modbus":
+      case "mbtget":
+      case "modbus-cli":
+        return this.modbusCmd(args);
 
       case "netstat":
       case "ss":
@@ -6854,6 +7039,13 @@ export class VirtualTerminal {
       "  connect <host> [usuario] [clave]  Entra a una máquina (SSH virtual)",
       "  (dentro) ls · cat <f> · ps · kill <pid> · services · nmap · flag · exit",
       "  → desde una máquina comprometida, 'nmap' revela su red INTERNA",
+      "",
+      "Control industrial / OT (ICS — Modbus/TCP):",
+      "  modbus <host>                 Estado del proceso físico del PLC (en vivo)",
+      "  modbus read <host> coils|holding|input   Lee puntos del PLC",
+      "  modbus write <host> coil <a> <0|1>       Escribe una salida (bomba, modo)",
+      "  modbus write <host> reg <a> <valor>      Escribe un parámetro (válvula, setpoint)",
+      "  → escribir el PLC cambia el proceso REAL y puede sabotearlo (MITRE ICS)",
       "",
       "Hosts, servicios y firewall (mundo real):",
       "  services [host]  Lista hosts, o los servicios de un host y su estado",

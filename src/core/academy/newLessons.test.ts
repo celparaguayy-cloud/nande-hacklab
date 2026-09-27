@@ -92,6 +92,23 @@ describe("Lecciones nuevas — completables con salida real", () => {
     });
   });
 
+  it("l-ot-modbus: pivotar IT→OT y sabotear el PLC por Modbus pasa cada check (motor ICS real)", () => {
+    const steps = lesson("l-ot-modbus").steps;
+    const cmds = [
+      "connect server.nande soporte Verano2024",
+      "connect nas.interna.nande respaldo NasÑande#2024",
+      "connect db-core.interna.nande dbadmin Core-DB!2024",
+      "modbus plc.planta.nande",
+      "modbus read plc.planta.nande holding",
+      "modbus write plc.planta.nande reg 1 90",
+    ];
+    expect(cmds.length).toBe(steps.length);
+    cmds.forEach((cmd, i) => {
+      const out = term.execute(cmd);
+      expect(steps[i].check!(cmd, out), `paso ${i}: ${cmd}`).toBe(true);
+    });
+  });
+
   it("l-dfir-atribucion: el ciclo azul (drill→dfir→atribuir→contener) pasa cada check con el motor real", () => {
     const steps = lesson("l-dfir-atribucion").steps;
     const cmds = [

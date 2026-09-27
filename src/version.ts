@@ -3,5 +3,5 @@
  * qué build estás corriendo (y confirmar que tomaste la última actualización).
  * Subí el número cuando haya un cambio que el jugador deba poder distinguir.
  */
-export const NANDE_VERSION = "5.84.0";
-export const NANDE_BUILD = "dns-spoofing-cache-poisoning";
+export const NANDE_VERSION = "5.85.0";
+export const NANDE_BUILD = "ot-ics-modbus-plc-real";

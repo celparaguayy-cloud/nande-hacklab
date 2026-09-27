@@ -830,6 +830,71 @@ export const LESSONS: Lesson[] = [
       },
     ],
   },
+  {
+    id: "l-ot-modbus",
+    title: "OT / ICS: tomar el control de una planta industrial (Modbus)",
+    level: "avanzado",
+    summary: "Pivotá de IT a OT y hablá Modbus con un PLC real: leé el proceso físico y hacelo entrar en falla.",
+    concept:
+      "En una red industrial, los PLC (controladores lógicos) gobiernan el proceso físico —bombas, válvulas, presión— y suelen hablar Modbus, un protocolo SIN autenticación: quien alcanza el puerto 502 puede LEER y ESCRIBIR el control. Por eso la OT se aísla del IT. Acá vas a hacer el camino completo: pivotar desde el IT hasta el 'historian' (un servidor doble-homed que puentea IT y OT), y desde ahí hablarle al PLC. Leer es reconocimiento; ESCRIBIR cambia el proceso físico de verdad y puede provocar daño (sobrepresión, desborde). En ÑANDE el proceso es un motor stateful real: lo que escribís se refleja en la consola del operador (HMI) y enciende la detección MITRE ATT&CK for ICS. Cero fakery.",
+    reward: { xp: 260, coins: 200 },
+    steps: [
+      {
+        explain:
+          "Primer salto: entrá al borde (DMZ) con la credencial de soporte que se filtra en la red IT.",
+        task: "Escribí: connect server.nande soporte Verano2024",
+        hint: "connect server.nande soporte Verano2024",
+        check: (cmd, out) => usedTool(cmd, "connect") && /conectado a server\.nande/i.test(out),
+        debrief:
+          "Estás en la DMZ. Desde acá se alcanza la red corporativa interna, y más adentro, la planta.",
+      },
+      {
+        explain:
+          "Saltá al NAS de respaldos: sus backups mal protegidos filtran la clave del servidor central (los backups son oro).",
+        task: "Escribí: connect nas.interna.nande respaldo NasÑande#2024",
+        hint: "connect nas.interna.nande respaldo NasÑande#2024",
+        check: (cmd, out) => usedTool(cmd, "connect") && /conectado a nas\.interna\.nande/i.test(out),
+        debrief:
+          "El NAS te acercó al 'historian' (db-core): el servidor que levanta datos de la planta y está conectado a la red OT.",
+      },
+      {
+        explain:
+          "Entrá al historian. Está DOBLE-HOMED (una pata en IT, otra en OT): es el puente que nunca debería existir, y tu camino a la planta.",
+        task: "Escribí: connect db-core.interna.nande dbadmin Core-DB!2024",
+        hint: "connect db-core.interna.nande dbadmin Core-DB!2024",
+        check: (cmd, out) => usedTool(cmd, "connect") && /conectado a db-core\.interna\.nande/i.test(out),
+        debrief:
+          "Estás parado en el puente IT/OT. Desde acá el PLC de la planta (plc.planta.nande, Modbus/502) está a tu alcance.",
+      },
+      {
+        explain:
+          "Hablale al PLC: 'modbus <host>' te muestra el proceso físico EN VIVO (nivel del tanque, bomba, válvula, presión). Esto es reconocimiento OT: entender qué controla.",
+        task: "Escribí: modbus plc.planta.nande",
+        hint: "modbus plc.planta.nande",
+        check: (cmd, out) => usedTool(cmd, "modbus") && out.includes("Tanque-1 nivel"),
+        debrief:
+          "Ese es el estado real del proceso, leído del PLC (no un texto fijo). Bomba ON, válvula al 40%, presión en su setpoint. Ahora veamos qué se puede ESCRIBIR.",
+      },
+      {
+        explain:
+          "Los 'holding registers' son los parámetros escribibles del PLC: la apertura de la válvula y el setpoint de presión. Modbus no pide contraseña para tocarlos.",
+        task: "Escribí: modbus read plc.planta.nande holding",
+        hint: "modbus read plc.planta.nande holding",
+        check: (cmd, out) => usedTool(cmd, "modbus") && out.includes("Setpoint presión"),
+        debrief:
+          "El registro 1 es el setpoint de presión (en décimas de bar). Si lo subís por encima del máximo seguro, el proceso entra en sobrepresión: daño físico.",
+      },
+      {
+        explain:
+          "El golpe: subí el setpoint a 9.0 bar (registro 1 = 90). Por encima del límite seguro, la planta entra en SOBREPRESIÓN. Es un ataque OT real: el SOC lo ve como MITRE ATT&CK for ICS.",
+        task: "Escribí: modbus write plc.planta.nande reg 1 90",
+        hint: "modbus write plc.planta.nande reg 1 90",
+        check: (cmd, out) => usedTool(cmd, "modbus") && out.includes("IMPACTO FÍSICO"),
+        debrief:
+          "Provocaste un impacto físico real: el proceso está en sobrepresión y la HMI del operador lo muestra en vivo (comprobalo: connect hmi.planta.nande operador Planta#2024 y cat /var/scada/proceso.status). Defensa: segmentar IT/OT de verdad (nada de historians doble-homed), poner un firewall/diodo de datos delante del PLC, y monitorear el tráfico Modbus. Por esto la OT importa: acá el daño es físico.",
+      },
+    ],
+  },
 
   /* ===================================================================
      CAPSTONE "YVYTU CLOUD" — una intrusión completa, guiada paso a paso:
