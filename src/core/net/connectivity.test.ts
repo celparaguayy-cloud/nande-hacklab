@@ -199,4 +199,42 @@ describe("Motor de conectividad (ping/traceroute/arp/nc/netstat)", () => {
     expect(sweep!.hosts.length).toBeGreaterThanOrEqual(4);
     expect(term.execute("ids")).toMatch(/PING SWEEP/);
   });
+
+  /* -------------------------------------------- ARP spoofing / MITM (L2) */
+
+  it("las workstations víctima son vecinos reales del segmento local", () => {
+    const names = kernel.hosts.arpNeighbors("10.10.0").map((r) => r.hostname);
+    expect(names).toContain("pc-conta.nande");
+    // Es un cliente: sin servicios (nmap la ve cerrada) pero viva (ping responde).
+    expect(kernel.hosts.icmpEcho(null, "pc-conta.nande").status).toBe("reply");
+    expect(kernel.hosts.openServices("pc-conta.nande")).toHaveLength(0);
+    expect(term.execute("arp")).toContain("pc-conta.nande");
+  });
+
+  it("arpspoof a una víctima local intercepta su login en claro (MITM real)", () => {
+    const out = term.execute("arpspoof pc-conta.nande");
+    expect(out).toMatch(/ACTIVO/);
+    expect(kernel.mitm.isPoisoned("10.10.0.7")).toBe(true);
+    // La credencial de la víctima queda capturada por NandeShark.
+    const creds = kernel.shark.credentials();
+    expect(creds.some((c) => c.value === "Contadora#2024")).toBe(true);
+    expect(term.execute("sniff creds")).toContain("Contadora#2024");
+    // Enciende la detección MITRE T1557 (ARP cache poisoning).
+    expect(kernel.mitre.recent(20).some((d) => d.mitreId.startsWith("T1557"))).toBe(true);
+  });
+
+  it("arpspoof NO cruza routers: rechaza objetivos de otro segmento (ARP es L2)", () => {
+    const out = term.execute("arpspoof banco.nande"); // 10.10.7.x
+    expect(out).toMatch(/no está en tu segmento local|no cruza routers/i);
+    expect(kernel.mitm.isPoisoned("10.10.7.10")).toBe(false);
+  });
+
+  it("arpspoof a un servidor: MITM activo pero sin botín (no manda logins en claro)", () => {
+    const out = term.execute("arpspoof server.nande");
+    expect(out).toMatch(/ACTIVO/);
+    expect(kernel.shark.credentials()).toHaveLength(0);
+    // Y se puede cortar, restaurando el ARP.
+    expect(term.execute("arpspoof stop")).toMatch(/detenido|restaurada/i);
+    expect(kernel.mitm.active()).toHaveLength(0);
+  });
 });

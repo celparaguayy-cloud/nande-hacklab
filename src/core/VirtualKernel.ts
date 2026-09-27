@@ -17,6 +17,7 @@ import { ControlPanelApp } from "./http/apps/panel";
 import { HostRuntime, type VirtualService } from "./net/HostRuntime";
 import { CompromiseLog } from "./net/CompromiseLog";
 import { NetworkLife } from "./net/NetworkLife";
+import { MitmEngine } from "./net/Mitm";
 import { Duel } from "./game/Duel";
 import { CoopArena } from "./game/CoopArena";
 import { CodeExecutionSandbox, type SandboxHost } from "./code/Sandbox";
@@ -173,6 +174,8 @@ export class VirtualKernel {
   /** Red team autónomo: un adversario NPC que corre una kill-chain real. */
   public redteam: RedTeamAgent;
   public netlife: NetworkLife;
+  /** Motor de ARP spoofing / MITM: víctimas de la LAN y estado de envenenamiento. */
+  public mitm: MitmEngine;
   /** Fuente única de verdad: qué hosts comprometió EL JUGADOR (regla 2). La
    *  llena el terminal al pivotar/escalar; netmap, C2 y las stats la leen. */
   public compromises: CompromiseLog;
@@ -380,6 +383,7 @@ export class VirtualKernel {
     // derivados del mismo reloj del mundo. Da la sensación de multijugador
     // dentro del sandbox (who/w te muestran quién más está en el host).
     this.netlife = new NetworkLife(() => this.world.getState().clock.tick);
+    this.mitm = new MitmEngine();
     // Registro central de compromisos del jugador (regla 2/5/10/12): lo llena
     // el terminal cuando entrás/escalás/recolectás de verdad, y lo leen netmap,
     // el panel C2 y las estadísticas. Persiste al salir de la sesión remota.
@@ -837,6 +841,29 @@ export class VirtualKernel {
     this.hosts.registerWebHost(REDTEAM_TARGET, "10.10.9.80", [
       { name: "sshd", port: 22, protocol: "tcp", version: "OpenÑSSH 9.6", kind: "ssh" },
     ]).creds.push({ user: "svc-backup", password: "Backup#2024" });
+
+    // Workstations de empleados en TU segmento local (10.10.0.x): clientes sin
+    // servicios expuestos (nadie se conecta A ellas), pero VÍCTIMAS del MITM:
+    // usan servicios del mundo por HTTP en claro. Vecinos reales (los ve arp,
+    // ping, netdiscover); su login se intercepta con ARP spoofing. Fuente única
+    // del secreto que viaja: MitmEngine (src/core/net/Mitm.ts).
+    for (const w of [
+      { host: "pc-conta.nande", ip: "10.10.0.7", role: "Workstation de Contaduría" },
+      { host: "pc-rrhh.nande", ip: "10.10.0.8", role: "Workstation de RR.HH." },
+    ]) {
+      this.dns.register(w.host, w.ip);
+      this.hosts.register({
+        hostname: w.host,
+        ip: w.ip,
+        os: "ÑandeDesktop 3 (workstation)",
+        up: true,
+        services: [], // un cliente: no ofrece puertos (nmap la ve cerrada)
+        firewall: [],
+        processes: [],
+        files: { "/etc/motd": `${w.role} — equipo de usuario.` },
+        creds: [],
+      });
+    }
 
     // Webapps del mundo (banco.nande, blog.yvoty.nande, …): host con nginx.
     for (const app of this.web.list()) {

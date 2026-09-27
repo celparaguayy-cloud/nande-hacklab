@@ -331,6 +331,46 @@ export class PacketCapture {
     return findings.sort((a, b) => b.count - a.count);
   }
 
+  /**
+   * Materializa un paquete HTTP de la VÍCTIMA que el atacante ve por estar en
+   * el medio (MITM/ARP spoofing). El origen es la víctima (no el jugador), y el
+   * cuerpo lleva el login en claro: por eso 'sniff creds' lo cosecha. Es lo que
+   * hace real al ataque: sin cifrar, el que está en el medio lee todo.
+   */
+  recordIntercepted(
+    srcIp: string,
+    srcName: string,
+    targetHost: string,
+    targetIp: string,
+    method: string,
+    path: string,
+    user: string,
+    field: string,
+    value: string,
+    tick: number,
+  ): void {
+    const body = `usuario=${user}&${field}=${value}`;
+    const wire =
+      `${method} ${path} HTTP/1.1\r\n` +
+      `Host: ${targetHost}\r\n` +
+      `Content-Type: application/x-www-form-urlencoded\r\n` +
+      `Content-Length: ${body.length}\r\n\r\n${body}`;
+    this.push({
+      tick,
+      src: srcIp,
+      dst: targetIp || targetHost,
+      proto: "HTTP",
+      summary: `(MITM) ${method} ${targetHost}${path} ⟵ ${srcName}`,
+      detail: `INTERCEPTADO de ${srcName} (${srcIp}): ${method} ${path} Host: ${targetHost}  ${body}`,
+      wire,
+      length: wire.length,
+      method,
+      host: targetHost,
+      path,
+      leak: { field, value },
+    });
+  }
+
   /* -------------------------------------------------------------- consulta */
 
   count(): number {

@@ -976,7 +976,134 @@ export class VirtualTerminal {
         `Tabla ARP — segmento local ${base}.0/24 (vista desde ${vip})\n` +
         `Dirección       Tipo    MAC                 Flags  Host\n` +
         (lines.length ? lines.join("\n") : "(sin vecinos vivos en este segmento)") +
-        `\n(ARP es LOCAL: sólo ves tu propio /24. Otros segmentos se alcanzan por ruteo, no por ARP.)\n`,
+        `\n(ARP es LOCAL: sólo ves tu propio /24. Otros segmentos se alcanzan por ruteo, no por ARP.)\n` +
+        `(Interceptar a un vecino: arpspoof <ip|host> — MITM por envenenamiento ARP.)\n`,
+      isError: false,
+    };
+  }
+
+  /**
+   * arpspoof / mitm — ARP spoofing (Adversary-in-the-Middle) REAL dentro del
+   * sandbox. Envenena la caché ARP de un vecino de TU segmento local: su
+   * tráfico pasa por vos. Si la víctima manda un login EN CLARO (HTTP), lo
+   * interceptás y NandeShark lo cosecha. ARP es L2: sólo funciona en tu propio
+   * /24 (no cruza routers). Es ruidoso y detectable. Motor real (kernel.mitm):
+   * sin víctima que mande algo en claro, MITM activo pero SIN botín.
+   *   arpspoof                 → estado + vecinos candidatos.
+   *   arpspoof <ip|host>       → te ponés en el medio de esa víctima.
+   *   arpspoof stop [ip|host]  → cortás el MITM y restaurás el ARP.
+   */
+  private arpspoofCmd(args: string[]): { output: string; isError: boolean } {
+    const sub = (args[0] ?? "").toLowerCase();
+
+    if (sub === "stop" || sub === "off" || sub === "detener" || sub === "restore") {
+      const ref = args[1];
+      const ip = ref ? this.kernel.hosts.resolve(ref)?.ip ?? ref : undefined;
+      const n = this.kernel.mitm.clear(ip);
+      return {
+        output: n
+          ? `arpspoof: MITM detenido (${n} objetivo/s). Caché ARP restaurada; el tráfico vuelve a su ruta normal.\n`
+          : `arpspoof: no había ningún MITM activo.\n`,
+        isError: false,
+      };
+    }
+
+    const target = args.find((a) => !a.startsWith("-"));
+    if (!target) {
+      // Estado + candidatos: vecinos vivos de tu segmento (menos vos y el gw).
+      const rows = this.kernel.hosts
+        .arpNeighbors("10.10.0")
+        .filter((r) => r.hostname !== "gateway" && r.ip !== "10.10.0.10");
+      const active = this.kernel.mitm.active();
+      const cand = rows
+        .map((r) => `  ${r.ip.padEnd(15)} ${r.hostname ?? ""}${this.kernel.mitm.isPoisoned(r.ip) ? "  ☣ interceptado" : ""}`)
+        .join("\n");
+      return {
+        output:
+          `═══ ARP spoofing (MITM) ═══\n` +
+          `MITM activo sobre: ${active.length ? active.join(", ") : "(ninguno)"}\n\n` +
+          `Vecinos de tu segmento (candidatos a interceptar):\n${cand || "  (sin vecinos)"}\n\n` +
+          `Poné(te) en el medio de uno: arpspoof <ip|host>\n` +
+          `Después mirá la cosecha: sniff creds   ·   Cortá con: arpspoof stop\n`,
+        isError: false,
+      };
+    }
+
+    // Objetivo de la red de PRÁCTICA (labs 10.10.5.x): es su propia red de
+    // ejercicio; se delega en la herramienta de laboratorio clásica (que da
+    // ND{arp_mitm}). El MITM del MUNDO abajo es sólo para tu segmento local.
+    const tRef = target.toLowerCase();
+    const isLab = this.kernel.tools
+      .labs()
+      .some((m) => m.ip === target || m.hostname.toLowerCase() === tRef);
+    if (isLab) {
+      return this.rewardIfFlag("arpspoof", args, this.kernel.tools.run("arpspoof", args));
+    }
+
+    const host = this.kernel.hosts.resolve(target);
+    if (!host) {
+      return { output: `arpspoof: host desconocido: ${target}\n`, isError: true };
+    }
+    const seg = host.ip.split(".").slice(0, 3).join(".");
+    if (seg !== "10.10.0") {
+      return {
+        output:
+          `arpspoof: ${host.hostname} (${host.ip}) NO está en tu segmento local.\n` +
+          `ARP es de capa 2: no cruza routers. Sólo podés envenenar vecinos de tu /24 (10.10.0.x).\n`,
+        isError: false,
+      };
+    }
+    if (host.ip === "10.10.0.10") {
+      return { output: `arpspoof: ese sos vos. Elegí un vecino.\n`, isError: false };
+    }
+    if (!host.up) {
+      return { output: `arpspoof: ${host.hostname} (${host.ip}) no responde (apagado).\n`, isError: false };
+    }
+
+    this.kernel.mitm.poison(host.ip);
+    const tick = this.kernel.world.getState().clock.tick;
+    // Consecuencia real y detectable (regla 3/5/10): el envenenamiento ARP es
+    // una técnica MITRE (T1557.002). Enciende la capa defensiva (SOC/MITRE,
+    // OpsecTracer) como cualquier acción ofensiva; nace del ataque real.
+    this.kernel.noteAttackTechnique({
+      technique: "Adversary-in-the-Middle: ARP Cache Poisoning",
+      tactic: "Credential Access",
+      mitreId: "T1557.002",
+      detail: `ARP spoofing: te metiste entre ${host.hostname} (${host.ip}) y el gateway (caché ARP envenenada).`,
+      host: host.hostname,
+    });
+
+    const v = this.kernel.mitm.byRef(host.ip);
+    let loot: string;
+    if (v) {
+      // La víctima manda su login en claro y ahora pasa por vos: se intercepta.
+      this.kernel.shark.recordIntercepted(
+        v.ip,
+        v.role,
+        v.target,
+        this.kernel.dns.resolve(v.target) ?? v.target,
+        v.method,
+        v.path,
+        v.user,
+        v.field,
+        v.secret,
+        tick,
+      );
+      loot =
+        `\n🎣 Interceptaste tráfico de ${v.role}: mandó un login EN CLARO a ${v.target}.\n` +
+        `Cosechá la credencial: sniff creds   (y mirá el flujo con: sniff)\n`;
+    } else {
+      loot =
+        `\n(MITM activo, pero ${host.hostname} no mandó nada en claro que pase por vos.\n` +
+        ` Un servidor no 'inicia sesión' solo; probá una workstation de usuario.)\n`;
+    }
+
+    return {
+      output:
+        `☣ ARP spoofing ACTIVO contra ${host.hostname} (${host.ip}).\n` +
+        `Tu MAC ahora responde por el gateway: el tráfico de la víctima pasa por vos (MITM).\n` +
+        `⚠ Es RUIDOSO y detectable (respuestas ARP anómalas / MAC duplicada). Cortá con: arpspoof stop\n` +
+        loot,
       isError: false,
     };
   }
@@ -1492,6 +1619,10 @@ export class VirtualTerminal {
 
         case "arp":
           return this.arpCmd(commandArgs);
+
+        case "arpspoof":
+        case "mitm":
+          return this.arpspoofCmd(commandArgs);
 
         case "nc":
         case "ncat":
@@ -6626,6 +6757,7 @@ export class VirtualTerminal {
       "  identidad          Tu huella en la red (IP, MAC, nivel)",
       "  anon on|off|new    Enrutar por la red de anonimato (tipo Tor)",
       "  macchanger <if> random   Cambiar tu MAC (MAC spoofing)",
+      "  arpspoof <ip|host>       MITM por envenenamiento ARP (interceptá a un vecino)",
       "  exiftool <archivo>       Ver/limpiar metadatos que te delatan",
       "",
       "Acceso remoto y pivoting (ultra):",
