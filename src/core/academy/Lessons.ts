@@ -895,12 +895,30 @@ export const LESSONS: Lesson[] = [
       },
       {
         explain:
-          "El golpe: subí el setpoint a 9.0 bar (registro 1 = 90). Por encima del límite seguro, la planta entra en SOBREPRESIÓN. Es un ataque OT real: el SOC lo ve como MITRE ATT&CK for ICS.",
+          "Primer golpe: subí el setpoint a 9.0 bar (registro 1 = 90). Por encima del límite seguro, la planta entra en SOBREPRESIÓN. Es un ataque OT real: el SOC lo ve como MITRE ATT&CK for ICS.",
         task: "Escribí: modbus write plc.planta.nande reg 1 90",
         hint: "modbus write plc.planta.nande reg 1 90",
         check: (cmd, out) => usedTool(cmd, "modbus") && out.includes("IMPACTO FÍSICO"),
         debrief:
-          "Provocaste un impacto físico real: el proceso está en sobrepresión y la HMI del operador lo muestra en vivo (comprobalo: connect hmi.planta.nande operador Planta#2024 y cat /var/scada/proceso.status). Defensa: segmentar IT/OT de verdad (nada de historians doble-homed), poner un firewall/diodo de datos delante del PLC, y monitorear el tráfico Modbus. Por esto la OT importa: acá el daño es físico.",
+          "Provocaste sobrepresión (aviso). Pero ojo: si seguís subiendo, a 10 bar salta el SIS —el sistema instrumentado de seguridad— y lleva la planta a PARO SEGURO. El SIS es la última defensa física. Un atacante serio (estilo TRISIS/Triton) primero lo DESHABILITA.",
+      },
+      {
+        explain:
+          "El paso que separa un susto de una catástrofe: deshabilitá el SIS. Es lo que hizo el malware Triton en 2017 contra una petroquímica. Sin SIS, ya no hay red de seguridad ante la sobrepresión.",
+        task: "Escribí: modbus sis plc.planta.nande off",
+        hint: "modbus sis plc.planta.nande off",
+        check: (cmd, out) => usedTool(cmd, "modbus") && /DESHABILITADO/.test(out),
+        debrief:
+          "Quitaste la seguridad (MITRE T0858, Change Operating Mode). El SOC lo registra como pérdida de seguridad. Ahora la próxima sobrepresión no dispara a paro seguro: destruye.",
+      },
+      {
+        explain:
+          "Golpe final: con el SIS caído, mandá el setpoint muy por encima del límite (registro 1 = 130 → 13 bar). Sin la red de seguridad, la vasija se rompe: daño físico IRREVERSIBLE.",
+        task: "Escribí: modbus write plc.planta.nande reg 1 130",
+        hint: "modbus write plc.planta.nande reg 1 130",
+        check: (cmd, out) => usedTool(cmd, "modbus") && /ROTURA|DESTRU/.test(out),
+        debrief:
+          "Destruiste la planta (MITRE T0879 Damage to Property + T0880 Loss of Safety). Este es el patrón Triton: comprometer IT → pivotar a OT → deshabilitar la seguridad → causar daño físico. Defensa (por capas): segmentar IT/OT de verdad (nada de historians doble-homed), firewall/diodo de datos delante del PLC, SIS aislado en su propia red y con llave física en RUN, y monitoreo del tráfico Modbus. Si el SIS hubiera estado puesto, sólo habrías logrado un paro seguro —costoso, pero sin destrucción. Por esto la OT importa: acá el daño es físico y a veces irreversible.",
       },
     ],
   },

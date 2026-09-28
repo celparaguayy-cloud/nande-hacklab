@@ -1338,7 +1338,7 @@ export class VirtualTerminal {
     if (verb === "discover") verb = "id"; // alias (nmap modbus-discover)
     // `modbus <host>` sin verbo = estado. Detectamos si el primer token es un
     // verbo conocido; si no, lo tratamos como host (atajo de estado).
-    if (verb !== "read" && verb !== "write" && verb !== "status" && verb !== "id") {
+    if (verb !== "read" && verb !== "write" && verb !== "status" && verb !== "id" && verb !== "sis") {
       rest = positional;
       verb = "status";
     }
@@ -1399,6 +1399,51 @@ export class VirtualTerminal {
       };
     }
 
+    if (verb === "sis") {
+      const st = this.kernel.plc.sisState(dev.host)!;
+      const action = (rest[1] ?? "status").toLowerCase();
+      if (action === "status" || action === "") {
+        const label = st.ruptured ? "N/A (planta destruida)" : st.tripped ? "DISPARADO (paro seguro)" : st.enabled ? "habilitado (vigilando)" : "DESHABILITADO ⚠";
+        return {
+          output:
+            `═══ SIS (sistema instrumentado de seguridad) — ${dev.host} ═══\n` +
+            `  Estado: ${label}\n` +
+            (st.enabled && !st.tripped && !st.ruptured
+              ? `  El SIS dispararía a paro seguro si la presión llega a 10.0 bar.\n  Un ataque estilo TRISIS lo deshabilita primero: modbus sis ${dev.host} off\n`
+              : st.enabled ? "" : `  ⚠ Sin red de seguridad: la próxima sobrepresión DESTRUYE la planta.\n`),
+          isError: false,
+        };
+      }
+      const on = action === "on" || action === "enable" || action === "habilitar";
+      const off = action === "off" || action === "disable" || action === "deshabilitar";
+      if (!on && !off) return { output: "uso: modbus sis <host> on|off|status\n", isError: true };
+      if (st.ruptured) return { output: `modbus sis: ${dev.host} ya está destruido; el SIS es irrelevante.\n`, isError: false };
+      this.kernel.plc.setSis(dev.host, on);
+      if (off) {
+        // Deshabilitar la seguridad es el paso clave del ataque a un SIS (TRISIS/
+        // Triton): cambiar el modo del controlador de seguridad para que no actúe.
+        this.kernel.noteAttackTechnique({
+          technique: "Change Operating Mode", tactic: "Inhibit Response Function", mitreId: "T0858",
+          detail: `SIS de ${dev.host} DESHABILITADO por Modbus: la planta quedó sin protección de sobrepresión.`,
+          host: dev.host,
+        });
+        const flag = "ND{ot_seguridad_deshabilitada}";
+        const notes = this.kernel.scanForSignals(flag);
+        return {
+          output:
+            `⚠ SIS DESHABILITADO en ${dev.host}. Quitaste la red de seguridad (MITRE T0858 — el SOC lo ve).\n` +
+            `Ahora una sobrepresión NO dispara a paro seguro: DESTRUYE la planta. Probá: modbus write ${dev.host} reg 1 130\n` +
+            (notes.length ? notes.join("\n") + "\n" : `${flag}\n`),
+          isError: false,
+        };
+      }
+      return {
+        output:
+          `✓ SIS habilitado en ${dev.host} (hardening defensivo). La seguridad vuelve a vigilar la sobrepresión.\n`,
+        isError: false,
+      };
+    }
+
     if (verb === "read") {
       const bank = (rest[1] ?? "").toLowerCase();
       if (bank === "coils" || bank === "coil") {
@@ -1449,24 +1494,55 @@ export class VirtualTerminal {
       host: dev.host,
     });
 
-    // ¿Esta escritura empujó el proceso a un estado PELIGROSO? Eso es sabotaje
-    // físico: se registra como Impacto (T0831) y premia con bandera real —la
-    // consecuencia, no leer un archivo (regla 4/11).
+    // Consecuencia física, en TRES niveles (rule 4/11):
+    //  1) ROTURA: la escritura llevó a sobrepresión con el SIS deshabilitado →
+    //     daño irreversible (T0879 Damage to Property + T0880 Loss of Safety).
+    //  2) DISPARO DEL SIS: la sobrepresión cruzó el umbral pero el SIS estaba
+    //     puesto → paro seguro; perdés producción (T0828), pero la planta sobrevive.
+    //  3) PELIGRO sin disparo: sobrepresión/desborde/seco de aviso (T0831).
     let sabotage = "";
-    const before = res.hazardBefore ?? "none";
-    const after = res.hazardAfter ?? "none";
-    if (after !== "none" && after !== before) {
+    const sBefore = res.safetyBefore ?? "ok";
+    const sAfter = res.safetyAfter ?? "ok";
+    const hzBefore = res.hazardBefore ?? "none";
+    const hzAfter = res.hazardAfter ?? "none";
+    if (sAfter === "ruptured" && sBefore !== "ruptured") {
       this.kernel.noteAttackTechnique({
-        technique: "Manipulation of Control",
-        tactic: "Impact",
-        mitreId: "T0831",
-        detail: `El proceso físico de ${dev.host} entró en estado peligroso (${after}) por escritura Modbus.`,
+        technique: "Damage to Property", tactic: "Impact", mitreId: "T0879",
+        detail: `Sobrepresión en ${dev.host} con el SIS deshabilitado: la vasija se destruyó.`,
+        host: dev.host,
+      });
+      this.kernel.noteAttackTechnique({
+        technique: "Loss of Safety", tactic: "Impact", mitreId: "T0880",
+        detail: `La planta ${dev.host} operó sin sistema instrumentado de seguridad.`,
+        host: dev.host,
+      });
+      const flag = "ND{ot_planta_destruida}";
+      const notes = this.kernel.scanForSignals(flag);
+      sabotage =
+        `\n🔥 ROTURA CATASTRÓFICA: sin SIS, la sobrepresión DESTRUYÓ la planta. Daño físico irreversible.\n` +
+        (notes.length ? notes.join("\n") + "\n" : `${flag}\n`);
+    } else if (sAfter === "sis_trip" && sBefore !== "sis_trip") {
+      this.kernel.noteAttackTechnique({
+        technique: "Loss of Productivity and Revenue", tactic: "Impact", mitreId: "T0828",
+        detail: `Sobrepresión en ${dev.host}: el SIS disparó y detuvo la planta (paro seguro).`,
+        host: dev.host,
+      });
+      const flag = "ND{ot_planta_en_paro}";
+      const notes = this.kernel.scanForSignals(flag);
+      sabotage =
+        `\n🛑 DISPARO DEL SIS: la sobrepresión hizo saltar la seguridad → PARO SEGURO. La planta quedó detenida (producción perdida), pero intacta.\n` +
+        `   (Un atacante avanzado deshabilita el SIS ANTES: modbus sis ${dev.host} off — ahí el daño es físico.)\n` +
+        (notes.length ? notes.join("\n") + "\n" : `${flag}\n`);
+    } else if (hzAfter !== "none" && hzAfter !== hzBefore) {
+      this.kernel.noteAttackTechnique({
+        technique: "Manipulation of Control", tactic: "Impact", mitreId: "T0831",
+        detail: `El proceso físico de ${dev.host} entró en estado peligroso (${hzAfter}) por escritura Modbus.`,
         host: dev.host,
       });
       const flag = "ND{ot_sabotaje_fisico}";
       const notes = this.kernel.scanForSignals(flag);
       sabotage =
-        `\n☢ IMPACTO FÍSICO: el proceso entró en ${after.toUpperCase()}.\n` +
+        `\n☢ IMPACTO FÍSICO: el proceso entró en ${hzAfter.toUpperCase()}.\n` +
         (notes.length ? notes.join("\n") + "\n" : `${flag}\n`);
     }
 
@@ -1488,14 +1564,19 @@ export class VirtualTerminal {
     const p = this.kernel.plc.process(ref);
     if (!p) return `(${ref}: sin proceso)\n`;
     const bar = (v: number) => (v / 10).toFixed(1);
-    const state = p.hazard === "none" ? "OK" : `⚠ ${p.hazard.toUpperCase()}`;
+    const state =
+      p.safety === "ruptured" ? "🔥 VASIJA DESTRUIDA"
+      : p.safety === "sis_trip" ? "🛑 PARO SEGURO (SIS disparado)"
+      : p.hazard === "none" ? "OK" : `⚠ ${p.hazard.toUpperCase()}`;
+    const sis = p.safety === "ruptured" ? "N/A" : p.sisEnabled ? "habilitado" : "DESHABILITADO ⚠";
     let out =
       `═══ Proceso físico — ${ref} (lectura en vivo del PLC) ═══\n` +
       `  Tanque-1 nivel:   ${p.level}%\n` +
       `  Bomba-A:          ${p.pump ? "ON" : "OFF"}\n` +
       `  Válvula-3:        ${p.valve}%\n` +
       `  Setpoint presión: ${bar(p.setpoint)} bar   Presión: ${bar(p.pressure)} bar\n` +
-      `  Modo:             ${p.auto ? "AUTO" : "MANUAL"}      Estado: ${state}\n`;
+      `  Modo:             ${p.auto ? "AUTO" : "MANUAL"}      SIS: ${sis}\n` +
+      `  Estado:           ${state}\n`;
     for (const a of p.alarms) out += `  🚨 ${a}\n`;
     return out;
   }
@@ -7066,7 +7147,9 @@ export class VirtualTerminal {
       "  modbus read <host> coils|holding|input   Lee puntos del PLC",
       "  modbus write <host> coil <a> <0|1>       Escribe una salida (bomba, modo)",
       "  modbus write <host> reg <a> <valor>      Escribe un parámetro (válvula, setpoint)",
+      "  modbus sis <host> on|off|status          Sistema de seguridad (SIS): la última defensa",
       "  → escribir el PLC cambia el proceso REAL y puede sabotearlo (MITRE ICS)",
+      "  → sin SIS, la sobrepresión DESTRUYE la planta (ataque estilo TRISIS)",
       "",
       "Hosts, servicios y firewall (mundo real):",
       "  services [host]  Lista hosts, o los servicios de un host y su estado",

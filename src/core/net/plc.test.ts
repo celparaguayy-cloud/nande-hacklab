@@ -91,6 +91,46 @@ describe("PlcRuntime — proceso físico stateful (Modbus/ICS)", () => {
     expect(id.majorMinorRevision).toBe("3.11");
     expect(id.unitIds).toContain(1);
   });
+
+  /* ------------------------------------------- SIS (capa de seguridad) */
+
+  it("el SIS dispara a PARO SEGURO ante sobrepresión (10 bar): planta detenida pero intacta", () => {
+    const r = plc.writeHolding("plc.planta.nande", PLC_MAP.HOLD_SETPOINT, 100); // 10.0 bar
+    expect(r.safetyBefore).toBe("ok");
+    expect(r.safetyAfter).toBe("sis_trip");
+    const p = plc.process("plc.planta.nande")!;
+    expect(p.safety).toBe("sis_trip");
+    expect(p.pump).toBe(false); // el SIS forzó el paro seguro
+    expect(plc.sisState("plc.planta.nande")!.tripped).toBe(true);
+    expect(plc.sisState("plc.planta.nande")!.ruptured).toBe(false);
+  });
+
+  it("con el SIS puesto, ni una sobrepresión enorme rompe la planta (sólo dispara)", () => {
+    plc.writeHolding("plc.planta.nande", PLC_MAP.HOLD_SETPOINT, 200); // 20 bar
+    expect(plc.process("plc.planta.nande")!.safety).toBe("sis_trip");
+    expect(plc.sisState("plc.planta.nande")!.ruptured).toBe(false);
+  });
+
+  it("deshabilitar el SIS y forzar sobrepresión DESTRUYE la vasija (irreversible)", () => {
+    plc.setSis("plc.planta.nande", false);
+    const r = plc.writeHolding("plc.planta.nande", PLC_MAP.HOLD_SETPOINT, 130); // 13 bar
+    expect(r.safetyAfter).toBe("ruptured");
+    const p = plc.process("plc.planta.nande")!;
+    expect(p.safety).toBe("ruptured");
+    // La destrucción es irreversible: reset() se niega.
+    expect(plc.reset("plc.planta.nande")).toBe(false);
+    expect(plc.process("plc.planta.nande")!.safety).toBe("ruptured");
+  });
+
+  it("deshabilitar el SIS por sí solo NO cambia el proceso: quita la red, no dispara", () => {
+    const before = plc.process("plc.planta.nande")!;
+    plc.setSis("plc.planta.nande", false);
+    const after = plc.process("plc.planta.nande")!;
+    expect(after.sisEnabled).toBe(false);
+    expect(after.safety).toBe("ok");
+    expect(after.level).toBe(before.level);
+    expect(after.pressure).toBe(before.pressure);
+  });
 });
 
 describe("Terminal `modbus` — cliente Modbus/TCP contra el PLC (con ruteo real)", () => {
@@ -178,5 +218,29 @@ describe("Terminal `modbus` — cliente Modbus/TCP contra el PLC (con ruteo real
     expect(kernel.mitre.recent(30).map((d) => d.mitreId)).toContain("T0855");
     // Consecuencia real: apagar la bomba vacía el tanque (proceso stateful).
     expect(kernel.plc.process("plc.planta.nande")!.level).toBe(0);
+  });
+
+  it("con el SIS puesto, la sobrepresión extrema sólo logra un PARO SEGURO (T0828), no destrucción", () => {
+    pivotToHistorian();
+    const out = term.execute("modbus write plc.planta.nande reg 1 130");
+    expect(out).toMatch(/PARO SEGURO|SIS/);
+    expect(kernel.mitre.recent(40).map((d) => d.mitreId)).toContain("T0828");
+    // La planta sobrevivió: disparada, no destruida.
+    expect(kernel.plc.process("plc.planta.nande")!.safety).toBe("sis_trip");
+  });
+
+  it("kill-chain TRISIS: deshabilitar el SIS (T0858) y luego sobrepresión DESTRUYE la planta (T0879/T0880)", () => {
+    pivotToHistorian();
+    const off = term.execute("modbus sis plc.planta.nande off");
+    expect(off).toMatch(/DESHABILITADO/);
+    expect(kernel.mitre.recent(40).map((d) => d.mitreId)).toContain("T0858");
+
+    const boom = term.execute("modbus write plc.planta.nande reg 1 130");
+    expect(boom).toMatch(/ROTURA|DESTRU/);
+    expect(boom).toContain("ND{ot_planta_destruida}");
+    const ids = kernel.mitre.recent(40).map((d) => d.mitreId);
+    expect(ids).toContain("T0879"); // Damage to Property
+    expect(ids).toContain("T0880"); // Loss of Safety
+    expect(kernel.plc.process("plc.planta.nande")!.safety).toBe("ruptured");
   });
 });

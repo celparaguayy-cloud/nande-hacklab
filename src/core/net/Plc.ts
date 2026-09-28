@@ -64,6 +64,15 @@ export interface PlcHolding {
 /** Tipo de peligro físico en el que puede caer el proceso. */
 export type PlcHazard = "none" | "overpressure" | "overflow" | "dry";
 
+/**
+ * Estado del sistema instrumentado de seguridad (SIS): la capa independiente
+ * que evita la catástrofe física. "ok" = vigilando; "sis_trip" = disparó y
+ * llevó la planta a PARO SEGURO (producción detenida, pero intacta);
+ * "ruptured" = la vasija se destruyó (pasa sólo si el SIS estaba DESHABILITADO
+ * cuando llegó la sobrepresión — el ataque estilo TRISIS/Triton).
+ */
+export type PlcSafety = "ok" | "sis_trip" | "ruptured";
+
 /** Foto del proceso físico que gobierna un PLC (variables calculadas). */
 export interface PlcProcess {
   /** Nivel del tanque, 0–100 %. */
@@ -78,8 +87,12 @@ export interface PlcProcess {
   pump: boolean;
   /** ¿Lazo en AUTO (true) o MANUAL (false)? */
   auto: boolean;
-  /** Peligro físico actual (si lo hay). */
+  /** Peligro físico actual del proceso (si lo hay). */
   hazard: PlcHazard;
+  /** ¿El SIS está habilitado (vigilando)? */
+  sisEnabled: boolean;
+  /** Estado de la capa de seguridad (paro seguro / rotura). */
+  safety: PlcSafety;
   /** Alarmas legibles activas. */
   alarms: string[];
 }
@@ -95,6 +108,9 @@ export interface PlcWriteResult {
   /** Peligro antes y después: si cambió a peligroso, hubo sabotaje físico. */
   hazardBefore?: PlcHazard;
   hazardAfter?: PlcHazard;
+  /** Estado de seguridad antes y después: detecta el disparo del SIS o la rotura. */
+  safetyBefore?: PlcSafety;
+  safetyAfter?: PlcSafety;
 }
 
 interface PlcDeviceState {
@@ -104,6 +120,12 @@ interface PlcDeviceState {
   identity: PlcIdentity;
   coils: PlcCoil[];
   holding: PlcHolding[];
+  /** SIS habilitado (default true): la seguridad viene puesta de fábrica. */
+  sisEnabled: boolean;
+  /** SIS disparado (latcheado): la planta quedó en paro seguro. */
+  sisTripped: boolean;
+  /** Vasija destruida (latcheado): daño físico irreversible. */
+  ruptured: boolean;
 }
 
 /* --------------------------------------------------------------- constantes */
@@ -112,6 +134,10 @@ const BASE_PRESSURE = 10; // 1.0 bar: presión de reposo con la bomba apagada.
 const SAFE_MAX_PRESSURE = 80; // 8.0 bar: por encima es SOBREPRESIÓN (peligro).
 const OVERFLOW_LEVEL = 95; // % de tanque: por encima DESBORDA.
 const DRY_LEVEL = 2; // % de tanque: por debajo, con bomba on, marcha EN SECO.
+// Umbral de la capa de seguridad: a esta presión el SIS DISPARA (paro seguro).
+// Si el SIS está deshabilitado, esta misma presión ROMPE la vasija. Está por
+// encima de la alarma de sobrepresión: hay una banda de aviso antes del disparo.
+const SIS_TRIP_PRESSURE = 100; // 10.0 bar
 
 /** Índices fijos de los puntos (documentados para el jugador y los tests). */
 export const PLC_MAP = {
@@ -146,6 +172,9 @@ export class PlcRuntime {
         { addr: PLC_MAP.HOLD_VALVE, label: "Válvula-3 (apertura)", value: 40, unit: "%", min: 0, max: 100 },
         { addr: PLC_MAP.HOLD_SETPOINT, label: "Setpoint presión", value: 42, unit: "bar/10", min: 0, max: 200 },
       ],
+      sisEnabled: true,
+      sisTripped: false,
+      ruptured: false,
     });
   }
 
@@ -215,26 +244,21 @@ export class PlcRuntime {
   }
 
   /**
-   * El corazón: calcula el proceso físico a partir del estado de control. Puro
-   * y determinista (sin tiempo oculto). Modelo de tanque con una bomba que
-   * llena y una válvula que drena; la presión la sostiene el lazo en AUTO o
-   * corre libre en MANUAL.
+   * Física pura del proceso a partir del estado de control (sin la capa de
+   * seguridad): tanque con bomba que llena y válvula que drena; la presión la
+   * sostiene el lazo en AUTO o corre libre en MANUAL. Determinista.
    */
-  process(ref: string): PlcProcess | undefined {
-    const d = this.find(ref);
-    if (!d) return undefined;
+  private rawProcess(d: PlcDeviceState): {
+    level: number; pressure: number; setpoint: number; valve: number;
+    pump: boolean; auto: boolean; hazard: PlcHazard; alarms: string[];
+  } {
     const pump = this.coil(d, PLC_MAP.COIL_PUMP);
     const auto = this.coil(d, PLC_MAP.COIL_AUTO);
     const valve = clamp(this.holdingVal(d, PLC_MAP.HOLD_VALVE), 0, 100);
     const setpoint = Math.max(0, this.holdingVal(d, PLC_MAP.HOLD_SETPOINT));
 
-    // Nivel: con la bomba apagada el tanque se vacía; con la bomba encendida el
-    // nivel se estabiliza donde el llenado iguala al drenaje de la válvula
-    // (válvula muy cerrada → sube y desborda; muy abierta → baja y marcha seco).
     const level = pump ? clamp(100 - valve, 0, 100) : 0;
 
-    // Presión: en AUTO el lazo la sostiene EN el setpoint. En MANUAL con la
-    // bomba encendida corre libre y trepa al cerrar la válvula (sobrepresión).
     let pressure: number;
     if (!pump) pressure = BASE_PRESSURE;
     else if (auto) pressure = setpoint;
@@ -257,6 +281,48 @@ export class PlcRuntime {
   }
 
   /**
+   * Proceso físico OBSERVABLE: la física pura con la capa de seguridad (SIS)
+   * encima. Si el SIS disparó, la planta está en PARO SEGURO (bomba forzada
+   * apagada, alivio abierto, presión de reposo). Si la vasija se rompió, el
+   * proceso quedó destruido. Ambos estados son latcheados (persisten).
+   */
+  process(ref: string): PlcProcess | undefined {
+    const d = this.find(ref);
+    if (!d) return undefined;
+    const raw = this.rawProcess(d);
+
+    if (d.ruptured) {
+      return {
+        level: 0, pressure: 0, setpoint: raw.setpoint, valve: raw.valve,
+        pump: false, auto: raw.auto, hazard: "none",
+        sisEnabled: d.sisEnabled, safety: "ruptured",
+        alarms: ["🔥 VASIJA DESTRUIDA: sobrepresión con el SIS deshabilitado. Daño físico IRREVERSIBLE."],
+      };
+    }
+    if (d.sisTripped) {
+      return {
+        level: 0, pressure: BASE_PRESSURE, setpoint: raw.setpoint, valve: 100,
+        pump: false, auto: raw.auto, hazard: "none",
+        sisEnabled: d.sisEnabled, safety: "sis_trip",
+        alarms: ["🛑 SIS DISPARADO: paro seguro de emergencia. La planta está detenida (producción perdida) pero intacta."],
+      };
+    }
+    return { ...raw, sisEnabled: d.sisEnabled, safety: "ok" };
+  }
+
+  /** Latchea la consecuencia de seguridad tras una escritura: si la presión del
+   *  control cruza el umbral de disparo, el SIS dispara (paro seguro); si el SIS
+   *  está deshabilitado, la misma presión rompe la vasija (daño irreversible). */
+  private applySafety(d: PlcDeviceState): void {
+    if (d.ruptured || d.sisTripped) return; // ya latcheado
+    const p = this.rawProcess(d).pressure;
+    if (p >= SIS_TRIP_PRESSURE) {
+      if (d.sisEnabled) d.sisTripped = true;
+      else d.ruptured = true;
+    }
+  }
+
+  /**
    * Escribe un coil (Modbus función 05). Devuelve el peligro antes/después para
    * que el terminal sepa si esta escritura provocó daño físico (sabotaje).
    */
@@ -265,16 +331,19 @@ export class PlcRuntime {
     if (!d) return { ok: false, message: "sin dispositivo" };
     const coil = d.coils.find((c) => c.addr === addr);
     if (!coil) return { ok: false, message: `coil ${addr} inexistente (coils válidos: 0–${d.coils.length - 1})` };
-    const hazardBefore = this.process(ref)!.hazard;
+    const before = this.process(ref)!;
     coil.value = value;
-    const hazardAfter = this.process(ref)!.hazard;
+    this.applySafety(d);
+    const after = this.process(ref)!;
     return {
       ok: true,
       message: `coil ${addr} (${coil.label}) = ${value ? "ON" : "OFF"}`,
       label: coil.label,
       kind: "coil",
-      hazardBefore,
-      hazardAfter,
+      hazardBefore: before.hazard,
+      hazardAfter: after.hazard,
+      safetyBefore: before.safety,
+      safetyAfter: after.safety,
     };
   }
 
@@ -285,23 +354,50 @@ export class PlcRuntime {
     const reg = d.holding.find((h) => h.addr === addr);
     if (!reg) return { ok: false, message: `registro ${addr} inexistente (holding válidos: 0–${d.holding.length - 1})` };
     const value = clamp(Math.round(raw), reg.min, reg.max);
-    const hazardBefore = this.process(ref)!.hazard;
+    const before = this.process(ref)!;
     reg.value = value;
-    const hazardAfter = this.process(ref)!.hazard;
+    this.applySafety(d);
+    const after = this.process(ref)!;
     return {
       ok: true,
       message: `holding ${addr} (${reg.label}) = ${value}${reg.unit === "%" ? "%" : ""}`,
       label: reg.label,
       kind: "holding",
-      hazardBefore,
-      hazardAfter,
+      hazardBefore: before.hazard,
+      hazardAfter: after.hazard,
+      safetyBefore: before.safety,
+      safetyAfter: after.safety,
     };
+  }
+
+  /** Estado de la capa de seguridad (SIS): habilitado / disparado / rotura. */
+  sisState(ref: string): { enabled: boolean; tripped: boolean; ruptured: boolean } | undefined {
+    const d = this.find(ref);
+    return d ? { enabled: d.sisEnabled, tripped: d.sisTripped, ruptured: d.ruptured } : undefined;
+  }
+
+  /**
+   * Habilita/deshabilita el SIS. Deshabilitarlo NO cambia el proceso al
+   * instante: quita la red de contención, así la próxima sobrepresión destruye
+   * la planta en vez de dispararla a paro seguro (el paso clave del ataque
+   * estilo TRISIS). Devuelve el estado previo y el nuevo.
+   */
+  setSis(ref: string, on: boolean): { ok: boolean; was: boolean; now: boolean } {
+    const d = this.find(ref);
+    if (!d) return { ok: false, was: false, now: false };
+    const was = d.sisEnabled;
+    d.sisEnabled = on;
+    return { ok: true, was, now: on };
   }
 
   /** Restaura un PLC a su estado seguro inicial (para labs / reinicio). */
   reset(ref: string): boolean {
     const d = this.find(ref);
     if (!d) return false;
+    // Una rotura es IRREVERSIBLE: no se "resetea" la destrucción física.
+    if (d.ruptured) return false;
+    d.sisEnabled = true;
+    d.sisTripped = false;
     if (d.host === "plc.planta.nande") {
       this.setCoil(d, PLC_MAP.COIL_PUMP, true);
       this.setCoil(d, PLC_MAP.COIL_AUTO, true);

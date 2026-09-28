@@ -102,6 +102,8 @@ describe("Lecciones nuevas — completables con salida real", () => {
       "modbus plc.planta.nande",
       "modbus read plc.planta.nande holding",
       "modbus write plc.planta.nande reg 1 90",
+      "modbus sis plc.planta.nande off",
+      "modbus write plc.planta.nande reg 1 130",
     ];
     expect(cmds.length).toBe(steps.length);
     cmds.forEach((cmd, i) => {

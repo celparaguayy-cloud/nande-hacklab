@@ -3,5 +3,5 @@
  * qué build estás corriendo (y confirmar que tomaste la última actualización).
  * Subí el número cuando haya un cambio que el jugador deba poder distinguir.
  */
-export const NANDE_VERSION = "5.86.0";
-export const NANDE_BUILD = "ot-modbus-device-fingerprint";
+export const NANDE_VERSION = "5.87.0";
+export const NANDE_BUILD = "ot-sis-safety-trisis-killchain";
