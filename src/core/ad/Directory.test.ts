@@ -39,6 +39,21 @@ describe("Directory / NandeBlood — el grafo es estado real", () => {
     expect(dir.get("SVC-SQL@NANDE.LOCAL")!.owned).toBe(true);
   });
 
+  it("DCSync exige Domain Admin y luego replica TODOS los hashes, incluido krbtgt", () => {
+    // Sin controlar el dominio, DCSync no procede (necesita replicación).
+    expect(dir.dcsync().ok).toBe(false);
+    // Comprometé el dominio poseyendo un miembro de Domain Admins.
+    dir.own("ADMIN-SQL@NANDE.LOCAL");
+    expect(dir.domainOwned()).toBe(true);
+    const r = dir.dcsync();
+    expect(r.ok).toBe(true);
+    expect(r.krbtgt).toBeTruthy();
+    expect(r.krbtgt).toBe(dir.krbtgtHash());
+    // Vuelca a todas las cuentas del dominio, marcando a los Domain Admins.
+    expect(r.hashes.length).toBe(dir.all().filter((p) => p.kind === "user").length);
+    expect(r.hashes.some((h) => h.isDomainAdmin)).toBe(true);
+  });
+
   it("no podés abusar un borde cuyo origen no poseés", () => {
     // SVC-SQL no está poseído al inicio → no podés abusar su AdminTo.
     const r = dir.abuse("SVC-SQL@NANDE.LOCAL", "DB01@NANDE.LOCAL");

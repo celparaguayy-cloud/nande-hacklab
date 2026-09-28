@@ -267,6 +267,46 @@ export class Directory {
     return fakeHash(name.toUpperCase() + ":NT");
   }
 
+  /** Hash NT de la cuenta krbtgt del dominio: la llave maestra de Kerberos.
+   *  Con ella se forjan Golden Tickets (TGT válidos para cualquier cuenta). */
+  krbtgtHash(): string {
+    return this.ntHash(`KRBTGT@${this.domain}`);
+  }
+
+  /**
+   * DCSync (T1003.006): abusás del derecho de replicación del DC para que te
+   * "replique" TODOS los secretos del dominio — sin tocar cada equipo, sin
+   * sesiones. Requiere privilegios de Domain Admin (replicación). Devuelve el
+   * hash NT de cada cuenta MÁS el de krbtgt (la llave para Golden Ticket). Es
+   * el "game over" de un dominio y la puerta a la persistencia. Emite la señal
+   * para el correlador Purple.
+   */
+  dcsync(): {
+    ok: boolean;
+    message: string;
+    hashes: { name: string; ntHash: string; isDomainAdmin: boolean }[];
+    krbtgt?: string;
+  } {
+    if (!this.domainOwned()) {
+      return {
+        ok: false,
+        hashes: [],
+        message: "DCSync requiere privilegios de replicación (Domain Admins). Todavía no controlás el dominio.",
+      };
+    }
+    this.signal({
+      technique: "OS Credential Dumping: DCSync",
+      tactic: "Credential Access",
+      mitreId: "T1003.006",
+      detail: `Replicación DCSync contra el DC: volcado de TODOS los hashes de ${this.domain}, incluido krbtgt.`,
+      host: this.domain,
+    });
+    const hashes = this.all()
+      .filter((p) => p.kind === "user")
+      .map((p) => ({ name: p.name, ntHash: this.ntHash(p.name), isDomainAdmin: this.isDomainAdmin(p.name) }));
+    return { ok: true, hashes, krbtgt: this.krbtgtHash(), message: `DCSync OK: ${hashes.length} cuentas + krbtgt replicados.` };
+  }
+
   /** ¿El principal está en Domain Admins (MemberOf directo)? */
   isDomainAdmin(name: string): boolean {
     const p = this.resolvePrincipal(name);

@@ -62,4 +62,34 @@ describe("mimikatz — dumpeo de credenciales y Pass-the-Hash reales", () => {
     expect(out).toMatch(/no tenés el hash|incorrecto/i);
     expect(kernel.directory.domainOwned()).toBe(false);
   });
+
+  it("DCSync exige ser Domain Admin: rechaza antes, replica krbtgt después (T1003.006)", () => {
+    // Antes de tomar el dominio, DCSync no procede.
+    const before = term.execute('mimikatz "lsadump::dcsync /domain:nande.local /all"');
+    expect(before).toMatch(/requiere privilegios de replicación|Domain Admins/i);
+    expect(before).not.toContain("KRBTGT");
+
+    // Tomá el dominio y volvé a intentar: replica TODO, incluido krbtgt.
+    kernel.directory.own("ADMIN-SQL@NANDE.LOCAL");
+    expect(kernel.directory.domainOwned()).toBe(true);
+    const out = term.execute('mimikatz "lsadump::dcsync /domain:nande.local /all"');
+    expect(out).toContain("KRBTGT");
+    expect(out).toContain(kernel.directory.krbtgtHash());
+    expect(out).toContain("Golden Ticket");
+    expect(out).toContain("ND{dcsync_krbtgt}");
+    // El SOC lo ve como DCSync (T1003.006).
+    expect(kernel.mitre.recent(30).map((d) => d.mitreId)).toContain("T1003.006");
+  });
+
+  it("coherencia: comprometer el dominio hace REACCIONAR al mundo (noticia + notoriedad)", () => {
+    // Cadena real hasta Domain Admins vía PtH.
+    term.execute("crackmapexec smb dc01.nande.local -u svc-sql -p Verano2024!");
+    term.execute("abuse SVC-SQL@NANDE.LOCAL DB01@NANDE.LOCAL");
+    const before = kernel.reputation().offensive;
+    term.execute('mimikatz "sekurlsa::pth /user:ADMIN-SQL@NANDE.LOCAL"');
+    expect(kernel.directory.domainOwned()).toBe(true);
+    // El mundo titula el compromiso del dominio y sube la notoriedad.
+    expect(kernel.news.latest(20).some((a) => /dominio|Domain Admins/i.test(a.headline))).toBe(true);
+    expect(kernel.reputation().offensive).toBeGreaterThan(before);
+  });
 });

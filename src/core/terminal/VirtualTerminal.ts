@@ -4602,8 +4602,39 @@ export class VirtualTerminal {
       return { output: body, isError: !r.ok };
     }
 
+    // lsadump::dcsync → DCSync REAL (T1003.006): replica TODOS los hashes del
+    // dominio (incl. krbtgt) desde el DC. Exige ser Domain Admin y alcanzar el
+    // DC. Es distinto de logonpasswords (que sólo vuelca sesiones cacheadas).
+    if (/dcsync/.test(cmd)) {
+      const gate = this.requireDc(undefined, 445);
+      if (gate) return { output: `mimikatz: ${gate}\n`, isError: false };
+      const r = dir.dcsync();
+      if (!r.ok) {
+        return {
+          output: `mimikatz # lsadump::dcsync\n[-] ${r.message}\n    Primero tomá el dominio (nandeblood te da la ruta).\n`,
+          isError: false,
+        };
+      }
+      const rows = r.hashes
+        .map((c) => `  ${c.name.padEnd(30)} ${c.ntHash}${c.isDomainAdmin ? "   [★ Domain Admin]" : ""}`)
+        .join("\n");
+      const flagNotes = this.kernel.scanForSignals("ND{dcsync_krbtgt}");
+      return {
+        output:
+          `mimikatz # lsadump::dcsync /domain:${dir.domain} /all\n` +
+          `[DC] '${dir.domain}' replicado desde ${this.kernel.directory.dcHostname}\n\n` +
+          `${rows}\n` +
+          `  ${"KRBTGT (llave del KDC)".padEnd(30)} ${r.krbtgt}   [☠ Golden Ticket]\n\n` +
+          `[★] Con el hash de krbtgt podés forjar Golden Tickets: acceso persistente a CUALQUIER cuenta del dominio, aun si cambian las claves de usuario.\n` +
+          `⚠ DCSync es ruidoso: el DC registra la replicación (evento 4662 / DS-Replication). MITRE T1003.006 — el SOC lo ve.\n` +
+          `ND{dcsync_krbtgt}\n` +
+          (flagNotes.length ? flagNotes.join("\n") + "\n" : ""),
+        isError: false,
+      };
+    }
+
     // sekurlsa::logonpasswords (o lsadump) → volcado de credenciales.
-    if (/logonpasswords|lsadump|sekurlsa|dcsync|sam/.test(cmd) || args.length === 0) {
+    if (/logonpasswords|lsadump|sekurlsa|sam/.test(cmd) || args.length === 0) {
       const creds = dir.dumpableCredentials();
       if (creds.length === 0) {
         return {

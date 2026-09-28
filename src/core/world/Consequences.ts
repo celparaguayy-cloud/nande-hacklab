@@ -341,6 +341,30 @@ const REACTIONS: Record<string, Reaction> = {
     heat: 60,
     faction: { name: "agencia", amount: 30 },
   },
+  /* --- Directorio Activo: comprometer el dominio es la joya de la corona de
+     una intrusión corporativa. Máximo ruido en medios y notoriedad. --- */
+  "ND{dominio_comprometido}": {
+    stock: { ticker: "ÑND", factor: -0.3 },
+    headline: {
+      title: "Toman el control total del dominio corporativo (Domain Admins)",
+      body: "Una cadena de escalada en el Directorio Activo terminó con las llaves del reino: acceso a todas las cuentas y equipos de la organización.",
+      category: "Seguridad",
+    },
+    notoriety: 32,
+    heat: 38,
+    faction: { name: "colectivo", amount: 18 },
+  },
+  "ND{dcsync_krbtgt}": {
+    stock: { ticker: "ÑND", factor: -0.15 },
+    headline: {
+      title: "Filtran la llave maestra de Kerberos (krbtgt) de una empresa",
+      body: "Con un DCSync replicaron el hash de krbtgt: pueden forjar accesos válidos indefinidamente. La única cura es rotar la clave dos veces.",
+      category: "Seguridad",
+    },
+    notoriety: 24,
+    heat: 20,
+    faction: { name: "agencia", amount: 12 },
+  },
 };
 
 export class Consequences {
