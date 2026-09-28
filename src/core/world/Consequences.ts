@@ -277,6 +277,70 @@ const REACTIONS: Record<string, Reaction> = {
     notoriety: 10,
     heat: 12,
   },
+  /* --- OT / control industrial: el daño físico hace MUCHO más ruido que un
+     hack web. El mundo reacciona fuerte (medios, notoriedad, calor). --- */
+  "ND{ot_hmi_tomado}": {
+    headline: {
+      title: "Intrusión en la planta: tomaron la consola del operador (HMI)",
+      body: "Un atacante llegó hasta la red industrial y controla la interfaz que vigila el proceso físico.",
+      category: "Infraestructura crítica",
+    },
+    notoriety: 22,
+    heat: 26,
+  },
+  "ND{ot_plc_control}": {
+    headline: {
+      title: "Un atacante controla el PLC que gobierna la planta",
+      body: "El controlador lógico que maneja bombas y válvulas quedó en manos ajenas. Alarma en el sector industrial.",
+      category: "Infraestructura crítica",
+    },
+    notoriety: 28,
+    heat: 34,
+    faction: { name: "colectivo", amount: 14 },
+  },
+  "ND{ot_sabotaje_fisico}": {
+    stock: { ticker: "ÑND", factor: -0.14 },
+    headline: {
+      title: "Sabotaje industrial: fuerzan el proceso de una planta a sobrepresión",
+      body: "Escrituras Modbus no autorizadas llevaron el proceso a un estado peligroso. Se investiga cómo llegaron a la red OT.",
+      category: "Infraestructura crítica",
+    },
+    notoriety: 26,
+    heat: 32,
+    faction: { name: "colectivo", amount: 12 },
+  },
+  "ND{ot_seguridad_deshabilitada}": {
+    stock: { ticker: "ÑND", factor: -0.2 },
+    headline: {
+      title: "Alerta máxima: deshabilitaron el sistema de seguridad de una planta",
+      body: "Un ataque estilo Triton apagó el SIS que evita catástrofes. Sin esa red, cualquier falla puede volverse física.",
+      category: "Infraestructura crítica",
+    },
+    notoriety: 34,
+    heat: 44,
+    faction: { name: "agencia", amount: 18 },
+  },
+  "ND{ot_planta_en_paro}": {
+    stock: { ticker: "ÑND", factor: -0.18 },
+    headline: {
+      title: "Parada de emergencia en una planta tras un ciberataque",
+      body: "El sistema de seguridad disparó y detuvo la producción para evitar daños. Pérdidas millonarias por el paro.",
+      category: "Infraestructura crítica",
+    },
+    notoriety: 30,
+    heat: 30,
+  },
+  "ND{ot_planta_destruida}": {
+    stock: { ticker: "ÑND", factor: -0.45 },
+    headline: {
+      title: "Catástrofe industrial: un ciberataque destruyó equipos de una planta",
+      body: "Con la seguridad deshabilitada, la sobrepresión rompió la vasija. Daño físico irreversible: es lo que buscaba impedir el SIS.",
+      category: "Infraestructura crítica",
+    },
+    notoriety: 45,
+    heat: 60,
+    faction: { name: "agencia", amount: 30 },
+  },
 };
 
 export class Consequences {

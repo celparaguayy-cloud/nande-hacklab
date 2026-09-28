@@ -242,5 +242,11 @@ describe("Terminal `modbus` — cliente Modbus/TCP contra el PLC (con ruteo real
     expect(ids).toContain("T0879"); // Damage to Property
     expect(ids).toContain("T0880"); // Loss of Safety
     expect(kernel.plc.process("plc.planta.nande")!.safety).toBe("ruptured");
+
+    // Coherencia global (regla 5): el mundo REACCIONA a la catástrofe —
+    // titular en el diario y suba de notoriedad (no sólo una detección aislada).
+    const news = kernel.news.latest(20);
+    expect(news.some((a) => a.category === "Infraestructura crítica" && /destru/i.test(a.headline))).toBe(true);
+    expect(kernel.reputation().offensive).toBeGreaterThan(0);
   });
 });

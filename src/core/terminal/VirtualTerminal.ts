@@ -1433,7 +1433,7 @@ export class VirtualTerminal {
           output:
             `⚠ SIS DESHABILITADO en ${dev.host}. Quitaste la red de seguridad (MITRE T0858 — el SOC lo ve).\n` +
             `Ahora una sobrepresión NO dispara a paro seguro: DESTRUYE la planta. Probá: modbus write ${dev.host} reg 1 130\n` +
-            (notes.length ? notes.join("\n") + "\n" : `${flag}\n`),
+            `${flag}\n` + (notes.length ? notes.join("\n") + "\n" : ""),
           isError: false,
         };
       }
@@ -1520,7 +1520,7 @@ export class VirtualTerminal {
       const notes = this.kernel.scanForSignals(flag);
       sabotage =
         `\n🔥 ROTURA CATASTRÓFICA: sin SIS, la sobrepresión DESTRUYÓ la planta. Daño físico irreversible.\n` +
-        (notes.length ? notes.join("\n") + "\n" : `${flag}\n`);
+        `${flag}\n` + (notes.length ? notes.join("\n") + "\n" : "");
     } else if (sAfter === "sis_trip" && sBefore !== "sis_trip") {
       this.kernel.noteAttackTechnique({
         technique: "Loss of Productivity and Revenue", tactic: "Impact", mitreId: "T0828",
@@ -1532,7 +1532,7 @@ export class VirtualTerminal {
       sabotage =
         `\n🛑 DISPARO DEL SIS: la sobrepresión hizo saltar la seguridad → PARO SEGURO. La planta quedó detenida (producción perdida), pero intacta.\n` +
         `   (Un atacante avanzado deshabilita el SIS ANTES: modbus sis ${dev.host} off — ahí el daño es físico.)\n` +
-        (notes.length ? notes.join("\n") + "\n" : `${flag}\n`);
+        `${flag}\n` + (notes.length ? notes.join("\n") + "\n" : "");
     } else if (hzAfter !== "none" && hzAfter !== hzBefore) {
       this.kernel.noteAttackTechnique({
         technique: "Manipulation of Control", tactic: "Impact", mitreId: "T0831",
@@ -1543,7 +1543,7 @@ export class VirtualTerminal {
       const notes = this.kernel.scanForSignals(flag);
       sabotage =
         `\n☢ IMPACTO FÍSICO: el proceso entró en ${hzAfter.toUpperCase()}.\n` +
-        (notes.length ? notes.join("\n") + "\n" : `${flag}\n`);
+        `${flag}\n` + (notes.length ? notes.join("\n") + "\n" : "");
     }
 
     return {
