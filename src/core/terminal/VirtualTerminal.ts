@@ -134,6 +134,8 @@ const MANPAGES: Record<string, ManPage> = {
     desc: "Post-explotación de credenciales sobre el Directorio REAL. sekurlsa::logonpasswords vuelca los hashes NT de las cuentas con sesión en los EQUIPOS que ya poseés; con sekurlsa::pth te autenticás con ese hash (Pass-the-Hash) sin conocer la clave. Si volcás y reusás el hash de un Domain Admin, caés el dominio entero. Es el puente real entre 'soy admin de esta máquina' y 'soy dueño del dominio'. Alias: secretsdump.", examples: ["mimikatz sekurlsa::logonpasswords", "mimikatz \"sekurlsa::pth /user:ADMIN-SQL@NANDE.LOCAL /ntlm:...\""] },
   certipy: { name: "abuso de AD Certificate Services (ESC1)", synopsis: "certipy find [-vulnerable] | certipy req -template <t> -upn <cuenta> | certipy auth -pfx <cuenta>",
     desc: "Enumera y abusa AD CS (Active Directory Certificate Services) contra la CA REAL del dominio, en dos pasos como la herramienta real. 'certipy find' lista las plantillas y marca las vulnerables a ESC1 (inscripción de bajo privilegio + el solicitante elige el SAN + EKU de autenticación de cliente + sin aprobación de manager). 'certipy req -template <t> -upn <cuenta>' EMITE un certificado impersonando a esa cuenta (te quedás con el .pfx). 'certipy auth -pfx <cuenta>' hace PKINIT con ese cert: te autenticás SIN la contraseña y recuperás su hash NT (UnPAC-the-hash), que alimenta Pass-the-Hash/DCSync/Golden Ticket. Si el UPN es un Domain Admin, caés el dominio. Tercera ruta a DA, distinta de Kerberoasting y AS-REP. Sólo el dominio del sandbox (NANDE.LOCAL). MITRE T1649 (forja) + T1550 (PKINIT).", examples: ["certipy find -vulnerable", "certipy req -template NandeUser -upn ADMIN-SQL@NANDE.LOCAL", "certipy auth -pfx ADMIN-SQL@NANDE.LOCAL"] },
+  op: { name: "operación: tablero de la kill chain entera", synopsis: "op  |  op report",
+    desc: "El tablero de la OPERACIÓN completa: une TODOS los motores en una sola vista profesional. Muestra la kill chain de punta a punta (Reconocimiento → Acceso inicial → Acceso a credenciales → Movimiento lateral → Dominancia de dominio → Impacto), y cada fase se marca lograda DERIVÁNDOLA del estado real del mundo (hosts comprometidos, cuentas de dominio poseídas, pivoteo, Domain Admins, sabotaje OT), no de un guion. Te dice en qué fase estás, el próximo paso concreto, las técnicas ATT&CK que ejecutaste, tu exposición OPSEC y cuánto te contuvo el equipo azul. 'op report' arma el informe after-action. Es la conciencia situacional de un pentest entero.", examples: ["op", "op report"] },
   blueteam: { name: "equipo azul autónomo (defensor NPC)", synopsis: "blueteam [active|monitor|off]",
     desc: "El defensor autónomo, simétrico del red team NPC: DETECTA y RESPONDE solo. En postura 'active', si ejecutás una técnica grave y detectable (DCSync, Golden Ticket, ESC1, sabotaje OT, Kerberoasting/AS-REP), el SOC aplica una contención PROPORCIONAL —aísla tu pivote o deshabilita la cuenta más peligrosa— usando el motor de contención. Enseña OPSEC de verdad: el ruido tiene consecuencias. 'monitor' sólo detecta y avisa; 'off' (por defecto) lo apaga. Sin argumento muestra su estado y sus últimas respuestas.", examples: ["blueteam active", "blueteam", "blueteam off"] },
   contain: { name: "respuesta a incidentes / contención (azul)", synopsis: "contain [plan|auto] | contain host <h> | contain release <h> | contain account <a> | contain enable <a>",
@@ -2399,6 +2401,11 @@ export class VirtualTerminal {
         case "blueteam":
         case "defensor":
           return this.blueteamCmd(commandArgs);
+
+        case "op":
+        case "operacion":
+        case "operación":
+          return this.opCmd(commandArgs);
 
         case "reverse":
         case "crackme":
@@ -7414,6 +7421,49 @@ export class VirtualTerminal {
   }
 
   /**
+   * op / operacion — el tablero de la OPERACIÓN: la kill chain entera (recon →
+   * acceso → credenciales → lateral → dominio → impacto) derivada del estado
+   * REAL de todos los motores, con el próximo paso y la presión del equipo azul.
+   *   op          → tablero de fases + próximo paso.
+   *   op report   → informe after-action, listo para pegar.
+   */
+  private opCmd(args: string[] = []): { output: string; isError: boolean } {
+    const op = this.kernel.operation;
+    if ((args[0] ?? "").toLowerCase() === "report" || (args[0] ?? "").toLowerCase() === "informe") {
+      return { output: `${op.report()}\n`, isError: false };
+    }
+    const s = op.status();
+    const board = s.phases
+      .map((p, i) => {
+        const mark = p.done ? "✔" : (p.id === s.current?.id ? "▶" : "○");
+        return `  ${mark} ${i + 1}. ${p.name.padEnd(22)} [${p.tactic}]\n       ${p.detail}`;
+      })
+      .join("\n");
+    const nextBlock = s.objectiveMet
+      ? (s.impactAchieved
+          ? "🏆 OPERACIÓN COMPLETA: dominio comprometido e impacto logrado."
+          : "🏆 OBJETIVO CUMPLIDO: Domain Admins. (Impacto OT es la fase final opcional.)")
+      : s.current
+        ? `Próximo paso → ${s.current.name}:\n  ${s.current.nextHint}`
+        : "Sin próximo paso.";
+    const blue = s.detections > 0
+      ? `⚠ Equipo azul: ${s.detections} contención(es)` +
+        (s.contained.hosts.length ? ` · aislados: ${s.contained.hosts.join(", ")}` : "") +
+        (s.contained.accounts.length ? ` · deshabilitados: ${s.contained.accounts.join(", ")}` : "")
+      : "Equipo azul: sin respuestas (todavía no te contuvieron).";
+    return {
+      output:
+        `═══ OPERACIÓN · kill chain (${s.completedCount}/${s.totalPhases} fases) ═══\n` +
+        `${board}\n\n` +
+        `Técnicas ATT&CK: ${s.techniques.join(", ") || "(ninguna aún)"}\n` +
+        `OPSEC: ${s.exposed ? "⚠ EXPUESTO" : "🕶️ sin exposición"} · calor ${s.heat} · ${blue}\n\n` +
+        `${nextBlock}\n\n` +
+        `Informe completo: op report\n`,
+      isError: false,
+    };
+  }
+
+  /**
    * NandeReverse — ingeniería inversa sobre un binario REAL de la ÑVM-8.
    *   reverse             → info del crackme y cómo empezar.
    *   reverse hexdump     → bytes del código (o `reverse hexdump data`).
@@ -7836,6 +7886,7 @@ export class VirtualTerminal {
       "  harden-adcs        Azul: endurecé la plantilla ESC1 y cerrá esa ruta a DA",
       "  contain [auto]     Azul: respuesta a incidentes — aislá hosts y deshabilitá cuentas",
       "  blueteam active    Azul autónomo: defensor NPC que te contiene si hacés ruido grave",
+      "  op                 Operación: la kill chain entera + próximo paso (todos los motores)",
       "  mitre              Purple: técnicas ATT&CK detectadas por tus acciones",
       "  redteam [expulsar] Adversario NPC que ataca de verdad; defendé",
       "  reto               Te asignan un objetivo para vulnerar",

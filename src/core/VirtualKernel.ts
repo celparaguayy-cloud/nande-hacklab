@@ -43,6 +43,7 @@ import { ContainerRuntime } from "./cloud/ContainerRuntime";
 import { Investigator } from "./soc/Investigator";
 import { ContainmentEngine } from "./soc/Containment";
 import { BlueTeamResponder } from "./soc/BlueResponder";
+import { OperationEngine } from "./ops/Operation";
 import { Crackme } from "./reversing/Crackme";
 import { OnionRuntime } from "./darkweb/OnionRuntime";
 import { BlogApp, PhotosApp, FilesApp, ToolsApp } from "./http/apps/labs";
@@ -196,6 +197,7 @@ export class VirtualKernel {
   public dfir: Investigator;
   public containment: ContainmentEngine;
   public blueResponder: BlueTeamResponder;
+  public operation: OperationEngine;
   /** Reversing: un crackme con bandera cifrada (XOR real) para revertir. */
   public crackme: Crackme;
   /** Dark web sim: servicios ocultos alcanzables sólo con el circuito activo. */
@@ -464,6 +466,19 @@ export class VirtualKernel {
       // El anonimato pasa a ser una defensa REAL contra el defensor autónomo.
       () => !this.anonymity.isTorEnabled(),
     );
+
+    // Motor de OPERACIÓN: convierte todos los motores en UNA operación coherente.
+    // Deriva el avance de la kill chain (recon → acceso → credenciales → lateral
+    // → dominio → impacto) del estado REAL de cada motor. Es sólo lectura.
+    this.operation = new OperationEngine({
+      compromises: this.compromises,
+      directory: this.directory,
+      mitre: this.mitre,
+      opsec: this.opsec,
+      blue: this.blueResponder,
+      containment: this.containment,
+      flags: () => this.player.capturedFlags(),
+    });
 
     // academy.nande y tools.nande: la biblioteca y la ruta de aprendizaje,
     // navegables como cualquier otro sitio del mundo virtual.

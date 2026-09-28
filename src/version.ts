@@ -3,5 +3,5 @@
  * qué build estás corriendo (y confirmar que tomaste la última actualización).
  * Subí el número cuando haya un cambio que el jugador deba poder distinguir.
  */
-export const NANDE_VERSION = "5.109.0";
-export const NANDE_BUILD = "dns-real-dig-registros-reverso-y-axfr";
+export const NANDE_VERSION = "5.110.0";
+export const NANDE_BUILD = "motor-de-operacion-kill-chain-unificada";
