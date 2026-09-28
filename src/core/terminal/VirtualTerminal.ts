@@ -1335,9 +1335,10 @@ export class VirtualTerminal {
     const positional = args.filter((a) => !a.startsWith("-"));
     let verb = (positional[0] ?? "").toLowerCase();
     let rest = positional.slice(1);
+    if (verb === "discover") verb = "id"; // alias (nmap modbus-discover)
     // `modbus <host>` sin verbo = estado. Detectamos si el primer token es un
     // verbo conocido; si no, lo tratamos como host (atajo de estado).
-    if (verb !== "read" && verb !== "write" && verb !== "status") {
+    if (verb !== "read" && verb !== "write" && verb !== "status" && verb !== "id") {
       rest = positional;
       verb = "status";
     }
@@ -1377,6 +1378,25 @@ export class VirtualTerminal {
 
     if (verb === "status") {
       return { output: this.plcStatusReport(dev.host), isError: false };
+    }
+
+    if (verb === "id") {
+      // Read Device Identification (Modbus fn 43 / MEI 14) + enumeración de
+      // unidades (modbus-discover). Es el fingerprint OT: saber marca/modelo
+      // dice qué soporta el equipo. Modbus no autentica: alcanzar :502 basta.
+      const idn = this.kernel.plc.identify(dev.host)!;
+      return {
+        output:
+          `═══ Modbus — Read Device Identification (fn 43 / MEI 14) — ${dev.host}:502 ═══\n` +
+          `  VendorName:           ${idn.vendorName}\n` +
+          `  ProductCode:          ${idn.productCode}\n` +
+          `  ProductName:          ${idn.productName}\n` +
+          `  MajorMinorRevision:   ${idn.majorMinorRevision}\n` +
+          `  Unit/Slave IDs activos: ${idn.unitIds.join(", ")}\n` +
+          `⚠ Modbus NO autentica: cualquiera que alcance :502 lee y escribe el control.\n` +
+          `Leé el proceso: modbus ${dev.host}   ·   Parámetros: modbus read ${dev.host} holding\n`,
+        isError: false,
+      };
     }
 
     if (verb === "read") {
@@ -7041,6 +7061,7 @@ export class VirtualTerminal {
       "  → desde una máquina comprometida, 'nmap' revela su red INTERNA",
       "",
       "Control industrial / OT (ICS — Modbus/TCP):",
+      "  modbus id <host>              Fingerprint del PLC (marca/modelo/revisión)",
       "  modbus <host>                 Estado del proceso físico del PLC (en vivo)",
       "  modbus read <host> coils|holding|input   Lee puntos del PLC",
       "  modbus write <host> coil <a> <0|1>       Escribe una salida (bomba, modo)",

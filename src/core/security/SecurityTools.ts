@@ -259,7 +259,7 @@ const WORDLIST_PASS: Record<string, string[]> = {
 
 /** Puertos "top" que nmap escanea por defecto (los más comunes, resumido). */
 const TOP_PORTS = [
-  21, 22, 23, 25, 53, 80, 110, 111, 135, 139, 143, 443, 445, 993, 995,
+  21, 22, 23, 25, 53, 80, 110, 111, 135, 139, 143, 443, 445, 502, 993, 995,
   1723, 3306, 3389, 5432, 5900, 6379, 8000, 8080, 8443, 9000, 27017,
 ];
 
@@ -267,9 +267,9 @@ const TOP_PORTS = [
 const SERVICE_NAMES: Record<number, string> = {
   21: "ftp", 22: "ssh", 23: "telnet", 25: "smtp", 53: "domain", 80: "http",
   110: "pop3", 135: "msrpc", 139: "netbios-ssn", 143: "imap", 443: "https",
-  445: "microsoft-ds", 3306: "mysql", 3389: "ms-wbt-server", 5432: "postgresql",
-  5900: "vnc", 6379: "redis", 8080: "http-proxy", 8443: "https-alt",
-  27017: "mongodb",
+  445: "microsoft-ds", 502: "modbus", 3306: "mysql", 3389: "ms-wbt-server",
+  5432: "postgresql", 5900: "vnc", 6379: "redis", 8080: "http-proxy",
+  8443: "https-alt", 27017: "mongodb",
 };
 
 /** Rango [a, b] inclusive. */
@@ -385,7 +385,18 @@ function nseForService(
   const isSsh = /ssh/i.test(name) || port === 22;
   const isHttp = /http|nginx|apache/i.test(name) || port === 80 || port === 8080;
   const isHttps = /https/i.test(name) || port === 443 || port === 8443;
+  const isModbus = /modbus/i.test(name) || port === 502;
   const out: string[] = [];
+
+  if (isModbus) {
+    // modbus-discover: nmap detecta el dispositivo industrial y apunta a la
+    // herramienta que lo enumera de verdad (modbus id). El fingerprint real
+    // vive en el motor ICS (PlcRuntime), fuente única — acá sólo se señala.
+    out.push("| modbus-discover:");
+    out.push("|   Dispositivo Modbus/TCP detectado en 502 (protocolo SIN autenticación)");
+    out.push("|_  Enumeralo: modbus id <host>  →  marca, modelo, revisión y unit IDs");
+    return out;
+  }
 
   if (isSsh) {
     if (vuln) {
@@ -1064,8 +1075,14 @@ const RUNNERS: Record<string, Runner> = {
       ? `PORT      STATE    SERVICE${wantsVersion ? "       VERSION" : ""}\n` + rows.join("\n") + "\n"
       : `Todos los ${scannedLabel} puertos escaneados están cerrados/filtrados.\n`;
 
+    // Fingerprint OT: si el host expone Modbus (o es un equipo industrial), nmap
+    // lo clasifica como dispositivo especializado (SCADA/ICS), no "general
+    // purpose". Es la pista que orienta al pentester hacia la herramienta modbus.
+    const isIcs =
+      [...services.entries()].some(([port, s]) => (port === 502 || /modbus|scada|plc/i.test(s.name)) && s.running) ||
+      /\bplc\b|scada|hmi|industrial|rtos/i.test(os);
     const osLine = wantsOs
-      ? `\nDevice type: general purpose\nRunning: ${os}\nOS details: ${os}\n`
+      ? `\nDevice type: ${isIcs ? "specialized (SCADA/ICS)" : "general purpose"}\nRunning: ${os}\nOS details: ${os}\n`
       : "";
 
     const footer =

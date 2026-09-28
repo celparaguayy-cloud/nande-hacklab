@@ -29,6 +29,21 @@
  * ICS + bandera. Separación limpia, sin red real.
  */
 
+/**
+ * Identificación del dispositivo Modbus (función 43 / MEI type 14, "Read Device
+ * Identification"). Es la huella REAL que un pentester OT lee antes de atacar:
+ * saber marca/modelo/revisión dice qué registros y comandos soporta el equipo.
+ * Modbus NO autentica: cualquiera que alcance el :502 la obtiene.
+ */
+export interface PlcIdentity {
+  vendorName: string;
+  productCode: string;
+  productName: string;
+  majorMinorRevision: string;
+  /** IDs de unidad/esclavo que responden (lo que enumera modbus-discover). */
+  unitIds: number[];
+}
+
 /** Un coil (salida discreta booleana) del PLC. */
 export interface PlcCoil {
   addr: number;
@@ -86,6 +101,7 @@ interface PlcDeviceState {
   host: string;
   ip: string;
   model: string;
+  identity: PlcIdentity;
   coils: PlcCoil[];
   holding: PlcHolding[];
 }
@@ -115,6 +131,13 @@ export class PlcRuntime {
       host: "plc.planta.nande",
       ip: "10.10.77.20",
       model: "ÑandePLC firmware 3.11 (RTOS industrial)",
+      identity: {
+        vendorName: "ÑANDE Industrial",
+        productCode: "NPLC-3000",
+        productName: "ÑandePLC",
+        majorMinorRevision: "3.11",
+        unitIds: [1],
+      },
       coils: [
         { addr: PLC_MAP.COIL_PUMP, label: "Bomba-A", value: true },
         { addr: PLC_MAP.COIL_AUTO, label: "Modo AUTO", value: true },
@@ -147,6 +170,16 @@ export class PlcRuntime {
   device(ref: string): { host: string; ip: string; model: string } | undefined {
     const d = this.find(ref);
     return d ? { host: d.host, ip: d.ip, model: d.model } : undefined;
+  }
+
+  /**
+   * Identificación del dispositivo (Modbus fn 43 / MEI 14). La huella real que
+   * lee el reconocimiento OT: marca, modelo, revisión, e IDs de unidad activos.
+   * Copia defensiva. undefined si `ref` no es un PLC.
+   */
+  identify(ref: string): PlcIdentity | undefined {
+    const d = this.find(ref);
+    return d ? { ...d.identity, unitIds: [...d.identity.unitIds] } : undefined;
   }
 
   /** Coils (salidas discretas) — Modbus función 01. Copia defensiva. */

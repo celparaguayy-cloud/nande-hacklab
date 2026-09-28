@@ -98,6 +98,7 @@ describe("Lecciones nuevas — completables con salida real", () => {
       "connect server.nande soporte Verano2024",
       "connect nas.interna.nande respaldo NasÑande#2024",
       "connect db-core.interna.nande dbadmin Core-DB!2024",
+      "modbus id plc.planta.nande",
       "modbus plc.planta.nande",
       "modbus read plc.planta.nande holding",
       "modbus write plc.planta.nande reg 1 90",

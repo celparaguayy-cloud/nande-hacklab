@@ -868,6 +868,15 @@ export const LESSONS: Lesson[] = [
       },
       {
         explain:
+          "Primero, fingerprint del equipo. 'modbus id' usa la función 43 (Read Device Identification) para sacarle marca, modelo y revisión al PLC. Saber QUÉ dispositivo es te dice qué registros y comandos soporta — y Modbus no pide contraseña para responder.",
+        task: "Escribí: modbus id plc.planta.nande",
+        hint: "modbus id plc.planta.nande",
+        check: (cmd, out) => usedTool(cmd, "modbus") && /NPLC-3000|VendorName/.test(out),
+        debrief:
+          "Es un ÑandePLC (NPLC-3000, rev 3.11), unit ID 1. Con eso ya sabés a qué le estás hablando. En un pentest OT esto es clave: el fingerprint decide el resto del ataque. Ahora leamos el proceso que gobierna.",
+      },
+      {
+        explain:
           "Hablale al PLC: 'modbus <host>' te muestra el proceso físico EN VIVO (nivel del tanque, bomba, válvula, presión). Esto es reconocimiento OT: entender qué controla.",
         task: "Escribí: modbus plc.planta.nande",
         hint: "modbus plc.planta.nande",

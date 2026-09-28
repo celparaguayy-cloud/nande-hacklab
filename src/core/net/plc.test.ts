@@ -83,6 +83,14 @@ describe("PlcRuntime — proceso físico stateful (Modbus/ICS)", () => {
     const inputs = plc.readInputs("plc.planta.nande");
     expect(inputs.map((i) => i.label)).toEqual(["Tanque-1 nivel", "Presión (real)"]);
   });
+
+  it("identify() devuelve la huella Modbus (fn 43): marca, modelo, revisión, unit IDs", () => {
+    const id = plc.identify("plc.planta.nande")!;
+    expect(id.vendorName).toBe("ÑANDE Industrial");
+    expect(id.productCode).toBe("NPLC-3000");
+    expect(id.majorMinorRevision).toBe("3.11");
+    expect(id.unitIds).toContain(1);
+  });
 });
 
 describe("Terminal `modbus` — cliente Modbus/TCP contra el PLC (con ruteo real)", () => {
@@ -120,6 +128,28 @@ describe("Terminal `modbus` — cliente Modbus/TCP contra el PLC (con ruteo real
     expect(status).toContain("AUTO");
     const coils = term.execute("modbus read plc.planta.nande coils");
     expect(coils).toContain("Bomba-A");
+  });
+
+  it("modbus id fingerprintea el PLC (marca/modelo/revisión) — recon OT real", () => {
+    pivotToHistorian();
+    const out = term.execute("modbus id plc.planta.nande");
+    expect(out).toContain("ÑANDE Industrial");
+    expect(out).toContain("NPLC-3000");
+    expect(out).toContain("3.11");
+  });
+
+  it("nmap ve el PLC como dispositivo ICS y modbus-discover apunta al fingerprint", () => {
+    // Puerto 502 en el escaneo por defecto (industrial, ya no se esconde).
+    const scan = kernel.tools.run("nmap", ["plc.planta.nande"]).output;
+    expect(scan).toContain("502/tcp");
+    expect(scan).toContain("modbus");
+    // -O clasifica el equipo como especializado (SCADA/ICS), no general purpose.
+    const os = kernel.tools.run("nmap", ["-O", "plc.planta.nande"]).output;
+    expect(os).toContain("specialized (SCADA/ICS)");
+    // -sC corre modbus-discover, que apunta a la herramienta que lo enumera.
+    const sc = kernel.tools.run("nmap", ["-sC", "plc.planta.nande"]).output;
+    expect(sc).toContain("modbus-discover");
+    expect(sc).toContain("modbus id");
   });
 
   it("escribir el setpoint sabotea el proceso: MITRE ICS (T0836+T0831), bandera y HMI en vivo", () => {
