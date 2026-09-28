@@ -96,7 +96,9 @@ const MANPAGES: Record<string, ManPage> = {
     desc: "Le manda un 'saludito' a una máquina y espera respuesta, como tocar el timbre. Si contesta, está prendida y alcanzable.", examples: ["ping 10.10.5.20", "ping server.nande"] },
   nslookup: { name: "traducir nombre → IP", synopsis: "nslookup <host>",
     desc: "Los humanos usamos nombres (server.nande); las máquinas usan números (IP). Esto traduce el nombre a su número, como una guía telefónica (DNS).", examples: ["nslookup banco.nande"] },
-  chisel: { name: "pivoting por túnel (proxychains/SOCKS)", synopsis: "chisel <host-pivote> | chisel stop [host] | chisel",
+  route: { name: "ruta de pivoteo hasta un host", synopsis: "route <host>",
+    desc: "La cadena de pivotes que hay que atravesar para llegar a un host, derivada de la topología REAL de la red, marcando cuáles ya controlás/tunelizaste y cuáles faltan (público / comprometido / comprometido+túnel / pendiente). Máxima conciencia de red: te dice exactamente qué comprometer y tunelizar para alcanzar el objetivo, y si ya es alcanzable desde tu máquina. Complementa a chisel.", examples: ["route plc.planta.nande", "route db-core.interna.nande"] },
+  chisel: { name: "pivoting por túnel (proxychains/SOCKS)", synopsis: "chisel <host-pivote> | chisel auto | chisel stop [host] | chisel",
     desc: "Pivoting REAL por túnel: levantás un proxy/reenvío (estilo chisel/proxychains/ssh -L) a través de un host que YA comprometiste, y desde TU máquina alcanzás su red interna con TUS herramientas (nmap, connect, curl) — sin estar dentro de una sesión remota. Es como los pros entran a un segmento de atrás: comprometés el pivote y tunelizás. Requiere haber tomado el host (aparece en tu botín) y poder alcanzarlo; si el equipo azul lo AÍSLA (contain host), el túnel muere. 'chisel <pivote>' abre; 'chisel stop' cierra; 'chisel' lista. MITRE T1572. Todo dentro del sandbox.", examples: ["chisel server.nande", "chisel nas.interna.nande", "chisel stop"] },
   dig: { name: "consulta DNS pro (registros, reverso, AXFR)", synopsis: "dig <nombre> [A|TXT|MX|NS|CNAME|ANY] · dig -x <ip> · dig axfr <zona>",
     desc: "La herramienta pro de DNS: consulta registros por TIPO (A=IPv4, TXT=texto, MX=correo, NS=servidores de nombre, CNAME=alias), hace DNS inverso con -x (IP→nombre) y transferencia de zona con 'axfr'. Lee el motor DNS REAL (respeta el envenenamiento de dnsspoof y sigue CNAME). El AXFR es recon de manual: si una zona está mal configurada, 'dig axfr <zona>' vuelca TODOS sus nombres —incluidos hosts internos que de otro modo tendrías que adivinar—. Probá 'dig axfr interna.nande'. Todo 100% dentro del sandbox.", examples: ["dig banco.nande", "dig nande TXT", "dig -x 10.10.7.10", "dig axfr interna.nande"] },
@@ -1342,6 +1344,35 @@ export class VirtualTerminal {
       };
     }
 
+    if (sub === "auto" || sub === "todo") {
+      // Máximo poder: tuneliza por TODOS los hosts comprometidos de una,
+      // enrutando por toda tu infraestructura tomada.
+      const owned = this.kernel.compromises.all().map((c) => c.hostname).filter((h) => !hosts.isIsolated(h));
+      let opened = 0;
+      for (const h of owned) { if (hosts.openTunnel(h)) opened += 1; }
+      if (opened === 0) {
+        return { output: `chisel auto: no hay hosts comprometidos para tunelizar (comprometé alguno primero).\n`, isError: false };
+      }
+      this.kernel.noteAttackTechnique({
+        technique: "Protocol Tunneling (pivot)", tactic: "Command and Control", mitreId: "T1572",
+        detail: `Túneles/proxy montados por ${opened} host(s) comprometido(s): ruta por toda la infraestructura tomada.`,
+        host: owned[0],
+      });
+      // Cerrá la lista con lo que ahora alcanzás internamente.
+      const reachable = hosts.all()
+        .filter((h) => !hosts.isPublic(h.hostname) && !h.isolated && hosts.canReach(null, h.hostname))
+        .map((h) => h.hostname);
+      return {
+        output:
+          `✔ chisel auto: túneles por ${opened} pivote(s) (${owned.join(", ")}).\n` +
+          (reachable.length
+            ? `Red interna alcanzable ahora desde tu máquina:\n${reachable.map((h) => `  • ${h}`).join("\n")}\n`
+            : `(Todavía no se abre ningún segmento interno: comprometé pivotes más profundos.)\n`) +
+          `Ruta a un objetivo: route <host>\n`,
+        isError: false,
+      };
+    }
+
     const active = hosts.activeTunnels();
     if (!sub || sub === "list" || sub === "ls") {
       return {
@@ -1384,6 +1415,57 @@ export class VirtualTerminal {
           ? `Ahora alcanzás su red interna con TUS herramientas:\n${behind.map((h) => `  • ${h}  (probá: nmap ${h})`).join("\n")}\n`
           : `(No hay hosts internos detrás de ${host.hostname} en el mapa actual.)\n`) +
         `Cerrá con: chisel stop ${host.hostname}\n`,
+      isError: false,
+    };
+  }
+
+  /**
+   * route / ruta — la RUTA de pivoteo hasta un host: por qué cadena de pivotes
+   * hay que pasar para llegar (derivada de la topología real), marcando cuáles
+   * ya controlás/tunelizaste y cuáles faltan. Máxima conciencia de red: te dice
+   * exactamente qué tunelizar para alcanzar el objetivo.
+   */
+  private routeCmd(args: string[]): { output: string; isError: boolean } {
+    const target = args.find((a) => !a.startsWith("-"));
+    if (!target) return { output: "uso: route <host>  — cadena de pivoteo hasta un host\n", isError: true };
+    const hosts = this.kernel.hosts;
+    const host = hosts.resolve(target);
+    if (!host) return { output: `route: host desconocido: ${target}\n`, isError: true };
+    const chain = hosts.pivotChain(host.hostname);
+    if (!chain) return { output: `route: no hay ruta topológica conocida hasta ${host.hostname}.\n`, isError: false };
+
+    const compromised = new Set(this.kernel.compromises.all().map((c) => c.hostname.toLowerCase()));
+    const tunnels = new Set(hosts.activeTunnels().map((t) => t.toLowerCase()));
+    const tag = (h: string, isTarget: boolean): string => {
+      const k = h.toLowerCase();
+      if (hosts.isIsolated(h)) return "aislado";
+      if (hosts.isPublic(h)) return "público";
+      if (tunnels.has(k)) return "comprometido+túnel";
+      if (compromised.has(k)) return "comprometido";
+      return isTarget ? "objetivo" : "pendiente";
+    };
+    const drawn = chain.map((h, i) => `${h} [${tag(h, i === chain.length - 1)}]`).join("  →  ");
+    const reachableNow = hosts.canReach(null, host.hostname);
+    // Pivotes intermedios (no públicos, no el objetivo) que faltan tunelizar.
+    const pivots = chain.slice(0, -1).filter((h) => !hosts.isPublic(h));
+    const missing = pivots.filter((h) => !tunnels.has(h.toLowerCase()));
+    const notOwned = pivots.filter((h) => !compromised.has(h.toLowerCase()));
+
+    let advice: string;
+    if (reachableNow) {
+      advice = `✔ Alcanzable AHORA desde tu máquina. Probá: nmap ${host.hostname}`;
+    } else if (notOwned.length) {
+      advice = `Comprometé primero: ${notOwned.join(", ")}  (son pivotes que todavía no controlás).`;
+    } else if (missing.length) {
+      advice = `Tunelizá los pivotes: chisel auto   (o: ${missing.map((h) => `chisel ${h}`).join(" ; ")})`;
+    } else {
+      advice = "Ruta lista.";
+    }
+    return {
+      output:
+        `═══ Ruta de pivoteo a ${host.hostname} (${host.ip}) ═══\n` +
+        `  vos  →  ${drawn}\n` +
+        `${advice}\n`,
       isError: false,
     };
   }
@@ -2244,6 +2326,10 @@ export class VirtualTerminal {
         case "chisel":
         case "socks":
           return this.chiselCmd(commandArgs);
+
+        case "route":
+        case "ruta":
+          return this.routeCmd(commandArgs);
 
         case "netstat":
         case "ss":
@@ -8040,6 +8126,7 @@ export class VirtualTerminal {
       "  nslookup <host>  Resolver un nombre",
       "  dig <n> [tipo]   DNS pro: registros, dig -x <ip> (reverso), dig axfr <zona>",
       "  chisel <pivote>  Pivoting por túnel: alcanzá la red interna de un host comprometido con tus tools",
+      "  chisel auto      Tuneliza por TODA tu infraestructura tomada de una · route <host> muestra la ruta",
       "  nmap <ip>        Escanear puertos (probá: nmap 10.10.5.20)",
       "  academy          Ruta de aprendizaje de ciberseguridad",
       "  learn            Lecciones guiadas (aprendé haciendo)",

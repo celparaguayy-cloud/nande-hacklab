@@ -596,6 +596,28 @@ export class HostRuntime {
     return [...this.tunnelVias].sort();
   }
 
+  /**
+   * Cadena de pivoteo (proxychains) desde una entrada pública hasta `target`,
+   * siguiendo reachableFrom. Devuelve los hostnames en orden (entrada → objetivo),
+   * o null si no hay ruta topológica. Es la RUTA del atacante por la red: por qué
+   * hosts hay que pasar para llegar. No mira túneles ni compromiso: es la
+   * topología pura (qué se necesitaría). Determinista.
+   */
+  pivotChain(target: string, seen: Set<string> = new Set()): string[] | null {
+    const host = this.resolve(target);
+    if (!host) return null;
+    const hn = host.hostname;
+    if (this.isPublic(hn)) return [hn];
+    const key = hn.toLowerCase();
+    if (seen.has(key)) return null; // guarda anti-ciclo
+    seen.add(key);
+    for (const p of host.reachableFrom ?? []) {
+      const sub = this.pivotChain(p, seen);
+      if (sub) return [...sub, hn];
+    }
+    return null;
+  }
+
   /** ¿El host está aislado por contención (IR)? */
   isIsolated(ref: string): boolean {
     return this.resolve(ref)?.isolated ?? false;

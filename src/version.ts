@@ -3,5 +3,5 @@
  * qué build estás corriendo (y confirmar que tomaste la última actualización).
  * Subí el número cuando haya un cambio que el jugador deba poder distinguir.
  */
-export const NANDE_VERSION = "5.115.0";
-export const NANDE_BUILD = "red-profunda-pivoting-por-tunel-chisel";
+export const NANDE_VERSION = "5.116.0";
+export const NANDE_BUILD = "red-al-maximo-ruta-y-pivoteo-automatico";

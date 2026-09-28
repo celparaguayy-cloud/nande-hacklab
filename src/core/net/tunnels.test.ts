@@ -57,6 +57,33 @@ describe("Túneles / pivoting — extienden el alcance del atacante de verdad", 
     expect(kernel.hosts.canReach(null, "db-core.interna.nande")).toBe(false);
   });
 
+  it("route muestra la cadena de pivoteo real hasta el segmento OT", () => {
+    const out = term.execute("route plc.planta.nande");
+    // La topología real: entrada pública → NAS → db-core → HMI → PLC.
+    expect(out).toContain("plc.planta.nande");
+    expect(out).toContain("nas.interna.nande");
+    expect(out).toMatch(/hmi\.planta\.nande|db-core\.interna\.nande/);
+    // Sin comprometer nada, avisa qué pivotes tomar primero.
+    expect(out).toMatch(/Comprometé|pendiente/i);
+  });
+
+  it("chisel auto tuneliza por TODA la infraestructura tomada de una", () => {
+    // Comprometé una cadena de pivotes.
+    for (const h of [
+      { hostname: "nas.interna.nande", ip: "10.10.66.20" },
+      { hostname: "db-core.interna.nande", ip: "10.10.99.10" },
+    ]) {
+      kernel.compromises.record({ hostname: h.hostname, ip: h.ip, os: "x", user: "root", level: "root", via: "server.nande" });
+    }
+    const out = term.execute("chisel auto");
+    expect(out).toMatch(/chisel auto/);
+    // Con ambos pivotes tunelizados, alcanzás el segmento tras db-core (hmi).
+    expect(kernel.hosts.activeTunnels()).toContain("nas.interna.nande");
+    expect(kernel.hosts.activeTunnels()).toContain("db-core.interna.nande");
+    expect(kernel.hosts.canReach(null, "hmi.planta.nande")).toBe(true);
+    expect(kernel.mitre.recent(10).map((d) => d.mitreId)).toContain("T1572");
+  });
+
   it("chisel stop cierra el túnel y vuelve el alcance de siempre", () => {
     kernel.compromises.record({
       hostname: "nas.interna.nande", ip: "10.10.66.20", os: "nas", user: "respaldo", level: "user", via: "server.nande",
