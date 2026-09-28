@@ -134,7 +134,7 @@ const MANPAGES: Record<string, ManPage> = {
     desc: "Post-explotación de credenciales sobre el Directorio REAL. sekurlsa::logonpasswords vuelca los hashes NT de las cuentas con sesión en los EQUIPOS que ya poseés; con sekurlsa::pth te autenticás con ese hash (Pass-the-Hash) sin conocer la clave. Si volcás y reusás el hash de un Domain Admin, caés el dominio entero. Es el puente real entre 'soy admin de esta máquina' y 'soy dueño del dominio'. Alias: secretsdump.", examples: ["mimikatz sekurlsa::logonpasswords", "mimikatz \"sekurlsa::pth /user:ADMIN-SQL@NANDE.LOCAL /ntlm:...\""] },
   certipy: { name: "abuso de AD Certificate Services (ESC1)", synopsis: "certipy find [-vulnerable] | certipy req -template <t> -upn <cuenta> | certipy auth -pfx <cuenta>",
     desc: "Enumera y abusa AD CS (Active Directory Certificate Services) contra la CA REAL del dominio, en dos pasos como la herramienta real. 'certipy find' lista las plantillas y marca las vulnerables a ESC1 (inscripción de bajo privilegio + el solicitante elige el SAN + EKU de autenticación de cliente + sin aprobación de manager). 'certipy req -template <t> -upn <cuenta>' EMITE un certificado impersonando a esa cuenta (te quedás con el .pfx). 'certipy auth -pfx <cuenta>' hace PKINIT con ese cert: te autenticás SIN la contraseña y recuperás su hash NT (UnPAC-the-hash), que alimenta Pass-the-Hash/DCSync/Golden Ticket. Si el UPN es un Domain Admin, caés el dominio. Tercera ruta a DA, distinta de Kerberoasting y AS-REP. Sólo el dominio del sandbox (NANDE.LOCAL). MITRE T1649 (forja) + T1550 (PKINIT).", examples: ["certipy find -vulnerable", "certipy req -template NandeUser -upn ADMIN-SQL@NANDE.LOCAL", "certipy auth -pfx ADMIN-SQL@NANDE.LOCAL"] },
-  op: { name: "operación: tablero de la kill chain entera", synopsis: "op  |  op score  |  op report",
+  op: { name: "operación: tablero de la kill chain entera", synopsis: "op  |  op next  |  op score  |  op report",
     desc: "El tablero de la OPERACIÓN completa: une TODOS los motores en una sola vista profesional. Muestra la kill chain de punta a punta (Reconocimiento → Acceso inicial → Acceso a credenciales → Movimiento lateral → Dominancia de dominio → Impacto), y cada fase se marca lograda DERIVÁNDOLA del estado real del mundo (hosts comprometidos, cuentas de dominio poseídas, pivoteo, Domain Admins, sabotaje OT), no de un guion. Te dice en qué fase estás, el próximo paso concreto, las técnicas ATT&CK que ejecutaste, tu exposición OPSEC y cuánto te contuvo el equipo azul. 'op report' arma el informe after-action. Es la conciencia situacional de un pentest entero.", examples: ["op", "op report"] },
   blueteam: { name: "equipo azul autónomo (defensor NPC)", synopsis: "blueteam [active|monitor|off]",
     desc: "El defensor autónomo, simétrico del red team NPC: DETECTA y RESPONDE solo. En postura 'active', si ejecutás una técnica grave y detectable (DCSync, Golden Ticket, ESC1, sabotaje OT, Kerberoasting/AS-REP), el SOC aplica una contención PROPORCIONAL —aísla tu pivote o deshabilita la cuenta más peligrosa— usando el motor de contención. Enseña OPSEC de verdad: el ruido tiene consecuencias. 'monitor' sólo detecta y avisa; 'off' (por defecto) lo apaga. Sin argumento muestra su estado y sus últimas respuestas.", examples: ["blueteam active", "blueteam", "blueteam off"] },
@@ -7443,6 +7443,15 @@ export class VirtualTerminal {
         isError: false,
       };
     }
+    if (sub === "next" || sub === "siguiente" || sub === "advisor") {
+      const acts = op.nextActions();
+      return {
+        output:
+          `═══ Próximas jugadas (derivadas del estado real) ═══\n` +
+          acts.map((a) => (a.command ? `  ▶ ${a.command}\n       ${a.why}` : `  • ${a.why}`)).join("\n") + "\n",
+        isError: false,
+      };
+    }
     const s = op.status();
     const g = op.grade();
     const board = s.phases
@@ -7451,13 +7460,11 @@ export class VirtualTerminal {
         return `  ${mark} ${i + 1}. ${p.name.padEnd(22)} [${p.tactic}]\n       ${p.detail}`;
       })
       .join("\n");
-    const nextBlock = s.objectiveMet
-      ? (s.impactAchieved
-          ? "🏆 OPERACIÓN COMPLETA: dominio comprometido e impacto logrado."
-          : "🏆 OBJETIVO CUMPLIDO: Domain Admins. (Impacto OT es la fase final opcional.)")
-      : s.current
-        ? `Próximo paso → ${s.current.name}:\n  ${s.current.nextHint}`
-        : "Sin próximo paso.";
+    const acts = op.nextActions();
+    const actLines = acts.map((a) => (a.command ? `  ▶ ${a.command}\n       ${a.why}` : `  • ${a.why}`)).join("\n");
+    const nextBlock = s.objectiveMet && s.impactAchieved
+      ? "🏆 OPERACIÓN COMPLETA: dominio comprometido e impacto logrado."
+      : `Próximas jugadas${s.current ? ` (foco: ${s.current.name})` : ""}:\n${actLines}`;
     const blue = s.detections > 0
       ? `⚠ Equipo azul: ${s.detections} contención(es)` +
         (s.contained.hosts.length ? ` · aislados: ${s.contained.hosts.join(", ")}` : "") +

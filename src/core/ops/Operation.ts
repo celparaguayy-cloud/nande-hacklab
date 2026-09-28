@@ -235,6 +235,53 @@ export class OperationEngine {
     };
   }
 
+  /**
+   * Próximas jugadas CONCRETAS derivadas del estado real (el asesor ofensivo,
+   * espejo del recommend() del ContainmentEngine). No es el consejo genérico de
+   * la fase: lee el grafo de AD, las cuentas con SPN, las plantillas ESC1 y lo ya
+   * comprometido para decir el comando exacto que más te acerca al objetivo.
+   * Regla 15 hecha acción: siempre hay un próximo paso, y es específico.
+   */
+  nextActions(): { command: string; why: string }[] {
+    const dir = this.deps.directory;
+    const out: { command: string; why: string }[] = [];
+
+    if (!dir.domainOwned()) {
+      // 1) Ruta más corta del grafo (NandeBlood): el primer borde abusable.
+      const path = dir.pathToDomainAdmins();
+      const step = path?.[0];
+      if (step && step.type !== "MemberOf") {
+        out.push({ command: `abuse ${step.from} ${step.to}`, why: `avanza hacia Domain Admins por el grafo (${step.how})` });
+      }
+      // 2) Cuenta de servicio con SPN sin poseer → Kerberoasting.
+      const spn = dir.kerberoastable().find((p) => !p.owned && !p.disabled);
+      if (spn) {
+        out.push({ command: `kerberoast ${spn.name}`, why: "cuenta de servicio con SPN: pedí el TGS y crackéalo offline" });
+      }
+      // 3) ADCS ESC1: si hay plantilla vulnerable, impersoná a un Domain Admin.
+      const esc1 = dir.esc1Templates()[0];
+      const da = dir.domainAdmins().find((p) => !p.owned);
+      if (esc1 && da) {
+        out.push({ command: `certipy req -template ${esc1.name} -upn ${da.name}`, why: "ADCS ESC1: emití un cert como un Domain Admin (luego certipy auth)" });
+      }
+    } else {
+      // Ya tenés el dominio: persistencia e impacto (fase final opcional).
+      const flags = this.deps.flags();
+      if (!flags.includes("ND{golden_ticket_persistencia}")) {
+        out.push({ command: "mimikatz lsadump::dcsync", why: "volcá krbtgt para forjar persistencia (Golden Ticket)" });
+      }
+      if (!flags.some((f) => /^ND\{ot_/.test(f))) {
+        out.push({ command: "netmap", why: "buscá el salto IT→OT para el impacto físico (opcional)" });
+      }
+    }
+
+    if (out.length === 0) {
+      const s = this.status();
+      if (s.current) out.push({ command: "", why: s.current.nextHint });
+    }
+    return out.slice(0, 3);
+  }
+
   /** Informe de la operación (after-action report), listo para leer/pegar. */
   report(): string {
     const s = this.status();

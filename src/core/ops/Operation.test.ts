@@ -96,6 +96,27 @@ describe("OperationEngine — la kill chain entera, derivada del estado real", (
     expect(term.execute("op score")).toMatch(/Calificación|[SABCD]\b/);
   });
 
+  it("el asesor da la próxima jugada CONCRETA desde el estado (grafo/SPN/ESC1)", () => {
+    // Desde el foothold inicial, la próxima jugada del grafo es abusar Mesa de Ayuda.
+    const acts = kernel.operation.nextActions();
+    expect(acts.length).toBeGreaterThan(0);
+    const cmds = acts.map((a) => a.command);
+    // Ofrece un abuse del grafo, un kerberoast (SPN) y/o ESC1 (certipy) — comandos reales.
+    expect(cmds.some((c) => /^abuse |^kerberoast |^certipy /.test(c))).toBe(true);
+    const out = term.execute("op next");
+    expect(out).toMatch(/abuse|kerberoast|certipy/);
+  });
+
+  it("cumplido el dominio, el asesor pasa a persistencia/impacto", () => {
+    term.execute("abuse MESA-AYUDA@NANDE.LOCAL LORE.MARTINEZ@NANDE.LOCAL");
+    term.execute("abuse LORE.MARTINEZ@NANDE.LOCAL SVC-SQL@NANDE.LOCAL");
+    term.execute("abuse SVC-SQL@NANDE.LOCAL DB01@NANDE.LOCAL");
+    term.execute("abuse DB01@NANDE.LOCAL ADMIN-SQL@NANDE.LOCAL");
+    expect(kernel.directory.domainOwned()).toBe(true);
+    const cmds = kernel.operation.nextActions().map((a) => a.command).join(" ");
+    expect(cmds).toMatch(/dcsync|netmap/);
+  });
+
   it("el sigilo importa en la nota: la contención del equipo azul resta puntos", () => {
     // Dos mundos: mismo objetivo, distinta discreción.
     const loud = new VirtualKernel();
