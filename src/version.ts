@@ -3,5 +3,5 @@
  * qué build estás corriendo (y confirmar que tomaste la última actualización).
  * Subí el número cuando haya un cambio que el jugador deba poder distinguir.
  */
-export const NANDE_VERSION = "5.93.0";
-export const NANDE_BUILD = "wifi-vector-de-entrada-a-la-lan";
+export const NANDE_VERSION = "5.94.0";
+export const NANDE_BUILD = "ad-dc-host-real-en-la-red";

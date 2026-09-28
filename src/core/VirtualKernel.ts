@@ -874,6 +874,37 @@ export class VirtualKernel {
       });
     }
 
+    // Controlador de dominio (dc01.nande.local): el host REAL que sirve el AD
+    // en la red. Ata la capa de identidad (kernel.directory) a la capa de red:
+    // hay que DESCUBRIRLO y ALCANZARLO (nmap ve sus puertos de AD) antes de
+    // enumerar/kerberoastear el dominio. Fuente única del "quién es el DC":
+    // Directory.dcHostname/dcIp. Los nombres del dominio resuelven a su IP.
+    this.dns.register(this.directory.dcHostname, this.directory.dcIp);
+    this.dns.register("nande.local", this.directory.dcIp);
+    this.dns.register("_kerberos._tcp.nande.local", this.directory.dcIp);
+    this.hosts.register({
+      hostname: this.directory.dcHostname,
+      ip: this.directory.dcIp,
+      os: "Windows Server 2022 (ÑANDE AD DC)",
+      up: true,
+      services: [
+        { name: "kerberos", port: 88, protocol: "tcp", version: "Kerberos (Windows AD)", kind: "other", state: "running", enabled: true },
+        { name: "domain", port: 53, protocol: "tcp", version: "Microsoft DNS (AD)", kind: "dns", state: "running", enabled: true },
+        { name: "ldap", port: 389, protocol: "tcp", version: "Microsoft LDAP (AD DS)", kind: "other", state: "running", enabled: true },
+        { name: "microsoft-ds", port: 445, protocol: "tcp", version: "Windows SMB (AD)", kind: "other", state: "running", enabled: true },
+        { name: "ldaps", port: 636, protocol: "tcp", version: "Microsoft LDAPS (AD DS)", kind: "other", state: "running", enabled: true },
+        { name: "globalcat", port: 3268, protocol: "tcp", version: "LDAP Global Catalog", kind: "other", state: "running", enabled: true },
+        { name: "kpasswd", port: 464, protocol: "tcp", version: "kpasswd (AD)", kind: "other", state: "running", enabled: true },
+      ],
+      firewall: [],
+      processes: [],
+      files: {
+        "/etc/motd": "dc01.nande.local — Controlador de dominio NANDE.LOCAL. Acceso restringido.",
+      },
+      creds: [],
+      flag: undefined,
+    });
+
     // Detrás del WiFi del vecino (Vecino-2G, WPA2 con clave débil "invitado")
     // vive SU LAN doméstica. Este host NO se alcanza desde tu red: sólo cuando
     // crackeás la WiFi (aircrack) y te ASOCIÁS a ella (wifi connect). Es lo que

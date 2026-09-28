@@ -34,6 +34,31 @@ describe("SMB/AD enumeración — reflejan y mutan el dominio real", () => {
     expect(out).toMatch(/sandbox|offline/i);
   });
 
+  it("coherencia AD↔red: el DC es un host REAL descubrible por nmap (puertos de AD)", () => {
+    const scan = term.execute(`nmap ${kernel.directory.dcIp}`);
+    expect(scan).toContain("88/tcp"); // Kerberos
+    expect(scan).toContain("389/tcp"); // LDAP
+    expect(scan).toContain("445/tcp"); // SMB
+    // El dominio resuelve al DC (fuente única).
+    expect(kernel.dns.resolve("nande.local")).toBe(kernel.directory.dcIp);
+  });
+
+  it("coherencia AD↔red: enumerar el dominio exige apuntar al DC real, no a cualquier host", () => {
+    // server.nande existe y es alcanzable, pero NO es el controlador de dominio.
+    const out = term.execute("enum4linux server.nande");
+    expect(out).toMatch(/no es un controlador de dominio|El DC es/i);
+    // Contra el DC sí enumera.
+    expect(term.execute("enum4linux dc01.nande.local")).toContain("SVC-SQL@NANDE.LOCAL");
+  });
+
+  it("coherencia AD↔red: sin ruta al DC no hay Kerberoasting (kerberoast pasa por el KDC)", () => {
+    // Apagá el DC: el KDC deja de responder y el ataque no puede pedir el TGS.
+    kernel.hosts.setHostUp(kernel.directory.dcHostname, false);
+    const out = term.execute("kerberoast SVC-SQL@NANDE.LOCAL");
+    expect(out).toMatch(/DC|ruta|caído|88/i);
+    expect(out).not.toContain("$krb5tgs$");
+  });
+
   it("crackmapexec con la clave correcta compromete la cuenta (estado real)", () => {
     // Antes: SVC-SQL no es tuya.
     expect(kernel.directory.get("SVC-SQL@NANDE.LOCAL")?.owned).toBe(false);

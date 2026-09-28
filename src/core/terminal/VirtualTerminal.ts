@@ -4377,6 +4377,35 @@ export class VirtualTerminal {
   }
 
   /**
+   * ¿Se alcanza el controlador de dominio para atacar el AD? Ata la capa de
+   * identidad a la de red (regla 5): el ataque al dominio pasa por un DC REAL
+   * en la red. `target` (si se da) debe resolver AL DC; y el DC debe ser
+   * alcanzable con su puerto AD abierto (445 SMB por defecto, 88 Kerberos).
+   * Devuelve null si todo bien, o el mensaje de error a mostrar.
+   */
+  private requireDc(target: string | undefined, port = 445): string | null {
+    const dir = this.kernel.directory;
+    if (target && target.trim() !== "") {
+      const ip = this.kernel.dns.resolve(target) ?? target;
+      const host = this.kernel.hosts.resolve(ip);
+      if (!host || host.ip !== dir.dcIp) {
+        return `${target} no es un controlador de dominio de ${dir.domain}. El DC es ${dir.dcHostname} (${dir.dcIp}); encontralo con: nmap ${dir.dcIp}`;
+      }
+    }
+    const probe = this.kernel.hosts.probePort(this.remoteHost, dir.dcHostname, port);
+    if (probe.status === "no-route") {
+      return `no hay ruta hasta el DC ${dir.dcHostname} (${dir.dcIp}): acercate a su red primero.`;
+    }
+    if (probe.status === "down") {
+      return `el DC ${dir.dcHostname} está caído; el dominio no responde.`;
+    }
+    if (probe.status !== "open") {
+      return `el DC ${dir.dcHostname} no expone el puerto ${port} (AD) ahora mismo.`;
+    }
+    return null;
+  }
+
+  /**
    * enum4linux — enumeración del dominio contra el Directorio Activo REAL
    * (kernel.directory). No inventa: refleja los principals vivos (usuarios,
    * grupos, equipos), marca las cuentas con SPN (kerberoasteables) y lo que
@@ -4393,6 +4422,9 @@ export class VirtualTerminal {
         isError: true,
       };
     }
+    // Coherencia (regla 5): la enumeración SMB del dominio pasa por el DC real.
+    const gate = this.requireDc(target, 445);
+    if (gate) return { output: `enum4linux: ${gate}\n`, isError: false };
     const dir = this.kernel.directory;
     const users = dir.all().filter((p) => p.kind === "user");
     const groups = dir.all().filter((p) => p.kind === "group");
@@ -4510,6 +4542,9 @@ export class VirtualTerminal {
     if (!user || !pass) {
       return { output: "crackmapexec: faltan credenciales (-u <usuario> -p <clave>).\n", isError: true };
     }
+    // Coherencia (regla 5): el spray/login SMB va contra el DC real de la red.
+    const gate = this.requireDc(target, 445);
+    if (gate) return { output: `crackmapexec: ${gate}\n`, isError: false };
     const dir = this.kernel.directory;
     const tag = `${proto.toUpperCase()}  ${target.padEnd(18)} 445    ${dir.domain}`;
     // Spray: si el usuario es una lista, probá la clave contra todo el dominio.
@@ -4628,6 +4663,10 @@ export class VirtualTerminal {
         const list = dir.kerberoastable().map((p) => `  ${p.name}  (SPN ${p.spn})`).join("\n");
         return { output: `Cuentas kerberoasteables:\n${list || "  (ninguna)"}\nUso: kerberoast <cuenta>\n`, isError: false };
       }
+      // Coherencia (regla 5): pedir el TGS es hablar con el KDC (Kerberos:88)
+      // del DC real. Sin ruta al DC, no hay Kerberoasting.
+      const gate = this.requireDc(undefined, 88);
+      if (gate) return { output: `kerberoast: ${gate}\n`, isError: false };
       const r = dir.kerberoast(target);
       if (!r.ok) return { output: `✘ ${r.message}\n`, isError: true };
       return {
