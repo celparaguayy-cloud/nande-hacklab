@@ -49,6 +49,30 @@ describe("Investigator (DFIR) — reconstruye desde eventos reales", () => {
     expect(inc.verdict.toLowerCase()).toContain("impacto");
   });
 
+  it("clasifica el compromiso TOTAL del dominio como CRÍTICO (no lo topa en high)", () => {
+    // Cadena de escalada real hasta Domain Admins (emite T1078.002).
+    term.execute("abuse MESA-AYUDA@NANDE.LOCAL LORE.MARTINEZ@NANDE.LOCAL");
+    term.execute("abuse LORE.MARTINEZ@NANDE.LOCAL SVC-SQL@NANDE.LOCAL");
+    term.execute("abuse SVC-SQL@NANDE.LOCAL DB01@NANDE.LOCAL");
+    term.execute("abuse DB01@NANDE.LOCAL ADMIN-SQL@NANDE.LOCAL");
+    expect(kernel.directory.domainOwned()).toBe(true);
+    const inc = kernel.dfir.reconstruct()!;
+    expect(inc.techniques).toContain("T1078.002");
+    expect(inc.severity).toBe("critical");
+    expect(inc.verdict.toLowerCase()).toContain("dominio");
+  });
+
+  it("clasifica el sabotaje físico OT como CRÍTICO (máxima prioridad)", () => {
+    // Señal OT de impacto directa (como la que emite un write Modbus destructivo).
+    kernel.noteAttackTechnique({
+      technique: "Damage to Property", tactic: "Impact", mitreId: "T0879",
+      detail: "Sobrepresión no controlada: daño físico al equipo.", host: "plc.ot",
+    });
+    const inc = kernel.dfir.reconstruct()!;
+    expect(inc.severity).toBe("critical");
+    expect(inc.verdict.toLowerCase()).toMatch(/sabotaje|crítica|físico/);
+  });
+
   it("desde la terminal, 'dfir' muestra la reconstrucción con evidencia", () => {
     for (let i = 0; i < 8 && !kernel.redteam.compromised(); i += 1) {
       kernel.redteam.act(300 + i);

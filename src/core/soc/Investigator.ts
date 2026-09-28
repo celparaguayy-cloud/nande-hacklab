@@ -372,14 +372,25 @@ export class Investigator {
   }
 
   private verdict(techniques: string[], timeline: TimelineEntry[]): string {
+    const some = (set: Set<string>) => techniques.some((t) => set.has(t));
     const hasBrute = techniques.includes("T1110");
     const hasImpact = timeline.some((t) => t.kind === "service.stopped");
-    const hasDomain = techniques.some((t) => t.startsWith("T1078") || t === "T1558.003");
+    const hasOtSabotage = some(OT_CRITICAL);
+    const hasDomainDominance = some(DOMAIN_DOMINANCE);
+    const hasDomainEscalation =
+      some(AD_CRED_ACCESS) || techniques.some((t) => t.startsWith("T1078"));
+    // Prioridad: el daño físico y el control total del dominio son lo peor.
+    if (hasOtSabotage) {
+      return "Sabotaje a infraestructura crítica (OT/ICS): manipulación del proceso físico y/o de la seguridad (SIS). Riesgo de daño físico — máxima prioridad.";
+    }
+    if (hasDomainDominance) {
+      return "Compromiso TOTAL del dominio: DCSync / Golden Ticket / abuso de ADCS o de Domain Admins. El atacante controla el Directorio Activo.";
+    }
     if (hasBrute && hasImpact) {
       return "Intrusión con fuerza bruta seguida de impacto (servicio caído): patrón de ransomware/sabotaje.";
     }
-    if (hasDomain) {
-      return "Actividad de escalada en el dominio (Kerberoasting/abuso de credenciales): posible movimiento lateral.";
+    if (hasDomainEscalation) {
+      return "Actividad de escalada en el dominio (Kerberoasting/AS-REP/ADCS/abuso de credenciales): posible movimiento lateral.";
     }
     if (hasBrute) {
       return "Intentos de acceso por fuerza bruta: reconocimiento activo o intento de intrusión.";
@@ -388,12 +399,45 @@ export class Investigator {
   }
 
   private severity(techniques: string[], timeline: TimelineEntry[]): Incident["severity"] {
+    // Lo verdaderamente crítico: destrucción/sabotaje físico (OT) o control
+    // total del dominio. Antes el DFIR TOPABA en "high" y no reconocía estos
+    // patrones — sub-clasificaba justo los peores incidentes (regla 12/20).
+    if (techniques.some((t) => OT_CRITICAL.has(t) || DOMAIN_DOMINANCE.has(t))) return "critical";
     if (timeline.some((t) => t.kind === "service.stopped")) return "high";
     if (techniques.length >= 2) return "high";
     if (techniques.length === 1) return "medium";
     return "low";
   }
 }
+
+/**
+ * Técnicas OT/ICS de máxima gravedad: manipulación del proceso, daño físico y
+ * deshabilitar la seguridad (estilo Triton/TRISIS). Su sola presencia hace el
+ * incidente CRÍTICO — es lo que un analista prioriza sobre cualquier otra cosa.
+ */
+const OT_CRITICAL = new Set([
+  "T0831", // Manipulation of Control
+  "T0879", // Damage to Property
+  "T0880", // Loss of Safety
+  "T0828", // Loss of Productivity and Revenue
+  "T0858", // Change Operating Mode (deshabilitar el SIS)
+]);
+
+/** Control total del dominio: el "game over" de una intrusión corporativa. */
+const DOMAIN_DOMINANCE = new Set([
+  "T1078.002", // Domain Accounts (compromiso de Domain Admins)
+  "T1003.006", // DCSync
+  "T1558.001", // Golden Ticket
+]);
+
+/** Acceso a credenciales del AD: escalada/movimiento lateral (grave, no crítico solo). */
+const AD_CRED_ACCESS = new Set([
+  "T1558.003", // Kerberoasting
+  "T1558.004", // AS-REP Roasting
+  "T1649", // ADCS ESC1 (forja de certificado)
+  "T1550", // PKINIT / Pass-the-Certificate / Pass-the-Hash
+  "T1550.002", // Pass-the-Hash
+]);
 
 /**
  * Huella determinista del contenido (FNV-1a de 64 bits, en dos mitades). No es

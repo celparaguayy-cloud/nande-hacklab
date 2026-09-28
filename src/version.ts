@@ -3,5 +3,5 @@
  * qué build estás corriendo (y confirmar que tomaste la última actualización).
  * Subí el número cuando haya un cambio que el jugador deba poder distinguir.
  */
-export const NANDE_VERSION = "5.104.0";
-export const NANDE_BUILD = "siem-cobertura-total-ot-mitm-recon-coleccion";
+export const NANDE_VERSION = "5.105.0";
+export const NANDE_BUILD = "dfir-clasifica-ot-y-dominio-como-critico";
