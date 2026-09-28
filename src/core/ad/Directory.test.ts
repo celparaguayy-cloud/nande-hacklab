@@ -112,6 +112,44 @@ describe("Directory / NandeBlood — el grafo es estado real", () => {
     expect(nodes).not.toContain("SVC-SQL@NANDE.LOCAL");
   });
 
+  it("ADCS ESC1: una plantilla vulnerable deja impersonar a un DA y cae el dominio (T1649)", () => {
+    // La CA publica una plantilla vulnerable (NandeUser) y una segura (WebServer).
+    expect(dir.esc1Vulnerable("NandeUser")).toBe(true);
+    expect(dir.esc1Vulnerable("WebServer")).toBe(false);
+    expect(dir.esc1Templates().map((t) => t.name)).toEqual(["NandeUser"]);
+    // Antes de pedir el cert no controlás el dominio; el DBA no es tuyo.
+    expect(dir.domainOwned()).toBe(false);
+    expect(dir.get("ADMIN-SQL@NANDE.LOCAL")!.owned).toBe(false);
+    // ESC1: desde el foothold (JUGADOR) pedís un cert con SAN = un Domain Admin.
+    const r = dir.requestCertificate("NandeUser", "ADMIN-SQL@NANDE.LOCAL");
+    expect(r.ok).toBe(true);
+    expect(r.certificate).toContain("SAN(UPN)=ADMIN-SQL@NANDE.LOCAL");
+    expect(r.domainOwned).toBe(true);
+    // Consecuencia REAL: poseés al DBA (impersonado) → dominio comprometido.
+    expect(dir.get("ADMIN-SQL@NANDE.LOCAL")!.owned).toBe(true);
+    expect(dir.domainOwned()).toBe(true);
+  });
+
+  it("ESC1: la plantilla segura NO es explotable y explica qué condición falta", () => {
+    const r = dir.requestCertificate("WebServer", "ADMIN-SQL@NANDE.LOCAL");
+    expect(r.ok).toBe(false);
+    expect(r.message).toMatch(/no es vulnerable a ESC1/);
+    expect(dir.domainOwned()).toBe(false);
+    // Una plantilla inexistente tampoco emite nada.
+    expect(dir.requestCertificate("NoExiste", "ADMIN-SQL@NANDE.LOCAL").ok).toBe(false);
+  });
+
+  it("ESC1 es una TERCERA ruta a DA, independiente de Kerberoasting y AS-REP", () => {
+    // Sin tocar SVC-SQL ni LEGACY-SVC: el foothold llega directo a DA por ADCS.
+    expect(dir.get("SVC-SQL@NANDE.LOCAL")!.owned).toBe(false);
+    expect(dir.get("LEGACY-SVC@NANDE.LOCAL")!.owned).toBe(false);
+    dir.requestCertificate("NandeUser", "ADMIN-SQL@NANDE.LOCAL");
+    expect(dir.domainOwned()).toBe(true);
+    // No pasó por las otras cuentas de servicio.
+    expect(dir.get("SVC-SQL@NANDE.LOCAL")!.owned).toBe(false);
+    expect(dir.get("LEGACY-SVC@NANDE.LOCAL")!.owned).toBe(false);
+  });
+
   it("no podés abusar un borde cuyo origen no poseés", () => {
     // SVC-SQL no está poseído al inicio → no podés abusar su AdminTo.
     const r = dir.abuse("SVC-SQL@NANDE.LOCAL", "DB01@NANDE.LOCAL");

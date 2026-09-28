@@ -130,6 +130,8 @@ const MANPAGES: Record<string, ManPage> = {
     desc: "Prueba credenciales por SMB contra el dominio REAL. Si la clave es la de la cuenta, entrás y la POSEÉS (el grafo de NandeBlood se recalcula); marca (Pwn3d!) si esa cuenta es admin local de un equipo. Con una lista de usuarios hace password spraying. Alias: cme, nxc. Sólo objetivos del sandbox.", examples: ["crackmapexec smb dc01.nande.local -u svc-sql -p 'Verano2024!'", "cme smb nande.local -u users.txt -p 'Verano2024!'"] },
   mimikatz: { name: "volcado de credenciales y Pass-the-Hash", synopsis: "mimikatz sekurlsa::logonpasswords  |  mimikatz \"sekurlsa::pth /user:<cuenta> /ntlm:<hash>\"",
     desc: "Post-explotación de credenciales sobre el Directorio REAL. sekurlsa::logonpasswords vuelca los hashes NT de las cuentas con sesión en los EQUIPOS que ya poseés; con sekurlsa::pth te autenticás con ese hash (Pass-the-Hash) sin conocer la clave. Si volcás y reusás el hash de un Domain Admin, caés el dominio entero. Es el puente real entre 'soy admin de esta máquina' y 'soy dueño del dominio'. Alias: secretsdump.", examples: ["mimikatz sekurlsa::logonpasswords", "mimikatz \"sekurlsa::pth /user:ADMIN-SQL@NANDE.LOCAL /ntlm:...\""] },
+  certipy: { name: "abuso de AD Certificate Services (ESC1)", synopsis: "certipy find [-vulnerable]  |  certipy req -template <t> -upn <cuenta>",
+    desc: "Enumera y abusa AD CS (Active Directory Certificate Services) contra la CA REAL del dominio. 'certipy find' lista las plantillas de certificado y marca las vulnerables a ESC1 (inscripción de bajo privilegio + el solicitante elige el SAN + EKU de autenticación de cliente + sin aprobación de manager). 'certipy req -template <t> -upn <cuenta>' pide a la CA un certificado impersonando a esa cuenta: con él te autenticás por PKINIT SIN su contraseña. Si el UPN es un Domain Admin, caés el dominio. Es una tercera ruta a DA, distinta de Kerberoasting y AS-REP. Sólo el dominio del sandbox (NANDE.LOCAL). MITRE T1649.", examples: ["certipy find -vulnerable", "certipy req -template NandeUser -upn ADMIN-SQL@NANDE.LOCAL"] },
   grep: { name: "buscar texto", synopsis: "... | grep <palabra>",
     desc: "Filtra líneas que contienen una palabra. Se usa con | (pipe) para quedarte solo con lo que importa de una salida larga.", examples: ["cat notas.txt | grep clave"] },
   learn: { name: "lecciones guiadas", synopsis: "learn [id]",
@@ -2217,6 +2219,7 @@ export class VirtualTerminal {
         case "asrep-roast":
         case "crack-tgs":
         case "abuse":
+        case "certipy":
           return this.adCmd(command, commandArgs);
 
         case "rotate-krbtgt":
@@ -4470,6 +4473,13 @@ export class VirtualTerminal {
         `    Siguiente paso: asreproast <cuenta> → hash crackeable SIN credenciales.`,
       );
     }
+    const esc1 = dir.esc1Templates();
+    if (esc1.length) {
+      out.push(
+        `[!] AD CS detectado (CA ${dir.caName}). ${esc1.length} plantilla(s) vulnerable(s) a ESC1: ${esc1.map((t) => t.name).join(", ")}`,
+        `    Siguiente paso: certipy find → enumerá la CA; certipy req -template <t> -upn <DA> → impersoná a un Domain Admin.`,
+      );
+    }
     out.push(`\nGrafo completo y ruta a Domain Admins: nandeblood.`);
     return { output: out.join("\n") + "\n", isError: false };
   }
@@ -4808,6 +4818,84 @@ export class VirtualTerminal {
       const r = dir.abuse(from, to);
       const suffix = r.ok && dir.domainOwned() ? this.onDomainOwned() : "";
       return { output: `${r.ok ? "✔" : "✘"} ${r.message}\n${suffix}`, isError: !r.ok };
+    }
+
+    if (command === "certipy") {
+      const sub = (args[0] ?? "find").toLowerCase();
+      const flagVal = (name: string): string | undefined => {
+        const i = args.findIndex((a) => a === name);
+        return i >= 0 ? args[i + 1] : undefined;
+      };
+      // Coherencia (regla 5): certipy habla con la CA, que en este dominio corre
+      // SOBRE el DC (AD CS + AD DS en dc01). Sin ruta al DC (LDAP/SMB:445), no hay
+      // enumeración ni emisión de certificados.
+      const gate = this.requireDc(undefined, 445);
+      if (gate) return { output: `certipy: ${gate}\n`, isError: false };
+
+      if (sub === "find") {
+        const onlyVuln = args.includes("-vulnerable") || args.includes("--vulnerable");
+        const templates = onlyVuln ? dir.esc1Templates() : dir.certTemplates();
+        const lines = templates.map((t) => {
+          const vuln = dir.esc1Vulnerable(t.name);
+          const props =
+            `        Enrollee Supplies Subject : ${t.enrolleeSuppliesSubject}\n` +
+            `        Client Authentication     : ${t.clientAuth}\n` +
+            `        Enroll (usuarios dominio) : ${t.lowPrivEnroll}\n` +
+            `        Requiere aprobación manager: ${t.managerApproval}`;
+          return `  • ${t.name}${vuln ? "   [ESC1 — VULNERABLE]" : ""}\n${props}${t.note ? `\n        ↳ ${t.note}` : ""}`;
+        });
+        const vuln = dir.esc1Templates();
+        const das = dir.domainAdmins().map((p) => p.name);
+        return {
+          output:
+            `Certipy v4 · Active Directory Certificate Services\n` +
+            `[*] CA empresarial: ${dir.caName} (rol AD CS sobre ${dir.dcHostname})\n` +
+            `[*] Plantillas${onlyVuln ? " vulnerables" : ""} (${templates.length}):\n` +
+            `${lines.join("\n") || "  (ninguna)"}\n` +
+            (vuln.length
+              ? `\n[!] ESC1: pedí un cert impersonando a un Domain Admin y autenticate como él.\n` +
+                `    certipy req -template ${vuln[0].name} -upn ${das[0] ?? "<domain-admin>"}\n` +
+                (das.length ? `    Domain Admins: ${das.join(", ")}\n` : `    (encontrá los DA con: nandeblood / enum4linux)\n`)
+              : ``),
+          isError: false,
+        };
+      }
+
+      if (sub === "req" || sub === "request") {
+        const template = flagVal("-template") ?? flagVal("--template");
+        const upn = flagVal("-upn") ?? flagVal("--upn") ?? flagVal("-target") ?? args.slice(1).find((a) => a.includes("@"));
+        if (!template || !upn) {
+          return {
+            output:
+              `uso: certipy req -template <plantilla> -upn <cuenta-a-impersonar>\n` +
+              `(enumerá primero con: certipy find -vulnerable)\n`,
+            isError: true,
+          };
+        }
+        const r = dir.requestCertificate(template, upn);
+        if (!r.ok) return { output: `✘ certipy req: ${r.message}\n`, isError: true };
+        // ESC1 tiene DOS consecuencias reales: la bandera de la técnica
+        // (ND{adcs_esc1}, reacción del mundo) y, si impersonaste a un Domain
+        // Admin, la caída del dominio (ND{dominio_comprometido} vía onDomainOwned).
+        const esc1Notes = this.kernel.scanForSignals("ND{adcs_esc1}");
+        const domainSuffix = r.domainOwned ? this.onDomainOwned() : `\nMirá la ruta restante con: nandeblood\n`;
+        return {
+          output:
+            `Certipy v4 · ESC1\n` +
+            `[*] Solicitando certificado a ${dir.caName} en la plantilla '${template}'\n` +
+            `[*] SAN (UPN) solicitado: ${r.principal}\n` +
+            `[+] ${r.message}\n\n${r.certificate}\n\n` +
+            `ND{adcs_esc1}\n` +
+            (esc1Notes.length ? esc1Notes.join("\n") + "\n" : "") +
+            domainSuffix,
+          isError: false,
+        };
+      }
+
+      return {
+        output: `certipy: subcomando desconocido "${sub}". Usá:\n  certipy find [-vulnerable]\n  certipy req -template <t> -upn <cuenta>\n`,
+        isError: true,
+      };
     }
 
     // nandeblood / bloodhound: el grafo + la ruta más corta a Domain Admins.
@@ -7198,7 +7286,8 @@ export class VirtualTerminal {
       `   capturados ahora: ${k.shark.count()} paquete(s)`,
       "",
       "🩸 NandeBlood — Directorio Activo como grafo de ataque",
-      "   nandeblood · kerberoast <cuenta> · crack-tgs · abuse <o> <d>",
+      "   nandeblood · kerberoast <cuenta> · asreproast · crack-tgs · abuse <o> <d>",
+      "   certipy find -vulnerable · certipy req -template <t> -upn <cuenta>  (ADCS/ESC1)",
       `   dominio ${k.directory.domain}: ${dom ? "🔴 COMPROMETIDO" : "en pie"}`,
       "",
       "🎯 MITRE ATT&CK — Purple Team (tus ataques encienden detecciones)",
@@ -7424,6 +7513,7 @@ export class VirtualTerminal {
       "  sniff [filtro]     NandeShark: capturá el tráfico REAL (creds en claro)",
       "  nandeblood         AD: grafo de ataque y ruta a Domain Admins",
       "  kerberoast · asreproast · crack-tgs · abuse   Escalada en el dominio virtual",
+      "  certipy find/req   ADCS: abusá una plantilla ESC1 → impersoná un Domain Admin",
       "  enum4linux <dc>    Enumerá el dominio (contra el DC real)",
       "  mimikatz dcsync / kerberos::golden   Volcá krbtgt y forjá persistencia",
       "  rotate-krbtgt      Azul: rotá krbtgt (x2) para matar un Golden Ticket",

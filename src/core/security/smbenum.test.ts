@@ -113,4 +113,36 @@ describe("SMB/AD enumeración — reflejan y mutan el dominio real", () => {
     term.execute("crack-tgs LEGACY-SVC@NANDE.LOCAL Legacy2019!");
     expect(kernel.directory.get("LEGACY-SVC@NANDE.LOCAL")?.owned).toBe(true);
   });
+
+  it("ADCS/ESC1 por terminal: enum lo pistea, certipy find lo marca y certipy req cae el dominio (T1649)", () => {
+    // enum4linux descubre AD CS y la plantilla vulnerable.
+    const en = term.execute("enum4linux nande.local");
+    expect(en).toContain("AD CS detectado");
+    expect(en).toContain("ESC1");
+    // certipy find -vulnerable enumera la plantilla vulnerable REAL de la CA.
+    const find = term.execute("certipy find -vulnerable");
+    expect(find).toContain("NandeUser");
+    expect(find).toContain("VULNERABLE");
+    // certipy req impersona a un Domain Admin → dominio comprometido de verdad.
+    const req = term.execute("certipy req -template NandeUser -upn ADMIN-SQL@NANDE.LOCAL");
+    expect(req).toContain("ND{adcs_esc1}");
+    expect(req).toContain("ND{dominio_comprometido}");
+    expect(kernel.directory.domainOwned()).toBe(true);
+    // Señal MITRE T1649 emitida (Purple la ve) y banderas capturadas de verdad.
+    expect(kernel.mitre.recent(20).map((d) => d.mitreId)).toContain("T1649");
+    const flags = kernel.player.capturedFlags();
+    expect(flags).toContain("ND{adcs_esc1}");
+    expect(flags).toContain("ND{dominio_comprometido}");
+  });
+
+  it("ESC1 exige alcanzar la CA/DC real y la plantilla segura NO explota", () => {
+    // Sin ruta al DC (caído), certipy no enumera ni emite.
+    kernel.hosts.setHostUp(kernel.directory.dcHostname, false);
+    expect(term.execute("certipy find")).toMatch(/DC|ruta|caído/i);
+    kernel.hosts.setHostUp(kernel.directory.dcHostname, true);
+    // La plantilla segura no es explotable por ESC1.
+    const req = term.execute("certipy req -template WebServer -upn ADMIN-SQL@NANDE.LOCAL");
+    expect(req).toMatch(/no es vulnerable a ESC1/);
+    expect(kernel.directory.domainOwned()).toBe(false);
+  });
 });

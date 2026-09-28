@@ -63,6 +63,30 @@ export interface AttackSignal {
   host: string;
 }
 
+/**
+ * Plantilla de certificado de ADCS (Active Directory Certificate Services).
+ * Una plantilla mal configurada ES la vulnerabilidad ESC1: si un usuario de
+ * bajo privilegio puede inscribirse (lowPrivEnroll), la plantilla sirve para
+ * autenticación de cliente (clientAuth), el solicitante elige el sujeto/SAN
+ * (enrolleeSuppliesSubject) y NO exige aprobación de un manager
+ * (managerApproval=false), entonces cualquiera puede pedir un certificado que
+ * IMPERSONA a cualquier cuenta —incluido un Domain Admin— y autenticarse como
+ * ella por PKINIT, sin su contraseña. Es la escalada de AD más directa de los
+ * últimos años (Certified Pre-Owned, SpecterOps 2021).
+ */
+export interface CertTemplate {
+  name: string;
+  /** Usuarios de dominio (bajo privilegio) pueden inscribirse. */
+  lowPrivEnroll: boolean;
+  /** El solicitante elige el sujeto/SAN: puede pedir un cert "en nombre de" otro. */
+  enrolleeSuppliesSubject: boolean;
+  /** EKU de Client Authentication: el certificado sirve para autenticarse (PKINIT). */
+  clientAuth: boolean;
+  /** Exige que un manager apruebe la emisión (si es true, ESC1 no aplica). */
+  managerApproval: boolean;
+  note?: string;
+}
+
 const DA_GROUP = "DOMAIN ADMINS@NANDE.LOCAL";
 
 export class Directory {
@@ -76,6 +100,11 @@ export class Directory {
    *  grafo) y la capa de red: hay que ALCANZARLO para atacar el dominio. */
   readonly dcHostname = "dc01.nande.local";
   readonly dcIp = "10.10.0.6";
+  /** La CA empresarial de ADCS. En este dominio corre sobre el mismo DC
+   *  (rol AD CS + AD DS en dc01), como en muchas PyMEs reales. Alcanzarla es
+   *  alcanzar el DC (LDAP/SMB): por eso `certipy` pasa por la misma puerta. */
+  readonly caName = "NANDE-CA";
+  private certTemplatesList: CertTemplate[] = [];
 
   constructor(onSignal?: (s: AttackSignal) => void) {
     this.onSignal = onSignal;
@@ -130,6 +159,17 @@ export class Directory {
     this.edge("LEGACY-SVC@NANDE.LOCAL", "FILE01@NANDE.LOCAL", "AdminTo");
     this.edge("ADMIN-SQL@NANDE.LOCAL", "FILE01@NANDE.LOCAL", "HasSession");
     this.edge("FILE01@NANDE.LOCAL", "ADMIN-SQL@NANDE.LOCAL", "HasSession");
+
+    // ADCS: la CA NANDE-CA publica dos plantillas. Una VULNERABLE (ESC1: mala
+    // config completa) y una segura de contraste. La vulnerable habilita una
+    // TERCERA ruta a Domain Admins (regla 11), independiente de Kerberoasting y
+    // de AS-REP: un usuario de dominio pide un cert impersonando al DBA (DA).
+    this.certTemplatesList = [
+      { name: "NandeUser", lowPrivEnroll: true, enrolleeSuppliesSubject: true, clientAuth: true, managerApproval: false,
+        note: "Plantilla heredada de una migración: cualquier usuario de dominio se inscribe, elige el SAN y obtiene un cert de autenticación. ESC1." },
+      { name: "WebServer", lowPrivEnroll: false, enrolleeSuppliesSubject: false, clientAuth: false, managerApproval: true,
+        note: "Plantilla de servidores web (sin EKU de autenticación de cliente): no explotable por ESC1." },
+    ];
 
     // El foothold ya hereda su membresía inicial (Mesa de Ayuda).
     this.propagateMembership();
@@ -259,6 +299,92 @@ export class Directory {
       return { ok: true, message: `¡Clave crackeada! Poseés ${p.name} (${guess}).` };
     }
     return { ok: false, message: `Clave incorrecta para ${p.name}` };
+  }
+
+  /* ---------------------------------------------------- ADCS / ESC1 (T1649) */
+
+  /** Las plantillas de certificado publicadas en la CA del dominio (lo que
+   *  enumera `certipy find`). Copia defensiva: no se muta desde afuera. */
+  certTemplates(): CertTemplate[] {
+    return this.certTemplatesList.map((t) => ({ ...t }));
+  }
+
+  /**
+   * ¿La plantilla es vulnerable a ESC1? Las CUATRO condiciones a la vez:
+   * inscripción de bajo privilegio + el solicitante elige el SAN + EKU de
+   * autenticación de cliente + sin aprobación de manager. Si falta una, no.
+   */
+  esc1Vulnerable(name: string): boolean {
+    const t = this.certTemplatesList.find((c) => c.name.toUpperCase() === name.toUpperCase());
+    return Boolean(t && t.lowPrivEnroll && t.enrolleeSuppliesSubject && t.clientAuth && !t.managerApproval);
+  }
+
+  /** Plantillas vulnerables a ESC1 (lo que reporta `certipy find -vulnerable`). */
+  esc1Templates(): CertTemplate[] {
+    return this.certTemplates().filter((t) => this.esc1Vulnerable(t.name));
+  }
+
+  /**
+   * ESC1 (T1649 — Steal or Forge Authentication Certificates): pedís a la CA un
+   * certificado en una plantilla vulnerable eligiendo el SAN de la cuenta que
+   * querés IMPERSONAR. Con ese cert te autenticás por PKINIT como esa cuenta —
+   * sin su contraseña. Condiciones reales: (1) la plantilla es ESC1-vulnerable;
+   * (2) tenés un foothold de dominio (una cuenta poseída con la que inscribirte);
+   * (3) la cuenta objetivo existe. Efecto REAL: poseés la cuenta impersonada, y
+   * NandeBlood/Consecuencias lo ven. Si es Domain Admin, cae el dominio. Es una
+   * tercera ruta a DA, distinta de Kerberoasting (SVC-SQL) y de AS-REP (LEGACY).
+   */
+  requestCertificate(templateName: string, targetUpn: string): {
+    ok: boolean;
+    certificate?: string;
+    domainOwned: boolean;
+    principal?: string;
+    message: string;
+  } {
+    if (!this.esc1Vulnerable(templateName)) {
+      const t = this.certTemplatesList.find((c) => c.name.toUpperCase() === templateName.toUpperCase());
+      return {
+        ok: false,
+        domainOwned: this.domainOwned(),
+        message: t
+          ? `la plantilla ${t.name} no es vulnerable a ESC1 (falta: ${esc1Missing(t).join("; ")})`
+          : `no existe la plantilla "${templateName}" en la CA ${this.caName}`,
+      };
+    }
+    // Necesitás una identidad de dominio con la que inscribirte (foothold).
+    const enroller = this.owned().find((p) => p.kind === "user");
+    if (!enroller) {
+      return { ok: false, domainOwned: this.domainOwned(), message: `necesitás una cuenta de dominio poseída para inscribirte en ${this.caName}` };
+    }
+    const target = this.resolvePrincipal(targetUpn);
+    if (!target || target.kind !== "user") {
+      return { ok: false, domainOwned: this.domainOwned(), message: `cuenta objetivo desconocida: ${targetUpn}` };
+    }
+    this.signal({
+      technique: "Steal or Forge Authentication Certificates",
+      tactic: "Credential Access",
+      mitreId: "T1649",
+      detail: `ESC1: ${this.caName} emitió un certificado en la plantilla ${templateName} con SAN=${target.name} (solicitado por ${enroller.name}; impersona a ${target.name}).`,
+      host: this.domain,
+    });
+    this.own(target.name);
+    if (this.domainOwned()) {
+      this.signal({
+        technique: "Domain Dominance",
+        tactic: "Impact",
+        mitreId: "T1078.002",
+        detail: `Compromiso de Domain Admins en ${this.domain} vía ADCS ESC1 (certificado de ${target.name}).`,
+        host: this.domain,
+      });
+    }
+    const certificate = `-----BEGIN CERTIFICATE (PFX)-----\n${fakeHash(this.caName + templateName + target.name)}\nSAN(UPN)=${target.name}\n-----END CERTIFICATE-----`;
+    return {
+      ok: true,
+      certificate,
+      domainOwned: this.domainOwned(),
+      principal: target.name,
+      message: `Certificado ESC1 emitido por ${this.caName}: te autenticás como ${target.name} (PKINIT).${this.domainOwned() ? " — ¡DOMINIO COMPROMETIDO!" : ""}`,
+    };
   }
 
   /* ------------------------------------------- Golden Ticket / persistencia */
@@ -749,6 +875,16 @@ function howTo(type: EdgeType): string {
     case "ForceChangePassword": return "le cambiás la contraseña y entrás";
     case "CanRDP": return "te conectás por RDP";
   }
+}
+
+/** Qué condición de ESC1 le falta a una plantilla (explica por qué no explota). */
+function esc1Missing(t: CertTemplate): string[] {
+  const missing: string[] = [];
+  if (!t.lowPrivEnroll) missing.push("no permite inscripción de bajo privilegio");
+  if (!t.enrolleeSuppliesSubject) missing.push("el solicitante no elige el SAN");
+  if (!t.clientAuth) missing.push("sin EKU de autenticación de cliente");
+  if (t.managerApproval) missing.push("exige aprobación de manager");
+  return missing;
 }
 
 /** Hash ficticio determinista (NO criptográfico): sólo para el sandbox. */

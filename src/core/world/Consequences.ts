@@ -375,6 +375,17 @@ const REACTIONS: Record<string, Reaction> = {
     heat: 16,
     faction: { name: "agencia", amount: 14 },
   },
+  "ND{adcs_esc1}": {
+    stock: { ticker: "ÑND", factor: -0.16 },
+    headline: {
+      title: "Una plantilla de certificados mal configurada regaló el dominio (ESC1)",
+      body: "Un usuario común pidió a la CA un certificado 'en nombre de' un administrador y se autenticó como él. La escalada no tocó ninguna contraseña: bastó una plantilla vulnerable de AD CS.",
+      category: "Seguridad",
+    },
+    notoriety: 26,
+    heat: 24,
+    faction: { name: "colectivo", amount: 14 },
+  },
 };
 
 export class Consequences {
