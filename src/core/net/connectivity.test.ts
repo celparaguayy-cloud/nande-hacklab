@@ -280,4 +280,29 @@ describe("Motor de conectividad (ping/traceroute/arp/nc/netstat)", () => {
     expect(kernel.dns.resolve("server.nande")).toBe("10.10.0.42");
     expect(kernel.dns.poisonedAddress("server.nande")).toBeUndefined();
   });
+
+  /* ------------------------------------------- IDS: detección de MITM (Blue) */
+
+  it("el IDS detecta el ARP spoofing (MAC duplicada / arpwatch) desde el estado real", () => {
+    expect(term.execute("ids")).not.toMatch(/ARP SPOOFING/);
+    term.execute("arpspoof pc-conta.nande");
+    const ids = term.execute("ids");
+    expect(ids).toMatch(/ARP SPOOFING/);
+    expect(ids).toContain("10.10.0.7"); // la víctima envenenada
+    // Deriva del estado REAL: cortar el MITM lo hace desaparecer.
+    term.execute("arpspoof stop");
+    expect(term.execute("ids")).not.toMatch(/ARP SPOOFING/);
+  });
+
+  it("el IDS detecta el DNS spoofing (respuesta envenenada) desde el estado real", () => {
+    expect(term.execute("ids")).not.toMatch(/DNS SPOOFING/);
+    term.execute("dnsspoof banco.nande");
+    const ids = term.execute("ids");
+    expect(ids).toMatch(/DNS SPOOFING/);
+    expect(ids).toContain("banco.nande");
+    expect(ids).toContain("(esperado 10.10.7.10)"); // muestra la IP real esperada
+    // Al restaurar el DNS, la anomalía se va.
+    term.execute("dnsspoof stop");
+    expect(term.execute("ids")).not.toMatch(/DNS SPOOFING/);
+  });
 });

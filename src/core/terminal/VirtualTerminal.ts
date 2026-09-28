@@ -3940,37 +3940,61 @@ export class VirtualTerminal {
    * ve en el cable y un defensor lo caza. No inventa alertas: sale del tráfico.
    */
   private idsCmd(): { output: string; isError: boolean } {
-    const findings = this.kernel.shark.detectScans();
-    if (findings.length === 0) {
+    const icon: Record<string, string> = { low: "🔵", medium: "🟠", high: "🔴" };
+    const lines: string[] = [];
+
+    // 1) Escaneos, del tráfico REAL capturado por NandeShark.
+    for (const f of this.kernel.shark.detectScans()) {
+      if (f.kind === "port-scan") {
+        const shown = f.ports.slice(0, 12).join(", ") + (f.ports.length > 12 ? ", …" : "");
+        lines.push(`  ${icon[f.severity]} PORT SCAN   ${f.src} → ${f.target}: ${f.ports.length} puertos distintos (${shown})  [t=${f.firstTick}–${f.lastTick}]`);
+      } else if (f.kind === "host-sweep") {
+        const shown = f.hosts.slice(0, 6).join(", ") + (f.hosts.length > 6 ? ", …" : "");
+        lines.push(`  ${icon[f.severity]} HOST SWEEP  ${f.src} → ${f.hosts.length} hosts por TCP (${shown})`);
+      } else {
+        const shown = f.hosts.slice(0, 6).join(", ") + (f.hosts.length > 6 ? ", …" : "");
+        lines.push(`  ${icon[f.severity]} PING SWEEP  ${f.src} → ${f.hosts.length} hosts por ICMP (${shown})`);
+      }
+    }
+
+    // 2) ARP spoofing (arpwatch): una MAC que responde por varias IPs / se hace
+    //    pasar por el gateway es la firma clásica del MITM. Deriva del estado
+    //    REAL del motor (MitmEngine), no de un texto: si cortás el MITM, se va.
+    const poisoned = this.kernel.mitm.active();
+    if (poisoned.length > 0) {
+      const attackerMac = this.kernel.hosts.macOf("10.10.0.10");
+      const gwIp = "10.10.0.1";
+      lines.push(
+        `  🔴 ARP SPOOFING la MAC ${attackerMac} responde por el gateway (${gwIp}) Y por ${poisoned.length} host(s): ${poisoned.join(", ")} — MAC duplicada (arpwatch)`,
+      );
+    }
+
+    // 3) DNS spoofing: un nombre que resuelve a una IP distinta de la
+    //    autoritativa es una respuesta envenenada. Deriva de VirtualDNS
+    //    (fuente única): incluye la IP falsa y la real esperada.
+    for (const p of this.kernel.dns.poisonedNames()) {
+      lines.push(
+        `  🔴 DNS SPOOFING ${p.hostname} → ${p.address}${p.real ? ` (esperado ${p.real})` : ""} — respuesta envenenada (cache poisoning)`,
+      );
+    }
+
+    if (lines.length === 0) {
       return {
         output:
-          "═══ IDS · análisis de tráfico (Blue Team) ═══\n" +
-          "Sin escaneos en el tráfico capturado.\n" +
-          "Generá uno y volvé a mirar:  nc -z server.nande 20-90  (barrido de puertos)\n" +
-          "El IDS lee lo que NandeShark capturó de verdad (mismo cable que 'sniff'); no inventa nada.\n",
+          "═══ IDS · análisis de red (Blue Team) ═══\n" +
+          "Sin escaneos ni anomalías de ARP/DNS.\n" +
+          "Generá tráfico y volvé a mirar:  nc -z server.nande 20-90  (barrido)  ·  arpspoof <vecino>  ·  dnsspoof <host>\n" +
+          "El IDS lee el estado REAL (tráfico capturado, caché ARP, respuestas DNS); no inventa nada.\n",
         isError: false,
       };
     }
-    const icon: Record<string, string> = { low: "🔵", medium: "🟠", high: "🔴" };
-    const lines = findings.map((f) => {
-      if (f.kind === "port-scan") {
-        const shown = f.ports.slice(0, 12).join(", ") + (f.ports.length > 12 ? ", …" : "");
-        return `  ${icon[f.severity]} PORT SCAN   ${f.src} → ${f.target}: ${f.ports.length} puertos distintos (${shown})  [t=${f.firstTick}–${f.lastTick}]`;
-      }
-      if (f.kind === "host-sweep") {
-        const shown = f.hosts.slice(0, 6).join(", ") + (f.hosts.length > 6 ? ", …" : "");
-        return `  ${icon[f.severity]} HOST SWEEP  ${f.src} → ${f.hosts.length} hosts por TCP (${shown})`;
-      }
-      const shown = f.hosts.slice(0, 6).join(", ") + (f.hosts.length > 6 ? ", …" : "");
-      return `  ${icon[f.severity]} PING SWEEP  ${f.src} → ${f.hosts.length} hosts por ICMP (${shown})`;
-    });
     return {
       output:
-        `═══ IDS · análisis de tráfico (Blue Team) ═══\n` +
-        `${findings.length} patrón(es) de escaneo en el tráfico REAL capturado:\n` +
+        `═══ IDS · análisis de red (Blue Team) ═══\n` +
+        `${lines.length} anomalía(s) detectada(s) sobre el estado REAL de la red:\n` +
         lines.join("\n") +
-        `\n\nSale del cable que ves con 'sniff'/'tcpdump'. Por esto escanear es RUIDOSO:\n` +
-        `un defensor te caza mirando el tráfico, aunque el escaneo no rompa nada.\n`,
+        `\n\nSale del cable ('sniff'/'tcpdump'), de la caché ARP y de las respuestas DNS.\n` +
+        `Por esto atacar es RUIDOSO: un defensor te caza aunque el ataque no rompa nada.\n`,
       isError: false,
     };
   }

@@ -3,5 +3,5 @@
  * qué build estás corriendo (y confirmar que tomaste la última actualización).
  * Subí el número cuando haya un cambio que el jugador deba poder distinguir.
  */
-export const NANDE_VERSION = "5.90.0";
-export const NANDE_BUILD = "ot-defensa-write-protect-blue";
+export const NANDE_VERSION = "5.91.0";
+export const NANDE_BUILD = "ids-detecta-arp-dns-spoofing";
