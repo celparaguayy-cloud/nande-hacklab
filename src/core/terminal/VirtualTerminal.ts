@@ -134,6 +134,8 @@ const MANPAGES: Record<string, ManPage> = {
     desc: "Post-explotación de credenciales sobre el Directorio REAL. sekurlsa::logonpasswords vuelca los hashes NT de las cuentas con sesión en los EQUIPOS que ya poseés; con sekurlsa::pth te autenticás con ese hash (Pass-the-Hash) sin conocer la clave. Si volcás y reusás el hash de un Domain Admin, caés el dominio entero. Es el puente real entre 'soy admin de esta máquina' y 'soy dueño del dominio'. Alias: secretsdump.", examples: ["mimikatz sekurlsa::logonpasswords", "mimikatz \"sekurlsa::pth /user:ADMIN-SQL@NANDE.LOCAL /ntlm:...\""] },
   certipy: { name: "abuso de AD Certificate Services (ESC1)", synopsis: "certipy find [-vulnerable] | certipy req -template <t> -upn <cuenta> | certipy auth -pfx <cuenta>",
     desc: "Enumera y abusa AD CS (Active Directory Certificate Services) contra la CA REAL del dominio, en dos pasos como la herramienta real. 'certipy find' lista las plantillas y marca las vulnerables a ESC1 (inscripción de bajo privilegio + el solicitante elige el SAN + EKU de autenticación de cliente + sin aprobación de manager). 'certipy req -template <t> -upn <cuenta>' EMITE un certificado impersonando a esa cuenta (te quedás con el .pfx). 'certipy auth -pfx <cuenta>' hace PKINIT con ese cert: te autenticás SIN la contraseña y recuperás su hash NT (UnPAC-the-hash), que alimenta Pass-the-Hash/DCSync/Golden Ticket. Si el UPN es un Domain Admin, caés el dominio. Tercera ruta a DA, distinta de Kerberoasting y AS-REP. Sólo el dominio del sandbox (NANDE.LOCAL). MITRE T1649 (forja) + T1550 (PKINIT).", examples: ["certipy find -vulnerable", "certipy req -template NandeUser -upn ADMIN-SQL@NANDE.LOCAL", "certipy auth -pfx ADMIN-SQL@NANDE.LOCAL"] },
+  apt: { name: "emulación de adversarios (purple team, defensa en vivo)", synopsis: "apt [start <id>|step|run|status|stop]",
+    desc: "Un adversario VIVO corre una campaña real contra ÑANDE (estilo MITRE Caldera) y vos defendés en tiempo real. Cada paso del playbook ejecuta una técnica de verdad —la ven el SOC, el DFIR, la matriz ATT&CK y el equipo azul— y avanza la kill chain hacia su objetivo (dominio con 'ana-reta', sabotaje OT con 'karai-ot'). Lo que lo hace real: cada paso DEPENDE de un activo (una cuenta o un host); si lo CONTENÉS antes (contain account/host), el paso queda BLOQUEADO y el adversario no avanza. El ejercicio: detectar (soc/dfir) y contener a tiempo, o perder la ronda. 'apt' lista perfiles; start arma; step/run lo hacen avanzar; status muestra qué activo contener.", examples: ["apt", "apt start ana-reta", "apt status", "apt run"] },
   op: { name: "operación: tablero de la kill chain entera", synopsis: "op  |  op next  |  op score  |  op report",
     desc: "El tablero de la OPERACIÓN completa: une TODOS los motores en una sola vista profesional. Muestra la kill chain de punta a punta (Reconocimiento → Acceso inicial → Acceso a credenciales → Movimiento lateral → Dominancia de dominio → Impacto), y cada fase se marca lograda DERIVÁNDOLA del estado real del mundo (hosts comprometidos, cuentas de dominio poseídas, pivoteo, Domain Admins, sabotaje OT), no de un guion. Te dice en qué fase estás, el próximo paso concreto, las técnicas ATT&CK que ejecutaste, tu exposición OPSEC y cuánto te contuvo el equipo azul. 'op report' arma el informe after-action. Es la conciencia situacional de un pentest entero.", examples: ["op", "op report"] },
   blueteam: { name: "equipo azul autónomo (defensor NPC)", synopsis: "blueteam [active|monitor|off]",
@@ -2406,6 +2408,12 @@ export class VirtualTerminal {
         case "operacion":
         case "operación":
           return this.opCmd(commandArgs);
+
+        case "apt":
+        case "emular":
+        case "campana":
+        case "campaña":
+          return this.adversarioCmd(commandArgs);
 
         case "reverse":
         case "crackme":
@@ -7484,6 +7492,87 @@ export class VirtualTerminal {
   }
 
   /**
+   * adversario — el MEGA motor: un adversario VIVO corre una campaña real y vos
+   * defendés (detectás con soc/dfir, contenés con contain) antes de que cumpla
+   * su objetivo. Cada paso depende de un activo real: contenelo y lo bloqueás.
+   *   adversario                 → perfiles + estado.
+   *   adversario start <id>      → arma un adversario (ana-reta | karai-ot).
+   *   adversario step [n]        → avanza n paso(s).
+   *   adversario run             → corre hasta cumplir/bloquearse.
+   *   adversario status | stop
+   */
+  private adversarioCmd(args: string[] = []): { output: string; isError: boolean } {
+    const a = this.kernel.adversary;
+    const sub = (args[0] ?? "").toLowerCase();
+
+    if (sub === "start" || sub === "armar") {
+      const r = a.start((args[1] ?? "").toLowerCase());
+      if (!r.ok) {
+        const ids = a.profiles().map((p) => `  ${p.id.padEnd(10)} ${p.name} → objetivo ${p.objective}`).join("\n");
+        return { output: `✘ ${r.message}\nAdversarios disponibles:\n${ids}\n`, isError: true };
+      }
+      return { output: `✔ ${r.message}\nDefendé: soc / dfir para detectar, y contené el activo del próximo paso (apt status lo muestra).\n`, isError: false };
+    }
+    if (sub === "step" || sub === "paso") {
+      const n = Math.max(1, parseInt(args[1] ?? "1", 10) || 1);
+      const out: string[] = [];
+      for (let i = 0; i < n; i += 1) {
+        const r = a.step();
+        out.push(`${r.blocked ? "⛔" : r.done ? "🏁" : "▶"} ${r.note}`);
+        if (r.blocked || r.done || r.status !== "running") break;
+      }
+      return { output: out.join("\n") + "\n" + this.adversarioStatusBlock(), isError: false };
+    }
+    if (sub === "run" || sub === "correr") {
+      const r = a.run();
+      const head = r.status === "succeeded"
+        ? `🏁 El adversario CUMPLIÓ su objetivo tras ${r.executed} paso(s). ${r.note}`
+        : r.status === "blocked"
+          ? `⛔ Adversario BLOQUEADO tras ${r.executed} paso(s): ${r.note}`
+          : `▶ ${r.note}`;
+      return { output: `${head}\n` + this.adversarioStatusBlock(), isError: false };
+    }
+    if (sub === "stop" || sub === "detener") {
+      a.stop();
+      return { output: "Adversario detenido.\n", isError: false };
+    }
+    if (sub === "status" || sub === "estado") {
+      return { output: this.adversarioStatusBlock(), isError: false };
+    }
+
+    // Por defecto: catálogo + estado.
+    const profiles = a.profiles().map((p) => `  ${p.id.padEnd(10)} ${p.name}\n       ${p.description}`).join("\n");
+    return {
+      output:
+        `═══ Emulación de adversarios (purple team) ═══\n` +
+        `Un adversario VIVO corre una campaña real; vos detectás (soc/dfir) y contenés (contain) antes de que cumpla su objetivo.\n\n` +
+        `Perfiles:\n${profiles}\n\n` +
+        `Armar: apt start <id>   ·   avanzar: apt step / run\n\n` +
+        this.adversarioStatusBlock(),
+      isError: false,
+    };
+  }
+
+  private adversarioStatusBlock(): string {
+    const s = this.kernel.adversary.state();
+    if (!s.profile) return "Sin adversario armado (apt start <id>).\n";
+    const statusLabel: Record<string, string> = {
+      idle: "inactivo", running: "EN MARCHA", blocked: "⛔ BLOQUEADO", succeeded: "🏁 objetivo cumplido", stopped: "detenido",
+    };
+    const done = s.log.filter((e) => e.outcome === "ejecutado").map((e) => `  ✔ ${e.step} [${e.mitreId}]`);
+    const next = s.nextStep
+      ? `Próximo paso del adversario: ${s.nextStep.name} [${s.nextStep.mitreId}]` +
+        (s.nextRequires ? `\n   Depende de: ${s.nextRequires}  →  contenelo para BLOQUEARLO (contain ${s.nextRequires.startsWith("cuenta") ? "account " + s.nextRequires.slice(7) : "host " + s.nextRequires.slice(5)})` : "")
+      : "";
+    return (
+      `Adversario: ${s.profile.name} · ${statusLabel[s.status]} · ${s.idx}/${s.total} pasos\n` +
+      (done.length ? `Ejecutado:\n${done.join("\n")}\n` : "") +
+      (s.blockedReason ? `⛔ Bloqueado: ${s.blockedReason}\n` : "") +
+      (next ? next + "\n" : "")
+    );
+  }
+
+  /**
    * NandeReverse — ingeniería inversa sobre un binario REAL de la ÑVM-8.
    *   reverse             → info del crackme y cómo empezar.
    *   reverse hexdump     → bytes del código (o `reverse hexdump data`).
@@ -7907,6 +7996,7 @@ export class VirtualTerminal {
       "  contain [auto]     Azul: respuesta a incidentes — aislá hosts y deshabilitá cuentas",
       "  blueteam active    Azul autónomo: defensor NPC que te contiene si hacés ruido grave",
       "  op                 Operación: la kill chain entera + próximo paso (todos los motores)",
+      "  apt start <id>     Purple team: un adversario VIVO ataca y vos defendés (detectá + contené)",
       "  mitre              Purple: técnicas ATT&CK detectadas por tus acciones",
       "  redteam [expulsar] Adversario NPC que ataca de verdad; defendé",
       "  reto               Te asignan un objetivo para vulnerar",

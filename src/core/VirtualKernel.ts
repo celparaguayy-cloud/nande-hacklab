@@ -44,6 +44,7 @@ import { Investigator } from "./soc/Investigator";
 import { ContainmentEngine } from "./soc/Containment";
 import { BlueTeamResponder } from "./soc/BlueResponder";
 import { OperationEngine } from "./ops/Operation";
+import { AdversaryEmulator } from "./ops/AdversaryEmulator";
 import { Crackme } from "./reversing/Crackme";
 import { OnionRuntime } from "./darkweb/OnionRuntime";
 import { BlogApp, PhotosApp, FilesApp, ToolsApp } from "./http/apps/labs";
@@ -198,6 +199,7 @@ export class VirtualKernel {
   public containment: ContainmentEngine;
   public blueResponder: BlueTeamResponder;
   public operation: OperationEngine;
+  public adversary: AdversaryEmulator;
   /** Reversing: un crackme con bandera cifrada (XOR real) para revertir. */
   public crackme: Crackme;
   /** Dark web sim: servicios ocultos alcanzables sólo con el circuito activo. */
@@ -478,6 +480,25 @@ export class VirtualKernel {
       blue: this.blueResponder,
       containment: this.containment,
       flags: () => this.player.capturedFlags(),
+    });
+
+    // MEGA motor: un adversario VIVO que corre una campaña real contra ÑANDE.
+    // Emite técnicas reales (las ve el SOC/DFIR/matriz/azul) y cada paso depende
+    // de un activo real: si el jugador CONTIENE ese activo, el adversario se
+    // bloquea. Es el ejercicio purple-team — detectar y contener antes de que
+    // cumpla su objetivo (dominio u OT).
+    this.adversary = new AdversaryEmulator({
+      emit: (s) => this.events.emit("attack.technique", s),
+      directory: this.directory,
+      hosts: this.hosts,
+      clock: () => this.world.getState().clock.tick,
+      onBreach: (profile) =>
+        this.news.headline(
+          `La organización fue comprometida: campaña "${profile.name}"`,
+          `Un adversario cumplió su objetivo (${profile.objective}) sin ser contenido a tiempo. El equipo azul no cortó la cadena.`,
+          "Seguridad",
+          this.world.getState().clock.tick,
+        ),
     });
 
     // academy.nande y tools.nande: la biblioteca y la ruta de aprendizaje,
