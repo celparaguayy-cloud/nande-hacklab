@@ -102,4 +102,15 @@ describe("SMB/AD enumeración — reflejan y mutan el dominio real", () => {
     const out = term.execute("smbclient -L 1.1.1.1");
     expect(out).toMatch(/sandbox|offline/i);
   });
+
+  it("AS-REP roasting por terminal: enum lo marca, se roastea (T1558.004) y crackea la cuenta", () => {
+    const en = term.execute("enum4linux nande.local");
+    expect(en).toContain("AS-REP roasteable");
+    expect(en).toContain("LEGACY-SVC@NANDE.LOCAL");
+    const roast = term.execute("asreproast LEGACY-SVC@NANDE.LOCAL");
+    expect(roast).toContain("krb5asrep");
+    expect(kernel.mitre.recent(20).map((d) => d.mitreId)).toContain("T1558.004");
+    term.execute("crack-tgs LEGACY-SVC@NANDE.LOCAL Legacy2019!");
+    expect(kernel.directory.get("LEGACY-SVC@NANDE.LOCAL")?.owned).toBe(true);
+  });
 });

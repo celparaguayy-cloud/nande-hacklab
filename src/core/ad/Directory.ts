@@ -20,8 +20,14 @@ export interface Principal {
   owned: boolean;
   /** Cuenta de servicio (SPN): objetivo de Kerberoasting. */
   spn?: string;
-  /** Contraseña "débil" que un crack offline revelaría (solo cuentas SPN). */
+  /** Contraseña "débil" que un crack offline revelaría (cuentas SPN o AS-REP). */
   weakPassword?: string;
+  /**
+   * Pre-autenticación de Kerberos DESHABILITADA: la cuenta es AS-REP roasteable.
+   * Se le pide el AS-REP y se crackea OFFLINE sin credenciales (a diferencia del
+   * Kerberoasting, que necesita una cuenta de dominio). Mala config clásica.
+   */
+  preauthDisabled?: boolean;
   /** Notas para el jugador (dónde encaja en la historia). */
   note?: string;
 }
@@ -101,8 +107,13 @@ export class Directory {
     this.add({ name: "SVC-SQL@NANDE.LOCAL", kind: "user", owned: false, spn: "MSSQL/db01.nande.local", weakPassword: "Verano2024!", note: "Cuenta de servicio con SPN: kerberoasteable (clave débil)." });
     this.add({ name: "WS-LORE@NANDE.LOCAL", kind: "computer", owned: false, note: "Estación de trabajo de Lore." });
     this.add({ name: "DB01@NANDE.LOCAL", kind: "computer", owned: false, note: "Servidor de base de datos." });
-    this.add({ name: "ADMIN-SQL@NANDE.LOCAL", kind: "user", owned: false, note: "DBA con sesión en DB01 y miembro de Domain Admins." });
+    this.add({ name: "ADMIN-SQL@NANDE.LOCAL", kind: "user", owned: false, note: "DBA con sesión en DB01 y FILE01, y miembro de Domain Admins." });
     this.add({ name: DA_GROUP, kind: "group", owned: false, note: "El objetivo: control total del dominio." });
+    // Ruta ALTERNATIVA (regla 11): una cuenta legada con pre-auth Kerberos
+    // deshabilitada — AS-REP roasteable SIN credenciales. Lleva a Domain Admins
+    // por OTRO camino (FILE01, donde el DBA también tiene sesión), no por DB01.
+    this.add({ name: "LEGACY-SVC@NANDE.LOCAL", kind: "user", owned: false, preauthDisabled: true, weakPassword: "Legacy2019!", note: "Cuenta vieja sin pre-auth: AS-REP roasteable (clave débil)." });
+    this.add({ name: "FILE01@NANDE.LOCAL", kind: "computer", owned: false, note: "Servidor de archivos; el DBA tiene sesión acá también." });
 
     // Cadena de ataque (cada borde es una técnica real de AD):
     this.edge("JUGADOR@NANDE.LOCAL", "MESA-AYUDA@NANDE.LOCAL", "MemberOf");
@@ -114,6 +125,11 @@ export class Directory {
     this.edge("ADMIN-SQL@NANDE.LOCAL", "DB01@NANDE.LOCAL", "HasSession");
     this.edge("DB01@NANDE.LOCAL", "ADMIN-SQL@NANDE.LOCAL", "HasSession");
     this.edge("ADMIN-SQL@NANDE.LOCAL", DA_GROUP, "MemberOf");
+    // Ruta B: AS-REP roast LEGACY-SVC → admin local de FILE01 → volcás al DBA
+    // (sesión acá) → PtH → Domain Admins. Distinta técnica, mismo objetivo.
+    this.edge("LEGACY-SVC@NANDE.LOCAL", "FILE01@NANDE.LOCAL", "AdminTo");
+    this.edge("ADMIN-SQL@NANDE.LOCAL", "FILE01@NANDE.LOCAL", "HasSession");
+    this.edge("FILE01@NANDE.LOCAL", "ADMIN-SQL@NANDE.LOCAL", "HasSession");
 
     // El foothold ya hereda su membresía inicial (Mesa de Ayuda).
     this.propagateMembership();
@@ -145,6 +161,32 @@ export class Directory {
   /** Cuentas con SPN: los objetivos de Kerberoasting. */
   kerberoastable(): Principal[] {
     return this.all().filter((p) => p.spn);
+  }
+
+  /** Cuentas con pre-auth deshabilitada: los objetivos de AS-REP Roasting. */
+  asrepRoastable(): Principal[] {
+    return this.all().filter((p) => p.preauthDisabled);
+  }
+
+  /**
+   * AS-REP Roasting (T1558.004): a una cuenta con pre-auth deshabilitada se le
+   * pide el AS-REP y se obtiene un hash crackeable OFFLINE — sin credenciales
+   * (la diferencia con Kerberoasting). Devuelve el hash simulado (no la clave).
+   */
+  asrepRoast(userName: string): { ok: boolean; hash?: string; message: string } {
+    const p = this.resolvePrincipal(userName);
+    if (!p || !p.preauthDisabled) {
+      return { ok: false, message: `${userName} tiene pre-auth habilitada (no es AS-REP roasteable)` };
+    }
+    this.signal({
+      technique: "Steal or Forge Kerberos Tickets: AS-REP Roasting",
+      tactic: "Credential Access",
+      mitreId: "T1558.004",
+      detail: `Solicitud de AS-REP para ${p.name} (pre-auth deshabilitada).`,
+      host: this.domain,
+    });
+    const hash = `$krb5asrep$23$${p.name}:${fakeHash(p.name + (p.weakPassword ?? ""))}`;
+    return { ok: true, hash, message: `AS-REP de ${p.name} obtenido (sin credenciales). Crackéalo offline.` };
   }
 
   /* ------------------------------------------------------------- acciones */
@@ -208,7 +250,9 @@ export class Directory {
    */
   crack(spnUser: string, guess: string): { ok: boolean; message: string } {
     const p = this.get(spnUser);
-    if (!p || !p.spn) return { ok: false, message: `${spnUser} no es una cuenta SPN` };
+    // Se crackea un hash de Kerberoasting (SPN) o de AS-REP roasting (pre-auth
+    // deshabilitada): ambos traen un hash offline con la clave de la cuenta.
+    if (!p || (!p.spn && !p.preauthDisabled)) return { ok: false, message: `${spnUser} no tiene un hash crackeable (ni SPN ni AS-REP)` };
     if (p.owned) return { ok: true, message: `${p.name} ya estaba comprometida` };
     if (guess === p.weakPassword) {
       this.own(p.name);

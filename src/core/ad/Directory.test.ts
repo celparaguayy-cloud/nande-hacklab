@@ -78,6 +78,40 @@ describe("Directory / NandeBlood — el grafo es estado real", () => {
     expect(dir.hasDomainPersistence()).toBe(true);
   });
 
+  it("AS-REP Roasting: cuenta sin pre-auth se roastea sin credenciales y crackea (T1558.004)", () => {
+    expect(dir.asrepRoastable().some((p) => p.name === "LEGACY-SVC@NANDE.LOCAL")).toBe(true);
+    const r = dir.asrepRoast("LEGACY-SVC@NANDE.LOCAL");
+    expect(r.ok).toBe(true);
+    expect(r.hash).toContain("krb5asrep");
+    // Una cuenta CON pre-auth (SPN) no es AS-REP roasteable.
+    expect(dir.asrepRoast("SVC-SQL@NANDE.LOCAL").ok).toBe(false);
+    // El hash de AS-REP se crackea igual que el de Kerberoasting.
+    expect(dir.crack("LEGACY-SVC@NANDE.LOCAL", "malo").ok).toBe(false);
+    expect(dir.crack("LEGACY-SVC@NANDE.LOCAL", "Legacy2019!").ok).toBe(true);
+    expect(dir.get("LEGACY-SVC@NANDE.LOCAL")!.owned).toBe(true);
+  });
+
+  it("ruta ALTERNATIVA a Domain Admins (regla 11): AS-REP → FILE01 → PtH del DBA", () => {
+    // Camino B, distinto del de SVC-SQL/DB01: dos rutas al mismo objetivo.
+    dir.own("LEGACY-SVC@NANDE.LOCAL");
+    expect(dir.domainOwned()).toBe(false);
+    expect(dir.abuse("LEGACY-SVC@NANDE.LOCAL", "FILE01@NANDE.LOCAL").ok).toBe(true);
+    // El DBA tiene sesión en FILE01: al poseerlo, su hash es volcable.
+    expect(dir.dumpableCredentials().some((c) => c.name === "ADMIN-SQL@NANDE.LOCAL")).toBe(true);
+    const pth = dir.passTheHash("ADMIN-SQL@NANDE.LOCAL");
+    expect(pth.ok).toBe(true);
+    expect(dir.domainOwned()).toBe(true);
+  });
+
+  it("NandeBlood recalcula: tras poseer LEGACY-SVC hay ruta a DA que NO pasa por SVC-SQL", () => {
+    dir.own("LEGACY-SVC@NANDE.LOCAL");
+    const path = dir.pathToDomainAdmins();
+    expect(path).not.toBeNull();
+    const nodes = path!.flatMap((s) => [s.from, s.to]);
+    expect(nodes).toContain("FILE01@NANDE.LOCAL");
+    expect(nodes).not.toContain("SVC-SQL@NANDE.LOCAL");
+  });
+
   it("no podés abusar un borde cuyo origen no poseés", () => {
     // SVC-SQL no está poseído al inicio → no podés abusar su AdminTo.
     const r = dir.abuse("SVC-SQL@NANDE.LOCAL", "DB01@NANDE.LOCAL");

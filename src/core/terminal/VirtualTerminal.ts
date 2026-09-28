@@ -2213,6 +2213,8 @@ export class VirtualTerminal {
         case "nandeblood":
         case "bloodhound":
         case "kerberoast":
+        case "asreproast":
+        case "asrep-roast":
         case "crack-tgs":
         case "abuse":
           return this.adCmd(command, commandArgs);
@@ -4437,8 +4439,8 @@ export class VirtualTerminal {
     const users = dir.all().filter((p) => p.kind === "user");
     const groups = dir.all().filter((p) => p.kind === "group");
     const computers = dir.all().filter((p) => p.kind === "computer");
-    const mark = (p: { owned: boolean; spn?: string }) =>
-      `${p.spn ? "  [SPN " + p.spn + "]" : ""}${p.owned ? "  [★ poseído]" : ""}`;
+    const mark = (p: { owned: boolean; spn?: string; preauthDisabled?: boolean }) =>
+      `${p.spn ? "  [SPN " + p.spn + "]" : ""}${p.preauthDisabled ? "  [AS-REP roasteable]" : ""}${p.owned ? "  [★ poseído]" : ""}`;
     const out: string[] = [
       `Starting enum4linux contra ${target}`,
       `======================================`,
@@ -4459,6 +4461,13 @@ export class VirtualTerminal {
       out.push(
         `[!] ${spn.length} cuenta(s) con SPN → kerberoasteables: ${spn.map((p) => p.name).join(", ")}`,
         `    Siguiente paso: kerberoast <cuenta> → crackeá el TGS offline, o crackmapexec para spray.`,
+      );
+    }
+    const asrep = dir.asrepRoastable();
+    if (asrep.length) {
+      out.push(
+        `[!] ${asrep.length} cuenta(s) con pre-auth deshabilitada → AS-REP roasteables: ${asrep.map((p) => p.name).join(", ")}`,
+        `    Siguiente paso: asreproast <cuenta> → hash crackeable SIN credenciales.`,
       );
     }
     out.push(`\nGrafo completo y ruta a Domain Admins: nandeblood.`);
@@ -4756,6 +4765,31 @@ export class VirtualTerminal {
           `${r.message}\n\n${r.hash}\n\n` +
           `Crackéalo offline con: crack-tgs ${target.toUpperCase()} <clave>\n` +
           `(pista: probá claves de temporada, tipo "Estacion2024!")\n`,
+        isError: false,
+      };
+    }
+
+    if (command === "asreproast" || command === "asrep-roast") {
+      const target = args[0];
+      if (!target) {
+        const list = dir.asrepRoastable().map((p) => `  ${p.name}  (pre-auth deshabilitada)`).join("\n");
+        return {
+          output:
+            `Cuentas AS-REP roasteables (pre-auth deshabilitada):\n${list || "  (ninguna)"}\n` +
+            `Uso: asreproast <cuenta>  — se crackea SIN credenciales (a diferencia de kerberoast).\n`,
+          isError: false,
+        };
+      }
+      // Coherencia (regla 5): el AS-REP se le pide al KDC (Kerberos:88) del DC.
+      const gate = this.requireDc(undefined, 88);
+      if (gate) return { output: `asreproast: ${gate}\n`, isError: false };
+      const r = dir.asrepRoast(target);
+      if (!r.ok) return { output: `✘ ${r.message}\n`, isError: true };
+      return {
+        output:
+          `${r.message}\n\n${r.hash}\n\n` +
+          `Crackéalo offline con: crack-tgs ${target.toUpperCase()} <clave>\n` +
+          `(AS-REP roasting no necesita credenciales previas: por eso es tan buscado.)\n`,
         isError: false,
       };
     }
@@ -7389,7 +7423,7 @@ export class VirtualTerminal {
       "ÑANDE 5.0 — el universo vivo (escribí 'universo' para el índice):",
       "  sniff [filtro]     NandeShark: capturá el tráfico REAL (creds en claro)",
       "  nandeblood         AD: grafo de ataque y ruta a Domain Admins",
-      "  kerberoast · crack-tgs · abuse   Escalada en el dominio virtual",
+      "  kerberoast · asreproast · crack-tgs · abuse   Escalada en el dominio virtual",
       "  enum4linux <dc>    Enumerá el dominio (contra el DC real)",
       "  mimikatz dcsync / kerberos::golden   Volcá krbtgt y forjá persistencia",
       "  rotate-krbtgt      Azul: rotá krbtgt (x2) para matar un Golden Ticket",
