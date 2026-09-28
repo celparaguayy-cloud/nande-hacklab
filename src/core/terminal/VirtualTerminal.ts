@@ -134,7 +134,7 @@ const MANPAGES: Record<string, ManPage> = {
     desc: "Post-explotación de credenciales sobre el Directorio REAL. sekurlsa::logonpasswords vuelca los hashes NT de las cuentas con sesión en los EQUIPOS que ya poseés; con sekurlsa::pth te autenticás con ese hash (Pass-the-Hash) sin conocer la clave. Si volcás y reusás el hash de un Domain Admin, caés el dominio entero. Es el puente real entre 'soy admin de esta máquina' y 'soy dueño del dominio'. Alias: secretsdump.", examples: ["mimikatz sekurlsa::logonpasswords", "mimikatz \"sekurlsa::pth /user:ADMIN-SQL@NANDE.LOCAL /ntlm:...\""] },
   certipy: { name: "abuso de AD Certificate Services (ESC1)", synopsis: "certipy find [-vulnerable] | certipy req -template <t> -upn <cuenta> | certipy auth -pfx <cuenta>",
     desc: "Enumera y abusa AD CS (Active Directory Certificate Services) contra la CA REAL del dominio, en dos pasos como la herramienta real. 'certipy find' lista las plantillas y marca las vulnerables a ESC1 (inscripción de bajo privilegio + el solicitante elige el SAN + EKU de autenticación de cliente + sin aprobación de manager). 'certipy req -template <t> -upn <cuenta>' EMITE un certificado impersonando a esa cuenta (te quedás con el .pfx). 'certipy auth -pfx <cuenta>' hace PKINIT con ese cert: te autenticás SIN la contraseña y recuperás su hash NT (UnPAC-the-hash), que alimenta Pass-the-Hash/DCSync/Golden Ticket. Si el UPN es un Domain Admin, caés el dominio. Tercera ruta a DA, distinta de Kerberoasting y AS-REP. Sólo el dominio del sandbox (NANDE.LOCAL). MITRE T1649 (forja) + T1550 (PKINIT).", examples: ["certipy find -vulnerable", "certipy req -template NandeUser -upn ADMIN-SQL@NANDE.LOCAL", "certipy auth -pfx ADMIN-SQL@NANDE.LOCAL"] },
-  op: { name: "operación: tablero de la kill chain entera", synopsis: "op  |  op report",
+  op: { name: "operación: tablero de la kill chain entera", synopsis: "op  |  op score  |  op report",
     desc: "El tablero de la OPERACIÓN completa: une TODOS los motores en una sola vista profesional. Muestra la kill chain de punta a punta (Reconocimiento → Acceso inicial → Acceso a credenciales → Movimiento lateral → Dominancia de dominio → Impacto), y cada fase se marca lograda DERIVÁNDOLA del estado real del mundo (hosts comprometidos, cuentas de dominio poseídas, pivoteo, Domain Admins, sabotaje OT), no de un guion. Te dice en qué fase estás, el próximo paso concreto, las técnicas ATT&CK que ejecutaste, tu exposición OPSEC y cuánto te contuvo el equipo azul. 'op report' arma el informe after-action. Es la conciencia situacional de un pentest entero.", examples: ["op", "op report"] },
   blueteam: { name: "equipo azul autónomo (defensor NPC)", synopsis: "blueteam [active|monitor|off]",
     desc: "El defensor autónomo, simétrico del red team NPC: DETECTA y RESPONDE solo. En postura 'active', si ejecutás una técnica grave y detectable (DCSync, Golden Ticket, ESC1, sabotaje OT, Kerberoasting/AS-REP), el SOC aplica una contención PROPORCIONAL —aísla tu pivote o deshabilita la cuenta más peligrosa— usando el motor de contención. Enseña OPSEC de verdad: el ruido tiene consecuencias. 'monitor' sólo detecta y avisa; 'off' (por defecto) lo apaga. Sin argumento muestra su estado y sus últimas respuestas.", examples: ["blueteam active", "blueteam", "blueteam off"] },
@@ -7429,10 +7429,22 @@ export class VirtualTerminal {
    */
   private opCmd(args: string[] = []): { output: string; isError: boolean } {
     const op = this.kernel.operation;
-    if ((args[0] ?? "").toLowerCase() === "report" || (args[0] ?? "").toLowerCase() === "informe") {
+    const sub = (args[0] ?? "").toLowerCase();
+    if (sub === "report" || sub === "informe") {
       return { output: `${op.report()}\n`, isError: false };
     }
+    if (sub === "score" || sub === "nota" || sub === "grade") {
+      const g = op.grade();
+      return {
+        output:
+          `═══ Calificación de la operación: ${g.letter}  (${g.score}/100) ═══\n` +
+          g.breakdown.map((b) => `  ${b.label.padEnd(22)} ${String(b.points).padStart(2)}/${b.max}   (${b.note})`).join("\n") + "\n" +
+          g.notes.map((n) => `  ${n}`).join("\n") + "\n",
+        isError: false,
+      };
+    }
     const s = op.status();
+    const g = op.grade();
     const board = s.phases
       .map((p, i) => {
         const mark = p.done ? "✔" : (p.id === s.current?.id ? "▶" : "○");
@@ -7456,7 +7468,8 @@ export class VirtualTerminal {
         `═══ OPERACIÓN · kill chain (${s.completedCount}/${s.totalPhases} fases) ═══\n` +
         `${board}\n\n` +
         `Técnicas ATT&CK: ${s.techniques.join(", ") || "(ninguna aún)"}\n` +
-        `OPSEC: ${s.exposed ? "⚠ EXPUESTO" : "🕶️ sin exposición"} · calor ${s.heat} · ${blue}\n\n` +
+        `OPSEC: ${s.exposed ? "⚠ EXPUESTO" : "🕶️ sin exposición"} · calor ${s.heat} · ${blue}\n` +
+        `Calificación: ${g.letter} (${g.score}/100)   —   detalle: op score\n\n` +
         `${nextBlock}\n\n` +
         `Informe completo: op report\n`,
       isError: false,

@@ -81,4 +81,37 @@ describe("OperationEngine — la kill chain entera, derivada del estado real", (
     const rep = term.execute("op report");
     expect(rep).toContain("T1558.003");
   });
+
+  it("califica: sin actividad la nota es baja; cumplir el objetivo la sube", () => {
+    expect(kernel.operation.grade().objectiveMet).toBe(false);
+    const before = kernel.operation.grade().score;
+    // Escalada real a Domain Admins.
+    term.execute("abuse MESA-AYUDA@NANDE.LOCAL LORE.MARTINEZ@NANDE.LOCAL");
+    term.execute("abuse LORE.MARTINEZ@NANDE.LOCAL SVC-SQL@NANDE.LOCAL");
+    term.execute("abuse SVC-SQL@NANDE.LOCAL DB01@NANDE.LOCAL");
+    term.execute("abuse DB01@NANDE.LOCAL ADMIN-SQL@NANDE.LOCAL");
+    const g = kernel.operation.grade();
+    expect(g.objectiveMet).toBe(true);
+    expect(g.score).toBeGreaterThan(before);
+    expect(term.execute("op score")).toMatch(/Calificación|[SABCD]\b/);
+  });
+
+  it("el sigilo importa en la nota: la contención del equipo azul resta puntos", () => {
+    // Dos mundos: mismo objetivo, distinta discreción.
+    const loud = new VirtualKernel();
+    const lterm = new VirtualTerminal(loud);
+    loud.blueResponder.setPosture("active"); // defensor activo → te contiene
+    loud.directory.own("SVC-SQL@NANDE.LOCAL");
+    lterm.execute("kerberoast SVC-SQL@NANDE.LOCAL"); // grave y atribuible → contención
+    const loudScore = loud.operation.grade();
+
+    const quiet = new VirtualKernel();
+    const qterm = new VirtualTerminal(quiet);
+    // Sin defensor activo: misma técnica, sin contención.
+    quiet.directory.own("SVC-SQL@NANDE.LOCAL");
+    qterm.execute("kerberoast SVC-SQL@NANDE.LOCAL");
+    const quietScore = quiet.operation.grade();
+
+    expect(loudScore.score).toBeLessThan(quietScore.score);
+  });
 });

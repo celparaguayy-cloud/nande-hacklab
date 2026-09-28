@@ -182,9 +182,63 @@ export class OperationEngine {
     };
   }
 
+  /**
+   * Calificación profesional de la operación (0–100 + letra). No premia sólo
+   * "llegar": premia CÓMO llegaste. Tres ejes que reflejan un pentest real:
+   *  - Progreso/objetivo: cuánto de la kill chain lograste (Domain Admins pesa).
+   *  - Sigilo/OPSEC: la exposición y cada contención del equipo azul restan —
+   *    tomar el dominio en silencio (Tor, sin detecciones) vale más que a los
+   *    gritos. Refuerza la lección de OPSEC.
+   *  - Tradecraft: la diversidad de técnicas ATT&CK ejecutadas (cobertura).
+   * Todo derivado del estado real (regla 20).
+   */
+  grade(): {
+    score: number;
+    letter: string;
+    objectiveMet: boolean;
+    breakdown: { label: string; points: number; max: number; note: string }[];
+    notes: string[];
+  } {
+    const s = this.status();
+    // Progreso (máx 50): 40 por reservar el peso al objetivo (Domain Admins) y el
+    // resto repartido en las demás fases logradas.
+    const nonImpactDone = s.phases.filter((p) => p.done && p.id !== "domain-dominance").length;
+    const progress = (s.objectiveMet ? 30 : 0) + Math.min(20, nonImpactDone * 4);
+    // Sigilo (máx 30): partís de 30; exposición y contenciones restan.
+    const stealth = Math.max(0, 30 - (s.exposed ? 15 : 0) - Math.min(15, s.detections * 5));
+    // Tradecraft (máx 20): 3 puntos por técnica distinta.
+    const tradecraft = Math.min(20, s.techniques.length * 3);
+    const score = Math.round(progress + stealth + tradecraft);
+    const letter = score >= 90 ? "S" : score >= 75 ? "A" : score >= 60 ? "B" : score >= 40 ? "C" : "D";
+    const notes: string[] = [];
+    notes.push(s.objectiveMet ? "✔ Objetivo cumplido: control del dominio." : "○ Objetivo pendiente: aún no controlás el dominio.");
+    notes.push(s.exposed
+      ? "⚠ OPSEC: quedaste EXPUESTO (IP real rastreable). Enrutá por Tor para no delatarte."
+      : "🕶️ OPSEC: operaste sin exposición.");
+    notes.push(s.detections === 0
+      ? "🥷 Sigilo: el equipo azul no te contuvo."
+      : `📣 Ruido: el equipo azul te contuvo ${s.detections} vez/veces (perdés puntos de sigilo).`);
+    notes.push(s.techniques.length >= 7
+      ? "🧰 Tradecraft amplio: buena diversidad de técnicas."
+      : `🧰 Técnicas ejecutadas: ${s.techniques.length} (ampliá la cobertura para más puntos).`);
+    if (s.impactAchieved) notes.push("💥 Impacto sobre objetivos logrado (fase final).");
+    return {
+      score,
+      letter,
+      objectiveMet: s.objectiveMet,
+      breakdown: [
+        { label: "Progreso / objetivo", points: progress, max: 50, note: `${s.completedCount}/${s.totalPhases} fases; dominio ${s.objectiveMet ? "comprometido" : "en pie"}` },
+        { label: "Sigilo / OPSEC", points: stealth, max: 30, note: `${s.exposed ? "expuesto" : "sin exposición"}, ${s.detections} contención(es)` },
+        { label: "Tradecraft (ATT&CK)", points: tradecraft, max: 20, note: `${s.techniques.length} técnica(s) distinta(s)` },
+      ],
+      notes,
+    };
+  }
+
   /** Informe de la operación (after-action report), listo para leer/pegar. */
   report(): string {
     const s = this.status();
+    const g = this.grade();
     const line = (p: OpPhase) => `  ${p.done ? "✔" : "○"} ${p.name} (${p.tactic}) — ${p.detail}`;
     const verdict = s.objectiveMet
       ? (s.impactAchieved
@@ -205,6 +259,10 @@ export class OperationEngine {
         (s.contained.hosts.length || s.contained.accounts.length
           ? ` · aislados: ${s.contained.hosts.join(", ") || "—"} · deshabilitados: ${s.contained.accounts.join(", ") || "—"}`
           : ""),
+      "",
+      `─────────── CALIFICACIÓN: ${g.letter}  (${g.score}/100) ───────────`,
+      ...g.breakdown.map((b) => `  ${b.label.padEnd(22)} ${String(b.points).padStart(2)}/${b.max}   (${b.note})`),
+      ...g.notes.map((n) => `  ${n}`),
     ].join("\n");
   }
 }
