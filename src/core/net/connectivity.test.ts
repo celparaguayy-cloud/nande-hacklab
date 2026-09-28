@@ -294,6 +294,18 @@ describe("Motor de conectividad (ping/traceroute/arp/nc/netstat)", () => {
     expect(term.execute("ids")).not.toMatch(/ARP SPOOFING/);
   });
 
+  it("coherencia: la MAC que el IDS atribuye al MITM es tu eth0 real y refleja el MAC spoofing", () => {
+    const eth0Mac = kernel.network.getInterface("eth0")!.mac; // la misma que muestra ifconfig
+    term.execute("arpspoof pc-conta.nande");
+    expect(term.execute("ids")).toContain(eth0Mac);
+    // MAC spoofing (macchanger): el arpwatch ahora ve tu MAC spoofeada, no la de fábrica.
+    term.execute("macchanger eth0 02:00:de:ad:be:ef");
+    expect(kernel.network.getInterface("eth0")!.mac).toBe("02:00:de:ad:be:ef");
+    const ids = term.execute("ids");
+    expect(ids).toContain("02:00:de:ad:be:ef");
+    expect(ids).not.toContain(eth0Mac);
+  });
+
   it("el IDS detecta el DNS spoofing (respuesta envenenada) desde el estado real", () => {
     expect(term.execute("ids")).not.toMatch(/DNS SPOOFING/);
     term.execute("dnsspoof banco.nande");

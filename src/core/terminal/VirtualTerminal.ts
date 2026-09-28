@@ -3969,7 +3969,11 @@ export class VirtualTerminal {
     //    REAL del motor (MitmEngine), no de un texto: si cortás el MITM, se va.
     const poisoned = this.kernel.mitm.active();
     if (poisoned.length > 0) {
-      const attackerMac = this.kernel.hosts.macOf("10.10.0.10");
+      // La MAC que el defensor atribuye al atacante es tu MAC REAL de eth0 — la
+      // MISMA que muestra ifconfig y que cambia si hacés MAC spoofing
+      // (macchanger). Coherencia (regla 2/5): una sola identidad de placa. Si
+      // spoofeaste tu MAC, el arpwatch ve la spoofeada, no la de fábrica.
+      const attackerMac = this.kernel.network.getInterface("eth0")?.mac ?? this.kernel.hosts.macOf("10.10.0.10");
       const gwIp = "10.10.0.1";
       lines.push(
         `  🔴 ARP SPOOFING la MAC ${attackerMac} responde por el gateway (${gwIp}) Y por ${poisoned.length} host(s): ${poisoned.join(", ")} — MAC duplicada (arpwatch)`,
