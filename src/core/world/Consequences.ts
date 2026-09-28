@@ -365,6 +365,16 @@ const REACTIONS: Record<string, Reaction> = {
     heat: 20,
     faction: { name: "agencia", amount: 12 },
   },
+  "ND{golden_ticket_persistencia}": {
+    headline: {
+      title: "Persistencia total: forjan un 'Golden Ticket' en un dominio corporativo",
+      body: "El atacante puede volver como cualquier usuario aunque reseteen las contraseñas. La organización tendrá que rotar krbtgt dos veces para echarlo.",
+      category: "Seguridad",
+    },
+    notoriety: 26,
+    heat: 16,
+    faction: { name: "agencia", amount: 14 },
+  },
 };
 
 export class Consequences {

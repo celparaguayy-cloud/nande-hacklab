@@ -81,6 +81,23 @@ describe("mimikatz — dumpeo de credenciales y Pass-the-Hash reales", () => {
     expect(kernel.mitre.recent(30).map((d) => d.mitreId)).toContain("T1003.006");
   });
 
+  it("Golden Ticket: forjar persistencia (T1558.001) y matarla rotando krbtgt dos veces", () => {
+    kernel.directory.own("ADMIN-SQL@NANDE.LOCAL"); // dominio comprometido
+    const krbtgt = kernel.directory.krbtgtHash();
+    const forge = term.execute(`mimikatz "kerberos::golden /user:Administrator /krbtgt:${krbtgt}"`);
+    expect(forge).toMatch(/Golden Ticket forjado|Persistencia/i);
+    expect(forge).toContain("ND{golden_ticket_persistencia}");
+    expect(kernel.directory.hasDomainPersistence()).toBe(true);
+    expect(kernel.mitre.recent(30).map((d) => d.mitreId)).toContain("T1558.001");
+
+    // Azul: una rotación no alcanza; dos sí.
+    term.execute("rotate-krbtgt");
+    expect(kernel.directory.hasDomainPersistence()).toBe(true);
+    const out2 = term.execute("rotate-krbtgt");
+    expect(out2).toMatch(/ELIMINADA|inválidos|cortada/i);
+    expect(kernel.directory.hasDomainPersistence()).toBe(false);
+  });
+
   it("coherencia: comprometer el dominio hace REACCIONAR al mundo (noticia + notoriedad)", () => {
     // Cadena real hasta Domain Admins vía PtH.
     term.execute("crackmapexec smb dc01.nande.local -u svc-sql -p Verano2024!");

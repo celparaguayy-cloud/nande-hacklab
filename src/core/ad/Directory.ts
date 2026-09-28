@@ -217,6 +217,65 @@ export class Directory {
     return { ok: false, message: `Clave incorrecta para ${p.name}` };
   }
 
+  /* ------------------------------------------- Golden Ticket / persistencia */
+
+  private goldenTicketActive = false;
+  private krbtgtRotations = 0;
+
+  /**
+   * Golden Ticket (T1558.001): con el hash de krbtgt forjás un TGT válido para
+   * CUALQUIER cuenta, sin pasar por el DC para autenticarte. Es PERSISTENCIA de
+   * dominio: sobrevive al reseteo de cuentas individuales. La única cura real es
+   * rotar la clave de krbtgt DOS veces (el KDC acepta la anterior por
+   * compatibilidad, por eso una sola no alcanza). Requiere el hash de krbtgt
+   * (que sale de un DCSync) o ya controlar el dominio.
+   */
+  forgeGoldenTicket(krbtgtHashGuess?: string): { ok: boolean; message: string } {
+    const hasKey = krbtgtHashGuess
+      ? krbtgtHashGuess.toLowerCase() === this.krbtgtHash().toLowerCase()
+      : this.domainOwned();
+    if (!hasKey) {
+      return { ok: false, message: "necesitás el hash de krbtgt (volcalo con DCSync) para forjar un Golden Ticket." };
+    }
+    this.goldenTicketActive = true;
+    this.krbtgtRotations = 0; // un golden nuevo resetea el conteo de rotaciones pendientes
+    // Forjar el TGT te da control del dominio y, sobre todo, persistencia.
+    this.get(DA_GROUP)!.owned = true;
+    this.propagateMembership();
+    this.signal({
+      technique: "Steal or Forge Kerberos Tickets: Golden Ticket",
+      tactic: "Persistence",
+      mitreId: "T1558.001",
+      detail: `Golden Ticket forjado con el hash de krbtgt en ${this.domain}: acceso persistente a cualquier cuenta.`,
+      host: this.domain,
+    });
+    return { ok: true, message: `Golden Ticket forjado. Persistencia de dominio en ${this.domain} (sobrevive al reseteo de cuentas).` };
+  }
+
+  /** ¿Hay persistencia por Golden Ticket ahora? Muere sólo tras rotar krbtgt 2x. */
+  hasDomainPersistence(): boolean {
+    return this.goldenTicketActive && this.krbtgtRotations < 2;
+  }
+
+  /**
+   * Rotación de la clave de krbtgt (remediación azul). Hay que hacerla DOS
+   * veces para invalidar los Golden Tickets: el KDC honra la clave anterior por
+   * compatibilidad. Devuelve el estado tras la rotación.
+   */
+  rotateKrbtgt(): { rotations: number; persistenceBroken: boolean; message: string } {
+    this.krbtgtRotations += 1;
+    const broken = this.goldenTicketActive && this.krbtgtRotations >= 2;
+    if (broken) this.goldenTicketActive = false;
+    const remaining = Math.max(0, 2 - this.krbtgtRotations);
+    return {
+      rotations: this.krbtgtRotations,
+      persistenceBroken: broken,
+      message: broken
+        ? "krbtgt rotada 2 veces: los Golden Tickets quedaron inválidos. Persistencia cortada."
+        : `krbtgt rotada (${this.krbtgtRotations}/2). ${remaining > 0 ? "Falta 1 rotación más para invalidar los Golden Tickets vigentes." : ""}`.trim(),
+    };
+  }
+
   /** Resuelve un principal por nombre corto (svc-sql) o completo (case-insensitive). */
   resolvePrincipal(name: string): Principal | undefined {
     const direct = this.get(name);

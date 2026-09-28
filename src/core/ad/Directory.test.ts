@@ -54,6 +54,30 @@ describe("Directory / NandeBlood — el grafo es estado real", () => {
     expect(r.hashes.some((h) => h.isDomainAdmin)).toBe(true);
   });
 
+  it("Golden Ticket = persistencia: sobrevive 1 rotación de krbtgt, muere con la 2ª", () => {
+    dir.own("ADMIN-SQL@NANDE.LOCAL"); // dominio comprometido
+    // Sin el hash de krbtgt de otro modo, con domainOwned alcanza para forjar.
+    expect(dir.forgeGoldenTicket().ok).toBe(true);
+    expect(dir.hasDomainPersistence()).toBe(true);
+    // Una rotación NO alcanza (el KDC honra la clave anterior).
+    const r1 = dir.rotateKrbtgt();
+    expect(r1.persistenceBroken).toBe(false);
+    expect(dir.hasDomainPersistence()).toBe(true);
+    // La segunda rotación sí invalida el Golden Ticket.
+    const r2 = dir.rotateKrbtgt();
+    expect(r2.persistenceBroken).toBe(true);
+    expect(dir.hasDomainPersistence()).toBe(false);
+  });
+
+  it("forjar un Golden Ticket exige el hash de krbtgt (o ya controlar el dominio)", () => {
+    // Sin dominio y sin hash correcto: no se puede.
+    expect(dir.forgeGoldenTicket("deadbeef").ok).toBe(false);
+    expect(dir.hasDomainPersistence()).toBe(false);
+    // Con el hash real de krbtgt (el que da un DCSync), sí.
+    expect(dir.forgeGoldenTicket(dir.krbtgtHash()).ok).toBe(true);
+    expect(dir.hasDomainPersistence()).toBe(true);
+  });
+
   it("no podés abusar un borde cuyo origen no poseés", () => {
     // SVC-SQL no está poseído al inicio → no podés abusar su AdminTo.
     const r = dir.abuse("SVC-SQL@NANDE.LOCAL", "DB01@NANDE.LOCAL");

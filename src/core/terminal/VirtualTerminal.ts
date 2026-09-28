@@ -2217,6 +2217,10 @@ export class VirtualTerminal {
         case "abuse":
           return this.adCmd(command, commandArgs);
 
+        case "rotate-krbtgt":
+        case "reset-krbtgt":
+          return this.rotateKrbtgtCmd();
+
         case "mitre":
         case "attack":
           return this.mitreCmd();
@@ -4602,6 +4606,27 @@ export class VirtualTerminal {
       return { output: body, isError: !r.ok };
     }
 
+    // kerberos::golden → Golden Ticket (T1558.001): con el hash de krbtgt (de un
+    // DCSync) forjás persistencia de dominio. Sobrevive al reseteo de cuentas.
+    if (/golden/.test(cmd)) {
+      const m = cmd.match(/\/krbtgt:([0-9a-f]+)/i);
+      const r = dir.forgeGoldenTicket(m?.[1]);
+      if (!r.ok) {
+        return { output: `mimikatz # kerberos::golden\n[-] ${r.message}\n`, isError: false };
+      }
+      const notes = this.kernel.scanForSignals("ND{golden_ticket_persistencia}");
+      return {
+        output:
+          `mimikatz # kerberos::golden /domain:${dir.domain} /krbtgt:*** /user:Administrator /id:500\n` +
+          `[+] ${r.message}\n` +
+          `⚠ Persistencia (MITRE T1558.001): el ticket es válido aunque reseteen las cuentas.\n` +
+          `   La ÚNICA cura es rotar la clave de krbtgt DOS veces:  rotate-krbtgt  (x2).\n` +
+          `ND{golden_ticket_persistencia}\n` +
+          (notes.length ? notes.join("\n") + "\n" : ""),
+        isError: false,
+      };
+    }
+
     // lsadump::dcsync → DCSync REAL (T1003.006): replica TODOS los hashes del
     // dominio (incl. krbtgt) desde el DC. Exige ser Domain Admin y alcanzar el
     // DC. Es distinto de logonpasswords (que sólo vuelca sesiones cacheadas).
@@ -4682,6 +4707,28 @@ export class VirtualTerminal {
    *   crack-tgs <cuenta> <clave>→ crackeás el hash: si acertás, poseés la cuenta.
    *   abuse <origen> <destino>  → abusás una ACL/sesión para tomar el destino.
    */
+  /**
+   * rotate-krbtgt — remediación azul del compromiso de krbtgt. Hay que rotar
+   * DOS veces para invalidar los Golden Tickets vigentes (el KDC honra la clave
+   * anterior por compatibilidad). Es la única cura real de un Golden Ticket.
+   */
+  private rotateKrbtgtCmd(): { output: string; isError: boolean } {
+    const dir = this.kernel.directory;
+    const before = dir.hasDomainPersistence();
+    const r = dir.rotateKrbtgt();
+    return {
+      output:
+        `═══ Remediación AD · rotación de krbtgt (${dir.domain}) ═══\n` +
+        `${r.message}\n` +
+        (before && !dir.hasDomainPersistence()
+          ? `✔ Persistencia por Golden Ticket ELIMINADA. El atacante perdió el acceso forjado.\n`
+          : before
+            ? `⚠ Todavía hay persistencia por Golden Ticket: falta otra rotación.\n`
+            : `(No había Golden Tickets vigentes; rotar krbtgt es igual una buena higiene tras un DCSync.)\n`),
+      isError: false,
+    };
+  }
+
   private adCmd(
     command: string,
     args: string[],
@@ -7339,6 +7386,9 @@ export class VirtualTerminal {
       "  sniff [filtro]     NandeShark: capturá el tráfico REAL (creds en claro)",
       "  nandeblood         AD: grafo de ataque y ruta a Domain Admins",
       "  kerberoast · crack-tgs · abuse   Escalada en el dominio virtual",
+      "  enum4linux <dc>    Enumerá el dominio (contra el DC real)",
+      "  mimikatz dcsync / kerberos::golden   Volcá krbtgt y forjá persistencia",
+      "  rotate-krbtgt      Azul: rotá krbtgt (x2) para matar un Golden Ticket",
       "  mitre              Purple: técnicas ATT&CK detectadas por tus acciones",
       "  redteam [expulsar] Adversario NPC que ataca de verdad; defendé",
       "  reto               Te asignan un objetivo para vulnerar",
