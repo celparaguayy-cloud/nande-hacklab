@@ -132,6 +132,8 @@ const MANPAGES: Record<string, ManPage> = {
     desc: "Post-explotación de credenciales sobre el Directorio REAL. sekurlsa::logonpasswords vuelca los hashes NT de las cuentas con sesión en los EQUIPOS que ya poseés; con sekurlsa::pth te autenticás con ese hash (Pass-the-Hash) sin conocer la clave. Si volcás y reusás el hash de un Domain Admin, caés el dominio entero. Es el puente real entre 'soy admin de esta máquina' y 'soy dueño del dominio'. Alias: secretsdump.", examples: ["mimikatz sekurlsa::logonpasswords", "mimikatz \"sekurlsa::pth /user:ADMIN-SQL@NANDE.LOCAL /ntlm:...\""] },
   certipy: { name: "abuso de AD Certificate Services (ESC1)", synopsis: "certipy find [-vulnerable] | certipy req -template <t> -upn <cuenta> | certipy auth -pfx <cuenta>",
     desc: "Enumera y abusa AD CS (Active Directory Certificate Services) contra la CA REAL del dominio, en dos pasos como la herramienta real. 'certipy find' lista las plantillas y marca las vulnerables a ESC1 (inscripción de bajo privilegio + el solicitante elige el SAN + EKU de autenticación de cliente + sin aprobación de manager). 'certipy req -template <t> -upn <cuenta>' EMITE un certificado impersonando a esa cuenta (te quedás con el .pfx). 'certipy auth -pfx <cuenta>' hace PKINIT con ese cert: te autenticás SIN la contraseña y recuperás su hash NT (UnPAC-the-hash), que alimenta Pass-the-Hash/DCSync/Golden Ticket. Si el UPN es un Domain Admin, caés el dominio. Tercera ruta a DA, distinta de Kerberoasting y AS-REP. Sólo el dominio del sandbox (NANDE.LOCAL). MITRE T1649 (forja) + T1550 (PKINIT).", examples: ["certipy find -vulnerable", "certipy req -template NandeUser -upn ADMIN-SQL@NANDE.LOCAL", "certipy auth -pfx ADMIN-SQL@NANDE.LOCAL"] },
+  blueteam: { name: "equipo azul autónomo (defensor NPC)", synopsis: "blueteam [active|monitor|off]",
+    desc: "El defensor autónomo, simétrico del red team NPC: DETECTA y RESPONDE solo. En postura 'active', si ejecutás una técnica grave y detectable (DCSync, Golden Ticket, ESC1, sabotaje OT, Kerberoasting/AS-REP), el SOC aplica una contención PROPORCIONAL —aísla tu pivote o deshabilita la cuenta más peligrosa— usando el motor de contención. Enseña OPSEC de verdad: el ruido tiene consecuencias. 'monitor' sólo detecta y avisa; 'off' (por defecto) lo apaga. Sin argumento muestra su estado y sus últimas respuestas.", examples: ["blueteam active", "blueteam", "blueteam off"] },
   contain: { name: "respuesta a incidentes / contención (azul)", synopsis: "contain [plan|auto] | contain host <h> | contain release <h> | contain account <a> | contain enable <a>",
     desc: "El tercer acto del Blue Team (detectar→investigar→RESPONDER). Contención con efecto REAL: 'contain host <h>' AÍSLA un host de la red (deja de ser alcanzable y no sirve de pivote — corta el movimiento lateral) y 'contain account <a>' DESHABILITA una cuenta (no puede autenticarse ni usar sus privilegios: abuse/PtH/PKINIT fallan). 'contain' (o 'contain plan') arma un plan priorizado leyendo el estado real (qué hosts y cuentas comprometió el atacante — pivotes y Domain Admins primero); 'contain auto' lo aplica. Reversible con release/enable. Todo dentro del sandbox.", examples: ["contain", "contain auto", "contain host db-core.lan", "contain account SVC-SQL@NANDE.LOCAL"] },
   "harden-adcs": { name: "remediar ESC1 (azul)", synopsis: "harden-adcs [plantilla]",
@@ -2285,6 +2287,10 @@ export class VirtualTerminal {
         case "contencion":
         case "contención":
           return this.containCmd(commandArgs);
+
+        case "blueteam":
+        case "defensor":
+          return this.blueteamCmd(commandArgs);
 
         case "reverse":
         case "crackme":
@@ -7249,6 +7255,55 @@ export class VirtualTerminal {
   }
 
   /**
+   * blueteam — el equipo azul AUTÓNOMO (simétrico del red team NPC). Detecta y
+   * responde solo: si hacés algo GRAVE y detectable, te contiene. Enseña OPSEC.
+   *   blueteam                 → estado + últimas respuestas.
+   *   blueteam active|monitor|off  → cambia la postura del defensor.
+   */
+  private blueteamCmd(args: string[] = []): { output: string; isError: boolean } {
+    const b = this.kernel.blueResponder;
+    const sub = (args[0] ?? "").toLowerCase();
+    const want = sub === "auto" ? (args[1] ?? "").toLowerCase() : sub;
+
+    if (want === "off" || want === "apagar") {
+      b.setPosture("off");
+      return { output: "🔵 Equipo azul: APAGADO. No detecta ni responde.\n", isError: false };
+    }
+    if (want === "monitor" || want === "monitorear") {
+      b.setPosture("monitor");
+      return { output: "🔵 Equipo azul en MONITOREO: detecta actividad grave y avisa, pero no contiene.\n", isError: false };
+    }
+    if (want === "active" || want === "activo") {
+      b.setPosture("active");
+      return {
+        output:
+          "🔵 Equipo azul ACTIVO: si hacés algo grave y detectable, RESPONDE y te contiene\n" +
+          "   (aísla el pivote o deshabilita la cuenta más peligrosa). Movete con sigilo.\n",
+        isError: false,
+      };
+    }
+
+    const postureLabel: Record<string, string> = {
+      off: "APAGADO (inerte)",
+      monitor: "MONITOREO (detecta y avisa, no contiene)",
+      active: "ACTIVO (detecta y contiene)",
+    };
+    const recent = b.responses().slice(-8).map((r) =>
+      `  t=${String(r.tick).padStart(5)}  ${r.contained ? "🛡️ contuvo" : "👁️ observó"}  [${r.trigger}]\n       ${r.action}`,
+    );
+    return {
+      output:
+        `═══ Equipo azul autónomo (defensor NPC) ═══\n` +
+        `Postura: ${postureLabel[b.posture()]}\n` +
+        `Detecciones graves observadas: ${b.observationCount()} · respuestas: ${b.count()}\n\n` +
+        (recent.length ? `Últimas respuestas:\n${recent.join("\n")}\n\n` : `Todavía sin actividad.\n\n`) +
+        `Cambiá la postura: blueteam active · blueteam monitor · blueteam off\n` +
+        `(en ACTIVO, un ataque grave —DCSync, ESC1, sabotaje OT, roasting— dispara contención automática)\n`,
+      isError: false,
+    };
+  }
+
+  /**
    * NandeReverse — ingeniería inversa sobre un binario REAL de la ÑVM-8.
    *   reverse             → info del crackme y cómo empezar.
    *   reverse hexdump     → bytes del código (o `reverse hexdump data`).
@@ -7669,6 +7724,7 @@ export class VirtualTerminal {
       "  rotate-krbtgt      Azul: rotá krbtgt (x2) para matar un Golden Ticket",
       "  harden-adcs        Azul: endurecé la plantilla ESC1 y cerrá esa ruta a DA",
       "  contain [auto]     Azul: respuesta a incidentes — aislá hosts y deshabilitá cuentas",
+      "  blueteam active    Azul autónomo: defensor NPC que te contiene si hacés ruido grave",
       "  mitre              Purple: técnicas ATT&CK detectadas por tus acciones",
       "  redteam [expulsar] Adversario NPC que ataca de verdad; defendé",
       "  reto               Te asignan un objetivo para vulnerar",

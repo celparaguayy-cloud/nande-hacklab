@@ -42,6 +42,7 @@ import { OpsecTracer } from "./game/OpsecTracer";
 import { ContainerRuntime } from "./cloud/ContainerRuntime";
 import { Investigator } from "./soc/Investigator";
 import { ContainmentEngine } from "./soc/Containment";
+import { BlueTeamResponder } from "./soc/BlueResponder";
 import { Crackme } from "./reversing/Crackme";
 import { OnionRuntime } from "./darkweb/OnionRuntime";
 import { BlogApp, PhotosApp, FilesApp, ToolsApp } from "./http/apps/labs";
@@ -194,6 +195,7 @@ export class VirtualKernel {
   /** DFIR: reconstruye el incidente desde los eventos reales del mundo. */
   public dfir: Investigator;
   public containment: ContainmentEngine;
+  public blueResponder: BlueTeamResponder;
   /** Reversing: un crackme con bandera cifrada (XOR real) para revertir. */
   public crackme: Crackme;
   /** Dark web sim: servicios ocultos alcanzables sólo con el circuito activo. */
@@ -447,6 +449,17 @@ export class VirtualKernel {
       this.directory,
       this.compromises,
       () => this.world.getState().clock.tick,
+    );
+
+    // Equipo azul AUTÓNOMO (simétrico del RedTeamAgent): detecta y responde solo.
+    // Apagado por defecto — actívalo con `blueteam active` para enfrentar un
+    // defensor real que te contiene si hacés ruido grave. Usa las mismas señales
+    // que el SOC y responde vía ContainmentEngine (sin duplicar lógica).
+    this.blueResponder = new BlueTeamResponder(
+      this.events,
+      this.containment,
+      () => this.world.getState().clock.tick,
+      (title, body, tick) => this.news.headline(title, body, "Seguridad", tick),
     );
 
     // academy.nande y tools.nande: la biblioteca y la ruta de aprendizaje,
@@ -1388,6 +1401,7 @@ export class VirtualKernel {
     this.stop();
     this.unsubscribePublisher();
     this.soc.dispose();
+    this.blueResponder.dispose();
     this.runtime.dispose();
     this.shark.dispose();
     this.mitre.dispose();
