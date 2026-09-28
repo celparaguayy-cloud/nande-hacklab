@@ -2246,6 +2246,25 @@ export class VirtualTerminal {
           return this.toolRemoveCmd(commandArgs);
 
         default: {
+          // Coherencia entre herramientas (regla 5): el escaneo de red NO puede
+          // revelar un host INTERNO que ping/nc/traceroute/modbus/connect
+          // esconden tras el pivoting. Si nmap/masscan apuntan a un host marcado
+          // como interno y no alcanzable desde donde estás parado, no hay ruta
+          // (igual que el resto del motor de conectividad). Los hosts públicos y
+          // las máquinas de laboratorio no se ven afectados.
+          if (command === "nmap" || command === "masscan") {
+            for (const a of commandArgs) {
+              if (a.startsWith("-") || a.includes("/")) continue;
+              const h = this.kernel.hosts.resolve(a);
+              if (h && (h.reachableFrom?.length ?? 0) > 0 && !this.kernel.hosts.canReach(this.remoteHost, h.hostname)) {
+                return {
+                  output: `${command}: no hay ruta hasta ${h.hostname} (${h.ip}): es un host interno; pivoteá hasta su red primero.\n`,
+                  isError: false,
+                };
+              }
+            }
+          }
+
           // Si no es un builtin, quizas sea una herramienta de seguridad.
           if (this.kernel.tools.find(command)) {
             const result = this.kernel.tools.run(command, commandArgs);

@@ -170,6 +170,15 @@ describe("Terminal `modbus` — cliente Modbus/TCP contra el PLC (con ruteo real
     expect(coils).toContain("Bomba-A");
   });
 
+  it("coherencia entre herramientas: nmap NO revela un host interno desde casa", () => {
+    // El PLC y la caja son internos: nmap desde el equipo del jugador no puede
+    // revelarlos (misma verdad que ping/nc/modbus/traceroute). Sin pivotar, no hay ruta.
+    expect(term.execute("nmap plc.planta.nande")).toMatch(/no hay ruta|interno/i);
+    expect(term.execute("nmap caja.interna.nande")).toMatch(/no hay ruta|interno/i);
+    // Un host público se sigue escaneando normal (no se rompe lo existente).
+    expect(term.execute("nmap server.nande")).toContain("open");
+  });
+
   it("modbus id fingerprintea el PLC (marca/modelo/revisión) — recon OT real", () => {
     pivotToHistorian();
     const out = term.execute("modbus id plc.planta.nande");
