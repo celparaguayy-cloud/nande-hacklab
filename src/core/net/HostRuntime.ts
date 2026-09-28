@@ -75,6 +75,13 @@ export interface VirtualHost {
    * normal, alcanzable desde la red del jugador.
    */
   reachableFrom?: string[];
+  /**
+   * Host detrás de una red WiFi: sólo es alcanzable mientras estás ASOCIADO a
+   * esa red (ESSID). Es lo que hace real la auditoría WiFi — crackear la clave
+   * y unirte te mete en SU LAN, donde antes no llegabas. Ausente = no depende
+   * del WiFi (comportamiento normal por segmento/pivoting).
+   */
+  reachableViaWifi?: string;
   /** Bandera educativa que premia llegar a este host (opcional). */
   flag?: string;
   /**
@@ -491,10 +498,12 @@ export class HostRuntime {
       : { ok: false, message: `credenciales inválidas para ${host.hostname}` };
   }
 
-  /** ¿El host es alcanzable desde la red del jugador? (no es interno) */
+  /** ¿El host es alcanzable desde la red del jugador? (no es interno) Un host
+   *  detrás de una WiFi NO es público: depende de estar asociado a esa red. */
   isPublic(ref: string): boolean {
     const host = this.resolve(ref);
     if (!host) return false;
+    if (host.reachableViaWifi) return false;
     return !host.reachableFrom || host.reachableFrom.length === 0;
   }
 
@@ -519,9 +528,33 @@ export class HostRuntime {
     const host = this.resolve(target);
     if (!host) return false;
     if (this.isPublic(host.hostname)) return true;
+    // Host detrás de una WiFi: alcanzable (desde donde estés) sólo si estás
+    // ASOCIADO a esa red ahora mismo. Es el punto de la auditoría inalámbrica.
+    if (
+      host.reachableViaWifi &&
+      this.currentWifi &&
+      host.reachableViaWifi.toLowerCase() === this.currentWifi.toLowerCase()
+    ) {
+      return true;
+    }
     if (from === null) return false;
     const key = (this.resolve(from)?.hostname ?? from).toLowerCase();
     return (host.reachableFrom ?? []).includes(key);
+  }
+
+  /** ESSID de la red WiFi a la que el jugador está asociado (o null). La setea
+   *  VirtualWiFi al conectar/desconectar. Habilita el alcance de los hosts que
+   *  viven detrás de esa red (reachableViaWifi). Fuente única del "en qué LAN
+   *  inalámbrica estoy". */
+  private currentWifi: string | null = null;
+
+  setCurrentWifi(essid: string | null): void {
+    this.currentWifi = essid;
+  }
+
+  /** ESSID asociado ahora mismo (para depurar/observabilidad). */
+  associatedWifi(): string | null {
+    return this.currentWifi;
   }
 
   /** Registra que una conexión fue rechazada (la llama el navegador/curl). */

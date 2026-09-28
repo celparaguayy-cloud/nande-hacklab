@@ -41,15 +41,24 @@ export class VirtualWiFi {
   private network: VirtualNetwork;
   private radio: WirelessRadio;
   private connected: string | null;
+  /** Aviso opcional de asociación (ESSID | null): lo usa HostRuntime para
+   *  habilitar los hosts que viven detrás de esa WiFi. */
+  private onAssociation?: (essid: string | null) => void;
 
-  constructor(network: VirtualNetwork, radio: WirelessRadio) {
+  constructor(
+    network: VirtualNetwork,
+    radio: WirelessRadio,
+    onAssociation?: (essid: string | null) => void,
+  ) {
     this.network = network;
     this.radio = radio;
+    this.onAssociation = onAssociation;
     this.connected = this.load();
 
-    // Si había una conexión guardada, se restablece la interfaz.
+    // Si había una conexión guardada, se restablece la interfaz y la asociación.
     if (this.connected) {
       this.network.setInterfaceState("wlan0", true);
+      this.onAssociation?.(this.connected);
     }
   }
 
@@ -122,6 +131,7 @@ export class VirtualWiFi {
 
     this.connected = ap.essid;
     this.network.setInterfaceState("wlan0", true);
+    this.onAssociation?.(ap.essid);
     this.persist();
 
     return {
@@ -138,6 +148,7 @@ export class VirtualWiFi {
     const previous = this.connected;
     this.connected = null;
     this.network.setInterfaceState("wlan0", false);
+    this.onAssociation?.(null);
     this.persist();
 
     return { ok: true, message: `Desconectado de "${previous}".` };

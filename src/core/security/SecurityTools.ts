@@ -306,10 +306,10 @@ function requireVirtualTarget(target: string): string | null {
 
   const isVirtualIp = target.startsWith("10.10.");
   const isVirtualHost =
-    target.endsWith(".nande") || target.endsWith(".lab");
+    target.endsWith(".nande") || target.endsWith(".lab") || target.endsWith(".lan");
 
   if (!isVirtualIp && !isVirtualHost) {
-    return `objetivo fuera del sandbox: "${target}". ÑANDE solo permite objetivos virtuales (10.10.x.y, *.nande, *.lab).`;
+    return `objetivo fuera del sandbox: "${target}". ÑANDE solo permite objetivos virtuales (10.10.x.y, *.nande, *.lab, *.lan).`;
   }
 
   return null;

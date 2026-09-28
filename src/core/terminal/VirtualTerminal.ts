@@ -2310,9 +2310,12 @@ export class VirtualTerminal {
             for (const a of commandArgs) {
               if (a.startsWith("-") || a.includes("/")) continue;
               const h = this.kernel.hosts.resolve(a);
-              if (h && (h.reachableFrom?.length ?? 0) > 0 && !this.kernel.hosts.canReach(this.remoteHost, h.hostname)) {
+              if (h && !this.kernel.hosts.isPublic(h.hostname) && !this.kernel.hosts.canReach(this.remoteHost, h.hostname)) {
+                const via = h.reachableViaWifi
+                  ? `está detrás de la WiFi "${h.reachableViaWifi}"; asociate a esa red primero (crackéala y 'wifi connect').`
+                  : `es un host interno; pivoteá hasta su red primero.`;
                 return {
-                  output: `${command}: no hay ruta hasta ${h.hostname} (${h.ip}): es un host interno; pivoteá hasta su red primero.\n`,
+                  output: `${command}: no hay ruta hasta ${h.hostname} (${h.ip}): ${via}\n`,
                   isError: false,
                 };
               }

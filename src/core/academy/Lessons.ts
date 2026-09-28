@@ -1332,7 +1332,25 @@ export const LESSONS: Lesson[] = [
         hint: "aircrack-ng -w rockyou.txt Vecino-2G",
         check: (cmd, out) => usedTool(cmd, "aircrack-ng") && /KEY FOUND/i.test(out),
         debrief:
-          "La clave estaba en el diccionario. Defensa: clave larga y aleatoria (12+ caracteres), WPA3 y no reusar la contraseña del router.",
+          "La clave estaba en el diccionario: 'invitado'. Pero crackear no es el objetivo — es el medio. Con la clave, ahora te UNÍS a su red.",
+      },
+      {
+        explain:
+          "El punto de crackear el WiFi: entrar a la red. Conectate a la del vecino con la clave que recuperaste. A partir de ahí estás DENTRO de su LAN, donde antes no llegabas.",
+        task: "Escribí: wifi connect Vecino-2G invitado",
+        hint: "wifi connect Vecino-2G invitado",
+        check: (cmd, out) => usedTool(cmd, "wifi") && /onectado/.test(out),
+        debrief:
+          "Estás en la LAN del vecino. Su equipo (pc-vecino.lan) ahora responde a ping/nmap — antes era inalcanzable. La WiFi era la única frontera.",
+      },
+      {
+        explain:
+          "Ya en su red, tomá el equipo del vecino. Reutilizó la clave del WiFi para todo (el clásico), así que entrás con vecino/invitado y te llevás la bandera.",
+        task: "connect pc-vecino.lan vecino invitado  y luego  cat /root/flag.txt",
+        hint: "connect pc-vecino.lan vecino invitado",
+        check: (_cmd, out) => out.includes("ND{wifi_lan_del_vecino}"),
+        debrief:
+          "Crackear el WiFi te dio ACCESO real a la red, no sólo una bandera de 'clave rota'. Ese es el impacto: una vez dentro, todo lo mal protegido cae. Defensa: clave WiFi larga y aleatoria, WPA3, y NUNCA reutilizar la clave del router en otros equipos. Cortás la asociación con: wifi disconnect.",
       },
     ],
   },

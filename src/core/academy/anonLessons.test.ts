@@ -77,6 +77,12 @@ describe("Anonimato / OPSEC — comandos reales y lecciones completables", () =>
     expect(steps[2].check!(s2, term.execute(s2))).toBe(true);
     const s3 = "aircrack-ng -w rockyou.txt Vecino-2G";
     expect(steps[3].check!(s3, term.execute(s3))).toBe(true);
+    // Capstone: la clave crackeada te UNE a la red y te da acceso a su LAN.
+    const s4 = "wifi connect Vecino-2G invitado";
+    expect(steps[4].check!(s4, term.execute(s4))).toBe(true);
+    term.execute("connect pc-vecino.lan vecino invitado");
+    const s5 = "cat /root/flag.txt";
+    expect(steps[5].check!(s5, term.execute(s5))).toBe(true);
   });
 
   it("l-reversing: strings encuentra una credencial quemada", () => {

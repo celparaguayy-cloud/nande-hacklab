@@ -305,4 +305,35 @@ describe("Motor de conectividad (ping/traceroute/arp/nc/netstat)", () => {
     term.execute("dnsspoof stop");
     expect(term.execute("ids")).not.toMatch(/DNS SPOOFING/);
   });
+
+  /* ------------------------------ WiFi como vector de entrada a una LAN (rule 4) */
+
+  it("pc-vecino.lan sólo se alcanza asociándose a su WiFi: crackear da ACCESO, no sólo un flag", () => {
+    // Desde casa (sin asociarse), el host del vecino NO se alcanza — como un
+    // host interno: la WiFi es la frontera.
+    expect(kernel.hosts.icmpEcho(null, "pc-vecino.lan").status).toBe("no-route");
+    expect(term.execute("nmap pc-vecino.lan")).toMatch(/WiFi|no hay ruta/i);
+
+    // Te asociás a la WiFi del vecino (WPA2, clave débil "invitado" — crackeable
+    // con aircrack). A partir de ahí estás en SU LAN.
+    expect(term.execute("wifi connect Vecino-2G invitado")).toMatch(/onectado/);
+    expect(kernel.hosts.associatedWifi()).toBe("Vecino-2G");
+    expect(kernel.hosts.icmpEcho(null, "pc-vecino.lan").status).toBe("reply");
+    expect(term.execute("nmap pc-vecino.lan")).toContain("22/tcp");
+
+    // Consecuencia real: entrás y te llevás la bandera (no sólo el flag de crackeo).
+    term.execute("connect pc-vecino.lan vecino invitado");
+    expect(term.execute("cat /root/flag.txt")).toContain("ND{wifi_lan_del_vecino}");
+    term.execute("exit");
+
+    // Al desconectarte de la WiFi, la LAN del vecino vuelve a ser inalcanzable.
+    term.execute("wifi disconnect");
+    expect(kernel.hosts.associatedWifi()).toBeNull();
+    expect(kernel.hosts.icmpEcho(null, "pc-vecino.lan").status).toBe("no-route");
+  });
+
+  it("pc-vecino.lan NO se filtra al mapa del jugador desde casa (no es público)", () => {
+    expect(kernel.hosts.isPublic("pc-vecino.lan")).toBe(false);
+    expect(term.execute("netmap")).not.toContain("pc-vecino.lan");
+  });
 });

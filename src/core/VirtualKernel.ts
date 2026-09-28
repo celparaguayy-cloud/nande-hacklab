@@ -364,7 +364,9 @@ export class VirtualKernel {
       this.worldEngine.professions() as never,
     );
     this.hardware = new VirtualHardware();
-    this.wifi = new VirtualWiFi(this.network, this.radio);
+    this.wifi = new VirtualWiFi(this.network, this.radio, (essid) =>
+      this.hosts.setCurrentWifi(essid),
+    );
     this.sandbox = new CodeExecutionSandbox();
     this.toolRuntime = new ToolRuntime(this.sandbox, this.makeSandboxHost(), {
       now: () => this.world.getState().clock.tick,
@@ -871,6 +873,35 @@ export class VirtualKernel {
         creds: [],
       });
     }
+
+    // Detrás del WiFi del vecino (Vecino-2G, WPA2 con clave débil "invitado")
+    // vive SU LAN doméstica. Este host NO se alcanza desde tu red: sólo cuando
+    // crackeás la WiFi (aircrack) y te ASOCIÁS a ella (wifi connect). Es lo que
+    // hace real la auditoría inalámbrica (regla 4): romper la clave da acceso a
+    // la red, no sólo una bandera. La consecuencia física del ataque WiFi.
+    this.dns.register("pc-vecino.lan", "10.10.13.10");
+    this.hosts.register({
+      hostname: "pc-vecino.lan",
+      ip: "10.10.13.10",
+      os: "ÑandeDesktop 3 (hogareño)",
+      up: true,
+      services: [
+        { name: "sshd", port: 22, protocol: "tcp", version: "OpenÑSSH 9.6", kind: "ssh", state: "running", enabled: true },
+        { name: "nginx", port: 80, protocol: "tcp", version: "nginx/1.24 (router del vecino)", kind: "http", state: "running", enabled: true },
+      ],
+      firewall: [],
+      processes: [],
+      files: {
+        "/etc/motd": "PC del vecino — red doméstica. Uso personal.",
+        "/home/vecino/notas.txt":
+          "Clave del router y de todo: 'invitado' (la misma del WiFi, clásico).\n" +
+          "Recordatorio: pagar factura en banco.nande con usuario mvera.",
+        "/root/flag.txt": "Bandera: ND{wifi_lan_del_vecino}",
+      },
+      creds: [{ user: "vecino", password: "invitado" }],
+      reachableViaWifi: "Vecino-2G",
+      flag: "ND{wifi_lan_del_vecino}",
+    });
 
     // Webapps del mundo (banco.nande, blog.yvoty.nande, …): host con nginx.
     for (const app of this.web.list()) {
