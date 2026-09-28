@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { VirtualKernel } from "../VirtualKernel";
 import { VirtualHardware } from "./VirtualHardware";
 import { VirtualWiFi } from "./VirtualWiFi";
+import { WirelessRadio } from "./WirelessRadio";
 import { VirtualNetwork } from "../network/VirtualNetwork";
 import { resetStorage, seedRandom } from "../../test/setup";
 
@@ -45,7 +46,7 @@ describe("VirtualWiFi", () => {
 
   function build() {
     const network = new VirtualNetwork();
-    return { network, wifi: new VirtualWiFi(network) };
+    return { network, wifi: new VirtualWiFi(network, new WirelessRadio()) };
   }
 
   it("escanea redes ordenadas por señal, sin exponer contraseñas", () => {
@@ -73,6 +74,22 @@ describe("VirtualWiFi", () => {
     expect(wifi.connect("CaféÑandé-Free").ok).toBe(true);
   });
 
+  it("fuente única: 'wifi scan' ve el MISMO aire que airodump (WirelessRadio), sin listas paralelas", () => {
+    const network = new VirtualNetwork();
+    const radio = new WirelessRadio();
+    const wifi = new VirtualWiFi(network, radio);
+    // Mismas redes que la radio (antes eran dos listas hardcodeadas distintas).
+    const scanned = wifi.scan().map((n) => n.ssid).sort();
+    const air = radio.accessPoints().map((a) => a.essid).sort();
+    expect(scanned).toEqual(air);
+    // Y la clave real es la del aire: la MISMA que recupera aircrack te conecta.
+    const ap = radio.resolve("Vecino-2G")!;
+    expect(wifi.connect("Vecino-2G", ap.password).ok).toBe(true);
+    // La seguridad también sale de la radio (WPA3 se refleja como WPA3).
+    const lab = wifi.scan().find((n) => n.ssid === "ÑANDE-Lab")!;
+    expect(lab.security).toBe("WPA3");
+  });
+
   it("conectar levanta wlan0 y desconectar la baja", () => {
     const { network, wifi } = build();
 
@@ -85,11 +102,11 @@ describe("VirtualWiFi", () => {
 
   it("la conexión wifi persiste entre sesiones", () => {
     const network = new VirtualNetwork();
-    new VirtualWiFi(network).connect("CaféÑandé-Free");
+    new VirtualWiFi(network, new WirelessRadio()).connect("CaféÑandé-Free");
 
     // Nueva red + wifi simulan recargar la página.
     const network2 = new VirtualNetwork();
-    const wifi2 = new VirtualWiFi(network2);
+    const wifi2 = new VirtualWiFi(network2, new WirelessRadio());
 
     expect(wifi2.current()).toBe("CaféÑandé-Free");
     expect(network2.getInterface("wlan0")?.up).toBe(true);

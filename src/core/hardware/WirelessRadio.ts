@@ -36,6 +36,8 @@ export interface AccessPoint {
   password?: string;
   /** MAC de cada estación (cliente) asociada. */
   clients: string[];
+  /** A qué da acceso / para qué sirve (lo muestra `wifi scan`, misma fuente). */
+  about?: string;
   /**
    * El AP filtra el RSN PMKID en el primer mensaje EAPOL: permite el ataque
    * CLIENTLESS (hcxdumptool) — capturás material crackeable sin ningún cliente
@@ -86,27 +88,32 @@ function seedAccessPoints(): AccessPoint[] {
       bssid: "A4:2B:8C:11:22:01", essid: "ÑANDE-Home", channel: 6,
       encryption: "WPA2", password: "nande1234", power: -42,
       clients: ["3C:5A:B4:00:00:11"],
+      about: "Red doméstica: acceso a la Internet virtual de ÑANDE.",
     },
     {
       bssid: "F0:9F:C2:33:44:02", essid: "ÑANDE-Lab", channel: 11,
       encryption: "WPA3", password: "labseguro", power: -55,
       clients: ["3C:5A:B4:00:00:22"],
+      about: "Red del laboratorio: acceso a las máquinas de práctica.",
     },
     {
       bssid: "00:14:6C:55:66:03", essid: "CaféÑandé-Free", channel: 1,
       encryption: "OPN", power: -63,
       clients: ["3C:5A:B4:00:00:33", "3C:5A:B4:00:00:44"],
+      about: "Red abierta: útil para aprender por qué las abiertas son riesgosas.",
     },
     {
       bssid: "E8:94:F6:77:88:04", essid: "Vecino-2G", channel: 6,
       encryption: "WPA2", password: "invitado", power: -71,
       clients: ["3C:5A:B4:00:00:55"],
       flag: "ND{wifi_wpa_crackeada}",
+      about: "Red del vecino virtual, señal débil (clave en el diccionario).",
     },
     {
       bssid: "B0:BE:76:99:AA:05", essid: "Corp-Secure", channel: 36,
       encryption: "WPA3", password: "R3d-C0rp-2024!largo", power: -78,
       clients: ["3C:5A:B4:00:00:66"],
+      about: "Red corporativa WPA3 (5GHz): clave larga, aguanta el diccionario.",
     },
     {
       // WPA2 en 5GHz que filtra el PMKID y NO tiene clientes: el deauth no sirve
@@ -116,6 +123,7 @@ function seedAccessPoints(): AccessPoint[] {
       encryption: "WPA2", password: "paraguay", power: -66,
       clients: [], pmkid: true,
       flag: "ND{wifi_pmkid_crackeado}",
+      about: "Red WPA2 en 5GHz sin clientes que filtra el PMKID (ataque clientless).",
     },
   ];
 }

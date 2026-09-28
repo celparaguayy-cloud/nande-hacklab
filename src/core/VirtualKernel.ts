@@ -364,7 +364,7 @@ export class VirtualKernel {
       this.worldEngine.professions() as never,
     );
     this.hardware = new VirtualHardware();
-    this.wifi = new VirtualWiFi(this.network);
+    this.wifi = new VirtualWiFi(this.network, this.radio);
     this.sandbox = new CodeExecutionSandbox();
     this.toolRuntime = new ToolRuntime(this.sandbox, this.makeSandboxHost(), {
       now: () => this.world.getState().clock.tick,
