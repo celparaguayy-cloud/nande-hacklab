@@ -45,6 +45,7 @@ import { ContainmentEngine } from "./soc/Containment";
 import { BlueTeamResponder } from "./soc/BlueResponder";
 import { OperationEngine } from "./ops/Operation";
 import { AdversaryEmulator } from "./ops/AdversaryEmulator";
+import { SimulationDirector } from "./ops/Director";
 import { Crackme } from "./reversing/Crackme";
 import { OnionRuntime } from "./darkweb/OnionRuntime";
 import { BlogApp, PhotosApp, FilesApp, ToolsApp } from "./http/apps/labs";
@@ -200,6 +201,7 @@ export class VirtualKernel {
   public blueResponder: BlueTeamResponder;
   public operation: OperationEngine;
   public adversary: AdversaryEmulator;
+  public director: SimulationDirector;
   /** Reversing: un crackme con bandera cifrada (XOR real) para revertir. */
   public crackme: Crackme;
   /** Dark web sim: servicios ocultos alcanzables sólo con el circuito activo. */
@@ -499,6 +501,19 @@ export class VirtualKernel {
           "Seguridad",
           this.world.getState().clock.tick,
         ),
+    });
+
+    // El motor que MUEVE el juego: en "vivo", la campaña del adversario avanza
+    // sola con el latido del kernel (tick), creando presión defensiva en tiempo
+    // real. Apagado por defecto: no cambia nada hasta que el jugador lo activa.
+    this.director = new SimulationDirector({
+      adversary: this.adversary,
+      clock: () => this.world.getState().clock.tick,
+      pulseInfo: () => ({
+        redteam: `${this.redteam.rival()} (${this.redteam.compromised() ? "comprometió corp" : "en curso"})`,
+        heat: Math.round(this.notoriety.getState().heat),
+        threats: this.threats.list().length,
+      }),
     });
 
     // academy.nande y tools.nande: la biblioteca y la ruta de aprendizaje,
@@ -1488,6 +1503,10 @@ export class VirtualKernel {
     this.os.tick();
 
     const worldState = this.world.getState();
+
+    // El Director mueve la campaña del adversario con el latido (si está "vivo").
+    // En "paused" (por defecto) es un no-op: no altera el juego base.
+    this.director.pulse(worldState.clock.tick);
 
     this.worldEngine.tick(worldState.clock.tick, worldState.clock.hour);
     this.economy.tick(

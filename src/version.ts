@@ -3,5 +3,5 @@
  * qué build estás corriendo (y confirmar que tomaste la última actualización).
  * Subí el número cuando haya un cambio que el jugador deba poder distinguir.
  */
-export const NANDE_VERSION = "5.113.0";
-export const NANDE_BUILD = "mega-motor-emulacion-de-adversarios-vivos";
+export const NANDE_VERSION = "5.114.0";
+export const NANDE_BUILD = "director-del-mundo-vivo-mueve-el-juego";

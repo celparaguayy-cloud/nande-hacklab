@@ -134,6 +134,8 @@ const MANPAGES: Record<string, ManPage> = {
     desc: "Post-explotación de credenciales sobre el Directorio REAL. sekurlsa::logonpasswords vuelca los hashes NT de las cuentas con sesión en los EQUIPOS que ya poseés; con sekurlsa::pth te autenticás con ese hash (Pass-the-Hash) sin conocer la clave. Si volcás y reusás el hash de un Domain Admin, caés el dominio entero. Es el puente real entre 'soy admin de esta máquina' y 'soy dueño del dominio'. Alias: secretsdump.", examples: ["mimikatz sekurlsa::logonpasswords", "mimikatz \"sekurlsa::pth /user:ADMIN-SQL@NANDE.LOCAL /ntlm:...\""] },
   certipy: { name: "abuso de AD Certificate Services (ESC1)", synopsis: "certipy find [-vulnerable] | certipy req -template <t> -upn <cuenta> | certipy auth -pfx <cuenta>",
     desc: "Enumera y abusa AD CS (Active Directory Certificate Services) contra la CA REAL del dominio, en dos pasos como la herramienta real. 'certipy find' lista las plantillas y marca las vulnerables a ESC1 (inscripción de bajo privilegio + el solicitante elige el SAN + EKU de autenticación de cliente + sin aprobación de manager). 'certipy req -template <t> -upn <cuenta>' EMITE un certificado impersonando a esa cuenta (te quedás con el .pfx). 'certipy auth -pfx <cuenta>' hace PKINIT con ese cert: te autenticás SIN la contraseña y recuperás su hash NT (UnPAC-the-hash), que alimenta Pass-the-Hash/DCSync/Golden Ticket. Si el UPN es un Domain Admin, caés el dominio. Tercera ruta a DA, distinta de Kerberoasting y AS-REP. Sólo el dominio del sandbox (NANDE.LOCAL). MITRE T1649 (forja) + T1550 (PKINIT).", examples: ["certipy find -vulnerable", "certipy req -template NandeUser -upn ADMIN-SQL@NANDE.LOCAL", "certipy auth -pfx ADMIN-SQL@NANDE.LOCAL"] },
+  director: { name: "director del mundo vivo (mueve el juego)", synopsis: "director [live|slow|fast|pause] | director beat [n]",
+    desc: "El motor que MUEVE el juego: controla el TEMPO del mundo vivo. En 'live' la campaña del adversario armado (apt) avanza SOLA con el latido del kernel —cada paso emite su técnica, que ven el SOC/DFIR/matriz/azul— así el adversario corre contra reloj y tenés que detectar y contener en TIEMPO REAL, o cumple su objetivo. 'director' muestra el tablero del mundo vivo (tempo, campaña, pulso: red team NPC, calor, amenazas). 'director live/slow/fast/pause' fija el tempo; 'director beat [n]' fuerza pasos ya. Apagado (pause) por defecto.", examples: ["director", "director live", "director fast", "director pause"] },
   apt: { name: "emulación de adversarios (purple team, defensa en vivo)", synopsis: "apt [start <id>|step|run|status|stop]",
     desc: "Un adversario VIVO corre una campaña real contra ÑANDE (estilo MITRE Caldera) y vos defendés en tiempo real. Cada paso del playbook ejecuta una técnica de verdad —la ven el SOC, el DFIR, la matriz ATT&CK y el equipo azul— y avanza la kill chain hacia su objetivo (dominio con 'ana-reta', sabotaje OT con 'karai-ot'). Lo que lo hace real: cada paso DEPENDE de un activo (una cuenta o un host); si lo CONTENÉS antes (contain account/host), el paso queda BLOQUEADO y el adversario no avanza. El ejercicio: detectar (soc/dfir) y contener a tiempo, o perder la ronda. 'apt' lista perfiles; start arma; step/run lo hacen avanzar; status muestra qué activo contener.", examples: ["apt", "apt start ana-reta", "apt status", "apt run"] },
   op: { name: "operación: tablero de la kill chain entera", synopsis: "op  |  op next  |  op score  |  op report",
@@ -2414,6 +2416,11 @@ export class VirtualTerminal {
         case "campana":
         case "campaña":
           return this.adversarioCmd(commandArgs);
+
+        case "director":
+        case "sim":
+        case "mundo":
+          return this.directorCmd(commandArgs);
 
         case "reverse":
         case "crackme":
@@ -7573,6 +7580,64 @@ export class VirtualTerminal {
   }
 
   /**
+   * director / sim / mundo — el motor que MUEVE el juego. Controla el TEMPO del
+   * mundo vivo: en "vivo" la campaña del adversario avanza sola con el latido
+   * (presión defensiva en tiempo real). Es el director de orquesta del range.
+   *   director                 → tablero del mundo vivo (tempo + campaña + pulso).
+   *   director live|slow|fast|pause → cambia el tempo.
+   *   director beat [n]        → fuerza n pasos ya (fast-forward manual).
+   */
+  private directorCmd(args: string[] = []): { output: string; isError: boolean } {
+    const d = this.kernel.director;
+    const sub = (args[0] ?? "").toLowerCase();
+    const tempos: Record<string, "paused" | "slow" | "normal" | "fast"> = {
+      pause: "paused", pausar: "paused", paused: "paused",
+      slow: "slow", lento: "slow",
+      normal: "normal",
+      fast: "fast", rapido: "fast", rápido: "fast",
+      live: "normal", vivo: "normal",
+    };
+    if (sub in tempos) {
+      d.setTempo(tempos[sub]);
+      const t = d.tempo();
+      return {
+        output: t === "paused"
+          ? "⏸️ Director en PAUSA: el mundo late, pero la campaña del adversario no avanza sola.\n"
+          : `▶️ Director EN VIVO (tempo ${t}, ~cada ${d.cadence()} ticks): la campaña armada avanza sola con el latido.\n` +
+            `   Defendé en tiempo real: soc / dfir para detectar, contain para cortar. Armá una con: apt start <id>\n`,
+        isError: false,
+      };
+    }
+    if (sub === "beat" || sub === "pulso") {
+      const n = Math.max(1, parseInt(args[1] ?? "1", 10) || 1);
+      const moved = d.beat(n);
+      return { output: `Director: ${moved} paso(s) forzado(s).\n` + this.directorStatusBlock(), isError: false };
+    }
+    return { output: this.directorStatusBlock(), isError: false };
+  }
+
+  private directorStatusBlock(): string {
+    const s = this.kernel.director.state();
+    const tempoLabel: Record<string, string> = {
+      paused: "⏸️ PAUSA", slow: "▶️ lento", normal: "▶️ vivo", fast: "⏩ rápido",
+    };
+    const adv = s.adversary.profile
+      ? `${s.adversary.profile.name} · ${s.adversary.idx}/${s.adversary.total} pasos · ${s.adversary.status}`
+      : "(ninguna campaña armada — apt start <id>)";
+    const beats = s.beats.length
+      ? s.beats.slice(-8).map((b) => `  t=${String(b.tick).padStart(5)}  ${b.what}`).join("\n")
+      : "  (sin actividad todavía)";
+    return (
+      `═══ Director del mundo vivo ═══\n` +
+      `Tempo: ${tempoLabel[s.tempo]}${s.live ? ` (~cada ${s.cadence} ticks)` : ""}\n` +
+      `Campaña del adversario: ${adv}\n` +
+      `Pulso: red team ${s.info.redteam ?? "—"} · calor ${s.info.heat ?? 0} · amenazas ${s.info.threats ?? 0}\n\n` +
+      `Últimos latidos:\n${beats}\n\n` +
+      `Tempo: director live · director fast · director pause   ·   forzar: director beat [n]\n`
+    );
+  }
+
+  /**
    * NandeReverse — ingeniería inversa sobre un binario REAL de la ÑVM-8.
    *   reverse             → info del crackme y cómo empezar.
    *   reverse hexdump     → bytes del código (o `reverse hexdump data`).
@@ -7997,6 +8062,7 @@ export class VirtualTerminal {
       "  blueteam active    Azul autónomo: defensor NPC que te contiene si hacés ruido grave",
       "  op                 Operación: la kill chain entera + próximo paso (todos los motores)",
       "  apt start <id>     Purple team: un adversario VIVO ataca y vos defendés (detectá + contené)",
+      "  director live      Mueve el juego: la campaña avanza sola con el latido (defendé en tiempo real)",
       "  mitre              Purple: técnicas ATT&CK detectadas por tus acciones",
       "  redteam [expulsar] Adversario NPC que ataca de verdad; defendé",
       "  reto               Te asignan un objetivo para vulnerar",
