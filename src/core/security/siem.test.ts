@@ -133,9 +133,28 @@ describe("SOC — SIEM de verdad (reglas, evidencia, triage, consulta)", () => {
     expect(ids).toContain("ND-016"); // T1078.002 · compromiso de Domain Admins
   });
 
-  it("una técnica ofensiva NO catalogada como AD no inventa alerta de SOC por esa vía", () => {
-    // El foothold sin ataques todavía no tiene alertas de identidad.
-    const before = kernel.soc.list().filter((a) => a.ruleId.startsWith("ND-01")).length;
-    expect(before).toBe(0);
+  it("coherencia total: el SIEM también ve técnicas no-AD (OT/impacto) como alerta genérica", () => {
+    // Una técnica de impacto en OT (sin regla propia) igual enciende el SIEM,
+    // con severidad derivada de la táctica (Impact → critical). El SOC ve TODO
+    // lo que ve la matriz ATT&CK, no sólo AD.
+    kernel.noteAttackTechnique({
+      technique: "Manipulation of Control", tactic: "Impact", mitreId: "T0831",
+      detail: "Escritura Modbus no autorizada en el PLC.", host: "plc.ot",
+    });
+    const a = kernel.soc.list().find((x) => x.mitre?.includes("T0831"));
+    expect(a).toBeDefined();
+    expect(a!.ruleId).toBe("ND-020");
+    expect(a!.severity).toBe("critical");
+    expect(a!.title).toContain("Manipulation of Control");
+  });
+
+  it("no duplica: el pivote (T1021) ya entra por login.success, no por attack.technique", () => {
+    kernel.noteAttackTechnique({
+      technique: "Remote Services", tactic: "Lateral Movement", mitreId: "T1021",
+      detail: "pivote a host interno", host: "interno.lab",
+    });
+    expect(
+      kernel.soc.list().some((x) => x.evidence.kind === "attack.technique" && x.mitre?.includes("T1021")),
+    ).toBe(false);
   });
 });

@@ -70,6 +70,8 @@ export const DETECTION_RULES: DetectionRule[] = [
     description: "Autenticación sin contraseña usando un certificado (PKINIT) o un hash NT (Pass-the-Hash)." },
   { id: "ND-016", name: "Compromiso de Domain Admins", severity: "critical", mitre: "T1078.002 · Domain Accounts",
     description: "Una cuenta de Domain Admins quedó bajo control del atacante: dominio comprometido." },
+  { id: "ND-020", name: "Técnica ofensiva observada (ATT&CK)", severity: "medium",
+    description: "Técnica ofensiva correlacionada desde la actividad del atacante (OT/ICS, web, recon, colección…). La severidad se ajusta a la táctica." },
 ];
 
 const RULE_BY_ID = new Map(DETECTION_RULES.map((r) => [r.id, r]));
@@ -91,6 +93,22 @@ const AD_RULE_BY_MITRE = new Map<string, string>([
   ["T1550.002", "ND-015"],
   ["T1078.002", "ND-016"],
 ]);
+
+/**
+ * Técnicas que NO se ingieren por attack.technique porque YA entran al SOC por
+ * telemetría de host (regla 8: no duplicar). El pivote (Remote Services) dispara
+ * un login.success real → ND-003; contarlo otra vez acá sería doble alerta.
+ */
+const SIGNAL_SKIP = new Set(["T1021", "T1021.001"]);
+
+/** Severidad de una alerta genérica según la táctica ATT&CK de la señal. */
+function severityForTactic(tactic: string): Severity {
+  const t = tactic.toLowerCase();
+  if (t.includes("impact") || t.includes("inhibit") || t.includes("impair")) return "critical";
+  if (t.includes("credential") || t.includes("persistence") || t.includes("privilege") || t.includes("lateral")) return "high";
+  if (t.includes("discovery") || t.includes("reconnaissance")) return "low";
+  return "medium";
+}
 
 export interface AlertEvidence {
   kind: string;
@@ -280,26 +298,28 @@ export class BlueTeamSOC {
   }
 
   /**
-   * Señal ofensiva de identidad/AD (attack.technique) → alerta del SIEM, si la
-   * técnica está en el catálogo curado (AD_RULE_BY_MITRE). La evidencia es la
-   * señal cruda (technique + detail), como un SIEM que correlaciona el log del
-   * DC. Técnica fuera del catálogo: sin alerta por esta vía (los login/pivote
-   * ya entran por runtime.host).
+   * Señal ofensiva (attack.technique) → alerta del SIEM. Coherencia total
+   * (regla 5): el SOC ve TODO lo que ve la matriz ATT&CK (AD, OT/ICS, MITM,
+   * recon, colección…), no un subconjunto. Reglas con nombre propio donde
+   * existen (AD_RULE_BY_MITRE); para el resto, una regla genérica (ND-020) con
+   * severidad derivada de la táctica y el nombre de la técnica en la alerta.
+   * Se SALTAN las técnicas ya cubiertas por telemetría de host (SIGNAL_SKIP)
+   * para no duplicar. La evidencia es la señal cruda, como un SIEM real.
    */
   private fromSignal(s: AttackSignal): void {
-    const ruleId = AD_RULE_BY_MITRE.get(s.mitreId);
-    if (!ruleId) return;
-    const rule = RULE_BY_ID.get(ruleId);
+    if (SIGNAL_SKIP.has(s.mitreId)) return;
+    const namedRuleId = AD_RULE_BY_MITRE.get(s.mitreId);
+    const rule = RULE_BY_ID.get(namedRuleId ?? "ND-020");
     const tick = this.clock();
     this.alerts.push({
       id: `a${++this.seq}`,
-      severity: rule?.severity ?? "high",
-      title: rule?.name ?? s.technique,
+      severity: namedRuleId ? (rule?.severity ?? "high") : severityForTactic(s.tactic),
+      title: namedRuleId ? (rule?.name ?? s.technique) : s.technique,
       host: s.host,
       detail: s.detail,
       tick,
-      ruleId: ruleId,
-      mitre: rule?.mitre,
+      ruleId: namedRuleId ?? "ND-020",
+      mitre: namedRuleId ? rule?.mitre : `${s.mitreId} · ${s.technique}`,
       status: "open",
       evidence: {
         kind: "attack.technique",

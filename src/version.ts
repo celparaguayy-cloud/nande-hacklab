@@ -3,5 +3,5 @@
  * qué build estás corriendo (y confirmar que tomaste la última actualización).
  * Subí el número cuando haya un cambio que el jugador deba poder distinguir.
  */
-export const NANDE_VERSION = "5.103.0";
-export const NANDE_BUILD = "siem-ve-ataques-al-ad-coherencia-soc-attck";
+export const NANDE_VERSION = "5.104.0";
+export const NANDE_BUILD = "siem-cobertura-total-ot-mitm-recon-coleccion";
