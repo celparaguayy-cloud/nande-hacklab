@@ -114,7 +114,7 @@ describe("SMB/AD enumeración — reflejan y mutan el dominio real", () => {
     expect(kernel.directory.get("LEGACY-SVC@NANDE.LOCAL")?.owned).toBe(true);
   });
 
-  it("ADCS/ESC1 por terminal: enum lo pistea, certipy find lo marca y certipy req cae el dominio (T1649)", () => {
+  it("ADCS/ESC1 por terminal (2 pasos): enum→find→req(emite)→auth(PKINIT) cae el dominio (T1649+T1550)", () => {
     // enum4linux descubre AD CS y la plantilla vulnerable.
     const en = term.execute("enum4linux nande.local");
     expect(en).toContain("AD CS detectado");
@@ -123,16 +123,30 @@ describe("SMB/AD enumeración — reflejan y mutan el dominio real", () => {
     const find = term.execute("certipy find -vulnerable");
     expect(find).toContain("NandeUser");
     expect(find).toContain("VULNERABLE");
-    // certipy req impersona a un Domain Admin → dominio comprometido de verdad.
+    // Paso 1: certipy req EMITE el cert pero NO autentica: el dominio sigue en pie.
     const req = term.execute("certipy req -template NandeUser -upn ADMIN-SQL@NANDE.LOCAL");
-    expect(req).toContain("ND{adcs_esc1}");
-    expect(req).toContain("ND{dominio_comprometido}");
+    expect(req).toContain("paso 1/2");
+    expect(req).not.toContain("ND{dominio_comprometido}");
+    expect(kernel.directory.domainOwned()).toBe(false);
+    // Paso 2: certipy auth (PKINIT) impersona al DA → dominio comprometido de verdad.
+    const auth = term.execute("certipy auth -pfx ADMIN-SQL@NANDE.LOCAL");
+    expect(auth).toContain("NT hash");
+    expect(auth).toContain("ND{adcs_esc1}");
+    expect(auth).toContain("ND{dominio_comprometido}");
     expect(kernel.directory.domainOwned()).toBe(true);
-    // Señal MITRE T1649 emitida (Purple la ve) y banderas capturadas de verdad.
-    expect(kernel.mitre.recent(20).map((d) => d.mitreId)).toContain("T1649");
+    // Señales MITRE T1649 (forja) y T1550 (PKINIT) emitidas; banderas capturadas.
+    const ids = kernel.mitre.recent(20).map((d) => d.mitreId);
+    expect(ids).toContain("T1649");
+    expect(ids).toContain("T1550");
     const flags = kernel.player.capturedFlags();
     expect(flags).toContain("ND{adcs_esc1}");
     expect(flags).toContain("ND{dominio_comprometido}");
+  });
+
+  it("ESC1 por terminal: auth sin cert emitido falla (PKINIT exige el .pfx)", () => {
+    const auth = term.execute("certipy auth -pfx ADMIN-SQL@NANDE.LOCAL");
+    expect(auth).toMatch(/no tenés un certificado/);
+    expect(kernel.directory.domainOwned()).toBe(false);
   });
 
   it("ESC1 exige alcanzar la CA/DC real y la plantilla segura NO explota", () => {

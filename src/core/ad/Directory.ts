@@ -105,6 +105,11 @@ export class Directory {
    *  alcanzar el DC (LDAP/SMB): por eso `certipy` pasa por la misma puerta. */
   readonly caName = "NANDE-CA";
   private certTemplatesList: CertTemplate[] = [];
+  /** Certificados de cliente ya EMITIDOS que el atacante tiene en su poder, por
+   *  nombre del sujeto impersonado (UPN completo). Es el artefacto REAL entre
+   *  "pedí el cert" (certipy req) y "me autentiqué con él" (certipy auth / PKINIT):
+   *  tener el .pfx no es lo mismo que haber autenticado. */
+  private heldCertificates = new Set<string>();
 
   constructor(onSignal?: (s: AttackSignal) => void) {
     this.onSignal = onSignal;
@@ -324,20 +329,30 @@ export class Directory {
     return this.certTemplates().filter((t) => this.esc1Vulnerable(t.name));
   }
 
+  /** ¿Tenés un certificado emitido para ese sujeto (podés PKINIT como él)? */
+  hasCertificateFor(targetUpn: string): boolean {
+    const t = this.resolvePrincipal(targetUpn);
+    return Boolean(t && this.heldCertificates.has(t.name));
+  }
+
+  /** Los sujetos (UPN) para los que ya emitiste un certificado. */
+  heldCerts(): string[] {
+    return [...this.heldCertificates];
+  }
+
   /**
-   * ESC1 (T1649 — Steal or Forge Authentication Certificates): pedís a la CA un
-   * certificado en una plantilla vulnerable eligiendo el SAN de la cuenta que
-   * querés IMPERSONAR. Con ese cert te autenticás por PKINIT como esa cuenta —
-   * sin su contraseña. Condiciones reales: (1) la plantilla es ESC1-vulnerable;
-   * (2) tenés un foothold de dominio (una cuenta poseída con la que inscribirte);
-   * (3) la cuenta objetivo existe. Efecto REAL: poseés la cuenta impersonada, y
-   * NandeBlood/Consecuencias lo ven. Si es Domain Admin, cae el dominio. Es una
-   * tercera ruta a DA, distinta de Kerberoasting (SVC-SQL) y de AS-REP (LEGACY).
+   * PASO 1 de ESC1 (T1649 — Steal or Forge Authentication Certificates): pedís a
+   * la CA un certificado en una plantilla vulnerable eligiendo el SAN de la
+   * cuenta que querés IMPERSONAR. Condiciones reales: (1) la plantilla es
+   * ESC1-vulnerable; (2) tenés un foothold de dominio (una cuenta poseída con la
+   * que inscribirte); (3) la cuenta objetivo existe. Efecto REAL: quedás con el
+   * .pfx en tu poder (heldCertificates). OJO: TENER el cert NO es autenticarse —
+   * eso es el paso 2 (authenticateWithCertificate / PKINIT). Modela fielmente el
+   * flujo de certipy (req emite el .pfx; auth lo usa).
    */
   requestCertificate(templateName: string, targetUpn: string): {
     ok: boolean;
     certificate?: string;
-    domainOwned: boolean;
     principal?: string;
     message: string;
   } {
@@ -345,7 +360,6 @@ export class Directory {
       const t = this.certTemplatesList.find((c) => c.name.toUpperCase() === templateName.toUpperCase());
       return {
         ok: false,
-        domainOwned: this.domainOwned(),
         message: t
           ? `la plantilla ${t.name} no es vulnerable a ESC1 (falta: ${esc1Missing(t).join("; ")})`
           : `no existe la plantilla "${templateName}" en la CA ${this.caName}`,
@@ -354,11 +368,11 @@ export class Directory {
     // Necesitás una identidad de dominio con la que inscribirte (foothold).
     const enroller = this.owned().find((p) => p.kind === "user");
     if (!enroller) {
-      return { ok: false, domainOwned: this.domainOwned(), message: `necesitás una cuenta de dominio poseída para inscribirte en ${this.caName}` };
+      return { ok: false, message: `necesitás una cuenta de dominio poseída para inscribirte en ${this.caName}` };
     }
     const target = this.resolvePrincipal(targetUpn);
     if (!target || target.kind !== "user") {
-      return { ok: false, domainOwned: this.domainOwned(), message: `cuenta objetivo desconocida: ${targetUpn}` };
+      return { ok: false, message: `cuenta objetivo desconocida: ${targetUpn}` };
     }
     this.signal({
       technique: "Steal or Forge Authentication Certificates",
@@ -367,7 +381,52 @@ export class Directory {
       detail: `ESC1: ${this.caName} emitió un certificado en la plantilla ${templateName} con SAN=${target.name} (solicitado por ${enroller.name}; impersona a ${target.name}).`,
       host: this.domain,
     });
+    this.heldCertificates.add(target.name);
+    const certificate = `-----BEGIN CERTIFICATE (PFX)-----\n${fakeHash(this.caName + templateName + target.name)}\nSAN(UPN)=${target.name}\n-----END CERTIFICATE-----`;
+    return {
+      ok: true,
+      certificate,
+      principal: target.name,
+      message: `Certificado ESC1 emitido por ${this.caName} (SAN=${target.name}). Ya lo tenés: autenticate con él (PKINIT).`,
+    };
+  }
+
+  /**
+   * PASO 2 de ESC1 (T1550 — Use Alternate Authentication Material / PKINIT):
+   * usás el certificado que emitiste para autenticarte como el sujeto SIN su
+   * contraseña. Como en certipy auth, la autenticación PKINIT además te devuelve
+   * el HASH NT de la cuenta (UnPAC-the-hash), que alimenta el resto del arsenal
+   * (Pass-the-Hash, DCSync, Golden Ticket). Efecto REAL: poseés la cuenta; si es
+   * Domain Admin, cae el dominio. Exige tener el cert (lo emitís con
+   * requestCertificate). Es lo que convierte "un .pfx" en "control".
+   */
+  authenticateWithCertificate(targetUpn: string): {
+    ok: boolean;
+    domainOwned: boolean;
+    ntHash?: string;
+    principal?: string;
+    message: string;
+  } {
+    const target = this.resolvePrincipal(targetUpn);
+    if (!target || target.kind !== "user") {
+      return { ok: false, domainOwned: this.domainOwned(), message: `cuenta objetivo desconocida: ${targetUpn}` };
+    }
+    if (!this.heldCertificates.has(target.name)) {
+      return {
+        ok: false,
+        domainOwned: this.domainOwned(),
+        principal: target.name,
+        message: `no tenés un certificado de ${target.name}: emitilo primero con certipy req -template <plantilla> -upn ${target.name}`,
+      };
+    }
     this.own(target.name);
+    this.signal({
+      technique: "Use Alternate Authentication Material: PKINIT (Pass-the-Certificate)",
+      tactic: "Lateral Movement",
+      mitreId: "T1550",
+      detail: `PKINIT con el certificado forjado de ${target.name} en ${this.domain}: autenticación sin contraseña y recuperación de su hash NT (UnPAC-the-hash).`,
+      host: this.domain,
+    });
     if (this.domainOwned()) {
       this.signal({
         technique: "Domain Dominance",
@@ -377,13 +436,12 @@ export class Directory {
         host: this.domain,
       });
     }
-    const certificate = `-----BEGIN CERTIFICATE (PFX)-----\n${fakeHash(this.caName + templateName + target.name)}\nSAN(UPN)=${target.name}\n-----END CERTIFICATE-----`;
     return {
       ok: true,
-      certificate,
       domainOwned: this.domainOwned(),
+      ntHash: this.ntHash(target.name),
       principal: target.name,
-      message: `Certificado ESC1 emitido por ${this.caName}: te autenticás como ${target.name} (PKINIT).${this.domainOwned() ? " — ¡DOMINIO COMPROMETIDO!" : ""}`,
+      message: `PKINIT OK: te autenticaste como ${target.name} y recuperaste su hash NT.${this.domainOwned() ? " — ¡DOMINIO COMPROMETIDO!" : ""}`,
     };
   }
 

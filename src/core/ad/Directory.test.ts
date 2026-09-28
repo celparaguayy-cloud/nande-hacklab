@@ -112,28 +112,45 @@ describe("Directory / NandeBlood — el grafo es estado real", () => {
     expect(nodes).not.toContain("SVC-SQL@NANDE.LOCAL");
   });
 
-  it("ADCS ESC1: una plantilla vulnerable deja impersonar a un DA y cae el dominio (T1649)", () => {
+  it("ADCS ESC1 (2 pasos): emitir el cert NO es autenticarse; PKINIT sí posee al DA", () => {
     // La CA publica una plantilla vulnerable (NandeUser) y una segura (WebServer).
     expect(dir.esc1Vulnerable("NandeUser")).toBe(true);
     expect(dir.esc1Vulnerable("WebServer")).toBe(false);
     expect(dir.esc1Templates().map((t) => t.name)).toEqual(["NandeUser"]);
-    // Antes de pedir el cert no controlás el dominio; el DBA no es tuyo.
+    // Antes de nada no controlás el dominio; el DBA no es tuyo.
     expect(dir.domainOwned()).toBe(false);
     expect(dir.get("ADMIN-SQL@NANDE.LOCAL")!.owned).toBe(false);
-    // ESC1: desde el foothold (JUGADOR) pedís un cert con SAN = un Domain Admin.
-    const r = dir.requestCertificate("NandeUser", "ADMIN-SQL@NANDE.LOCAL");
-    expect(r.ok).toBe(true);
-    expect(r.certificate).toContain("SAN(UPN)=ADMIN-SQL@NANDE.LOCAL");
-    expect(r.domainOwned).toBe(true);
-    // Consecuencia REAL: poseés al DBA (impersonado) → dominio comprometido.
+    // Paso 1: desde el foothold (JUGADOR) EMITÍS un cert con SAN = un Domain Admin.
+    const req = dir.requestCertificate("NandeUser", "ADMIN-SQL@NANDE.LOCAL");
+    expect(req.ok).toBe(true);
+    expect(req.certificate).toContain("SAN(UPN)=ADMIN-SQL@NANDE.LOCAL");
+    // TENER el cert NO es autenticarse: todavía NO poseés la cuenta.
+    expect(dir.hasCertificateFor("ADMIN-SQL@NANDE.LOCAL")).toBe(true);
+    expect(dir.get("ADMIN-SQL@NANDE.LOCAL")!.owned).toBe(false);
+    expect(dir.domainOwned()).toBe(false);
+    // Paso 2: PKINIT con el cert → poseés al DBA y recuperás su hash NT.
+    const auth = dir.authenticateWithCertificate("ADMIN-SQL@NANDE.LOCAL");
+    expect(auth.ok).toBe(true);
+    expect(auth.domainOwned).toBe(true);
+    expect(auth.ntHash).toBe(dir.ntHash("ADMIN-SQL@NANDE.LOCAL"));
     expect(dir.get("ADMIN-SQL@NANDE.LOCAL")!.owned).toBe(true);
     expect(dir.domainOwned()).toBe(true);
+  });
+
+  it("ESC1: no podés autenticar sin haber emitido el cert (PKINIT exige el .pfx)", () => {
+    // Sin req previo, auth falla y no posee nada.
+    const auth = dir.authenticateWithCertificate("ADMIN-SQL@NANDE.LOCAL");
+    expect(auth.ok).toBe(false);
+    expect(auth.message).toMatch(/no tenés un certificado/);
+    expect(dir.get("ADMIN-SQL@NANDE.LOCAL")!.owned).toBe(false);
+    expect(dir.domainOwned()).toBe(false);
   });
 
   it("ESC1: la plantilla segura NO es explotable y explica qué condición falta", () => {
     const r = dir.requestCertificate("WebServer", "ADMIN-SQL@NANDE.LOCAL");
     expect(r.ok).toBe(false);
     expect(r.message).toMatch(/no es vulnerable a ESC1/);
+    expect(dir.hasCertificateFor("ADMIN-SQL@NANDE.LOCAL")).toBe(false);
     expect(dir.domainOwned()).toBe(false);
     // Una plantilla inexistente tampoco emite nada.
     expect(dir.requestCertificate("NoExiste", "ADMIN-SQL@NANDE.LOCAL").ok).toBe(false);
@@ -144,6 +161,7 @@ describe("Directory / NandeBlood — el grafo es estado real", () => {
     expect(dir.get("SVC-SQL@NANDE.LOCAL")!.owned).toBe(false);
     expect(dir.get("LEGACY-SVC@NANDE.LOCAL")!.owned).toBe(false);
     dir.requestCertificate("NandeUser", "ADMIN-SQL@NANDE.LOCAL");
+    dir.authenticateWithCertificate("ADMIN-SQL@NANDE.LOCAL");
     expect(dir.domainOwned()).toBe(true);
     // No pasó por las otras cuentas de servicio.
     expect(dir.get("SVC-SQL@NANDE.LOCAL")!.owned).toBe(false);
