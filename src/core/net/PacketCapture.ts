@@ -68,7 +68,10 @@ export class PacketCapture {
   private limit: number;
   private unsubs: (() => void)[] = [];
   /** IP del jugador (origen de su tráfico saliente). */
-  private myIp = "10.10.0.5";
+  // La IP del jugador: la MISMA que muestra ifconfig / la red (eth0 10.10.0.10).
+  // Antes era 10.10.0.5 y contradecía a ifconfig: tu propio tráfico aparecía
+  // con una IP distinta a la tuya (incoherencia, regla 2/5). Fuente única.
+  private myIp = "10.10.0.10";
 
   constructor(events: EventBus, limit = 2000) {
     this.limit = limit;

@@ -24,7 +24,7 @@ describe("Campaña completa red↔blue — coherencia de extremo a extremo", () 
 
   it("recon → MITM↔IDS → OT sabotaje↔defensa → AD takeover → DCSync → Golden Ticket↔rotación", () => {
     // ── 1) Reconocimiento: el DC es un host real con puertos de AD ───────────
-    const dcScan = term.execute("nmap 10.10.0.5");
+    const dcScan = term.execute(`nmap ${kernel.directory.dcIp}`);
     expect(dcScan).toContain("88/tcp"); // Kerberos → es un DC
     expect(dcScan).toContain("445/tcp");
 

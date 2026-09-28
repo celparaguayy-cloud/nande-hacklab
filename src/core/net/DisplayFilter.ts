@@ -9,7 +9,7 @@ import { compileQuery, runQuery, type Compiled, type QuerySchema } from "../quer
  * Ejemplos reales que funcionan:
  *   http
  *   http.request.method == "POST"
- *   ip.addr == 10.10.0.5 and http
+ *   ip.addr == 10.10.0.10 and http
  *   http.response.code >= 400
  *   frame contains "password"
  *   http.host contains "banco" and not auth

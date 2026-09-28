@@ -25,7 +25,9 @@ export interface Trace {
   seenSource: string;
 }
 
-const PLAYER_IP = "10.10.0.5";
+// La IP real del jugador: la misma de eth0/ifconfig (10.10.0.10). Fuente única
+// coherente con el resto del mundo (antes decía 10.10.0.5, que era otra IP).
+const PLAYER_IP = "10.10.0.10";
 const HEAT_PER_EXPOSED = 12;
 const HEAT_PER_MASKED = 1;
 

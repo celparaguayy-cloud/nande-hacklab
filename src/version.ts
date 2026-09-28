@@ -3,5 +3,5 @@
  * qué build estás corriendo (y confirmar que tomaste la última actualización).
  * Subí el número cuando haya un cambio que el jugador deba poder distinguir.
  */
-export const NANDE_VERSION = "5.96.0";
-export const NANDE_BUILD = "ad-golden-ticket-y-rotacion-krbtgt";
+export const NANDE_VERSION = "5.97.0";
+export const NANDE_BUILD = "ip-jugador-fuente-unica-10-10-0-10";

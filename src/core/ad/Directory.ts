@@ -69,7 +69,7 @@ export class Directory {
    *  389/636, SMB 445, GC 3268). Es el puente entre la capa de identidad (este
    *  grafo) y la capa de red: hay que ALCANZARLO para atacar el dominio. */
   readonly dcHostname = "dc01.nande.local";
-  readonly dcIp = "10.10.0.5";
+  readonly dcIp = "10.10.0.6";
 
   constructor(onSignal?: (s: AttackSignal) => void) {
     this.onSignal = onSignal;

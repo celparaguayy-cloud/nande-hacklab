@@ -59,8 +59,8 @@ describe("tcpdump / tshark — análisis de tráfico real y offline", () => {
 
   it("tshark -Y ip.addr== filtra por dirección (campo de display)", () => {
     term.execute('curl http://banco.nande/');
-    const out = term.execute('tshark -Y "ip.addr==10.10.0.5"'); // IP del jugador
-    expect(out).toContain("10.10.0.5");
+    const out = term.execute('tshark -Y "ip.addr==10.10.0.10"'); // IP del jugador (eth0)
+    expect(out).toContain("10.10.0.10");
   });
 
   it("tshark rechaza un filtro de display inválido (barra roja)", () => {

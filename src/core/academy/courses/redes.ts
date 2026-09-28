@@ -63,7 +63,7 @@ const TCPIP: Curso = {
       kind: "concept",
       title: "IP vs MAC: dos direcciones distintas",
       body:
-        "Cada equipo tiene DOS direcciones y conviene no confundirlas. La IP (ej. 10.10.0.5) es la dirección dentro de UNA red: te la asigna la red a la que te conectás, y cambia si te mudás a otra. La MAC (ej. 02:00:00:00:00:10) viene grabada de fábrica en la placa de red y viaja pegada al equipo. Regla simple: la IP dice DÓNDE estás; la MAC dice QUIÉN sos físicamente.",
+        "Cada equipo tiene DOS direcciones y conviene no confundirlas. La IP (ej. 10.10.0.10) es la dirección dentro de UNA red: te la asigna la red a la que te conectás, y cambia si te mudás a otra. La MAC (ej. 02:00:00:00:00:10) viene grabada de fábrica en la placa de red y viaja pegada al equipo. Regla simple: la IP dice DÓNDE estás; la MAC dice QUIÉN sos físicamente.",
       diagram: "ip",
       bullets: [
         "IP = dirección en la red actual (cambia según la red).",
@@ -78,7 +78,7 @@ const TCPIP: Curso = {
         "El comando 'ip addr' te muestra tus interfaces de red con sus datos. Corrélo y buscá dos cosas en la salida: 'inet' (tu IP) y 'ether' (tu MAC).",
       command: "ip addr",
       explain:
-        "Ahí están las dos: inet 10.10.0.5 es tu IP (tu lugar en ESTA red), y ether 02:00:00:00:00:10 es tu MAC (grabada en la placa). También ves el 'netmask', que define el tamaño de tu red. Un atacante que ya está adentro corre esto para entender en qué red cayó y quiénes son sus vecinos.",
+        "Ahí están las dos: inet 10.10.0.10 es tu IP (tu lugar en ESTA red), y ether 02:00:00:00:00:10 es tu MAC (grabada en la placa). También ves el 'netmask', que define el tamaño de tu red. Un atacante que ya está adentro corre esto para entender en qué red cayó y quiénes son sus vecinos.",
       diagram: "ip",
     },
     {
@@ -99,7 +99,7 @@ const TCPIP: Curso = {
       kind: "concept",
       title: "Subredes: la máscara /24",
       body:
-        "Una IP como 10.10.0.5 tiene dos partes: cuál es la RED y cuál es el EQUIPO dentro de esa red. Eso lo decide la máscara. La más común es /24 (o 255.255.255.0): dice que los primeros tres números (10.10.0) son la red, y el último (5) identifica al equipo. O sea, 10.10.0.1 hasta 10.10.0.254 son vecinos de la misma red. Entender esto te dice a quiénes tenés al lado para escanear.",
+        "Una IP como 10.10.0.10 tiene dos partes: cuál es la RED y cuál es el EQUIPO dentro de esa red. Eso lo decide la máscara. La más común es /24 (o 255.255.255.0): dice que los primeros tres números (10.10.0) son la red, y el último (10) identifica al equipo. O sea, 10.10.0.1 hasta 10.10.0.254 son vecinos de la misma red. Entender esto te dice a quiénes tenés al lado para escanear.",
       diagram: "ip",
       bullets: [
         "/24 = los 3 primeros números son la red; el último, el equipo.",
@@ -255,7 +255,7 @@ const CAPTURA: Curso = {
         "Generá tráfico visitando el banco (curl) y después seguí toda la charla con su IP. Vas a ver los paquetes que fueron y volvieron entre vos y el servidor.",
       command: "curl http://banco.nande/ ; sniff follow 10.10.7.10",
       explain:
-        "NandeShark rearmó el 'stream': ves tu pedido saliendo de tu IP (10.10.0.5) hacia el banco (10.10.7.10) y su respuesta volviendo. Seguir un stream así es lo que hace un analista para entender un ataque completo, o lo que hace un atacante para reconstruir qué mandó una víctima. Todo lo capturado antes (como el login del paso anterior) también aparece en esta charla.",
+        "NandeShark rearmó el 'stream': ves tu pedido saliendo de tu IP (10.10.0.10) hacia el banco (10.10.7.10) y su respuesta volviendo. Seguir un stream así es lo que hace un analista para entender un ataque completo, o lo que hace un atacante para reconstruir qué mandó una víctima. Todo lo capturado antes (como el login del paso anterior) también aparece en esta charla.",
       diagram: "sniffer",
     },
     {
@@ -285,7 +285,7 @@ const CAPTURA: Curso = {
       kind: "concept",
       title: "tcpdump: sniffing sin interfaz gráfica",
       body:
-        "NandeShark es la vista visual; pero en un pentest real casi siempre estás en una consola remota (SSH), sin ventanas. Ahí se usa tcpdump: el sniffer de línea de comandos, el que hay en TODO Linux. Sus filtros se llaman BPF (Berkeley Packet Filter) y deciden QUÉ capturar:\n\n   tcpdump host banco.nande      solo tráfico de/hacia ese host\n   tcpdump src host 10.10.0.5    solo lo que SALE de esa IP\n   tcpdump port 80               solo el puerto 80 (HTTP)\n   tcpdump -A host banco.nande   -A muestra el payload en TEXTO\n   tcpdump -X ...                -X lo muestra en hexadecimal\n\nBPF es acotado a propósito: capturás sólo lo que te importa, no todo el diluvio.",
+        "NandeShark es la vista visual; pero en un pentest real casi siempre estás en una consola remota (SSH), sin ventanas. Ahí se usa tcpdump: el sniffer de línea de comandos, el que hay en TODO Linux. Sus filtros se llaman BPF (Berkeley Packet Filter) y deciden QUÉ capturar:\n\n   tcpdump host banco.nande      solo tráfico de/hacia ese host\n   tcpdump src host 10.10.0.10    solo lo que SALE de esa IP\n   tcpdump port 80               solo el puerto 80 (HTTP)\n   tcpdump -A host banco.nande   -A muestra el payload en TEXTO\n   tcpdump -X ...                -X lo muestra en hexadecimal\n\nBPF es acotado a propósito: capturás sólo lo que te importa, no todo el diluvio.",
       diagram: "terminal",
       bullets: [
         "tcpdump = el sniffer universal de línea de comandos (siempre está).",
