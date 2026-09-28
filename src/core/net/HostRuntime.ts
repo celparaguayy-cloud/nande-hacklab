@@ -551,9 +551,49 @@ export class HostRuntime {
     ) {
       return true;
     }
-    if (from === null) return false;
+    if (from === null) {
+      // Pivoting por TÚNEL (proxychains/chisel/ssh -L): si hay un túnel activo a
+      // través de un host V, el jugador alcanza DESDE SU MÁQUINA todo lo que V
+      // alcanza —como reenviar el tráfico por el pivote—. Es ADITIVO: sólo suma
+      // alcance cuando hay un túnel; sin túneles, el comportamiento es el de
+      // siempre. Un túnel por un host AISLADO no sirve (canReach(V,...) lo corta).
+      for (const via of this.tunnelVias) {
+        if (via === host.hostname.toLowerCase()) continue;
+        if (this.canReach(via, host.hostname)) return true;
+      }
+      return false;
+    }
     const key = (this.resolve(from)?.hostname ?? from).toLowerCase();
     return (host.reachableFrom ?? []).includes(key);
+  }
+
+  /* --------------------------------------------------- túneles / pivoting */
+
+  /** Hosts (comprometidos) por los que hay un túnel activo hacia su red interna. */
+  private tunnelVias = new Set<string>();
+
+  /** Abre un túnel a través de `via`. Devuelve el hostname canónico, o null. */
+  openTunnel(via: string): string | null {
+    const host = this.resolve(via);
+    if (!host) return null;
+    this.tunnelVias.add(host.hostname.toLowerCase());
+    return host.hostname;
+  }
+
+  /** Cierra el túnel por `via` (o TODOS si se omite). Devuelve cuántos cerró. */
+  closeTunnel(via?: string): number {
+    if (!via) {
+      const n = this.tunnelVias.size;
+      this.tunnelVias.clear();
+      return n;
+    }
+    const key = (this.resolve(via)?.hostname ?? via).toLowerCase();
+    return this.tunnelVias.delete(key) ? 1 : 0;
+  }
+
+  /** Túneles activos (hostnames de los pivotes). */
+  activeTunnels(): string[] {
+    return [...this.tunnelVias].sort();
   }
 
   /** ¿El host está aislado por contención (IR)? */

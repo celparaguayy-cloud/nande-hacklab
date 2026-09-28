@@ -96,6 +96,8 @@ const MANPAGES: Record<string, ManPage> = {
     desc: "Le manda un 'saludito' a una máquina y espera respuesta, como tocar el timbre. Si contesta, está prendida y alcanzable.", examples: ["ping 10.10.5.20", "ping server.nande"] },
   nslookup: { name: "traducir nombre → IP", synopsis: "nslookup <host>",
     desc: "Los humanos usamos nombres (server.nande); las máquinas usan números (IP). Esto traduce el nombre a su número, como una guía telefónica (DNS).", examples: ["nslookup banco.nande"] },
+  chisel: { name: "pivoting por túnel (proxychains/SOCKS)", synopsis: "chisel <host-pivote> | chisel stop [host] | chisel",
+    desc: "Pivoting REAL por túnel: levantás un proxy/reenvío (estilo chisel/proxychains/ssh -L) a través de un host que YA comprometiste, y desde TU máquina alcanzás su red interna con TUS herramientas (nmap, connect, curl) — sin estar dentro de una sesión remota. Es como los pros entran a un segmento de atrás: comprometés el pivote y tunelizás. Requiere haber tomado el host (aparece en tu botín) y poder alcanzarlo; si el equipo azul lo AÍSLA (contain host), el túnel muere. 'chisel <pivote>' abre; 'chisel stop' cierra; 'chisel' lista. MITRE T1572. Todo dentro del sandbox.", examples: ["chisel server.nande", "chisel nas.interna.nande", "chisel stop"] },
   dig: { name: "consulta DNS pro (registros, reverso, AXFR)", synopsis: "dig <nombre> [A|TXT|MX|NS|CNAME|ANY] · dig -x <ip> · dig axfr <zona>",
     desc: "La herramienta pro de DNS: consulta registros por TIPO (A=IPv4, TXT=texto, MX=correo, NS=servidores de nombre, CNAME=alias), hace DNS inverso con -x (IP→nombre) y transferencia de zona con 'axfr'. Lee el motor DNS REAL (respeta el envenenamiento de dnsspoof y sigue CNAME). El AXFR es recon de manual: si una zona está mal configurada, 'dig axfr <zona>' vuelca TODOS sus nombres —incluidos hosts internos que de otro modo tendrías que adivinar—. Probá 'dig axfr interna.nande'. Todo 100% dentro del sandbox.", examples: ["dig banco.nande", "dig nande TXT", "dig -x 10.10.7.10", "dig axfr interna.nande"] },
   nmap: { name: "escanear puertos y servicios", synopsis: "nmap <ip|host>",
@@ -1318,6 +1320,74 @@ export class VirtualTerminal {
    * trae su banner (banner grabbing → identificás la versión, como en la vida
    * real). Con -z escanea un rango/lista. La misma verdad que nmap y connect.
    */
+  /**
+   * chisel / proxychains — PIVOTING por TÚNEL. Levantás un túnel (SOCKS/reenvío)
+   * a través de un host que YA comprometiste, y desde tu propia máquina alcanzás
+   * su red interna con TUS herramientas (nmap, connect, curl). Es tradecraft real:
+   * un pivote comprometido te abre el segmento de atrás. Requiere haber tomado el
+   * host (CompromiseLog) y alcanzarlo; si lo aíslan (contención), el túnel muere.
+   *   chisel <host-pivote>   → abre el túnel por ese host.
+   *   chisel stop [host]     → cierra el túnel (o todos).
+   *   chisel                 → lista los túneles activos.
+   */
+  private chiselCmd(args: string[]): { output: string; isError: boolean } {
+    const sub = (args[0] ?? "").toLowerCase();
+    const hosts = this.kernel.hosts;
+
+    if (sub === "stop" || sub === "off" || sub === "cerrar") {
+      const n = hosts.closeTunnel(args[1]);
+      return {
+        output: n ? `chisel: ${n} túnel(es) cerrado(s). Se corta el pivoteo por esos hosts.\n` : `chisel: no había túneles${args[1] ? " por " + args[1] : ""}.\n`,
+        isError: false,
+      };
+    }
+
+    const active = hosts.activeTunnels();
+    if (!sub || sub === "list" || sub === "ls") {
+      return {
+        output:
+          `═══ Túneles / pivoting (proxychains) ═══\n` +
+          (active.length
+            ? active.map((v) => `  ⇄ ${v}  → alcanzás su red interna con tus herramientas`).join("\n") + "\n"
+            : "  (sin túneles activos)\n") +
+          `\nAbrir: chisel <host-pivote-comprometido>   ·   cerrar: chisel stop [host]\n` +
+          `Después, tus nmap/connect/curl llegan al segmento de atrás del pivote.\n`,
+        isError: false,
+      };
+    }
+
+    // Abrir un túnel: el pivote debe estar comprometido y ser alcanzable.
+    const host = hosts.resolve(sub);
+    if (!host) return { output: `chisel: host desconocido: ${sub}\n`, isError: true };
+    if (!this.kernel.compromises.has(host.hostname)) {
+      return { output: `chisel: primero tenés que COMPROMETER ${host.hostname} (connect/exploit). No se tuneliza por un host que no controlás.\n`, isError: true };
+    }
+    // Comprometer el pivote ES la evidencia de que tenés acceso a él (llegaste
+    // pivoteando). Sólo lo corta la contención: un pivote AISLADO no sirve.
+    if (hosts.isIsolated(host.hostname)) {
+      return { output: `chisel: ${host.hostname} está AISLADO (contención): perdiste el acceso, no se puede tunelizar por él.\n`, isError: false };
+    }
+    hosts.openTunnel(host.hostname);
+    // Pivoting por túnel: técnica MITRE (Protocol Tunneling), la ven SOC/OPSEC.
+    this.kernel.noteAttackTechnique({
+      technique: "Protocol Tunneling (pivot)",
+      tactic: "Command and Control",
+      mitreId: "T1572",
+      detail: `Túnel/proxy montado a través de ${host.hostname} (${host.ip}): la red interna del pivote queda alcanzable desde el atacante.`,
+      host: host.hostname,
+    });
+    const behind = hosts.reachableFrom(host.hostname).map((h) => h.hostname);
+    return {
+      output:
+        `✔ Túnel abierto por ${host.hostname} (${host.ip}). proxychains listo.\n` +
+        (behind.length
+          ? `Ahora alcanzás su red interna con TUS herramientas:\n${behind.map((h) => `  • ${h}  (probá: nmap ${h})`).join("\n")}\n`
+          : `(No hay hosts internos detrás de ${host.hostname} en el mapa actual.)\n`) +
+        `Cerrá con: chisel stop ${host.hostname}\n`,
+      isError: false,
+    };
+  }
+
   private ncCmd(args: string[]): { output: string; isError: boolean } {
     const scan = args.includes("-z");
     const listen = args.includes("-l") || /-\w*l\w*/.test(args.find((a) => /^-\w*l/.test(a)) ?? "");
@@ -2170,6 +2240,10 @@ export class VirtualTerminal {
         case "ncat":
         case "netcat":
           return this.ncCmd(commandArgs);
+
+        case "chisel":
+        case "socks":
+          return this.chiselCmd(commandArgs);
 
         case "netstat":
         case "ss":
@@ -7965,6 +8039,7 @@ export class VirtualTerminal {
       "  ping <ip>        Ver si una máquina responde",
       "  nslookup <host>  Resolver un nombre",
       "  dig <n> [tipo]   DNS pro: registros, dig -x <ip> (reverso), dig axfr <zona>",
+      "  chisel <pivote>  Pivoting por túnel: alcanzá la red interna de un host comprometido con tus tools",
       "  nmap <ip>        Escanear puertos (probá: nmap 10.10.5.20)",
       "  academy          Ruta de aprendizaje de ciberseguridad",
       "  learn            Lecciones guiadas (aprendé haciendo)",
