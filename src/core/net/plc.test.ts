@@ -131,6 +131,23 @@ describe("PlcRuntime — proceso físico stateful (Modbus/ICS)", () => {
     expect(after.level).toBe(before.level);
     expect(after.pressure).toBe(before.pressure);
   });
+
+  /* -------------------------------------- protección de escritura (llave RUN) */
+
+  it("con la protección de escritura activa, TODA escritura Modbus se rechaza", () => {
+    plc.setProtect("plc.planta.nande", true);
+    expect(plc.isWriteProtected("plc.planta.nande")).toBe(true);
+    const w = plc.writeHolding("plc.planta.nande", PLC_MAP.HOLD_SETPOINT, 130);
+    expect(w.ok).toBe(false);
+    expect(w.message).toMatch(/protegido|RUN/);
+    // El proceso no cambió: el sabotaje no entró.
+    expect(plc.process("plc.planta.nande")!.safety).toBe("ok");
+    // Y ni siquiera se puede tocar el SIS de forma remota.
+    expect(plc.setSis("plc.planta.nande", false).blocked).toBe(true);
+    // Sacando la protección, la escritura vuelve a entrar.
+    plc.setProtect("plc.planta.nande", false);
+    expect(plc.writeHolding("plc.planta.nande", PLC_MAP.HOLD_VALVE, 40).ok).toBe(true);
+  });
 });
 
 describe("Terminal `modbus` — cliente Modbus/TCP contra el PLC (con ruteo real)", () => {
@@ -257,5 +274,20 @@ describe("Terminal `modbus` — cliente Modbus/TCP contra el PLC (con ruteo real
     const news = kernel.news.latest(20);
     expect(news.some((a) => a.category === "Infraestructura crítica" && /destru/i.test(a.headline))).toBe(true);
     expect(kernel.reputation().offensive).toBeGreaterThan(0);
+  });
+
+  it("defensa OT: proteger el PLC bloquea el sabotaje; sacar la protección es T0858", () => {
+    pivotToHistorian();
+    // Hardening defensivo: activar la protección de escritura (llave RUN).
+    expect(term.execute("modbus protect plc.planta.nande on")).toMatch(/ACTIVADA/);
+    // El mismo ataque que destruía la planta ahora REBOTA.
+    const blocked = term.execute("modbus write plc.planta.nande reg 1 130");
+    expect(blocked).toMatch(/protegido|rechazada/i);
+    expect(kernel.plc.process("plc.planta.nande")!.safety).toBe("ok"); // intacta
+    // Para volver a escribir, el atacante tiene que sacar la protección: T0858.
+    expect(term.execute("modbus protect plc.planta.nande off")).toMatch(/DESHABILITADA/);
+    expect(kernel.mitre.recent(40).map((d) => d.mitreId)).toContain("T0858");
+    // Y recién ahí la escritura entra de nuevo.
+    expect(term.execute("modbus write plc.planta.nande reg 0 40")).toContain("Modbus write OK");
   });
 });

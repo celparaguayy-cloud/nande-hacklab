@@ -112,6 +112,23 @@ describe("Lecciones nuevas — completables con salida real", () => {
     });
   });
 
+  it("l-ot-defensa: el ciclo azul OT (llegar→diagnosticar→proteger→verificar) pasa cada check", () => {
+    const steps = lesson("l-ot-defensa").steps;
+    const cmds = [
+      "connect server.nande soporte Verano2024",
+      "connect nas.interna.nande respaldo NasÑande#2024",
+      "connect db-core.interna.nande dbadmin Core-DB!2024",
+      "modbus protect plc.planta.nande status",
+      "modbus protect plc.planta.nande on",
+      "modbus write plc.planta.nande reg 1 130",
+    ];
+    expect(cmds.length).toBe(steps.length);
+    cmds.forEach((cmd, i) => {
+      const out = term.execute(cmd);
+      expect(steps[i].check!(cmd, out), `paso ${i}: ${cmd}`).toBe(true);
+    });
+  });
+
   it("l-dfir-atribucion: el ciclo azul (drill→dfir→atribuir→contener) pasa cada check con el motor real", () => {
     const steps = lesson("l-dfir-atribucion").steps;
     const cmds = [

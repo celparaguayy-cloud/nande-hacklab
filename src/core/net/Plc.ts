@@ -126,6 +126,13 @@ interface PlcDeviceState {
   sisTripped: boolean;
   /** Vasija destruida (latcheado): daño físico irreversible. */
   ruptured: boolean;
+  /**
+   * Protección de escritura (llave física en modo RUN): cuando está activa, el
+   * PLC RECHAZA toda escritura remota (coils, registros y cambios del SIS). Es
+   * la defensa #1 contra Modbus no autenticado. Default FALSE: los PLC legados
+   * vienen en modo remoto/programable — por eso son vulnerables (realismo).
+   */
+  writeProtected: boolean;
 }
 
 /* --------------------------------------------------------------- constantes */
@@ -175,6 +182,7 @@ export class PlcRuntime {
       sisEnabled: true,
       sisTripped: false,
       ruptured: false,
+      writeProtected: false,
     });
   }
 
@@ -331,6 +339,7 @@ export class PlcRuntime {
     if (!d) return { ok: false, message: "sin dispositivo" };
     const coil = d.coils.find((c) => c.addr === addr);
     if (!coil) return { ok: false, message: `coil ${addr} inexistente (coils válidos: 0–${d.coils.length - 1})` };
+    if (d.writeProtected) return { ok: false, message: `PLC en modo protegido (llave RUN): escritura remota rechazada. Deshabilitá la protección primero.` };
     const before = this.process(ref)!;
     coil.value = value;
     this.applySafety(d);
@@ -353,6 +362,7 @@ export class PlcRuntime {
     if (!d) return { ok: false, message: "sin dispositivo" };
     const reg = d.holding.find((h) => h.addr === addr);
     if (!reg) return { ok: false, message: `registro ${addr} inexistente (holding válidos: 0–${d.holding.length - 1})` };
+    if (d.writeProtected) return { ok: false, message: `PLC en modo protegido (llave RUN): escritura remota rechazada. Deshabilitá la protección primero.` };
     const value = clamp(Math.round(raw), reg.min, reg.max);
     const before = this.process(ref)!;
     reg.value = value;
@@ -382,11 +392,33 @@ export class PlcRuntime {
    * la planta en vez de dispararla a paro seguro (el paso clave del ataque
    * estilo TRISIS). Devuelve el estado previo y el nuevo.
    */
-  setSis(ref: string, on: boolean): { ok: boolean; was: boolean; now: boolean } {
+  setSis(ref: string, on: boolean): { ok: boolean; was: boolean; now: boolean; blocked?: boolean } {
     const d = this.find(ref);
     if (!d) return { ok: false, was: false, now: false };
+    // La protección de escritura también blinda la lógica de seguridad: no se
+    // puede tocar el SIS de forma remota con la llave en RUN.
+    if (d.writeProtected) return { ok: false, was: d.sisEnabled, now: d.sisEnabled, blocked: true };
     const was = d.sisEnabled;
     d.sisEnabled = on;
+    return { ok: true, was, now: on };
+  }
+
+  /** ¿El PLC está en modo protegido (llave RUN, escritura remota bloqueada)? */
+  isWriteProtected(ref: string): boolean {
+    return this.find(ref)?.writeProtected ?? false;
+  }
+
+  /**
+   * Activa/desactiva la protección de escritura (llave RUN). Activarla es
+   * hardening defensivo (bloquea todo Modbus de escritura). Desactivarla de
+   * forma remota es lo que hace un atacante para poder escribir: cambia el modo
+   * de operación del controlador (ATT&CK ICS T0858). Devuelve estado previo/nuevo.
+   */
+  setProtect(ref: string, on: boolean): { ok: boolean; was: boolean; now: boolean } {
+    const d = this.find(ref);
+    if (!d) return { ok: false, was: false, now: false };
+    const was = d.writeProtected;
+    d.writeProtected = on;
     return { ok: true, was, now: on };
   }
 
@@ -398,6 +430,7 @@ export class PlcRuntime {
     if (d.ruptured) return false;
     d.sisEnabled = true;
     d.sisTripped = false;
+    d.writeProtected = false;
     if (d.host === "plc.planta.nande") {
       this.setCoil(d, PLC_MAP.COIL_PUMP, true);
       this.setCoil(d, PLC_MAP.COIL_AUTO, true);

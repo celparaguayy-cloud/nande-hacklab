@@ -918,7 +918,67 @@ export const LESSONS: Lesson[] = [
         hint: "modbus write plc.planta.nande reg 1 130",
         check: (cmd, out) => usedTool(cmd, "modbus") && /ROTURA|DESTRU/.test(out),
         debrief:
-          "Destruiste la planta (MITRE T0879 Damage to Property + T0880 Loss of Safety). Este es el patrón Triton: comprometer IT → pivotar a OT → deshabilitar la seguridad → causar daño físico. Defensa (por capas): segmentar IT/OT de verdad (nada de historians doble-homed), firewall/diodo de datos delante del PLC, SIS aislado en su propia red y con llave física en RUN, y monitoreo del tráfico Modbus. Si el SIS hubiera estado puesto, sólo habrías logrado un paro seguro —costoso, pero sin destrucción. Por esto la OT importa: acá el daño es físico y a veces irreversible.",
+          "Destruiste la planta (MITRE T0879 Damage to Property + T0880 Loss of Safety). Este es el patrón Triton: comprometer IT → pivotar a OT → deshabilitar la seguridad → causar daño físico. Defensa (por capas): segmentar IT/OT de verdad (nada de historians doble-homed), firewall/diodo de datos delante del PLC, SIS aislado en su propia red y con llave física en RUN, y monitoreo del tráfico Modbus. Si el SIS hubiera estado puesto, sólo habrías logrado un paro seguro —costoso, pero sin destrucción. Por esto la OT importa: acá el daño es físico y a veces irreversible. Del otro lado del tablero, mirá la lección de DEFENSA OT.",
+      },
+    ],
+  },
+  {
+    id: "l-ot-defensa",
+    title: "Defensa OT (Blue Team): blindá el PLC contra Modbus",
+    level: "avanzado",
+    summary: "Del lado azul: cerrá el agujero que hace vulnerable a la planta — la llave de escritura del PLC.",
+    concept:
+      "Viste que Modbus no autentica: quien alcanza el :502 escribe el control. La defensa #1 (además de segmentar IT/OT) es la LLAVE del PLC: dejarlo en modo RUN/protegido rechaza toda escritura remota. Acá te ponés del lado del ingeniero de planta: verificás el estado del controlador y lo blindás, y comprobás que el ataque que antes destruía la planta ahora rebota. En un cyber range, defender vale igual que atacar.",
+    reward: { xp: 220, coins: 170 },
+    steps: [
+      {
+        explain:
+          "Como responsable de la planta, llegás a la red OT por el mismo camino que audita el equipo. Entrá al borde primero.",
+        task: "Escribí: connect server.nande soporte Verano2024",
+        hint: "connect server.nande soporte Verano2024",
+        check: (cmd, out) => usedTool(cmd, "connect") && /conectado a server\.nande/i.test(out),
+        debrief: "En la DMZ. Seguí hasta el puente IT/OT.",
+      },
+      {
+        explain: "Saltá al NAS de respaldos (te acerca al historian).",
+        task: "Escribí: connect nas.interna.nande respaldo NasÑande#2024",
+        hint: "connect nas.interna.nande respaldo NasÑande#2024",
+        check: (cmd, out) => usedTool(cmd, "connect") && /conectado a nas\.interna\.nande/i.test(out),
+        debrief: "Casi. Ahora el historian, que toca la red de planta.",
+      },
+      {
+        explain: "Entrá al historian (db-core), tu puente a la red industrial.",
+        task: "Escribí: connect db-core.interna.nande dbadmin Core-DB!2024",
+        hint: "connect db-core.interna.nande dbadmin Core-DB!2024",
+        check: (cmd, out) => usedTool(cmd, "connect") && /conectado a db-core\.interna\.nande/i.test(out),
+        debrief: "Estás en el puente IT/OT. Alcanzás el PLC.",
+      },
+      {
+        explain:
+          "Primero diagnosticá: mirá el estado de la protección de escritura del PLC. Un PLC en 'modo remoto' acepta escrituras de cualquiera que llegue al 502 — es el agujero.",
+        task: "Escribí: modbus protect plc.planta.nande status",
+        hint: "modbus protect plc.planta.nande status",
+        check: (cmd, out) => usedTool(cmd, "modbus") && /REMOTO|vulnerable/i.test(out),
+        debrief:
+          "Confirmado: el controlador está en modo remoto (vulnerable). Cualquier escritura Modbus pasa. Vamos a cerrar eso.",
+      },
+      {
+        explain:
+          "Blindá el PLC: activá la protección de escritura (llave en RUN). A partir de ahí, el controlador RECHAZA toda escritura remota.",
+        task: "Escribí: modbus protect plc.planta.nande on",
+        hint: "modbus protect plc.planta.nande on",
+        check: (cmd, out) => usedTool(cmd, "modbus") && /ACTIVADA/.test(out),
+        debrief:
+          "PLC protegido. Es la contramedida directa al Modbus sin autenticación. Ahora comprobemos que el ataque rebota.",
+      },
+      {
+        explain:
+          "Verificá tu defensa: intentá el mismo sabotaje que antes destruía la planta (subir el setpoint). Con la llave en RUN, tiene que FALLAR.",
+        task: "Escribí: modbus write plc.planta.nande reg 1 130",
+        hint: "modbus write plc.planta.nande reg 1 130",
+        check: (cmd, out) => usedTool(cmd, "modbus") && /protegido|rechazada/i.test(out),
+        debrief:
+          "La escritura rebotó: el PLC está blindado. Cerraste el vector. Defensa en profundidad: además de la llave, un atacante que llegue al 502 tampoco debería poder — por eso se SEGMENTA IT/OT y se pone un firewall/diodo delante. Pero fijate el orden real del atacante: para volver a escribir tendría que sacar la protección primero (modbus protect off, MITRE T0858), y ESO el SOC lo ve. Defender bien es hacerle ruido al ataque.",
       },
     ],
   },

@@ -1338,7 +1338,8 @@ export class VirtualTerminal {
     if (verb === "discover") verb = "id"; // alias (nmap modbus-discover)
     // `modbus <host>` sin verbo = estado. Detectamos si el primer token es un
     // verbo conocido; si no, lo tratamos como host (atajo de estado).
-    if (verb !== "read" && verb !== "write" && verb !== "status" && verb !== "id" && verb !== "sis") {
+    if (verb === "protected" || verb === "lock") verb = "protect"; // aliases
+    if (verb !== "read" && verb !== "write" && verb !== "status" && verb !== "id" && verb !== "sis" && verb !== "protect") {
       rest = positional;
       verb = "status";
     }
@@ -1418,7 +1419,15 @@ export class VirtualTerminal {
       const off = action === "off" || action === "disable" || action === "deshabilitar";
       if (!on && !off) return { output: "uso: modbus sis <host> on|off|status\n", isError: true };
       if (st.ruptured) return { output: `modbus sis: ${dev.host} ya está destruido; el SIS es irrelevante.\n`, isError: false };
-      this.kernel.plc.setSis(dev.host, on);
+      const sisRes = this.kernel.plc.setSis(dev.host, on);
+      if (sisRes.blocked) {
+        return {
+          output:
+            `✋ ${dev.host} está PROTEGIDO (llave RUN): no se puede tocar el SIS de forma remota.\n` +
+            `El atacante primero tendría que sacar la protección: modbus protect ${dev.host} off\n`,
+          isError: false,
+        };
+      }
       if (off) {
         // Deshabilitar la seguridad es el paso clave del ataque a un SIS (TRISIS/
         // Triton): cambiar el modo del controlador de seguridad para que no actúe.
@@ -1440,6 +1449,50 @@ export class VirtualTerminal {
       return {
         output:
           `✓ SIS habilitado en ${dev.host} (hardening defensivo). La seguridad vuelve a vigilar la sobrepresión.\n`,
+        isError: false,
+      };
+    }
+
+    if (verb === "protect") {
+      const action = (rest[1] ?? "status").toLowerCase();
+      const nowProtected = this.kernel.plc.isWriteProtected(dev.host);
+      if (action === "status" || action === "") {
+        return {
+          output:
+            `═══ Protección de escritura (llave RUN) — ${dev.host} ═══\n` +
+            `  Estado: ${nowProtected ? "PROTEGIDO 🔒 (escritura remota bloqueada)" : "MODO REMOTO 🔓 (acepta escrituras — vulnerable)"}\n` +
+            (nowProtected
+              ? `  Un atacante tendría que sacar la llave de RUN primero: modbus protect ${dev.host} off (T0858).\n`
+              : `  Defensa: activá la protección para bloquear el Modbus de escritura → modbus protect ${dev.host} on\n`),
+          isError: false,
+        };
+      }
+      const on = action === "on" || action === "enable" || action === "lock";
+      const off = action === "off" || action === "disable" || action === "unlock";
+      if (!on && !off) return { output: "uso: modbus protect <host> on|off|status\n", isError: true };
+      this.kernel.plc.setProtect(dev.host, on);
+      if (on) {
+        // Hardening defensivo: bloquea el vector real (Modbus no autenticado).
+        return {
+          output:
+            `🔒 Protección de escritura ACTIVADA en ${dev.host} (llave en RUN). Toda escritura Modbus remota queda RECHAZADA.\n` +
+            `Es la defensa #1 contra Modbus sin autenticación (junto con segmentar IT/OT). Ahora un 'modbus write' falla.\n`,
+          isError: false,
+        };
+      }
+      // Sacar la protección de forma remota es el paso previo del atacante:
+      // cambia el modo de operación del controlador (ATT&CK ICS T0858).
+      this.kernel.noteAttackTechnique({
+        technique: "Change Operating Mode", tactic: "Inhibit Response Function", mitreId: "T0858",
+        detail: `Protección de escritura de ${dev.host} DESHABILITADA por Modbus: el PLC vuelve a aceptar escrituras remotas.`,
+        host: dev.host,
+      });
+      const flag = "ND{ot_proteccion_deshabilitada}";
+      const notes = this.kernel.scanForSignals(flag);
+      return {
+        output:
+          `🔓 Protección DESHABILITADA en ${dev.host} (MITRE T0858 — el SOC lo ve). El PLC vuelve a aceptar escrituras remotas.\n` +
+          `${flag}\n` + (notes.length ? notes.join("\n") + "\n" : ""),
         isError: false,
       };
     }
@@ -1569,13 +1622,14 @@ export class VirtualTerminal {
       : p.safety === "sis_trip" ? "🛑 PARO SEGURO (SIS disparado)"
       : p.hazard === "none" ? "OK" : `⚠ ${p.hazard.toUpperCase()}`;
     const sis = p.safety === "ruptured" ? "N/A" : p.sisEnabled ? "habilitado" : "DESHABILITADO ⚠";
+    const prot = this.kernel.plc.isWriteProtected(ref) ? "PROTEGIDO 🔒" : "remoto 🔓";
     let out =
       `═══ Proceso físico — ${ref} (lectura en vivo del PLC) ═══\n` +
       `  Tanque-1 nivel:   ${p.level}%\n` +
       `  Bomba-A:          ${p.pump ? "ON" : "OFF"}\n` +
       `  Válvula-3:        ${p.valve}%\n` +
       `  Setpoint presión: ${bar(p.setpoint)} bar   Presión: ${bar(p.pressure)} bar\n` +
-      `  Modo:             ${p.auto ? "AUTO" : "MANUAL"}      SIS: ${sis}\n` +
+      `  Modo:             ${p.auto ? "AUTO" : "MANUAL"}      SIS: ${sis}      Escritura: ${prot}\n` +
       `  Estado:           ${state}\n`;
     for (const a of p.alarms) out += `  🚨 ${a}\n`;
     return out;
@@ -7167,8 +7221,10 @@ export class VirtualTerminal {
       "  modbus write <host> coil <a> <0|1>       Escribe una salida (bomba, modo)",
       "  modbus write <host> reg <a> <valor>      Escribe un parámetro (válvula, setpoint)",
       "  modbus sis <host> on|off|status          Sistema de seguridad (SIS): la última defensa",
+      "  modbus protect <host> on|off|status      Protección de escritura (llave RUN): defensa #1",
       "  → escribir el PLC cambia el proceso REAL y puede sabotearlo (MITRE ICS)",
       "  → sin SIS, la sobrepresión DESTRUYE la planta (ataque estilo TRISIS)",
+      "  → defendé: 'modbus protect on' bloquea las escrituras Modbus remotas",
       "",
       "Hosts, servicios y firewall (mundo real):",
       "  services [host]  Lista hosts, o los servicios de un host y su estado",

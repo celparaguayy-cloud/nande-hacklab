@@ -427,7 +427,7 @@ export const COURSE_LESSONS: Record<string, string[]> = {
   phishing: ["l-phishing"],
   pentesting: ["l-nmap", "l-gobuster", "l-sqli", "l-privesc", "l-pivoting"],
   privesc: ["l-privesc"],
-  "blue-team": ["l-blue", "l-blueteam", "l-dfir-atribucion"],
+  "blue-team": ["l-blue", "l-blueteam", "l-dfir-atribucion", "l-ot-defensa"],
   forense: ["l-reversing", "l-threatintel", "l-dfir-atribucion"],
   cripto: ["l-cripto"],
   reversing: ["l-reversing"],
