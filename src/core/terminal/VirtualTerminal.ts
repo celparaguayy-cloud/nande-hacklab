@@ -132,6 +132,8 @@ const MANPAGES: Record<string, ManPage> = {
     desc: "Post-explotación de credenciales sobre el Directorio REAL. sekurlsa::logonpasswords vuelca los hashes NT de las cuentas con sesión en los EQUIPOS que ya poseés; con sekurlsa::pth te autenticás con ese hash (Pass-the-Hash) sin conocer la clave. Si volcás y reusás el hash de un Domain Admin, caés el dominio entero. Es el puente real entre 'soy admin de esta máquina' y 'soy dueño del dominio'. Alias: secretsdump.", examples: ["mimikatz sekurlsa::logonpasswords", "mimikatz \"sekurlsa::pth /user:ADMIN-SQL@NANDE.LOCAL /ntlm:...\""] },
   certipy: { name: "abuso de AD Certificate Services (ESC1)", synopsis: "certipy find [-vulnerable] | certipy req -template <t> -upn <cuenta> | certipy auth -pfx <cuenta>",
     desc: "Enumera y abusa AD CS (Active Directory Certificate Services) contra la CA REAL del dominio, en dos pasos como la herramienta real. 'certipy find' lista las plantillas y marca las vulnerables a ESC1 (inscripción de bajo privilegio + el solicitante elige el SAN + EKU de autenticación de cliente + sin aprobación de manager). 'certipy req -template <t> -upn <cuenta>' EMITE un certificado impersonando a esa cuenta (te quedás con el .pfx). 'certipy auth -pfx <cuenta>' hace PKINIT con ese cert: te autenticás SIN la contraseña y recuperás su hash NT (UnPAC-the-hash), que alimenta Pass-the-Hash/DCSync/Golden Ticket. Si el UPN es un Domain Admin, caés el dominio. Tercera ruta a DA, distinta de Kerberoasting y AS-REP. Sólo el dominio del sandbox (NANDE.LOCAL). MITRE T1649 (forja) + T1550 (PKINIT).", examples: ["certipy find -vulnerable", "certipy req -template NandeUser -upn ADMIN-SQL@NANDE.LOCAL", "certipy auth -pfx ADMIN-SQL@NANDE.LOCAL"] },
+  "harden-adcs": { name: "remediar ESC1 (azul)", synopsis: "harden-adcs [plantilla]",
+    desc: "Contraparte DEFENSIVA de certipy: endurece la(s) plantilla(s) de certificado vulnerable(s) a ESC1 en la CA del dominio (les quita 'el solicitante elige el SAN' y les exige aprobación de manager). Efecto REAL y verificable: después, 'certipy req' ya no puede impersonar. Como rotate-krbtgt lo es del Golden Ticket, es la cura de ESC1. Sin argumento endurece todas las vulnerables. No revoca certificados ya emitidos (eso es revocación en la CA). Requiere alcanzar el DC (ahí vive AD CS).", examples: ["harden-adcs", "harden-adcs NandeUser"] },
   grep: { name: "buscar texto", synopsis: "... | grep <palabra>",
     desc: "Filtra líneas que contienen una palabra. Se usa con | (pipe) para quedarte solo con lo que importa de una salida larga.", examples: ["cat notas.txt | grep clave"] },
   learn: { name: "lecciones guiadas", synopsis: "learn [id]",
@@ -2225,6 +2227,11 @@ export class VirtualTerminal {
         case "rotate-krbtgt":
         case "reset-krbtgt":
           return this.rotateKrbtgtCmd();
+
+        case "harden-adcs":
+        case "fix-adcs":
+        case "remediate-adcs":
+          return this.hardenAdcsCmd(commandArgs);
 
         case "mitre":
         case "attack":
@@ -4748,6 +4755,45 @@ export class VirtualTerminal {
           : before
             ? `⚠ Todavía hay persistencia por Golden Ticket: falta otra rotación.\n`
             : `(No había Golden Tickets vigentes; rotar krbtgt es igual una buena higiene tras un DCSync.)\n`),
+      isError: false,
+    };
+  }
+
+  /**
+   * harden-adcs — remediación AZUL de ESC1. Endurece la(s) plantilla(s)
+   * vulnerable(s) de la CA para cerrar la ruta (le quita "el solicitante elige
+   * el SAN" y exige aprobación de manager). Efecto REAL y verificable: después,
+   * certipy req deja de poder impersonar. Es la contraparte defensiva de la
+   * técnica ofensiva, como rotate-krbtgt lo es del Golden Ticket (regla 16).
+   */
+  private hardenAdcsCmd(args: string[]): { output: string; isError: boolean } {
+    const dir = this.kernel.directory;
+    // Se arregla EN la CA: hay que alcanzar el DC (donde vive AD CS).
+    const gate = this.requireDc(undefined, 445);
+    if (gate) return { output: `harden-adcs: ${gate}\n`, isError: false };
+    const target = args.find((a) => !a.startsWith("-"));
+    // Sin argumento: endurece todas las plantillas vulnerables a ESC1.
+    const targets = target ? [target] : dir.esc1Templates().map((t) => t.name);
+    if (targets.length === 0) {
+      return {
+        output:
+          `═══ Remediación AD CS · ${dir.domain} ═══\n` +
+          `No hay plantillas vulnerables a ESC1: la CA ${dir.caName} ya está sana.\n`,
+        isError: false,
+      };
+    }
+    const lines = targets.map((name) => {
+      const r = dir.hardenCertTemplate(name);
+      return `${r.ok ? (r.changed ? "✔" : "•") : "✘"} ${r.message}`;
+    });
+    const stillVuln = dir.esc1Templates().map((t) => t.name);
+    return {
+      output:
+        `═══ Remediación AD CS · ${dir.domain} ═══\n` +
+        `${lines.join("\n")}\n` +
+        (stillVuln.length
+          ? `⚠ Todavía vulnerables a ESC1: ${stillVuln.join(", ")}\n`
+          : `✔ Ninguna plantilla queda vulnerable a ESC1. Ruta cerrada.\n`),
       isError: false,
     };
   }
@@ -7314,6 +7360,7 @@ export class VirtualTerminal {
       "🩸 NandeBlood — Directorio Activo como grafo de ataque",
       "   nandeblood · kerberoast <cuenta> · asreproast · crack-tgs · abuse <o> <d>",
       "   certipy find -vulnerable · certipy req -template <t> -upn <c> · certipy auth -pfx <c>  (ADCS/ESC1)",
+      "   azul: rotate-krbtgt (Golden Ticket) · harden-adcs (cierra ESC1)",
       `   dominio ${k.directory.domain}: ${dom ? "🔴 COMPROMETIDO" : "en pie"}`,
       "",
       "🎯 MITRE ATT&CK — Purple Team (tus ataques encienden detecciones)",
@@ -7543,6 +7590,7 @@ export class VirtualTerminal {
       "  enum4linux <dc>    Enumerá el dominio (contra el DC real)",
       "  mimikatz dcsync / kerberos::golden   Volcá krbtgt y forjá persistencia",
       "  rotate-krbtgt      Azul: rotá krbtgt (x2) para matar un Golden Ticket",
+      "  harden-adcs        Azul: endurecé la plantilla ESC1 y cerrá esa ruta a DA",
       "  mitre              Purple: técnicas ATT&CK detectadas por tus acciones",
       "  redteam [expulsar] Adversario NPC que ataca de verdad; defendé",
       "  reto               Te asignan un objetivo para vulnerar",

@@ -156,6 +156,28 @@ describe("Directory / NandeBlood — el grafo es estado real", () => {
     expect(dir.requestCertificate("NoExiste", "ADMIN-SQL@NANDE.LOCAL").ok).toBe(false);
   });
 
+  it("ESC1 remediación (azul): endurecer la plantilla CIERRA la ruta de verdad", () => {
+    // Vulnerable de arranque.
+    expect(dir.esc1Vulnerable("NandeUser")).toBe(true);
+    // El azul endurece: efecto REAL en el estado.
+    const fix = dir.hardenCertTemplate("NandeUser");
+    expect(fix.ok).toBe(true);
+    expect(fix.changed).toBe(true);
+    // Ya no es vulnerable ni aparece en el reporte de vulnerables.
+    expect(dir.esc1Vulnerable("NandeUser")).toBe(false);
+    expect(dir.esc1Templates()).toEqual([]);
+    // Y certipy req deja de poder impersonar.
+    const req = dir.requestCertificate("NandeUser", "ADMIN-SQL@NANDE.LOCAL");
+    expect(req.ok).toBe(false);
+    expect(req.message).toMatch(/no es vulnerable a ESC1/);
+    expect(dir.hasCertificateFor("ADMIN-SQL@NANDE.LOCAL")).toBe(false);
+    // Endurecer una plantilla ya sana es un no-op (ok, sin cambio); una inexistente falla.
+    const again = dir.hardenCertTemplate("NandeUser");
+    expect(again.ok).toBe(true);
+    expect(again.changed).toBe(false);
+    expect(dir.hardenCertTemplate("NoExiste").ok).toBe(false);
+  });
+
   it("ESC1 es una TERCERA ruta a DA, independiente de Kerberoasting y AS-REP", () => {
     // Sin tocar SVC-SQL ni LEGACY-SVC: el foothold llega directo a DA por ADCS.
     expect(dir.get("SVC-SQL@NANDE.LOCAL")!.owned).toBe(false);

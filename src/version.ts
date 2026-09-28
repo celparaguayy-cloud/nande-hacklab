@@ -3,5 +3,5 @@
  * qué build estás corriendo (y confirmar que tomaste la última actualización).
  * Subí el número cuando haya un cambio que el jugador deba poder distinguir.
  */
-export const NANDE_VERSION = "5.101.0";
-export const NANDE_BUILD = "adcs-esc1-flujo-real-req-mas-auth-pkinit";
+export const NANDE_VERSION = "5.102.0";
+export const NANDE_BUILD = "adcs-esc1-remediacion-azul-harden-adcs";

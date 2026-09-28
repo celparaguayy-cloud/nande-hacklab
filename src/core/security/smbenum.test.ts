@@ -149,6 +149,28 @@ describe("SMB/AD enumeración — reflejan y mutan el dominio real", () => {
     expect(kernel.directory.domainOwned()).toBe(false);
   });
 
+  it("ESC1 remediación por terminal: harden-adcs cierra la ruta (certipy req falla después)", () => {
+    // Antes: la ruta está abierta.
+    expect(kernel.directory.esc1Vulnerable("NandeUser")).toBe(true);
+    // El azul remedia desde la terminal.
+    const fix = term.execute("harden-adcs");
+    expect(fix).toContain("endurecida");
+    expect(fix).toContain("Ruta cerrada");
+    // Efecto real: la vuln desaparece del estado y del enum.
+    expect(kernel.directory.esc1Vulnerable("NandeUser")).toBe(false);
+    expect(term.execute("certipy find -vulnerable")).not.toContain("VULNERABLE");
+    // Y el ataque ya no procede.
+    const req = term.execute("certipy req -template NandeUser -upn ADMIN-SQL@NANDE.LOCAL");
+    expect(req).toMatch(/no es vulnerable a ESC1/);
+    expect(kernel.directory.domainOwned()).toBe(false);
+  });
+
+  it("harden-adcs exige alcanzar la CA/DC real", () => {
+    kernel.hosts.setHostUp(kernel.directory.dcHostname, false);
+    expect(term.execute("harden-adcs")).toMatch(/DC|ruta|caído/i);
+    expect(kernel.directory.esc1Vulnerable("NandeUser")).toBe(true);
+  });
+
   it("ESC1 exige alcanzar la CA/DC real y la plantilla segura NO explota", () => {
     // Sin ruta al DC (caído), certipy no enumera ni emite.
     kernel.hosts.setHostUp(kernel.directory.dcHostname, false);

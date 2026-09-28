@@ -445,6 +445,35 @@ export class Directory {
     };
   }
 
+  /**
+   * Remediación de ESC1 (lado AZUL): endurece una plantilla vulnerable para
+   * CERRAR la ruta. El arreglo real de ESC1 es quitarle al solicitante la
+   * elección del sujeto (Enrollee Supplies Subject) y exigir aprobación de un
+   * manager. Efecto REAL en el estado: tras esto esc1Vulnerable() es false y
+   * `certipy req` deja de emitir certificados que impersonan a otros. Es el
+   * equivalente de rotate-krbtgt para el Golden Ticket: una acción defensiva
+   * cuyo efecto se puede VERIFICAR (la vuln desaparece), no un texto lindo.
+   * NOTA (honestidad, §219): endurecer la plantilla frena la EMISIÓN futura; no
+   * revoca certificados ya emitidos ni deshace un dominio ya comprometido —eso
+   * exige revocación en la CA y rotar credenciales, igual que en la vida real.
+   */
+  hardenCertTemplate(name: string): { ok: boolean; changed: boolean; message: string } {
+    const t = this.certTemplatesList.find((c) => c.name.toUpperCase() === name.toUpperCase());
+    if (!t) {
+      return { ok: false, changed: false, message: `no existe la plantilla "${name}" en la CA ${this.caName}` };
+    }
+    if (!this.esc1Vulnerable(t.name)) {
+      return { ok: true, changed: false, message: `la plantilla ${t.name} no era vulnerable a ESC1: nada que endurecer.` };
+    }
+    t.enrolleeSuppliesSubject = false;
+    t.managerApproval = true;
+    return {
+      ok: true,
+      changed: true,
+      message: `plantilla ${t.name} endurecida: ya no permite elegir el SAN y exige aprobación de manager. ESC1 cerrado (no afecta certs ya emitidos).`,
+    };
+  }
+
   /* ------------------------------------------- Golden Ticket / persistencia */
 
   private goldenTicketActive = false;
