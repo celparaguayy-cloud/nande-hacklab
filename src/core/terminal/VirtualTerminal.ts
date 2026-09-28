@@ -96,6 +96,8 @@ const MANPAGES: Record<string, ManPage> = {
     desc: "Le manda un 'saludito' a una máquina y espera respuesta, como tocar el timbre. Si contesta, está prendida y alcanzable.", examples: ["ping 10.10.5.20", "ping server.nande"] },
   nslookup: { name: "traducir nombre → IP", synopsis: "nslookup <host>",
     desc: "Los humanos usamos nombres (server.nande); las máquinas usan números (IP). Esto traduce el nombre a su número, como una guía telefónica (DNS).", examples: ["nslookup banco.nande"] },
+  dig: { name: "consulta DNS pro (registros, reverso, AXFR)", synopsis: "dig <nombre> [A|TXT|MX|NS|CNAME|ANY] · dig -x <ip> · dig axfr <zona>",
+    desc: "La herramienta pro de DNS: consulta registros por TIPO (A=IPv4, TXT=texto, MX=correo, NS=servidores de nombre, CNAME=alias), hace DNS inverso con -x (IP→nombre) y transferencia de zona con 'axfr'. Lee el motor DNS REAL (respeta el envenenamiento de dnsspoof y sigue CNAME). El AXFR es recon de manual: si una zona está mal configurada, 'dig axfr <zona>' vuelca TODOS sus nombres —incluidos hosts internos que de otro modo tendrías que adivinar—. Probá 'dig axfr interna.nande'. Todo 100% dentro del sandbox.", examples: ["dig banco.nande", "dig nande TXT", "dig -x 10.10.7.10", "dig axfr interna.nande"] },
   nmap: { name: "escanear puertos y servicios", synopsis: "nmap <ip|host>",
     desc: "Golpea todas las 'puertas' (puertos) de una máquina y te dice cuáles están abiertas y qué servicio hay detrás (web, ssh, base de datos...). Es el primer paso de casi todo ataque y defensa.", examples: ["nmap 10.10.5.20", "nmap server.nande"] },
   netmap: { name: "mapa de la red del sandbox (según dónde estés)", synopsis: "netmap",
@@ -1201,6 +1203,109 @@ export class VirtualTerminal {
     };
   }
 
+  /** Formatea una respuesta DNS al estilo de `dig` (una línea de zona). */
+  private formatDnsAnswer(a: { name: string; type: string; value: string; priority?: number }): string {
+    switch (a.type) {
+      case "A": return `${a.name}.\tIN\tA\t${a.value}`;
+      case "CNAME": return `${a.name}.\tIN\tCNAME\t${a.value}.`;
+      case "NS": return `${a.name}.\tIN\tNS\t${a.value}.`;
+      case "MX": return `${a.name}.\tIN\tMX\t${a.priority} ${a.value}.`;
+      case "TXT": return `${a.name}.\tIN\tTXT\t"${a.value}"`;
+      case "PTR": return `${a.name}\tIN\tPTR\t${a.value}.`;
+      default: return `${a.name}\t${a.type}\t${a.value}`;
+    }
+  }
+
+  /**
+   * dig — consulta DNS "pro": muestra registros por tipo (A/TXT/CNAME/NS/MX/PTR/
+   * ANY), reverso con -x, y transferencia de zona (AXFR). Lee el motor DNS REAL
+   * (respeta el envenenamiento y sigue CNAME). El AXFR es recon de verdad: si la
+   * zona está mal configurada, vuelca TODOS sus nombres —incluidos los internos
+   * que no adivinarías—. Todo dentro del sandbox.
+   */
+  private digCmd(args: string[]): { output: string; isError: boolean } {
+    const server = "10.10.0.53";
+    // Reverso: dig -x <ip>
+    const xIdx = args.indexOf("-x");
+    if (xIdx >= 0) {
+      const ip = args[xIdx + 1];
+      if (!ip) return { output: "uso: dig -x <ip>\n", isError: true };
+      const name = this.kernel.dns.reverse(ip);
+      const arpa = `${ip.split(".").reverse().join(".")}.in-addr.arpa`;
+      return {
+        output:
+          `; <<>> dig ÑANDE <<>> -x ${ip}\n` +
+          `;; QUESTION SECTION:\n;${arpa}.\t\tIN\tPTR\n\n` +
+          (name
+            ? `;; ANSWER SECTION:\n${arpa}.\tIN\tPTR\t${name}.\n\n`
+            : `;; sin registro PTR para ${ip}\n\n`) +
+          `;; SERVER: ${server}#53\n`,
+        isError: false,
+      };
+    }
+
+    const positional = args.filter((a) => !a.startsWith("-") && !a.startsWith("@"));
+    const isAxfr = positional.some((p) => p.toLowerCase() === "axfr");
+    const rest = positional.filter((p) => p.toLowerCase() !== "axfr");
+    const name = rest[0];
+    if (!name) {
+      return { output: "uso: dig <nombre> [tipo]  |  dig axfr <zona>  |  dig -x <ip>\n", isError: true };
+    }
+    if (isAxfr) return this.digAxfr(name, server);
+
+    const typeArg = (rest[1] ?? "A").toUpperCase();
+    const valid = ["A", "TXT", "CNAME", "NS", "MX", "PTR", "ANY"];
+    if (!valid.includes(typeArg)) {
+      return { output: `dig: tipo desconocido '${typeArg}'. Válidos: ${valid.join(", ")}\n`, isError: true };
+    }
+    const types = typeArg === "ANY" ? ["A", "CNAME", "NS", "MX", "TXT"] : [typeArg];
+    const answers = types.flatMap((t) => this.kernel.dns.query(name, t as never));
+    return {
+      output:
+        `; <<>> dig ÑANDE <<>> ${name} ${typeArg}\n` +
+        `;; QUESTION SECTION:\n;${name}.\t\tIN\t${typeArg}\n\n` +
+        (answers.length
+          ? `;; ANSWER SECTION:\n${answers.map((a) => this.formatDnsAnswer(a)).join("\n")}\n\n`
+          : `;; sin respuesta (NXDOMAIN o sin registros ${typeArg})\n\n`) +
+        `;; SERVER: ${server}#53\n`,
+      isError: false,
+    };
+  }
+
+  /** Transferencia de zona (AXFR): vuelca la zona si está mal configurada. */
+  private digAxfr(zone: string, server: string): { output: string; isError: boolean } {
+    const r = this.kernel.dns.zoneTransfer(zone);
+    if (!r.allowed) {
+      return {
+        output:
+          `; <<>> dig ÑANDE <<>> axfr ${zone}\n` +
+          `;; Transfer failed: la zona ${zone} RECHAZA la transferencia (AXFR no permitido).\n` +
+          `;; Así debe estar una zona bien configurada — probá otra zona.\n`,
+        isError: false,
+      };
+    }
+    // AXFR es recon ruidoso y detectable: técnica MITRE (Reconnaissance: DNS).
+    this.kernel.noteAttackTechnique({
+      technique: "Gather Victim Network Information: DNS",
+      tactic: "Reconnaissance",
+      mitreId: "T1590.002",
+      detail: `Transferencia de zona (AXFR) exitosa contra ${zone}: se volcó la zona completa (mala config).`,
+      host: zone,
+    });
+    const notes = r.flag ? this.kernel.scanForSignals(r.flag) : [];
+    return {
+      output:
+        `; <<>> dig ÑANDE <<>> axfr ${zone}\n` +
+        `;; Transferencia de zona EXITOSA (la zona ${zone} permite AXFR: mala config).\n\n` +
+        `${r.records.map((a) => this.formatDnsAnswer(a)).join("\n")}\n\n` +
+        `;; ${r.records.length} registro(s) volcados. Nombres internos expuestos por DNS.\n` +
+        `;; SERVER: ${server}#53\n` +
+        (r.flag ? `${r.flag}\n` : "") +
+        (notes.length ? notes.join("\n") + "\n" : ""),
+      isError: false,
+    };
+  }
+
   /**
    * nc / netcat — conexión TCP cruda contra el motor L4 real (HostRuntime.
    * probePort): confirma si un puerto está abierto y, si el servicio saluda,
@@ -1904,6 +2009,9 @@ export class VirtualTerminal {
           isError: false,
         };
       }
+
+      case "dig":
+        return this.digCmd(commandArgs);
 
       case "printf":
         return this.printf(commandArgs);
@@ -7632,6 +7740,7 @@ export class VirtualTerminal {
       "Redes y academia:",
       "  ping <ip>        Ver si una máquina responde",
       "  nslookup <host>  Resolver un nombre",
+      "  dig <n> [tipo]   DNS pro: registros, dig -x <ip> (reverso), dig axfr <zona>",
       "  nmap <ip>        Escanear puertos (probá: nmap 10.10.5.20)",
       "  academy          Ruta de aprendizaje de ciberseguridad",
       "  learn            Lecciones guiadas (aprendé haciendo)",

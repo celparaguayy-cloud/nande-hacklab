@@ -375,6 +375,15 @@ const REACTIONS: Record<string, Reaction> = {
     heat: 16,
     faction: { name: "agencia", amount: 14 },
   },
+  "ND{dns_zone_transfer}": {
+    headline: {
+      title: "Un DNS mal configurado filtró el mapa de la red interna",
+      body: "Una transferencia de zona (AXFR) abierta dejó ver todos los nombres internos de la organización. Recon de manual: lo que no deberías poder enumerar, enumerado en un comando.",
+      category: "Seguridad",
+    },
+    notoriety: 8,
+    heat: 6,
+  },
   "ND{adcs_esc1}": {
     stock: { ticker: "ÑND", factor: -0.16 },
     headline: {
