@@ -372,7 +372,7 @@ export class VirtualKernel {
       now: () => this.world.getState().clock.tick,
     });
     this.npcForge = new NpcToolForge(this.toolRuntime);
-    this.soc = new BlueTeamSOC(this.events);
+    this.soc = new BlueTeamSOC(this.events, () => this.world.getState().clock.tick);
     this.ai = new AIService();
     this.toolSynthesizer = new ToolSynthesizer(this.ai, this.toolRuntime);
     this.snapshots = new SnapshotManager(() => this.world.getState().clock.tick);

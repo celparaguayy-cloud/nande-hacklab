@@ -111,4 +111,31 @@ describe("SOC — SIEM de verdad (reglas, evidencia, triage, consulta)", () => {
     const nd001 = stats.find((s) => s.rule.id === "ND-001")!;
     expect(nd001.count).toBeGreaterThan(0);
   });
+
+  it("coherencia (regla 5): el SIEM VE los ataques al AD, no sólo la matriz ATT&CK", () => {
+    // Kerberoasting: la matriz ATT&CK y el SOC deben coincidir en que pasó.
+    term.execute("kerberoast SVC-SQL@NANDE.LOCAL");
+    const kerb = kernel.soc.list().find((a) => a.ruleId === "ND-010");
+    expect(kerb).toBeDefined();
+    expect(kerb!.mitre).toContain("T1558.003");
+    expect(kernel.mitre.recent(20).map((d) => d.mitreId)).toContain("T1558.003");
+
+    // ESC1 (ADCS): la emisión del certificado enciende una alerta crítica.
+    term.execute("certipy req -template NandeUser -upn ADMIN-SQL@NANDE.LOCAL");
+    const esc1 = kernel.soc.list().find((a) => a.ruleId === "ND-014");
+    expect(esc1).toBeDefined();
+    expect(esc1!.severity).toBe("critical");
+
+    // El PKINIT + caída del dominio también quedan en el SIEM.
+    term.execute("certipy auth -pfx ADMIN-SQL@NANDE.LOCAL");
+    const ids = kernel.soc.list().map((a) => a.ruleId);
+    expect(ids).toContain("ND-015"); // T1550 · autenticación con material alternativo
+    expect(ids).toContain("ND-016"); // T1078.002 · compromiso de Domain Admins
+  });
+
+  it("una técnica ofensiva NO catalogada como AD no inventa alerta de SOC por esa vía", () => {
+    // El foothold sin ataques todavía no tiene alertas de identidad.
+    const before = kernel.soc.list().filter((a) => a.ruleId.startsWith("ND-01")).length;
+    expect(before).toBe(0);
+  });
 });

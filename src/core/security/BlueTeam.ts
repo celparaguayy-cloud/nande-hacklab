@@ -1,5 +1,6 @@
 import type { EventBus } from "../events/EventBus";
 import type { RuntimeEvent } from "../net/HostRuntime";
+import type { AttackSignal } from "../ad/Directory";
 import { compileQuery, runQuery, type QuerySchema } from "../query/Query";
 
 /**
@@ -51,9 +52,45 @@ export const DETECTION_RULES: DetectionRule[] = [
     description: "Un host dejó de responder por completo." },
   { id: "ND-009", name: "Cambio de estado", severity: "info",
     description: "Recuperación o cambio menor de estado de un host/servicio." },
+  /* --- Identidad / Directorio Activo: el SIEM también ve los ataques al AD
+     (como un SIEM real con los logs del DC: 4769, DCSync, 4886/4887). Antes el
+     SOC era ciego a esto y sólo la matriz ATT&CK los mostraba — dos capas que
+     no coincidían (regla 5). Ahora el SOC y la matriz coinciden. --- */
+  { id: "ND-010", name: "Kerberoasting", severity: "high", mitre: "T1558.003 · Kerberoasting",
+    description: "Solicitud de TGS de una cuenta de servicio (SPN): posible Kerberoasting para crackeo offline." },
+  { id: "ND-011", name: "AS-REP Roasting", severity: "high", mitre: "T1558.004 · AS-REP Roasting",
+    description: "AS-REP solicitado para una cuenta sin pre-autenticación de Kerberos." },
+  { id: "ND-012", name: "DCSync", severity: "critical", mitre: "T1003.006 · DCSync",
+    description: "Replicación de secretos del dominio (incluido krbtgt) — típico de un DCSync desde un host no-DC." },
+  { id: "ND-013", name: "Golden Ticket", severity: "critical", mitre: "T1558.001 · Golden Ticket",
+    description: "TGT forjado con la clave de krbtgt: persistencia total de dominio." },
+  { id: "ND-014", name: "Abuso de certificados AD CS (ESC1)", severity: "critical", mitre: "T1649 · Steal or Forge Authentication Certificates",
+    description: "La CA emitió un certificado que impersona a otra cuenta (plantilla vulnerable a ESC1)." },
+  { id: "ND-015", name: "Autenticación con material alternativo", severity: "high", mitre: "T1550 · Use Alternate Authentication Material",
+    description: "Autenticación sin contraseña usando un certificado (PKINIT) o un hash NT (Pass-the-Hash)." },
+  { id: "ND-016", name: "Compromiso de Domain Admins", severity: "critical", mitre: "T1078.002 · Domain Accounts",
+    description: "Una cuenta de Domain Admins quedó bajo control del atacante: dominio comprometido." },
 ];
 
 const RULE_BY_ID = new Map(DETECTION_RULES.map((r) => [r.id, r]));
+
+/**
+ * Mapa técnica MITRE → regla del SIEM para las señales ofensivas de identidad
+ * (attack.technique). Curado a propósito: sólo las técnicas de AD/identidad que
+ * el SOC no veía por telemetría de host (los login/pivote ya entran por
+ * runtime.host, así que NO se re-mapean acá y no hay doble conteo). Una técnica
+ * fuera de este mapa no genera alerta de SOC por esta vía.
+ */
+const AD_RULE_BY_MITRE = new Map<string, string>([
+  ["T1558.003", "ND-010"],
+  ["T1558.004", "ND-011"],
+  ["T1003.006", "ND-012"],
+  ["T1558.001", "ND-013"],
+  ["T1649", "ND-014"],
+  ["T1550", "ND-015"],
+  ["T1550.002", "ND-015"],
+  ["T1078.002", "ND-016"],
+]);
 
 export interface AlertEvidence {
   kind: string;
@@ -127,16 +164,25 @@ export class BlueTeamSOC {
   private failuresByHost = new Map<string, number[]>();
   /** Alerta de fuerza bruta activa por host: se ACTUALIZA, no se duplica. */
   private bruteAlertByHost = new Map<string, { id: string; count: number; lastTick: number }>();
-  private unsub: () => void;
+  private unsubs: (() => void)[] = [];
+  private clock: () => number;
 
-  constructor(events: EventBus) {
-    this.unsub = events.subscribe<RuntimeEvent>("runtime.host", (event) => {
-      this.ingest(event.data);
-    });
+  constructor(events: EventBus, clock: () => number = () => 0) {
+    this.clock = clock;
+    this.unsubs.push(
+      events.subscribe<RuntimeEvent>("runtime.host", (event) => this.ingest(event.data)),
+    );
+    // El SIEM también consume las señales ofensivas de identidad/AD (lo que un
+    // SIEM real ve por los logs del DC). Coherencia (regla 5): la misma acción
+    // que enciende la matriz ATT&CK enciende una alerta acá.
+    this.unsubs.push(
+      events.subscribe<AttackSignal>("attack.technique", (event) => this.fromSignal(event.data)),
+    );
   }
 
   dispose(): void {
-    this.unsub();
+    this.unsubs.forEach((u) => u());
+    this.unsubs = [];
   }
 
   /** Traduce un evento de runtime en alerta aplicando el catálogo de reglas. */
@@ -229,6 +275,37 @@ export class BlueTeamSOC {
         port: e.port,
         detail: e.detail,
         tick: e.tick,
+      },
+    });
+  }
+
+  /**
+   * Señal ofensiva de identidad/AD (attack.technique) → alerta del SIEM, si la
+   * técnica está en el catálogo curado (AD_RULE_BY_MITRE). La evidencia es la
+   * señal cruda (technique + detail), como un SIEM que correlaciona el log del
+   * DC. Técnica fuera del catálogo: sin alerta por esta vía (los login/pivote
+   * ya entran por runtime.host).
+   */
+  private fromSignal(s: AttackSignal): void {
+    const ruleId = AD_RULE_BY_MITRE.get(s.mitreId);
+    if (!ruleId) return;
+    const rule = RULE_BY_ID.get(ruleId);
+    const tick = this.clock();
+    this.alerts.push({
+      id: `a${++this.seq}`,
+      severity: rule?.severity ?? "high",
+      title: rule?.name ?? s.technique,
+      host: s.host,
+      detail: s.detail,
+      tick,
+      ruleId: ruleId,
+      mitre: rule?.mitre,
+      status: "open",
+      evidence: {
+        kind: "attack.technique",
+        host: s.host,
+        detail: `${s.technique}: ${s.detail}`,
+        tick,
       },
     });
   }
