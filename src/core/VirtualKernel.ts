@@ -41,6 +41,7 @@ import { CtfForge } from "./game/CtfForge";
 import { OpsecTracer } from "./game/OpsecTracer";
 import { ContainerRuntime } from "./cloud/ContainerRuntime";
 import { Investigator } from "./soc/Investigator";
+import { ContainmentEngine } from "./soc/Containment";
 import { Crackme } from "./reversing/Crackme";
 import { OnionRuntime } from "./darkweb/OnionRuntime";
 import { BlogApp, PhotosApp, FilesApp, ToolsApp } from "./http/apps/labs";
@@ -192,6 +193,7 @@ export class VirtualKernel {
   public containers: ContainerRuntime;
   /** DFIR: reconstruye el incidente desde los eventos reales del mundo. */
   public dfir: Investigator;
+  public containment: ContainmentEngine;
   /** Reversing: un crackme con bandera cifrada (XOR real) para revertir. */
   public crackme: Crackme;
   /** Dark web sim: servicios ocultos alcanzables sólo con el circuito activo. */
@@ -436,6 +438,16 @@ export class VirtualKernel {
         return rt ? [...this.threats.list(), rt] : this.threats.list();
       },
     });
+
+    // Respuesta a incidentes (contención): el tercer acto del Blue Team. Aísla
+    // hosts (corta pivoteo) y deshabilita cuentas (corta autenticación), y
+    // deriva un plan del estado real (CompromiseLog + Directory).
+    this.containment = new ContainmentEngine(
+      this.hosts,
+      this.directory,
+      this.compromises,
+      () => this.world.getState().clock.tick,
+    );
 
     // academy.nande y tools.nande: la biblioteca y la ruta de aprendizaje,
     // navegables como cualquier otro sitio del mundo virtual.

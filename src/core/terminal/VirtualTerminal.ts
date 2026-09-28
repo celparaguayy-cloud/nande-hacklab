@@ -132,6 +132,8 @@ const MANPAGES: Record<string, ManPage> = {
     desc: "Post-explotación de credenciales sobre el Directorio REAL. sekurlsa::logonpasswords vuelca los hashes NT de las cuentas con sesión en los EQUIPOS que ya poseés; con sekurlsa::pth te autenticás con ese hash (Pass-the-Hash) sin conocer la clave. Si volcás y reusás el hash de un Domain Admin, caés el dominio entero. Es el puente real entre 'soy admin de esta máquina' y 'soy dueño del dominio'. Alias: secretsdump.", examples: ["mimikatz sekurlsa::logonpasswords", "mimikatz \"sekurlsa::pth /user:ADMIN-SQL@NANDE.LOCAL /ntlm:...\""] },
   certipy: { name: "abuso de AD Certificate Services (ESC1)", synopsis: "certipy find [-vulnerable] | certipy req -template <t> -upn <cuenta> | certipy auth -pfx <cuenta>",
     desc: "Enumera y abusa AD CS (Active Directory Certificate Services) contra la CA REAL del dominio, en dos pasos como la herramienta real. 'certipy find' lista las plantillas y marca las vulnerables a ESC1 (inscripción de bajo privilegio + el solicitante elige el SAN + EKU de autenticación de cliente + sin aprobación de manager). 'certipy req -template <t> -upn <cuenta>' EMITE un certificado impersonando a esa cuenta (te quedás con el .pfx). 'certipy auth -pfx <cuenta>' hace PKINIT con ese cert: te autenticás SIN la contraseña y recuperás su hash NT (UnPAC-the-hash), que alimenta Pass-the-Hash/DCSync/Golden Ticket. Si el UPN es un Domain Admin, caés el dominio. Tercera ruta a DA, distinta de Kerberoasting y AS-REP. Sólo el dominio del sandbox (NANDE.LOCAL). MITRE T1649 (forja) + T1550 (PKINIT).", examples: ["certipy find -vulnerable", "certipy req -template NandeUser -upn ADMIN-SQL@NANDE.LOCAL", "certipy auth -pfx ADMIN-SQL@NANDE.LOCAL"] },
+  contain: { name: "respuesta a incidentes / contención (azul)", synopsis: "contain [plan|auto] | contain host <h> | contain release <h> | contain account <a> | contain enable <a>",
+    desc: "El tercer acto del Blue Team (detectar→investigar→RESPONDER). Contención con efecto REAL: 'contain host <h>' AÍSLA un host de la red (deja de ser alcanzable y no sirve de pivote — corta el movimiento lateral) y 'contain account <a>' DESHABILITA una cuenta (no puede autenticarse ni usar sus privilegios: abuse/PtH/PKINIT fallan). 'contain' (o 'contain plan') arma un plan priorizado leyendo el estado real (qué hosts y cuentas comprometió el atacante — pivotes y Domain Admins primero); 'contain auto' lo aplica. Reversible con release/enable. Todo dentro del sandbox.", examples: ["contain", "contain auto", "contain host db-core.lan", "contain account SVC-SQL@NANDE.LOCAL"] },
   "harden-adcs": { name: "remediar ESC1 (azul)", synopsis: "harden-adcs [plantilla]",
     desc: "Contraparte DEFENSIVA de certipy: endurece la(s) plantilla(s) de certificado vulnerable(s) a ESC1 en la CA del dominio (les quita 'el solicitante elige el SAN' y les exige aprobación de manager). Efecto REAL y verificable: después, 'certipy req' ya no puede impersonar. Como rotate-krbtgt lo es del Golden Ticket, es la cura de ESC1. Sin argumento endurece todas las vulnerables. No revoca certificados ya emitidos (eso es revocación en la CA). Requiere alcanzar el DC (ahí vive AD CS).", examples: ["harden-adcs", "harden-adcs NandeUser"] },
   grep: { name: "buscar texto", synopsis: "... | grep <palabra>",
@@ -2278,6 +2280,11 @@ export class VirtualTerminal {
         case "dfir":
         case "investigar":
           return this.dfirCmd(commandArgs);
+
+        case "contain":
+        case "contencion":
+        case "contención":
+          return this.containCmd(commandArgs);
 
         case "reverse":
         case "crackme":
@@ -7172,6 +7179,76 @@ export class VirtualTerminal {
   }
 
   /**
+   * contain — RESPUESTA a incidentes (el tercer acto del Blue Team). Aísla hosts
+   * (corta pivoteo) y deshabilita cuentas (corta autenticación) con efecto REAL,
+   * y arma un plan derivado del estado (qué comprometió el atacante).
+   *   contain               → estado + plan recomendado.
+   *   contain plan          → el plan priorizado (pivotes y DA primero).
+   *   contain auto          → aplica el plan completo.
+   *   contain host <h> | release <h>
+   *   contain account <a> | enable <a>
+   */
+  private containCmd(args: string[] = []): { output: string; isError: boolean } {
+    const c = this.kernel.containment;
+    const sub = (args[0] ?? "").toLowerCase();
+    const arg = args.slice(1).join(" ").trim();
+
+    if (sub === "host" || sub === "aislar" || sub === "isolate") {
+      if (!arg) return { output: "uso: contain host <host>\n", isError: true };
+      const r = c.isolateHost(arg);
+      return { output: `${r.ok ? "✔" : "✘"} ${r.message}\n`, isError: !r.ok };
+    }
+    if (sub === "release" || sub === "reintegrar") {
+      if (!arg) return { output: "uso: contain release <host>\n", isError: true };
+      const r = c.releaseHost(arg);
+      return { output: `${r.ok ? "✔" : "✘"} ${r.message}\n`, isError: !r.ok };
+    }
+    if (sub === "account" || sub === "cuenta" || sub === "disable") {
+      if (!arg) return { output: "uso: contain account <cuenta>\n", isError: true };
+      const r = c.disableAccount(arg);
+      return { output: `${r.ok ? "✔" : "✘"} ${r.message}\n`, isError: !r.ok };
+    }
+    if (sub === "enable" || sub === "habilitar") {
+      if (!arg) return { output: "uso: contain enable <cuenta>\n", isError: true };
+      const r = c.enableAccount(arg);
+      return { output: `${r.ok ? "✔" : "✘"} ${r.message}\n`, isError: !r.ok };
+    }
+    if (sub === "auto" || sub === "aplicar") {
+      const results = c.applyPlan();
+      if (results.length === 0) {
+        return { output: "Contención: no hay nada que contener (sin hosts ni cuentas comprometidas).\n", isError: false };
+      }
+      return {
+        output:
+          `═══ Contención automática · ${results.length} acción(es) ═══\n` +
+          results.map((r) => `  ${r.ok ? "✔" : "✘"} ${r.message}`).join("\n") + "\n",
+        isError: false,
+      };
+    }
+
+    // Por defecto (o `contain plan`): estado + plan recomendado.
+    const plan = c.recommend();
+    const isolated = c.isolatedHosts();
+    const disabled = c.disabledAccounts();
+    const planBlock = plan.length
+      ? plan.map((r) => {
+          const cmd = r.action === "isolate-host" ? `contain host ${r.target}` : `contain account ${r.target}`;
+          return `  ${r.priority === 1 ? "🔴" : "🟠"} ${r.action === "isolate-host" ? "AISLAR" : "DESHABILITAR"} ${r.target}  — ${r.reason}\n       → ${cmd}`;
+        }).join("\n")
+      : "  (nada que contener: no hay hosts ni cuentas comprometidas)";
+    return {
+      output:
+        `═══ Contención (IR) · respuesta a incidentes ═══\n` +
+        `Aislados: ${isolated.join(", ") || "—"}\n` +
+        `Cuentas deshabilitadas: ${disabled.join(", ") || "—"}\n\n` +
+        `Plan recomendado (derivado del estado real):\n${planBlock}\n\n` +
+        `Aplicá todo con: contain auto  ·  o una a una con los comandos de arriba.\n` +
+        `Revertir: contain release <host> · contain enable <cuenta>\n`,
+      isError: false,
+    };
+  }
+
+  /**
    * NandeReverse — ingeniería inversa sobre un binario REAL de la ÑVM-8.
    *   reverse             → info del crackme y cómo empezar.
    *   reverse hexdump     → bytes del código (o `reverse hexdump data`).
@@ -7591,6 +7668,7 @@ export class VirtualTerminal {
       "  mimikatz dcsync / kerberos::golden   Volcá krbtgt y forjá persistencia",
       "  rotate-krbtgt      Azul: rotá krbtgt (x2) para matar un Golden Ticket",
       "  harden-adcs        Azul: endurecé la plantilla ESC1 y cerrá esa ruta a DA",
+      "  contain [auto]     Azul: respuesta a incidentes — aislá hosts y deshabilitá cuentas",
       "  mitre              Purple: técnicas ATT&CK detectadas por tus acciones",
       "  redteam [expulsar] Adversario NPC que ataca de verdad; defendé",
       "  reto               Te asignan un objetivo para vulnerar",

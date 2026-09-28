@@ -85,6 +85,13 @@ export interface VirtualHost {
   /** Bandera educativa que premia llegar a este host (opcional). */
   flag?: string;
   /**
+   * Contención (respuesta a incidentes): si es true, el host quedó AISLADO de la
+   * red por el equipo azul. Deja de ser alcanzable (no responde a ping/nmap/
+   * connect) y no se puede pivotar A TRAVÉS de él. Es la acción de IR que corta
+   * el movimiento lateral. Reversible (release). Lo gobierna ContainmentEngine.
+   */
+  isolated?: boolean;
+  /**
    * Reglas sudo (NOPASSWD) por usuario: binarios que ese usuario puede correr
    * como root. Es el vector real de escalada de privilegios: `sudo -l` los
    * lista y, si el binario permite escapar a una shell (GTFOBins), te volvés
@@ -106,6 +113,8 @@ export interface RuntimeEvent {
     | "port.unblocked"
     | "host.up"
     | "host.down"
+    | "host.isolated"
+    | "host.released"
     | "process.killed"
     | "login.success"
     | "login.failure";
@@ -527,6 +536,11 @@ export class HostRuntime {
   canReach(from: string | null, target: string): boolean {
     const host = this.resolve(target);
     if (!host) return false;
+    // Contención (IR): un host aislado no responde desde ningún lado, y no se
+    // puede pivotar A TRAVÉS de un host aislado. Es la MISMA regla única, así
+    // ping/nmap/connect/traceroute respetan el aislamiento sin duplicar lógica.
+    if (host.isolated) return false;
+    if (from !== null && this.resolve(from)?.isolated) return false;
     if (this.isPublic(host.hostname)) return true;
     // Host detrás de una WiFi: alcanzable (desde donde estés) sólo si estás
     // ASOCIADO a esa red ahora mismo. Es el punto de la auditoría inalámbrica.
@@ -540,6 +554,31 @@ export class HostRuntime {
     if (from === null) return false;
     const key = (this.resolve(from)?.hostname ?? from).toLowerCase();
     return (host.reachableFrom ?? []).includes(key);
+  }
+
+  /** ¿El host está aislado por contención (IR)? */
+  isIsolated(ref: string): boolean {
+    return this.resolve(ref)?.isolated ?? false;
+  }
+
+  /**
+   * Aísla o reintegra un host (contención de IR). Cambia estado REAL: un host
+   * aislado deja de ser alcanzable (canReach lo corta) y no sirve de pivote.
+   * Emite un evento de runtime para que el SOC/DFIR lo vean. Devuelve si cambió.
+   */
+  setIsolated(ref: string, value: boolean): boolean {
+    const host = this.resolve(ref);
+    if (!host || (host.isolated ?? false) === value) return false;
+    host.isolated = value;
+    this.log(
+      value ? "host.isolated" : "host.released",
+      host,
+      undefined,
+      value
+        ? `${host.hostname} AISLADO de la red por contención (IR): sin alcance ni pivoteo.`
+        : `${host.hostname} reintegrado a la red (fin de la contención).`,
+    );
+    return true;
   }
 
   /** ESSID de la red WiFi a la que el jugador está asociado (o null). La setea

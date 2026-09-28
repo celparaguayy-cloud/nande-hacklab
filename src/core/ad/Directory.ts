@@ -28,6 +28,13 @@ export interface Principal {
    * Kerberoasting, que necesita una cuenta de dominio). Mala config clásica.
    */
   preauthDisabled?: boolean;
+  /**
+   * Contención (respuesta a incidentes): la cuenta fue DESHABILITADA por el
+   * equipo azul. Una cuenta deshabilitada no puede autenticarse ni usar sus
+   * privilegios (abuse/smbLogin/PtH/PKINIT fallan). Es la eviction real de una
+   * cuenta comprometida. No borra el historial (owned), corta el uso futuro.
+   */
+  disabled?: boolean;
   /** Notas para el jugador (dónde encaja en la historia). */
   note?: string;
 }
@@ -223,6 +230,9 @@ export class Directory {
     if (!p || !p.preauthDisabled) {
       return { ok: false, message: `${userName} tiene pre-auth habilitada (no es AS-REP roasteable)` };
     }
+    if (p.disabled) {
+      return { ok: false, message: `${p.name} está DESHABILITADA (contención): el KDC no emite AS-REP` };
+    }
     this.signal({
       technique: "Steal or Forge Kerberos Tickets: AS-REP Roasting",
       tactic: "Credential Access",
@@ -235,6 +245,26 @@ export class Directory {
   }
 
   /* ------------------------------------------------------------- acciones */
+
+  /** ¿La cuenta está deshabilitada por contención (IR)? */
+  isDisabled(name: string): boolean {
+    return this.resolvePrincipal(name)?.disabled ?? false;
+  }
+
+  /**
+   * Deshabilita o rehabilita una cuenta (contención de IR). Efecto REAL: una
+   * cuenta deshabilitada no puede autenticarse ni usar sus privilegios —abuse,
+   * smbLogin, Pass-the-Hash y PKINIT la rechazan—. Es la eviction de una cuenta
+   * comprometida. Devuelve si cambió (y el nombre canónico afectado).
+   */
+  setEnabled(name: string, enabled: boolean): { ok: boolean; principal?: string } {
+    const p = this.resolvePrincipal(name);
+    if (!p || p.kind === "computer") return { ok: false };
+    const disabled = !enabled;
+    if ((p.disabled ?? false) === disabled) return { ok: false, principal: p.name };
+    p.disabled = disabled;
+    return { ok: true, principal: p.name };
+  }
 
   /** Marca un principal como poseído (por crack, abuso de ACL, etc.). */
   own(name: string): boolean {
@@ -274,6 +304,9 @@ export class Directory {
     const p = this.get(spnUser);
     if (!p || !p.spn) {
       return { ok: false, message: `${spnUser} no tiene SPN (no es kerberoasteable)` };
+    }
+    if (p.disabled) {
+      return { ok: false, message: `${p.name} está DESHABILITADA (contención): el KDC no emite TGS` };
     }
     // Pedir el TGS deja rastro en el DC (evento 4769): es detectable.
     this.signal({
@@ -410,6 +443,9 @@ export class Directory {
     const target = this.resolvePrincipal(targetUpn);
     if (!target || target.kind !== "user") {
       return { ok: false, domainOwned: this.domainOwned(), message: `cuenta objetivo desconocida: ${targetUpn}` };
+    }
+    if (target.disabled) {
+      return { ok: false, domainOwned: this.domainOwned(), principal: target.name, message: `${target.name} está DESHABILITADA (contención): el KDC rechaza el PKINIT` };
     }
     if (!this.heldCertificates.has(target.name)) {
       return {
@@ -558,6 +594,9 @@ export class Directory {
     if (!p || p.kind !== "user") {
       return { ok: false, pwned: false, message: `usuario desconocido: ${userName}` };
     }
+    if (p.disabled) {
+      return { ok: false, pwned: false, principal: p.name, message: "STATUS_ACCOUNT_DISABLED" };
+    }
     if (!p.weakPassword || password !== p.weakPassword) {
       return { ok: false, pwned: false, principal: p.name, message: "STATUS_LOGON_FAILURE" };
     }
@@ -673,6 +712,9 @@ export class Directory {
     if (!p || p.kind !== "user") {
       return { ok: false, domainOwned: this.domainOwned(), message: `usuario desconocido: ${userName}` };
     }
+    if (p.disabled) {
+      return { ok: false, domainOwned: this.domainOwned(), principal: p.name, message: `${p.name} está DESHABILITADA (contención): la autenticación se rechaza` };
+    }
     const hashOk = hash ? hash.toLowerCase() === this.ntHash(p.name) : false;
     const dumpable = this.dumpableCredentials().some((c) => c.name === p.name);
     if (!hashOk && !dumpable) {
@@ -718,6 +760,7 @@ export class Directory {
     const f = this.get(from);
     const t = this.get(to);
     if (!f || !t) return { ok: false, message: "principal desconocido" };
+    if (f.disabled) return { ok: false, message: `${f.name} está DESHABILITADA (contención): no podés usar sus privilegios` };
     if (!f.owned) return { ok: false, message: `todavía no poseés ${f.name}` };
     const edge = this.edges.find(
       (e) => e.from === f.name && e.to === t.name,
