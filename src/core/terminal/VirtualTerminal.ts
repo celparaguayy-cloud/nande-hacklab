@@ -7278,7 +7278,9 @@ export class VirtualTerminal {
       return {
         output:
           "🔵 Equipo azul ACTIVO: si hacés algo grave y detectable, RESPONDE y te contiene\n" +
-          "   (aísla el pivote o deshabilita la cuenta más peligrosa). Movete con sigilo.\n",
+          "   (aísla el pivote o deshabilita la cuenta más peligrosa).\n" +
+          "   OPSEC: si enrutás por Tor (anon/tor on), el SOC te detecta pero NO puede\n" +
+          "   atribuir el origen → no contiene. El anonimato es tu defensa.\n",
         isError: false,
       };
     }

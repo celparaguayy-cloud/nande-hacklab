@@ -460,6 +460,9 @@ export class VirtualKernel {
       this.containment,
       () => this.world.getState().clock.tick,
       (title, body, tick) => this.news.headline(title, body, "Seguridad", tick),
+      // Atribución: si enrutás por Tor, el SOC no rastrea el origen y no contiene.
+      // El anonimato pasa a ser una defensa REAL contra el defensor autónomo.
+      () => !this.anonymity.isTorEnabled(),
     );
 
     // academy.nande y tools.nande: la biblioteca y la ruta de aprendizaje,

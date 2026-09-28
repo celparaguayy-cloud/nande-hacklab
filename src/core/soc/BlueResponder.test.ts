@@ -64,6 +64,28 @@ describe("BlueTeamResponder — defensor autónomo con respuesta real", () => {
     expect(kernel.hosts.canReach("nas.interna.nande", "db-core.interna.nande")).toBe(false);
   });
 
+  it("OPSEC real: enrutar por Tor evita la contención (detecta pero no atribuye)", () => {
+    kernel.directory.own("SVC-SQL@NANDE.LOCAL");
+    kernel.blueResponder.setPosture("active");
+    kernel.anonymity.enableTor(); // el atacante se anonimiza
+    kernel.noteAttackTechnique({
+      technique: "Kerberoasting", tactic: "Credential Access", mitreId: "T1558.003",
+      detail: "TGS de SVC-SQL.", host: "NANDE.LOCAL",
+    });
+    // Lo detectó, pero SIN atribución no contiene: la cuenta sigue activa.
+    expect(kernel.blueResponder.count()).toBeGreaterThan(0);
+    expect(kernel.blueResponder.responses().at(-1)!.contained).toBe(false);
+    expect(kernel.blueResponder.responses().at(-1)!.action).toMatch(/anónimo|atribu/i);
+    expect(kernel.directory.isDisabled("SVC-SQL@NANDE.LOCAL")).toBe(false);
+    // Al quitar Tor, la MISMA técnica ya sí lo contiene (queda expuesto).
+    kernel.anonymity.disableTor();
+    kernel.noteAttackTechnique({
+      technique: "Kerberoasting", tactic: "Credential Access", mitreId: "T1558.003",
+      detail: "TGS de SVC-SQL otra vez.", host: "NANDE.LOCAL",
+    });
+    expect(kernel.directory.isDisabled("SVC-SQL@NANDE.LOCAL")).toBe(true);
+  });
+
   it("en MONITOR detecta y avisa pero NO contiene", () => {
     kernel.directory.own("SVC-SQL@NANDE.LOCAL");
     kernel.blueResponder.setPosture("monitor");

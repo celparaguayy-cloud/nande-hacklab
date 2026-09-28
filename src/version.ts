@@ -3,5 +3,5 @@
  * qué build estás corriendo (y confirmar que tomaste la última actualización).
  * Subí el número cuando haya un cambio que el jugador deba poder distinguir.
  */
-export const NANDE_VERSION = "5.107.0";
-export const NANDE_BUILD = "equipo-azul-autonomo-defensor-npc";
+export const NANDE_VERSION = "5.108.0";
+export const NANDE_BUILD = "anonimato-defiende-del-defensor-atribucion";

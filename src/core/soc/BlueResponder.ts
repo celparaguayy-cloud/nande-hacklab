@@ -51,6 +51,10 @@ export class BlueTeamResponder {
   private containment: ContainmentEngine;
   private clock: () => number;
   private onNews?: (title: string, body: string, tick: number) => void;
+  /** ¿La actividad es ATRIBUIBLE? (origen no anonimizado). Si el atacante enruta
+   *  por Tor, el SOC detecta la técnica pero no puede rastrear el origen: sin
+   *  atribución no contiene. Es lo que hace del anonimato una defensa REAL. */
+  private attributable: () => boolean;
   private stance: BluePosture = "off";
   private log: BlueResponse[] = [];
   private seq = 0;
@@ -62,10 +66,12 @@ export class BlueTeamResponder {
     containment: ContainmentEngine,
     clock: () => number = () => 0,
     onNews?: (title: string, body: string, tick: number) => void,
+    attributable: () => boolean = () => true,
   ) {
     this.containment = containment;
     this.clock = clock;
     this.onNews = onNews;
+    this.attributable = attributable;
     this.unsub = events.subscribe<AttackSignal>("attack.technique", (e) => this.onSignal(e.data));
   }
 
@@ -110,6 +116,19 @@ export class BlueTeamResponder {
       this.onNews?.(
         "El SOC detectó actividad de alta gravedad",
         `Se observó ${s.technique}. El equipo azul está en modo monitoreo (todavía no contiene).`,
+        this.clock(),
+      );
+      return;
+    }
+
+    // active: para CONTENER, el SOC necesita ATRIBUIR el origen. Si enrutaste por
+    // Tor, ve la técnica pero no de dónde vino → detecta y NO contiene. El
+    // anonimato es una defensa real (lección de OPSEC, regla 12).
+    if (!this.attributable()) {
+      this.note(trigger, "detección de alta gravedad — origen ANÓNIMO (Tor): sin atribución, no se puede contener", false);
+      this.onNews?.(
+        "El SOC detectó una intrusión pero no pudo rastrear el origen",
+        `Se observó ${s.technique}, pero el tráfico venía anonimizado: sin atribución no hay contención.`,
         this.clock(),
       );
       return;
