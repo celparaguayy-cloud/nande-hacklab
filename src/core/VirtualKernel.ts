@@ -442,8 +442,14 @@ export class VirtualKernel {
       // center (ThreatEngine) y el del adversario autónomo (RedTeamAgent). Así
       // cualquier ataque del mundo es investigable y atribuible, no sólo uno.
       incidents: () => {
+        const list: import("./soc/Investigator").AttributableIncident[] = [...this.threats.list()];
         const rt = this.redteam.incident();
-        return rt ? [...this.threats.list(), rt] : this.threats.list();
+        if (rt) list.push(rt);
+        // La campaña del emulador (apt) también es un incidente atribuible: el
+        // DFIR la investiga y atribuye con el IOC de su actor (registro único).
+        const apt = this.adversary?.incident();
+        if (apt) list.push(apt);
+        return list;
       },
     });
 

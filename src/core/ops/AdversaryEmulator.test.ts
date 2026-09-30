@@ -91,6 +91,28 @@ describe("AdversaryEmulator — adversario vivo y defensa real (purple team)", (
     expect(run).toMatch(/CUMPLIÓ|objetivo/i);
   });
 
+  it("el DFIR investiga y ATRIBUYE la campaña (actor + IOC del registro de amenazas)", () => {
+    kernel.adversary.start("ana-reta");
+    kernel.adversary.step(); // recon
+    kernel.adversary.step(); // acceso inicial (toca server.nande)
+    // El emulador entrega un incidente atribuible con el actor y su IOC real.
+    const inc = kernel.adversary.incident()!;
+    expect(inc).toBeTruthy();
+    expect(inc.rival).toBe("RedViper");
+    expect(inc.ioc).toBeTruthy();
+    // El DFIR lo levanta entre sus IOCs: se puede atribuir la campaña.
+    const ioc = inc.ioc!;
+    const iocs = term.execute("dfir iocs");
+    expect(iocs).toContain(ioc);
+    // Y pivotear sobre el IOC conecta con la campaña del adversario.
+    expect(term.execute(`dfir pivot ${ioc}`)).toMatch(new RegExp(ioc.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "|RedViper", "i"));
+  });
+
+  it("sin actividad del adversario no hay incidente que atribuir", () => {
+    kernel.adversary.start("ana-reta");
+    expect(kernel.adversary.incident()).toBeNull(); // todavía no actuó
+  });
+
   it("start desconocido lista los perfiles disponibles", () => {
     const out = term.execute("apt start noexiste");
     expect(out).toContain("ana-reta");

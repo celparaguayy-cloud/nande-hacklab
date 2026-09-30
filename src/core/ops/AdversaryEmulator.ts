@@ -2,6 +2,17 @@ import type { AttackSignal } from "../ad/Directory";
 import type { Directory } from "../ad/Directory";
 import type { HostRuntime } from "../net/HostRuntime";
 import type { OpPhaseId } from "./Operation";
+import { findActor } from "../threat/ThreatActors";
+
+/** Incidente atribuible que el emulador le entrega al DFIR: su actor + IOC. */
+export interface AdversaryIncident {
+  host: string;
+  rival: string;
+  tick: number;
+  ioc?: string;
+  resolved?: boolean;
+  resolvedTick?: number;
+}
 
 /**
  * AdversaryEmulator — el MEGA motor: un adversario VIVO que corre una campaña
@@ -41,6 +52,8 @@ export interface AdversaryProfile {
   name: string;
   objective: string;
   description: string;
+  /** Alias del actor de amenaza (registro único ThreatActors) al que se atribuye. */
+  actor: string;
   playbook: EmuStep[];
 }
 
@@ -58,6 +71,7 @@ const PROFILES: AdversaryProfile[] = [
     id: "ana-reta",
     name: "Aña Retã (APT de dominio)",
     objective: "domain",
+    actor: "RedViper",
     description:
       "Grupo APT que va por el Directorio Activo: entra por una estación, roba una cuenta de servicio, se mueve lateral y replica los secretos del DC hasta ser Domain Admin.",
     playbook: [
@@ -79,6 +93,7 @@ const PROFILES: AdversaryProfile[] = [
     id: "karai-ot",
     name: "Karaí OT (sabotaje industrial)",
     objective: "ot",
+    actor: "GhostGrey",
     description:
       "Actor estilo TRITON que cruza de IT a OT: pivotea por la LAN corporativa hasta la planta, deshabilita el sistema de seguridad (SIS) y fuerza el proceso a un estado destructivo.",
     playbook: [
@@ -114,6 +129,10 @@ export class AdversaryEmulator {
   private log: EmuLogEntry[] = [];
   private seq = 0;
   private lastBlock?: string;
+  /** Tick del primer paso ejecutado (−1 = la campaña todavía no actuó). */
+  private firstStepTick = -1;
+  /** Primer host que tocó la campaña (para correlacionar en el DFIR). */
+  private firstHost?: string;
 
   constructor(deps: EmuDeps) {
     this.deps = deps;
@@ -137,6 +156,8 @@ export class AdversaryEmulator {
     this.log = [];
     this.seq = 0;
     this.lastBlock = undefined;
+    this.firstStepTick = -1;
+    this.firstHost = undefined;
     return { ok: true, message: `Adversario "${p.name}" armado. Objetivo: ${p.objective}. Corré la simulación (adversario step / run) y defendé.` };
   }
 
@@ -201,6 +222,9 @@ export class AdversaryEmulator {
       detail: `[${p.name}] ${step.detail}`,
       host: step.requires?.host ?? step.requires?.account ?? "NANDE.LOCAL",
     });
+    // Marca el arranque de la campaña (para el incidente atribuible del DFIR).
+    if (this.firstStepTick < 0) this.firstStepTick = this.deps.clock();
+    if (!this.firstHost && step.requires?.host) this.firstHost = step.requires.host;
     this.lastBlock = undefined;
     this.log.push({ seq: ++this.seq, tick: this.deps.clock(), step: step.name, mitreId: step.mitreId, outcome: "ejecutado", note: step.detail });
     this.idx += 1;
@@ -250,6 +274,27 @@ export class AdversaryEmulator {
       nextRequires: req?.account ? `cuenta ${req.account}` : req?.host ? `host ${req.host}` : null,
       blockedReason: this.stance === "blocked" ? this.lastBlock : undefined,
       log: [...this.log],
+    };
+  }
+
+  /**
+   * Incidente ATRIBUIBLE para el DFIR: si la campaña ya actuó, la entrega como un
+   * caso con el actor de amenaza y su IOC (del registro único ThreatActors, igual
+   * que el RedTeamAgent). Así el DFIR la investiga, extrae su indicador y la
+   * atribuye —no es sólo un stream de detecciones sueltas—. resolved = contenida.
+   */
+  incident(): AdversaryIncident | null {
+    const p = this.profile();
+    if (!p || this.firstStepTick < 0) return null;
+    const actor = findActor(p.actor);
+    const contained = this.stance === "blocked" || this.stance === "stopped";
+    return {
+      host: this.firstHost ?? "NANDE.LOCAL",
+      rival: actor?.alias ?? p.actor,
+      tick: this.firstStepTick,
+      ioc: actor?.infra[0],
+      resolved: contained,
+      resolvedTick: contained ? this.deps.clock() : undefined,
     };
   }
 }
