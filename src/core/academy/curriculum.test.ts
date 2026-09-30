@@ -19,6 +19,8 @@ const VALID_DIAGRAMS = new Set([
   "exploit", "payload", "adgrafo", "kerberos", "pth", "spray", "sniffer",
   "crackhash", "directorios", "subdominios", "mitm", "pivot", "traversal",
   "idor", "ssrf", "cmdi", "jwt", "siem", "reversing", "contenedor",
+  // Tercera tanda: AD avanzado, defensa, operaciones, OT y forense.
+  "adcs", "dcsync", "ics", "matrix", "purple", "tunnel", "radar",
 ]);
 
 // Deben coincidir con GlyphName (Glyph.tsx).

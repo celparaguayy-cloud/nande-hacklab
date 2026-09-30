@@ -3,5 +3,5 @@
  * qué build estás corriendo (y confirmar que tomaste la última actualización).
  * Subí el número cuando haya un cambio que el jugador deba poder distinguir.
  */
-export const NANDE_VERSION = "5.120.0";
-export const NANDE_BUILD = "adversario-atribuible-en-el-dfir-actor-e-ioc";
+export const NANDE_VERSION = "5.121.0";
+export const NANDE_BUILD = "academia-21-cursos-avanzados-ad-defensa-red-ot-forense";

@@ -59,7 +59,15 @@ export type DiagramId =
   | "jwt"
   | "siem"
   | "reversing"
-  | "contenedor";
+  | "contenedor"
+  // Tercera tanda: AD avanzado, defensa, operaciones, OT y forense.
+  | "adcs"
+  | "dcsync"
+  | "ics"
+  | "matrix"
+  | "purple"
+  | "tunnel"
+  | "radar";
 
 /** Pantalla de explicación con un dibujo que hace visible la idea. */
 export interface ConceptSlide {

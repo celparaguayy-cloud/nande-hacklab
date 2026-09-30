@@ -987,6 +987,192 @@ function Contenedor() {
   );
 }
 
+function Adcs() {
+  return (
+    <Frame>
+      <text x={160} y={22} fill={DIM} fontSize={12} fontFamily={sans} textAnchor="middle">ADCS ESC1: pedís un cert a nombre del admin</text>
+      <rect x={20} y={70} width={60} height={40} rx={5} fill={PANEL2} stroke={GREEN} />
+      <text x={50} y={88} fill={GREEN} fontSize={9} textAnchor="middle" fontFamily={sans}>vos</text>
+      <text x={50} y={101} fill={DIM} fontSize={8} textAnchor="middle" fontFamily={sans}>user común</text>
+      <rect x={128} y={62} width={70} height={56} rx={6} fill={PANEL2} stroke={AMBER} />
+      <text x={163} y={84} fill={AMBER} fontSize={10} textAnchor="middle" fontFamily={sans}>CA / plantilla</text>
+      <text x={163} y={99} fill={RED} fontSize={8} textAnchor="middle" fontFamily={mono}>SAN=libre</text>
+      <text x={163} y={110} fill={DIM} fontSize={8} textAnchor="middle" fontFamily={sans}>emite .pfx</text>
+      <rect x={244} y={70} width={62} height={40} rx={5} fill="rgba(185,140,255,0.12)" stroke={VIOLET} />
+      <text x={275} y={88} fill={VIOLET} fontSize={9} textAnchor="middle" fontFamily={sans}>PKINIT</text>
+      <text x={275} y={101} fill={DIM} fontSize={8} textAnchor="middle" fontFamily={mono}>hash NT</text>
+      <path d="M80 90h46" stroke={GREEN} strokeWidth={2} markerEnd="url(#acg)" />
+      <path d="M198 90h44" stroke={VIOLET} strokeWidth={2} markerEnd="url(#acv)" />
+      <text x={160} y={144} fill={RED} fontSize={10} fontFamily={sans} textAnchor="middle">un cert como el DA = sos el DA</text>
+      <defs>
+        <marker id="acg" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0l6 3-6 3z" fill={GREEN} /></marker>
+        <marker id="acv" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0l6 3-6 3z" fill={VIOLET} /></marker>
+      </defs>
+    </Frame>
+  );
+}
+
+function Dcsync() {
+  return (
+    <Frame>
+      <text x={160} y={22} fill={DIM} fontSize={12} fontFamily={sans} textAnchor="middle">DCSync: pedís la réplica como si fueras otro DC</text>
+      <rect x={30} y={62} width={80} height={54} rx={6} fill="rgba(255,123,114,0.10)" stroke={RED} />
+      <text x={70} y={84} fill={RED} fontSize={10} textAnchor="middle" fontFamily={sans}>atacante</text>
+      <text x={70} y={100} fill={DIM} fontSize={8} textAnchor="middle" fontFamily={sans}>(Domain Admin)</text>
+      <rect x={210} y={62} width={80} height={54} rx={6} fill={PANEL2} stroke={CYAN} />
+      <text x={250} y={84} fill={CYAN} fontSize={10} textAnchor="middle" fontFamily={sans}>DC</text>
+      <text x={250} y={100} fill={DIM} fontSize={8} textAnchor="middle" fontFamily={mono}>NTDS.dit</text>
+      <path d="M110 80h96" stroke={RED} strokeWidth={1.8} markerEnd="url(#dsg)" />
+      <text x={158} y={74} fill={DIM} fontSize={8} fontFamily={mono} textAnchor="middle">DRSGetNCChanges</text>
+      <path d="M206 100h-96" stroke={AMBER} strokeWidth={1.8} markerEnd="url(#dsa)" />
+      <text x={158} y={114} fill={AMBER} fontSize={8} fontFamily={mono} textAnchor="middle">hashes (krbtgt…)</text>
+      <text x={160} y={150} fill={DIM} fontSize={10} fontFamily={sans} textAnchor="middle">con krbtgt forjás un Golden Ticket</text>
+      <defs>
+        <marker id="dsg" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0l6 3-6 3z" fill={RED} /></marker>
+        <marker id="dsa" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0l6 3-6 3z" fill={AMBER} /></marker>
+      </defs>
+    </Frame>
+  );
+}
+
+function Ics() {
+  return (
+    <Frame>
+      <text x={160} y={20} fill={DIM} fontSize={12} fontFamily={sans} textAnchor="middle">IT → OT: del dato al proceso físico</text>
+      <rect x={20} y={40} width={80} height={100} rx={6} fill="rgba(61,174,233,0.07)" stroke={CYAN} strokeDasharray="4 3" />
+      <text x={60} y={56} fill={CYAN} fontSize={9} textAnchor="middle" fontFamily={sans}>IT</text>
+      {["ERP", "historian"].map((s, i) => (
+        <g key={i}>
+          <rect x={32} y={66 + i * 32} width={56} height={24} rx={3} fill={PANEL2} stroke={LINE} />
+          <text x={60} y={82 + i * 32} fill={DIM} fontSize={8} textAnchor="middle" fontFamily={mono}>{s}</text>
+        </g>
+      ))}
+      <rect x={220} y={40} width={84} height={100} rx={6} fill="rgba(255,123,114,0.07)" stroke={RED} strokeDasharray="4 3" />
+      <text x={262} y={56} fill={RED} fontSize={9} textAnchor="middle" fontFamily={sans}>OT / planta</text>
+      {["HMI", "PLC", "bomba"].map((s, i) => (
+        <g key={i}>
+          <rect x={232} y={62 + i * 26} width={60} height={20} rx={3} fill={PANEL2} stroke={i === 2 ? AMBER : LINE} />
+          <text x={262} y={76 + i * 26} fill={i === 2 ? AMBER : DIM} fontSize={8} textAnchor="middle" fontFamily={mono}>{s}</text>
+        </g>
+      ))}
+      <rect x={120} y={72} width={80} height={36} rx={5} fill={PANEL2} stroke={VIOLET} />
+      <text x={160} y={90} fill={VIOLET} fontSize={9} textAnchor="middle" fontFamily={sans}>uplink</text>
+      <text x={160} y={102} fill={DIM} fontSize={7.5} textAnchor="middle" fontFamily={sans}>doble-homed</text>
+      <path d="M100 90h20" stroke={CYAN} strokeWidth={1.6} markerEnd="url(#icg)" />
+      <path d="M200 90h20" stroke={RED} strokeWidth={1.6} markerEnd="url(#icr)" />
+      <text x={160} y={152} fill={AMBER} fontSize={9.5} fontFamily={sans} textAnchor="middle">Modbus no autentica: alcanzarlo es controlarlo</text>
+      <defs>
+        <marker id="icg" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0l6 3-6 3z" fill={CYAN} /></marker>
+        <marker id="icr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0l6 3-6 3z" fill={RED} /></marker>
+      </defs>
+    </Frame>
+  );
+}
+
+function Matrix() {
+  const cells = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+  const lit = new Set([1, 3, 6, 8, 11]);
+  const tactics = ["Recon", "Acceso", "Persist.", "Impacto"];
+  return (
+    <Frame>
+      <text x={160} y={20} fill={DIM} fontSize={12} fontFamily={sans} textAnchor="middle">ATT&amp;CK: tácticas (columnas) y técnicas</text>
+      {tactics.map((t, i) => (
+        <text key={i} x={44 + i * 76} y={40} fill={CYAN} fontSize={8.5} textAnchor="middle" fontFamily={sans}>{t}</text>
+      ))}
+      {cells.map((c) => {
+        const col = c % 4;
+        const row = Math.floor(c / 4);
+        const on = lit.has(c);
+        return (
+          <g key={c}>
+            <rect x={16 + col * 76} y={48 + row * 30} width={64} height={24} rx={3}
+              fill={on ? "rgba(245,181,68,0.18)" : PANEL2} stroke={on ? AMBER : LINE} />
+            <text x={48 + col * 76} y={64 + row * 30} fill={on ? AMBER : DIM} fontSize={8} textAnchor="middle" fontFamily={mono}>
+              {on ? "T✓" : "·"}
+            </text>
+          </g>
+        );
+      })}
+      <text x={160} y={152} fill={DIM} fontSize={9.5} fontFamily={sans} textAnchor="middle">cada técnica del ataque enciende su celda</text>
+    </Frame>
+  );
+}
+
+function Purple() {
+  return (
+    <Frame>
+      <text x={160} y={22} fill={DIM} fontSize={12} fontFamily={sans} textAnchor="middle">Purple team: el ataque y la defensa en un loop</text>
+      <rect x={24} y={58} width={78} height={48} rx={6} fill="rgba(255,123,114,0.10)" stroke={RED} />
+      <text x={63} y={80} fill={RED} fontSize={10} textAnchor="middle" fontFamily={sans}>RED</text>
+      <text x={63} y={95} fill={DIM} fontSize={8} textAnchor="middle" fontFamily={sans}>emula APT</text>
+      <rect x={218} y={58} width={78} height={48} rx={6} fill="rgba(61,174,233,0.10)" stroke={CYAN} />
+      <text x={257} y={80} fill={CYAN} fontSize={10} textAnchor="middle" fontFamily={sans}>BLUE</text>
+      <text x={257} y={95} fill={DIM} fontSize={8} textAnchor="middle" fontFamily={sans}>detecta/contiene</text>
+      <path d="M102 74h116" stroke={RED} strokeWidth={1.8} markerEnd="url(#pug)" />
+      <text x={160} y={68} fill={DIM} fontSize={8} fontFamily={sans} textAnchor="middle">técnica</text>
+      <path d="M218 92h-116" stroke={CYAN} strokeWidth={1.8} markerEnd="url(#pub)" />
+      <text x={160} y={104} fill={DIM} fontSize={8} fontFamily={sans} textAnchor="middle">detección / bloqueo</text>
+      <text x={160} y={138} fill={VIOLET} fontSize={11} fontFamily={sans} textAnchor="middle">morado = rojo + azul</text>
+      <text x={160} y={154} fill={DIM} fontSize={9} fontFamily={sans} textAnchor="middle">contener corta al adversario en marcha</text>
+      <defs>
+        <marker id="pug" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0l6 3-6 3z" fill={RED} /></marker>
+        <marker id="pub" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0l6 3-6 3z" fill={CYAN} /></marker>
+      </defs>
+    </Frame>
+  );
+}
+
+function Tunnel() {
+  return (
+    <Frame>
+      <text x={160} y={22} fill={DIM} fontSize={12} fontFamily={sans} textAnchor="middle">Túnel SOCKS: un pivote abre la red interna</text>
+      <rect x={20} y={72} width={54} height={40} rx={5} fill={PANEL2} stroke={GREEN} />
+      <text x={47} y={95} fill={GREEN} fontSize={9} textAnchor="middle" fontFamily={sans}>vos</text>
+      <rect x={126} y={72} width={60} height={40} rx={5} fill={PANEL2} stroke={AMBER} />
+      <text x={156} y={90} fill={AMBER} fontSize={9} textAnchor="middle" fontFamily={sans}>pivote</text>
+      <text x={156} y={103} fill={DIM} fontSize={7.5} textAnchor="middle" fontFamily={mono}>:1080</text>
+      <rect x={236} y={44} width={72} height={96} rx={6} fill="rgba(185,140,255,0.08)" stroke={VIOLET} strokeDasharray="4 3" />
+      <text x={272} y={60} fill={VIOLET} fontSize={8.5} textAnchor="middle" fontFamily={sans}>interna</text>
+      {[0, 1, 2].map((i) => <rect key={i} x={248} y={70 + i * 22} width={48} height={16} rx={3} fill={PANEL2} stroke={VIOLET} />)}
+      {/* tubo del túnel */}
+      <path d="M74 92h52" stroke={GREEN} strokeWidth={8} strokeOpacity={0.25} />
+      <path d="M186 92h50" stroke={VIOLET} strokeWidth={8} strokeOpacity={0.25} />
+      <path d="M74 92h52" stroke={GREEN} strokeWidth={2} markerEnd="url(#tng)" />
+      <path d="M186 92h50" stroke={VIOLET} strokeWidth={2} markerEnd="url(#tnv)" />
+      <text x={160} y={150} fill={DIM} fontSize={9.5} fontFamily={sans} textAnchor="middle">proxychains manda tus tools por el túnel</text>
+      <defs>
+        <marker id="tng" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0l6 3-6 3z" fill={GREEN} /></marker>
+        <marker id="tnv" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0l6 3-6 3z" fill={VIOLET} /></marker>
+      </defs>
+    </Frame>
+  );
+}
+
+function Radar() {
+  return (
+    <Frame>
+      <text x={160} y={20} fill={DIM} fontSize={12} fontFamily={sans} textAnchor="middle">Tu rastro: cada acción deja huella</text>
+      <circle cx={100} cy={96} r={52} fill="none" stroke={LINE} />
+      <circle cx={100} cy={96} r={34} fill="none" stroke={LINE} />
+      <circle cx={100} cy={96} r={16} fill="none" stroke={LINE} />
+      <line x1={48} y1={96} x2={152} y2={96} stroke={LINE} strokeWidth={0.7} />
+      <line x1={100} y1={44} x2={100} y2={148} stroke={LINE} strokeWidth={0.7} />
+      <path d="M100 96 L142 72" stroke={GREEN} strokeWidth={1.5} />
+      {[[128, 74, RED], [78, 68, AMBER], [116, 118, AMBER], [70, 112, GREEN]].map((p, i) => (
+        <circle key={i} cx={p[0] as number} cy={p[1] as number} r={4} fill={p[2] as string} />
+      ))}
+      <rect x={176} y={52} width={130} height={86} rx={6} fill={PANEL2} stroke={LINE} />
+      <text x={186} y={72} fill={DIM} fontSize={9} fontFamily={sans}>ruido escaneo</text>
+      <rect x={186} y={78} width={110} height={7} rx={3} fill="#0a1017" stroke={LINE} />
+      <rect x={186} y={78} width={78} height={7} rx={3} fill={RED} />
+      <text x={186} y={104} fill={DIM} fontSize={9} fontFamily={sans}>logins fallidos</text>
+      <rect x={186} y={110} width={110} height={7} rx={3} fill="#0a1017" stroke={LINE} />
+      <rect x={186} y={110} width={44} height={7} rx={3} fill={AMBER} />
+      <text x={240} y={150} fill={DIM} fontSize={9} fontFamily={sans} textAnchor="middle">sigilo = bajar esas barras</text>
+    </Frame>
+  );
+}
+
 const ART: Record<DiagramId, () => React.ReactElement> = {
   internet: Internet,
   dominio: Dominio,
@@ -1032,6 +1218,13 @@ const ART: Record<DiagramId, () => React.ReactElement> = {
   siem: Siem,
   reversing: Reversing,
   contenedor: Contenedor,
+  adcs: Adcs,
+  dcsync: Dcsync,
+  ics: Ics,
+  matrix: Matrix,
+  purple: Purple,
+  tunnel: Tunnel,
+  radar: Radar,
 };
 
 /** Dibuja la ilustración pedida (o nada si el id no existe). */

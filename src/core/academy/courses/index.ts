@@ -15,6 +15,11 @@ import { OSINT_COURSES } from "./osint";
 import { EXPLOTACION_COURSES } from "./explotacion";
 import { AD_COURSES } from "./ad";
 import { KILLCHAIN_COURSES } from "./killchain";
+import { AD_AVANZADO_COURSES } from "./ad-avanzado";
+import { DEFENSA_AVANZADA_COURSES } from "./defensa-avanzada";
+import { OPERACIONES_RED_COURSES } from "./operaciones-red";
+import { OT_COURSES } from "./ot";
+import { FORENSE_COURSES } from "./forense";
 
 /** Orden pedagógico: de lo básico (Linux) a lo especializado y el capstone. */
 export const EXTRA_CURSOS: Curso[] = [
@@ -28,4 +33,10 @@ export const EXTRA_CURSOS: Curso[] = [
   ...EXPLOTACION_COURSES,
   ...AD_COURSES,
   ...KILLCHAIN_COURSES,
+  // Tercera tanda: especializaciones avanzadas (para profesionales).
+  ...AD_AVANZADO_COURSES,
+  ...DEFENSA_AVANZADA_COURSES,
+  ...OPERACIONES_RED_COURSES,
+  ...OT_COURSES,
+  ...FORENSE_COURSES,
 ];
