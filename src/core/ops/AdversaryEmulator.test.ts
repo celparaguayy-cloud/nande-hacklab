@@ -61,6 +61,28 @@ describe("AdversaryEmulator — adversario vivo y defensa real (purple team)", (
     expect(ids).not.toContain("T0879");
   });
 
+  it("defensa en profundidad: aislar un choke point TEMPRANO corta la campaña OT", () => {
+    kernel.adversary.start("karai-ot");
+    // El defensor aísla el JUMP HOST (server.nande): está en la ruta hacia toda
+    // la planta, así que corta la cadena aunque el objetivo final sea el PLC.
+    kernel.containment.isolateHost("server.nande");
+    const r = kernel.adversary.run();
+    expect(r.status).toBe("blocked");
+    // Ni siquiera llegó al salto IT→OT ni al sabotaje.
+    const ids = kernel.mitre.techniques().map((t) => t.mitreId);
+    expect(ids).not.toContain("T0858");
+    expect(ids).not.toContain("T0879");
+  });
+
+  it("aislar un eslabón intermedio (db-core) corta la ruta al segmento OT profundo", () => {
+    kernel.adversary.start("karai-ot");
+    kernel.containment.isolateHost("db-core.interna.nande"); // eslabón hacia el HMI
+    kernel.adversary.run();
+    // La ruta a hmi/plc pasa por db-core: queda bloqueado antes del impacto.
+    expect(kernel.adversary.state().status).toBe("blocked");
+    expect(kernel.mitre.techniques().map((t) => t.mitreId)).not.toContain("T0879");
+  });
+
   it("por terminal: start → status muestra qué activo contener; run cumple si no defendés", () => {
     expect(term.execute("apt start ana-reta")).toMatch(/armado|Aña Retã/);
     const status = term.execute("apt status");

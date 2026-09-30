@@ -7741,9 +7741,11 @@ export class VirtualTerminal {
       idle: "inactivo", running: "EN MARCHA", blocked: "⛔ BLOQUEADO", succeeded: "🏁 objetivo cumplido", stopped: "detenido",
     };
     const done = s.log.filter((e) => e.outcome === "ejecutado").map((e) => `  ✔ ${e.step} [${e.mitreId}]`);
+    const chokes = this.kernel.adversary.nextRouteChokes();
     const next = s.nextStep
       ? `Próximo paso del adversario: ${s.nextStep.name} [${s.nextStep.mitreId}]` +
-        (s.nextRequires ? `\n   Depende de: ${s.nextRequires}  →  contenelo para BLOQUEARLO (contain ${s.nextRequires.startsWith("cuenta") ? "account " + s.nextRequires.slice(7) : "host " + s.nextRequires.slice(5)})` : "")
+        (s.nextRequires ? `\n   Depende de: ${s.nextRequires}  →  contenelo para BLOQUEARLO (contain ${s.nextRequires.startsWith("cuenta") ? "account " + s.nextRequires.slice(7) : "host " + s.nextRequires.slice(5)})` : "") +
+        (chokes.length > 1 ? `\n   Ruta del adversario: ${chokes.join(" → ")}\n   Cortala aislando CUALQUIER eslabón: ${chokes.map((h) => `contain host ${h}`).join("  ·  ")}` : "")
       : "";
     return (
       `Adversario: ${s.profile.name} · ${statusLabel[s.status]} · ${s.idx}/${s.total} pasos\n` +

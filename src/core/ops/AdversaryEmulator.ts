@@ -144,15 +144,35 @@ export class AdversaryEmulator {
     if (this.stance === "running" || this.stance === "blocked") this.stance = "stopped";
   }
 
-  /** ¿El activo que necesita el paso fue contenido por el defensor? */
+  /**
+   * ¿El activo que necesita el paso fue contenido por el defensor? Para un host,
+   * no basta con que NO esté aislado él mismo: el adversario lo alcanza por una
+   * RUTA de pivoteo (pivotChain), así que si el defensor aísla CUALQUIER eslabón
+   * de esa ruta, la cadena se corta (defensa en profundidad). Coherencia con el
+   * motor de red (reglas 2/5): el adversario usa la misma topología real.
+   */
   private blockedReason(step: EmuStep): string | null {
     if (step.requires?.account && this.deps.directory.isDisabled(step.requires.account)) {
       return `la cuenta ${step.requires.account} está DESHABILITADA (contención)`;
     }
-    if (step.requires?.host && this.deps.hosts.isIsolated(step.requires.host)) {
-      return `el host ${step.requires.host} está AISLADO (contención)`;
+    if (step.requires?.host) {
+      const h = step.requires.host;
+      if (this.deps.hosts.isIsolated(h)) return `el host ${h} está AISLADO (contención)`;
+      const chain = this.deps.hosts.pivotChain(h);
+      const cut = chain?.find((hop) => this.deps.hosts.isIsolated(hop));
+      if (cut) return `la ruta hasta ${h} está CORTADA: ${cut} aislado (contención)`;
     }
     return null;
+  }
+
+  /** Puntos de estrangulamiento para cortar la ruta al próximo host del adversario
+   *  (lo que el defensor puede aislar para bloquearlo). Vacío si el próximo paso
+   *  no depende de un host. */
+  nextRouteChokes(): string[] {
+    const p = this.profile();
+    const step = p && this.idx < p.playbook.length ? p.playbook[this.idx] : null;
+    if (!step?.requires?.host) return [];
+    return this.deps.hosts.pivotChain(step.requires.host) ?? [step.requires.host];
   }
 
   /**
