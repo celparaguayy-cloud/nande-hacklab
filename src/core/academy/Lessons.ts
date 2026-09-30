@@ -2251,6 +2251,79 @@ export const LESSONS: Lesson[] = [
       },
     ],
   },
+  {
+    id: "l-defensa-adversario",
+    title: "Blue Team: detené a un adversario en vivo",
+    level: "avanzado",
+    summary: "Un adversario corre una campaña real contra el dominio; detectalo y cortale la cadena antes de que llegue a Domain Admins.",
+    concept: "Purple team: detección (SOC) → investigación (DFIR) → respuesta (contención). La defensa gana cortando un eslabón a tiempo.",
+    reward: { xp: 400, coins: 300 },
+    steps: [
+      {
+        explain:
+          "Del otro lado del hacking está la DEFENSA. ÑANDE tiene un adversario que corre una campaña de verdad (recon → acceso → credenciales → lateral → Domain Admins). Tu trabajo: pararlo. Armá la emulación del adversario 'Aña Retã'.",
+        task: "Escribí: apt start ana-reta",
+        hint: "El comando es 'apt' y el perfil 'ana-reta'.",
+        hints: ["Se llama apt.", "apt start <perfil>.", "Escribí: apt start ana-reta"],
+        check: (cmd, out) => usedTool(cmd, "apt") && /armado|Aña Retã|Adversario/i.test(out),
+        debrief: "El adversario quedó armado. Ahora va a intentar avanzar su kill chain. Vos tenés que verlo y cortarlo.",
+      },
+      {
+        explain:
+          "Un adversario no espera. Dejá que dé sus primeros pasos (reconocimiento y acceso inicial) para tener rastro que investigar.",
+        task: "Escribí: apt step 2",
+        hint: "apt step avanza al adversario; el número son cuántos pasos.",
+        hints: ["apt step.", "apt step 2 avanza dos pasos.", "Escribí: apt step 2"],
+        check: (cmd, out) => usedTool(cmd, "apt") && /▶|Ejecutado|paso|Reconocimiento|Acceso/i.test(out),
+        debrief: "El adversario ejecutó recon y acceso inicial. Cada técnica que corre deja rastro REAL: la ve el SOC y la matriz ATT&CK.",
+      },
+      {
+        explain:
+          "Como analista, lo primero es MIRAR el SOC: las técnicas del adversario levantaron alertas de verdad. Un SIEM no inventa; correlaciona los eventos que pasaron.",
+        task: "Escribí: soc",
+        hint: "El panel del Blue Team se abre con 'soc'.",
+        hints: ["Se llama soc.", "Escribí: soc"],
+        check: (cmd, out) => usedTool(cmd, "soc") && /SOC|Alertas|alerta/i.test(out),
+        debrief: "El SOC ya registró la actividad del adversario. Detectar es el primer acto; ahora hay que entender por dónde va.",
+      },
+      {
+        explain:
+          "Mirá el estado del adversario: te dice su PRÓXIMO paso y de qué activo depende. Ahí está la clave de la defensa — si cortás ese activo, lo bloqueás.",
+        task: "Escribí: apt status",
+        hint: "apt status muestra el próximo paso y de qué depende.",
+        hints: ["apt status.", "Escribí: apt status"],
+        check: (cmd, out) => usedTool(cmd, "apt") && /SVC-SQL|Depende|Próximo/i.test(out),
+        debrief: "El próximo paso es Kerberoasting de SVC-SQL. Si deshabilitás esa cuenta, el adversario no puede pedir su ticket: cadena cortada.",
+      },
+      {
+        explain:
+          "RESPUESTA. Contené la cuenta de la que depende el próximo paso. Deshabilitarla es real: el KDC deja de emitir tickets para ella.",
+        task: "Escribí: contain account SVC-SQL@NANDE.LOCAL",
+        hint: "contain account <cuenta> deshabilita una cuenta comprometida.",
+        hints: ["contain account ...", "La cuenta es SVC-SQL@NANDE.LOCAL.", "Escribí: contain account SVC-SQL@NANDE.LOCAL"],
+        check: (cmd, out) => usedTool(cmd, "contain") && /DESHABILITADA|deshabilitada/i.test(out),
+        debrief: "Cuenta deshabilitada. El adversario perdió su vía de escalada por Kerberoasting.",
+      },
+      {
+        explain:
+          "Dejá correr al adversario ahora. Debería chocar contra tu contención: sin esa cuenta, no puede avanzar.",
+        task: "Escribí: apt run",
+        hint: "apt run hace correr al adversario hasta cumplir o bloquearse.",
+        hints: ["apt run.", "Escribí: apt run"],
+        check: (cmd, out) => usedTool(cmd, "apt") && /BLOQUEADO|Bloqueado/i.test(out),
+        debrief: "BLOQUEADO. Cortaste un eslabón a tiempo y el adversario no llegó a Domain Admins. Eso es defensa real: no hace falta atraparlo en todo, basta romper la cadena en un punto.",
+      },
+      {
+        explain:
+          "Cierre: mirá tu calificación como Blue Team. Cortar temprano puntúa alto; dejar que cumpla el objetivo es una brecha.",
+        task: "Escribí: op defense",
+        hint: "op defense te da el veredicto de la defensa.",
+        hints: ["op defense.", "Escribí: op defense"],
+        check: (_cmd, out) => /Defensa|EXITOSA|defensa/i.test(out),
+        debrief: "Defendiste con éxito: detectaste, investigaste y contuviste antes del objetivo. Purple team completo — atacás para entender, defendés para proteger.",
+      },
+    ],
+  },
 ];
 
 /** Motor de lecciones: mantiene el paso actual de la lección activa. */

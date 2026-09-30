@@ -145,4 +145,22 @@ describe("Lecciones nuevas — completables con salida real", () => {
       expect(steps[i].check!(cmd, out), `paso ${i}: ${cmd}`).toBe(true);
     });
   });
+
+  it("l-defensa-adversario: detectar y contener a un adversario vivo pasa cada check (purple team real)", () => {
+    const steps = lesson("l-defensa-adversario").steps;
+    const cmds = [
+      "apt start ana-reta",
+      "apt step 2",
+      "soc",
+      "apt status",
+      "contain account SVC-SQL@NANDE.LOCAL",
+      "apt run",
+      "op defense",
+    ];
+    expect(cmds.length).toBe(steps.length);
+    cmds.forEach((cmd, i) => {
+      const out = term.execute(cmd);
+      expect(steps[i].check!(cmd, out), `paso ${i}: ${cmd}`).toBe(true);
+    });
+  });
 });

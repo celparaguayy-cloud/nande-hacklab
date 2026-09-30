@@ -3,5 +3,5 @@
  * qué build estás corriendo (y confirmar que tomaste la última actualización).
  * Subí el número cuando haya un cambio que el jugador deba poder distinguir.
  */
-export const NANDE_VERSION = "5.118.0";
-export const NANDE_BUILD = "adversario-usa-la-ruta-real-defensa-en-profundidad";
+export const NANDE_VERSION = "5.119.0";
+export const NANDE_BUILD = "leccion-blue-team-detener-adversario-en-vivo";
