@@ -4,6 +4,7 @@ import type { MitreCorrelator } from "../soc/Mitre";
 import type { OpsecTracer } from "../game/OpsecTracer";
 import type { BlueTeamResponder } from "../soc/BlueResponder";
 import type { ContainmentEngine } from "../soc/Containment";
+import type { AdversaryEmulator } from "./AdversaryEmulator";
 
 /**
  * OperationEngine — el motor que convierte "una colección de herramientas" en
@@ -72,6 +73,7 @@ interface OperationDeps {
   blue: BlueTeamResponder;
   containment: ContainmentEngine;
   flags: () => string[];
+  adversary: AdversaryEmulator;
 }
 
 const RECON_IDS = new Set(["T1590.002", "T1046", "T1595", "T1595.001", "T1595.002"]);
@@ -280,6 +282,65 @@ export class OperationEngine {
       if (s.current) out.push({ command: "", why: s.current.nextHint });
     }
     return out.slice(0, 3);
+  }
+
+  /**
+   * Calificación de la DEFENSA contra un adversario vivo (apt). El espejo azul
+   * de grade(): no puntúa cuánto atacaste, sino qué tan bien defendiste. Lee el
+   * estado REAL del emulador (cuántos pasos logró, si fue contenido o cumplió su
+   * objetivo), el SOC (si lo detectaste) y la contención aplicada. Cerrar la
+   * cadena TEMPRANO puntúa alto; dejar que llegue al objetivo es una brecha.
+   * Devuelve null si no hay adversario que defender.
+   */
+  defenseGrade(): {
+    active: boolean;
+    verdict: string;
+    letter: string;
+    stepsAllowed: number;
+    totalSteps: number;
+    detected: boolean;
+    contained: boolean;
+    notes: string[];
+  } | null {
+    const a = this.deps.adversary.state();
+    if (!a.profile) return null;
+    const total = a.total || 1;
+    const allowed = a.idx; // pasos que el adversario logró ejecutar
+    const breached = a.status === "succeeded";
+    const contained = a.status === "blocked";
+    // Detección: el SOC vio alguna técnica del adversario (emite attack.technique).
+    const detected = this.deps.blue.observationCount() > 0 || this.deps.mitre.count() > 0;
+    const fraction = allowed / total;
+
+    let letter: string;
+    let verdict: string;
+    if (breached) {
+      letter = "F";
+      verdict = `DEFENSA FALLIDA: el adversario cumplió su objetivo (${a.profile.objective}). Brecha total.`;
+    } else if (!contained && a.status === "running") {
+      letter = "—";
+      verdict = `EN CURSO: el adversario va ${allowed}/${total}. Detectá (soc/dfir) y contené el próximo activo.`;
+    } else {
+      // Contenido: cuanto antes lo cortaste, mejor.
+      letter = fraction <= 1 / 3 ? "S" : fraction <= 2 / 3 ? "A" : "B";
+      verdict = `DEFENSA EXITOSA: cortaste la cadena en el paso ${allowed}/${total} (contención).`;
+    }
+    const notes: string[] = [];
+    notes.push(detected ? "🔎 Lo detectaste (SOC/matriz registraron su actividad)." : "🕳️ No hubo detección registrada.");
+    notes.push(contained
+      ? "🛡️ Contención efectiva: un activo del que dependía quedó cortado."
+      : breached ? "💥 No cortaste ningún eslabón a tiempo." : "⏳ Todavía podés contener el próximo paso.");
+    if (a.nextRequires && !breached) notes.push(`Próximo activo a cortar: ${a.nextRequires}.`);
+    return {
+      active: true,
+      verdict,
+      letter,
+      stepsAllowed: allowed,
+      totalSteps: total,
+      detected,
+      contained,
+      notes,
+    };
   }
 
   /** Informe de la operación (after-action report), listo para leer/pegar. */

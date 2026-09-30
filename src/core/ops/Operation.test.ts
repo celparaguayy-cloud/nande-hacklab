@@ -117,6 +117,29 @@ describe("OperationEngine — la kill chain entera, derivada del estado real", (
     expect(cmds).toMatch(/dcsync|netmap/);
   });
 
+  it("defensa: sin adversario no hay nota; una brecha (objetivo cumplido) es F", () => {
+    expect(kernel.operation.defenseGrade()).toBeNull();
+    kernel.adversary.start("ana-reta");
+    kernel.adversary.run(); // nadie defiende → el adversario cumple
+    const dg = kernel.operation.defenseGrade()!;
+    expect(dg.letter).toBe("F");
+    expect(dg.verdict).toMatch(/FALLIDA|brecha/i);
+  });
+
+  it("defensa: cortar la cadena temprano puntúa alto (contención antes del objetivo)", () => {
+    kernel.adversary.start("ana-reta");
+    // El defensor deshabilita la cuenta clave antes de que el adversario avance mucho.
+    kernel.containment.disableAccount("SVC-SQL@NANDE.LOCAL");
+    kernel.adversary.run(); // se bloquea temprano
+    const dg = kernel.operation.defenseGrade()!;
+    expect(dg.contained).toBe(true);
+    expect(dg.verdict).toMatch(/EXITOSA/);
+    expect(["S", "A", "B"]).toContain(dg.letter);
+    expect(dg.stepsAllowed).toBeLessThan(dg.totalSteps);
+    // Por terminal también.
+    expect(term.execute("op defense")).toMatch(/Defensa contra el adversario/);
+  });
+
   it("el sigilo importa en la nota: la contención del equipo azul resta puntos", () => {
     // Dos mundos: mismo objetivo, distinta discreción.
     const loud = new VirtualKernel();

@@ -471,19 +471,6 @@ export class VirtualKernel {
       () => !this.anonymity.isTorEnabled(),
     );
 
-    // Motor de OPERACIÓN: convierte todos los motores en UNA operación coherente.
-    // Deriva el avance de la kill chain (recon → acceso → credenciales → lateral
-    // → dominio → impacto) del estado REAL de cada motor. Es sólo lectura.
-    this.operation = new OperationEngine({
-      compromises: this.compromises,
-      directory: this.directory,
-      mitre: this.mitre,
-      opsec: this.opsec,
-      blue: this.blueResponder,
-      containment: this.containment,
-      flags: () => this.player.capturedFlags(),
-    });
-
     // MEGA motor: un adversario VIVO que corre una campaña real contra ÑANDE.
     // Emite técnicas reales (las ve el SOC/DFIR/matriz/azul) y cada paso depende
     // de un activo real: si el jugador CONTIENE ese activo, el adversario se
@@ -501,6 +488,20 @@ export class VirtualKernel {
           "Seguridad",
           this.world.getState().clock.tick,
         ),
+    });
+
+    // Motor de OPERACIÓN: convierte todos los motores en UNA operación coherente.
+    // Deriva el avance de la kill chain (recon → acceso → credenciales → lateral
+    // → dominio → impacto) del estado REAL de cada motor. Es sólo lectura.
+    this.operation = new OperationEngine({
+      compromises: this.compromises,
+      directory: this.directory,
+      mitre: this.mitre,
+      opsec: this.opsec,
+      blue: this.blueResponder,
+      containment: this.containment,
+      flags: () => this.player.capturedFlags(),
+      adversary: this.adversary,
     });
 
     // El motor que MUEVE el juego: en "vivo", la campaña del adversario avanza

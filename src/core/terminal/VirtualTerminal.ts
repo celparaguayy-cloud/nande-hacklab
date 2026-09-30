@@ -142,7 +142,7 @@ const MANPAGES: Record<string, ManPage> = {
     desc: "El motor que MUEVE el juego: controla el TEMPO del mundo vivo. En 'live' la campaña del adversario armado (apt) avanza SOLA con el latido del kernel —cada paso emite su técnica, que ven el SOC/DFIR/matriz/azul— así el adversario corre contra reloj y tenés que detectar y contener en TIEMPO REAL, o cumple su objetivo. 'director' muestra el tablero del mundo vivo (tempo, campaña, pulso: red team NPC, calor, amenazas). 'director live/slow/fast/pause' fija el tempo; 'director beat [n]' fuerza pasos ya. Apagado (pause) por defecto.", examples: ["director", "director live", "director fast", "director pause"] },
   apt: { name: "emulación de adversarios (purple team, defensa en vivo)", synopsis: "apt [start <id>|step|run|status|stop]",
     desc: "Un adversario VIVO corre una campaña real contra ÑANDE (estilo MITRE Caldera) y vos defendés en tiempo real. Cada paso del playbook ejecuta una técnica de verdad —la ven el SOC, el DFIR, la matriz ATT&CK y el equipo azul— y avanza la kill chain hacia su objetivo (dominio con 'ana-reta', sabotaje OT con 'karai-ot'). Lo que lo hace real: cada paso DEPENDE de un activo (una cuenta o un host); si lo CONTENÉS antes (contain account/host), el paso queda BLOQUEADO y el adversario no avanza. El ejercicio: detectar (soc/dfir) y contener a tiempo, o perder la ronda. 'apt' lista perfiles; start arma; step/run lo hacen avanzar; status muestra qué activo contener.", examples: ["apt", "apt start ana-reta", "apt status", "apt run"] },
-  op: { name: "operación: tablero de la kill chain entera", synopsis: "op  |  op next  |  op score  |  op report",
+  op: { name: "operación: tablero de la kill chain entera", synopsis: "op  |  op next  |  op score  |  op defense  |  op report",
     desc: "El tablero de la OPERACIÓN completa: une TODOS los motores en una sola vista profesional. Muestra la kill chain de punta a punta (Reconocimiento → Acceso inicial → Acceso a credenciales → Movimiento lateral → Dominancia de dominio → Impacto), y cada fase se marca lograda DERIVÁNDOLA del estado real del mundo (hosts comprometidos, cuentas de dominio poseídas, pivoteo, Domain Admins, sabotaje OT), no de un guion. Te dice en qué fase estás, el próximo paso concreto, las técnicas ATT&CK que ejecutaste, tu exposición OPSEC y cuánto te contuvo el equipo azul. 'op report' arma el informe after-action. Es la conciencia situacional de un pentest entero.", examples: ["op", "op report"] },
   blueteam: { name: "equipo azul autónomo (defensor NPC)", synopsis: "blueteam [active|monitor|off]",
     desc: "El defensor autónomo, simétrico del red team NPC: DETECTA y RESPONDE solo. En postura 'active', si ejecutás una técnica grave y detectable (DCSync, Golden Ticket, ESC1, sabotaje OT, Kerberoasting/AS-REP), el SOC aplica una contención PROPORCIONAL —aísla tu pivote o deshabilita la cuenta más peligrosa— usando el motor de contención. Enseña OPSEC de verdad: el ruido tiene consecuencias. 'monitor' sólo detecta y avisa; 'off' (por defecto) lo apaga. Sin argumento muestra su estado y sus últimas respuestas.", examples: ["blueteam active", "blueteam", "blueteam off"] },
@@ -7615,6 +7615,20 @@ export class VirtualTerminal {
           `═══ Calificación de la operación: ${g.letter}  (${g.score}/100) ═══\n` +
           g.breakdown.map((b) => `  ${b.label.padEnd(22)} ${String(b.points).padStart(2)}/${b.max}   (${b.note})`).join("\n") + "\n" +
           g.notes.map((n) => `  ${n}`).join("\n") + "\n",
+        isError: false,
+      };
+    }
+    if (sub === "defense" || sub === "defensa" || sub === "blue") {
+      const dg = op.defenseGrade();
+      if (!dg) {
+        return { output: "op defense: no hay adversario que defender. Armá uno con: apt start <id>\n", isError: false };
+      }
+      return {
+        output:
+          `═══ Defensa contra el adversario: ${dg.letter} ═══\n` +
+          `${dg.verdict}\n` +
+          `Pasos que logró: ${dg.stepsAllowed}/${dg.totalSteps} · detectado: ${dg.detected ? "sí" : "no"} · contenido: ${dg.contained ? "sí" : "no"}\n` +
+          dg.notes.map((n) => `  ${n}`).join("\n") + "\n",
         isError: false,
       };
     }
