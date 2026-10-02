@@ -656,6 +656,7 @@ export const TRACKS: LearningTrack[] = [
       "c-ad-dcsync-golden",
       "c-ad-pth",
     ],
+    finalChallenges: ["r-ad-dominio"],
   },
   {
     id: "t-red-avanzada",
@@ -670,6 +671,7 @@ export const TRACKS: LearningTrack[] = [
       "c-op-mitm",
       "c-op-opsec",
     ],
+    finalChallenges: ["r-pivot", "r-lan-restringido", "r-onion"],
   },
   {
     id: "t-ot",
@@ -683,6 +685,7 @@ export const TRACKS: LearningTrack[] = [
       "c-ot-modbus",
       "c-ot-defensa",
     ],
+    finalChallenges: ["r-ot-hmi", "r-ot-plc"],
   },
   {
     id: "t-defensa-avanzada",
@@ -697,6 +700,7 @@ export const TRACKS: LearningTrack[] = [
       "c-def-hardening-ad",
       "c-def-purple",
     ],
+    finalChallenges: ["r-siem", "r-dfir"],
   },
   {
     id: "t-forense",
@@ -711,6 +715,7 @@ export const TRACKS: LearningTrack[] = [
       "c-for-reversing",
       "c-for-cti",
     ],
+    finalChallenges: ["r-dfir", "r-crack"],
   },
 ];
 
