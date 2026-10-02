@@ -561,6 +561,109 @@ export const RETOS: Challenge[] = [
     courseId: "c-opsec-anon",
     reward: { xp: 160, coins: 120 },
   },
+  {
+    id: "r-ssrf-metadata",
+    title: "La nube filtrada",
+    scenario:
+      "preview.vortex.nande 'previsualiza' cualquier URL que le pidas: la petición la hace el SERVIDOR, no tu navegador. Eso alcanza lugares internos que vos no ves. El más goloso en la nube: el servicio de metadata en 169.254.169.254, que guarda las credenciales IAM de la instancia.",
+    objective: "Usá el SSRF para leer la metadata de la nube y robá la credencial IAM.",
+    flag: "ND{ssrf_metadata_robada}",
+    difficulty: "difícil",
+    hints: [
+      "El previsualizador hace el pedido por vos: pedile una URL interna.",
+      "La IP mágica de la metadata en AWS/Azure es 169.254.169.254.",
+      "curl \"http://preview.vortex.nande/fetch?url=http://169.254.169.254/latest/meta-data/iam/security-credentials/rol-admin\"",
+    ],
+    steps: [
+      "curl \"http://preview.vortex.nande/fetch?url=http://169.254.169.254/latest/meta-data/iam/security-credentials/rol-admin\"",
+    ],
+    app: "browser",
+    url: "http://preview.vortex.nande/",
+    courseId: "c-webmod-ssrf",
+    reward: { xp: 220, coins: 170 },
+  },
+  {
+    id: "r-ssrf-interno",
+    title: "El panel de solo-localhost",
+    scenario:
+      "El mismo previsualizador de Vortex también alcanza servicios que escuchan solo en localhost del servidor: un panel de administración interno que jamás debería verse desde afuera. Pedíselo por SSRF.",
+    objective: "Llegá por SSRF al panel interno que solo escucha en localhost.",
+    flag: "ND{ssrf_interno}",
+    difficulty: "media",
+    hints: [
+      "Los servicios 'solo-localhost' escuchan en 127.0.0.1.",
+      "El servidor SÍ alcanza su propio localhost: pedíselo vía el previsualizador.",
+      "curl \"http://preview.vortex.nande/fetch?url=http://127.0.0.1/admin\"",
+    ],
+    steps: [
+      "curl \"http://preview.vortex.nande/fetch?url=http://127.0.0.1/admin\"",
+    ],
+    app: "browser",
+    url: "http://preview.vortex.nande/",
+    courseId: "c-webmod-ssrf",
+    reward: { xp: 180, coins: 140 },
+  },
+  {
+    id: "r-open-redirect",
+    title: "El enlace traicionero",
+    scenario:
+      "link.gulu.nande es un acortador: te manda a la URL de ?next= sin validar el destino. Un enlace que arranca en gulu.nande (de confianza) pero termina en un sitio del atacante es la base de un phishing convincente. Demostralo.",
+    objective: "Abusá del open redirect para que un enlace de gulu.nande lleve a un sitio externo.",
+    flag: "ND{open_redirect}",
+    difficulty: "fácil",
+    hints: [
+      "El destino lo controlás vos en el parámetro ?next=.",
+      "Si el destino es EXTERNO (otro dominio), se demuestra el phishing.",
+      "curl \"http://link.gulu.nande/go?next=http://robo-cuentas.ejemplo.test/login\"",
+    ],
+    steps: [
+      "curl \"http://link.gulu.nande/go?next=http://robo-cuentas.ejemplo.test/login\"",
+    ],
+    app: "browser",
+    url: "http://link.gulu.nande/",
+    courseId: "c-webmod-redirect",
+    reward: { xp: 120, coins: 90 },
+  },
+  {
+    id: "r-container-escape",
+    title: "Salir de la caja",
+    scenario:
+      "En el cluster corre un pod de depuración (debug-tools) que quedó PRIVILEGIADO y con el filesystem del nodo montado adentro. Eso es una puerta directa al host: escapá del contenedor y leé la bandera del nodo.",
+    objective: "Escapá del contenedor privilegiado al host y leé el archivo del nodo.",
+    flag: "ND{container_escape_privilegiado}",
+    difficulty: "difícil",
+    hints: [
+      "Listá los pods y mirá cuál es ⚠privileged: nandec ps.",
+      "Inspeccioná sus montajes: nandec inspect debug-tools (monta / del host).",
+      "nandec escape debug-tools",
+    ],
+    steps: [
+      "nandec inspect debug-tools",
+      "nandec escape debug-tools",
+    ],
+    courseId: "c-cloud-escape",
+    reward: { xp: 300, coins: 240 },
+  },
+  {
+    id: "r-k8s-secret",
+    title: "El secreto en el entorno",
+    scenario:
+      "Un pod de API (api-backend) dejó un secreto en una variable de entorno, como pasa en la vida real. Caíste en el cluster: volcá su env y llevate la credencial expuesta.",
+    objective: "Volcá el entorno del pod api-backend y capturá el secreto filtrado.",
+    flag: "ND{k8s_secret_en_env}",
+    difficulty: "media",
+    hints: [
+      "Listá los pods: nandec ps.",
+      "Los secretos en env se leen ejecutando dentro del pod.",
+      "nandec exec api-backend env",
+    ],
+    steps: [
+      "nandec ps",
+      "nandec exec api-backend env",
+    ],
+    courseId: "c-cloud-secretos",
+    reward: { xp: 200, coins: 160 },
+  },
 ];
 
 /* ----------------------------- ITINERARIOS ---------------------------- */
@@ -731,7 +834,21 @@ export const TRACKS: LearningTrack[] = [
       "c-cloud-cicd",
       "c-cloud-secretos",
     ],
-    finalChallenges: ["r-yvytu-foothold", "r-yvytu-root", "r-yvytu-exfil"],
+    finalChallenges: ["r-container-escape", "r-k8s-secret", "r-yvytu-foothold", "r-yvytu-root", "r-yvytu-exfil"],
+  },
+  {
+    id: "t-web-moderno",
+    title: "Web Moderno",
+    subtitle: "La web de la era cloud: SSRF y robo de metadata, ataques a JWT (alg:none, secreto débil) y open redirect para phishing.",
+    glyph: "code",
+    hue: 290,
+    requires: "t-web",
+    courseIds: [
+      "c-webmod-ssrf",
+      "c-webmod-jwt",
+      "c-webmod-redirect",
+    ],
+    finalChallenges: ["r-ssrf-metadata", "r-ssrf-interno", "r-open-redirect"],
   },
 ];
 

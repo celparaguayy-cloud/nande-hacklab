@@ -21,6 +21,7 @@ import { OPERACIONES_RED_COURSES } from "./operaciones-red";
 import { OT_COURSES } from "./ot";
 import { FORENSE_COURSES } from "./forense";
 import { CLOUD_COURSES } from "./cloud";
+import { WEB_MODERNO_COURSES } from "./web-moderno";
 
 /** Orden pedagógico: de lo básico (Linux) a lo especializado y el capstone. */
 export const EXTRA_CURSOS: Curso[] = [
@@ -42,4 +43,6 @@ export const EXTRA_CURSOS: Curso[] = [
   ...FORENSE_COURSES,
   // Cuarta tanda: cloud native y DevSecOps (contenido actualizado 2024-2025).
   ...CLOUD_COURSES,
+  // Quinta tanda: web moderno (SSRF/metadata, JWT, open redirect).
+  ...WEB_MODERNO_COURSES,
 ];
