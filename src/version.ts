@@ -3,5 +3,5 @@
  * qué build estás corriendo (y confirmar que tomaste la última actualización).
  * Subí el número cuando haya un cambio que el jugador deba poder distinguir.
  */
-export const NANDE_VERSION = "5.123.0";
-export const NANDE_BUILD = "academia-web-moderno-ssrf-jwt-redirect-y-retos-cloud";
+export const NANDE_VERSION = "5.124.0";
+export const NANDE_BUILD = "academia-anonimato-pro-tor-censura-opsec-desanon-osint";

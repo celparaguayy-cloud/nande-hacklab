@@ -1243,6 +1243,67 @@ function SupplyChain() {
   );
 }
 
+function Tor() {
+  const nodes = [
+    { x: 30, label: "vos", c: GREEN },
+    { x: 110, label: "guard", c: VIOLET },
+    { x: 190, label: "medio", c: VIOLET },
+    { x: 270, label: "salida", c: AMBER },
+  ];
+  return (
+    <Frame>
+      <text x={160} y={20} fill={DIM} fontSize={12} fontFamily={sans} textAnchor="middle">Circuito Tor: 3 saltos, nadie ve las 2 puntas</text>
+      {nodes.map((n, i) => (
+        <g key={i}>
+          <circle cx={n.x} cy={70} r={16} fill={PANEL2} stroke={n.c} />
+          <text x={n.x} y={74} fill={n.c} fontSize={8} textAnchor="middle" fontFamily={sans}>{i === 0 ? "◉" : "●"}</text>
+          <text x={n.x} y={98} fill={DIM} fontSize={8} textAnchor="middle" fontFamily={sans}>{n.label}</text>
+          {i < nodes.length - 1 && <path d={`M${n.x + 16} 70h${nodes[i + 1].x - n.x - 32}`} stroke={LINE} strokeWidth={1.6} markerEnd="url(#trg)" />}
+        </g>
+      ))}
+      <text x={304} y={74} fill={DIM} fontSize={14} fontFamily={sans}>→</text>
+      {/* capas de cifrado como cebolla */}
+      <text x={70} y={58} fill={DIM} fontSize={7.5} fontFamily={sans} textAnchor="middle">3 capas</text>
+      <text x={150} y={58} fill={DIM} fontSize={7.5} fontFamily={sans} textAnchor="middle">2</text>
+      <text x={230} y={58} fill={DIM} fontSize={7.5} fontFamily={sans} textAnchor="middle">1 (en claro)</text>
+      <rect x={24} y={118} width={132} height={26} rx={4} fill="rgba(110,231,135,0.08)" stroke={GREEN} />
+      <text x={90} y={135} fill={GREEN} fontSize={8.5} textAnchor="middle" fontFamily={sans}>guard: sabe quién, no a dónde</text>
+      <rect x={164} y={118} width={132} height={26} rx={4} fill="rgba(245,181,68,0.08)" stroke={AMBER} />
+      <text x={230} y={135} fill={AMBER} fontSize={8.5} textAnchor="middle" fontFamily={sans}>salida: sabe a dónde, no quién</text>
+      <defs><marker id="trg" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0l6 3-6 3z" fill={VIOLET} /></marker></defs>
+    </Frame>
+  );
+}
+
+function Persona() {
+  const cols = [
+    { x: 24, label: "real", c: GREEN, items: ["nombre", "equipo diario"] },
+    { x: 120, label: "persona A", c: CYAN, items: ["alias A", "VM/Tails A"] },
+    { x: 216, label: "persona B", c: VIOLET, items: ["alias B", "VM/Tails B"] },
+  ];
+  return (
+    <Frame>
+      <text x={160} y={20} fill={DIM} fontSize={12} fontFamily={sans} textAnchor="middle">Compartimentar: identidades que no se tocan</text>
+      {cols.map((col, i) => (
+        <g key={i}>
+          <rect x={col.x} y={36} width={82} height={92} rx={6} fill={PANEL2} stroke={col.c} strokeDasharray={i === 0 ? undefined : "4 3"} />
+          <text x={col.x + 41} y={52} fill={col.c} fontSize={9} textAnchor="middle" fontFamily={sans}>{col.label}</text>
+          {col.items.map((it, j) => (
+            <g key={j}>
+              <rect x={col.x + 8} y={62 + j * 26} width={66} height={20} rx={3} fill="#0a1017" stroke={LINE} />
+              <text x={col.x + 41} y={76 + j * 26} fill={DIM} fontSize={7.5} textAnchor="middle" fontFamily={mono}>{it}</text>
+            </g>
+          ))}
+        </g>
+      ))}
+      {/* muros entre columnas */}
+      <text x={111} y={88} fill={RED} fontSize={14} textAnchor="middle" fontFamily={sans}>⊘</text>
+      <text x={207} y={88} fill={RED} fontSize={14} textAnchor="middle" fontFamily={sans}>⊘</text>
+      <text x={160} y={146} fill={DIM} fontSize={9.5} fontFamily={sans} textAnchor="middle">un dato cruzado entre muros = te conecta</text>
+    </Frame>
+  );
+}
+
 const ART: Record<DiagramId, () => React.ReactElement> = {
   internet: Internet,
   dominio: Dominio,
@@ -1298,6 +1359,8 @@ const ART: Record<DiagramId, () => React.ReactElement> = {
   cloud: Cloud,
   kubernetes: Kubernetes,
   supplychain: SupplyChain,
+  tor: Tor,
+  persona: Persona,
 };
 
 /** Dibuja la ilustración pedida (o nada si el id no existe). */

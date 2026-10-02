@@ -23,6 +23,8 @@ const VALID_DIAGRAMS = new Set([
   "adcs", "dcsync", "ics", "matrix", "purple", "tunnel", "radar",
   // Cuarta tanda: cloud native y cadena de suministro.
   "cloud", "kubernetes", "supplychain",
+  // Quinta tanda: anonimato y OPSEC avanzado.
+  "tor", "persona",
 ]);
 
 // Deben coincidir con GlyphName (Glyph.tsx).

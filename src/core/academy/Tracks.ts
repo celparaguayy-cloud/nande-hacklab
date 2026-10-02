@@ -727,11 +727,20 @@ export const TRACKS: LearningTrack[] = [
   },
   {
     id: "t-osint",
-    title: "OSINT y Anonimato",
-    subtitle: "Investigar con datos públicos y no dejar rastro.",
+    title: "OSINT: Inteligencia Abierta",
+    subtitle: "Investigar con datos públicos: huella digital, metadatos, geolocalización, SOCMINT y ética.",
     glyph: "eye",
     hue: 330,
-    courseIds: ["c-osint-basico", "c-opsec-anon"],
+    courseIds: ["c-osint-basico", "c-osint-avanzado"],
+  },
+  {
+    id: "t-anonimato",
+    title: "Anonimato y OPSEC",
+    subtitle: "No dejar rastro, en serio: Tor en profundidad, evadir la censura, compartimentar identidades y por qué cae la gente.",
+    glyph: "mask",
+    hue: 250,
+    requires: "t-osint",
+    courseIds: ["c-opsec-anon", "c-anon-tor", "c-anon-censura", "c-anon-opsec-pro", "c-anon-deanon"],
     finalChallenges: ["r-onion"],
   },
   {

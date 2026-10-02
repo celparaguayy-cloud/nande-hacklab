@@ -71,7 +71,10 @@ export type DiagramId =
   // Cuarta tanda: cloud native y cadena de suministro.
   | "cloud"
   | "kubernetes"
-  | "supplychain";
+  | "supplychain"
+  // Quinta tanda: anonimato y OPSEC avanzado.
+  | "tor"
+  | "persona";
 
 /** Pantalla de explicación con un dibujo que hace visible la idea. */
 export interface ConceptSlide {
