@@ -571,10 +571,322 @@ const OSINT_AVANZADO: Curso = {
   ],
 };
 
+const ANON_METADATA: Curso = {
+  id: "c-anon-metadata",
+  title: "Metadatos: la limpieza que nadie hace",
+  subtitle: "No solo las fotos: documentos, PDF y capturas filtran autor, GPS e historial. Y 'tachar' casi nunca alcanza.",
+  level: "avanzado",
+  skill: "osint",
+  hue: 275,
+  glyph: "search",
+  reward: { xp: 270, coins: 210 },
+  slides: [
+    {
+      kind: "concept",
+      title: "Metadatos están en TODO, no solo en fotos",
+      body:
+        "Ya viste el GPS escondido en una foto. Pero los metadatos viven en casi todo archivo: un documento de Word o un PDF guardan autor, organización, usuario del sistema, software y hasta el historial de ediciones y comentarios borrados. Un audio o un video traen fecha, dispositivo y a veces ubicación. Hasta la impresora deja micro-puntos amarillos en las hojas. Publicás 'un archivo' y, sin querer, publicás quién lo hizo, con qué y desde dónde.",
+      diagram: "archivo",
+      bullets: [
+        "Office/PDF: autor, organización, usuario del SO, software.",
+        "Audio/video: fecha, dispositivo, a veces ubicación.",
+        "El archivo dice más de vos que su contenido.",
+      ],
+    },
+    {
+      kind: "concept",
+      title: "Casos reales: cuando el metadato delató",
+      body:
+        "No es teórico. En 2003, un dossier del gobierno británico sobre Irak reveló, por los metadatos de Word, los nombres de quienes lo editaron (y que partes eran copiadas). El creador del malware Melissa cayó en parte por el GUID que Word incrustaba en los documentos. Y en empresas, publicar PDFs sin limpiar expuso nombres internos, rutas de red y versiones de software — oro para un atacante que arma su recon. El metadato es la fuga silenciosa más subestimada.",
+      diagram: "archivo",
+      bullets: [
+        "Dossier de Irak (2003): Word delató a los editores.",
+        "Melissa: el GUID de Word ayudó a identificar al autor.",
+        "PDFs corporativos filtran nombres, rutas y versiones.",
+      ],
+    },
+    {
+      kind: "concept",
+      title: "Redaction fail: 'tachar' no borra",
+      body:
+        "El error más común y más grave: creer que ocultar es borrar. Un rectángulo negro encima de texto en un PDF deja el texto SELECCIONABLE debajo: se copia y se lee. Recortar una imagen a veces guarda el original completo: en 2023, 'aCropalypse' (CVE-2023-21036) mostró que capturas recortadas con la herramienta de los Pixel y el Snipping Tool de Windows podían RECUPERARSE casi enteras, porque el archivo conservaba los datos 'recortados'. Ocultar en la capa visual no toca los bytes de abajo.",
+      diagram: "archivo",
+      bullets: [
+        "Barra negra en PDF = texto seleccionable debajo: se lee igual.",
+        "aCropalypse 2023 (CVE-2023-21036): capturas recortadas, recuperables.",
+        "Ocultar ≠ borrar: lo que importa son los bytes, no lo que se ve.",
+      ],
+    },
+    {
+      kind: "quiz",
+      prompt: "Tachás un párrafo secreto de un PDF con un rectángulo negro y lo publicás. ¿Qué pasa?",
+      options: [
+        "El texto sigue debajo y se puede seleccionar/copiar: la redacción falló",
+        "El texto se borra para siempre, es seguro",
+        "El PDF se corrompe",
+        "Solo se ve en impresoras viejas",
+      ],
+      correct: 0,
+      explain:
+        "El rectángulo es una capa visual encima; el texto original sigue en el archivo. Cualquiera lo selecciona, lo copia o lo extrae con una herramienta. La redacción real elimina el contenido del archivo (o se aplana a imagen y se re-exporta), no lo tapa.",
+      diagram: "archivo",
+    },
+    {
+      kind: "lab",
+      title: "Revelá lo que esconde un archivo",
+      body: "Leé los metadatos de una foto y mirá todo lo que trae: autor, cámara, software y GPS. Es el mismo principio para documentos.",
+      command: "exiftool foto.jpg",
+      explain:
+        "exiftool vuelca los metadatos: autor, cámara, fecha y GPS (-25.2985, -57.6350, un punto real). Para documentos la idea es idéntica. Antes de publicar CUALQUIER archivo, mirá qué lleva adentro: casi siempre hay algo que no querías compartir.",
+      diagram: "archivo",
+    },
+    {
+      kind: "concept",
+      title: "La limpieza correcta",
+      body:
+        "Limpiar bien no es 'tachar': es ELIMINAR. Strippear todos los metadatos (exiftool -all=), re-exportar el archivo desde cero, APLANAR (convertir a imagen o 'imprimir a PDF' para destruir capas y texto oculto), y usar herramientas pensadas para esto (el 'Metadata Anonymisation Toolkit' que trae Tails). Para capturas sensibles, recortá y después re-exportá/aplaná, no confíes en el recorte de la app. Regla: tratá cada archivo que sale como evidencia que alguien va a analizar.",
+      diagram: "escudo",
+      bullets: [
+        "exiftool -all= strippea; re-exportar y APLANAR destruye capas.",
+        "Herramientas dedicadas (MAT2 en Tails) para hacerlo bien.",
+        "Capturas: recortá y re-exportá; no confíes en el 'crop' de la app.",
+      ],
+    },
+    {
+      kind: "lab",
+      title: "Limpiá antes de publicar",
+      body: "Ponete del lado defensivo: borrale los metadatos a la foto. Compará con lo que viste antes.",
+      command: "exiftool -all= foto.jpg",
+      explain:
+        "Le quitaste GPS, autor y software: ahora se puede compartir sin regalar tu ubicación. Dominás las dos caras del mismo comando: `exiftool foto.jpg` REVELA (OSINT) y `exiftool -all= foto.jpg` LIMPIA (OPSEC). Esa higiene, hecha SIEMPRE, cierra una de las fugas más comunes.",
+      diagram: "escudo",
+    },
+    {
+      kind: "concept",
+      title: "Metadatos en la operación real",
+      body:
+        "A escala, los metadatos arman un mapa de una organización: subí 20 PDFs públicos de una empresa a una herramienta como FOCA y sale el software que usan, nombres de empleados, rutas internas y convenciones de usuario — recon sin tocar un servidor. Del lado defensivo, toda org seria limpia metadatos antes de publicar, por política. Para vos: incorporá 'revisar y limpiar metadatos' a tu checklist de publicación, igual que revisás que no se filtre una contraseña. La disciplina gana.",
+      diagram: "osint",
+      bullets: [
+        "20 PDFs públicos → software, empleados y rutas de una org (FOCA).",
+        "Las orgs serias limpian metadatos por política.",
+        "Sumá 'limpiar metadatos' a tu checklist de publicación.",
+      ],
+    },
+  ],
+};
+
+const ANON_THREAT: Curso = {
+  id: "c-anon-threat",
+  title: "Modelado de amenazas: contra quién te escondés",
+  subtitle: "No existe 'anónimo' en abstracto: siempre es anónimo respecto a ALGUIEN. Definí ese alguien antes de elegir herramientas.",
+  level: "avanzado",
+  skill: "osint",
+  hue: 220,
+  glyph: "eye",
+  reward: { xp: 280, coins: 220 },
+  slides: [
+    {
+      kind: "concept",
+      title: "'Anónimo' no significa nada sin un adversario",
+      body:
+        "La pregunta '¿esto es anónimo?' está mal planteada. Lo correcto es '¿anónimo RESPECTO A QUIÉN?'. Esconderte de un vecino curioso, de una empresa de publicidad, de tu ISP, de la policía local o de una agencia nacional son problemas RADICALMENTE distintos, con contramedidas distintas. Sin definir el adversario, no podés saber si tus medidas alcanzan o si estás perdiendo el tiempo blindándote contra la amenaza equivocada. El modelado de amenazas es el paso cero, antes de tocar una herramienta.",
+      diagram: "radar",
+      bullets: [
+        "La pregunta útil: ¿anónimo respecto a QUIÉN?",
+        "Cada adversario = problema y contramedidas distintas.",
+        "Modelar la amenaza es el paso CERO del anonimato.",
+      ],
+    },
+    {
+      kind: "concept",
+      title: "Las cinco preguntas (modelo de la EFF)",
+      body:
+        "Un modelo de amenazas práctico responde cinco preguntas: (1) ¿Qué quiero proteger? (mis activos: mi identidad, mi ubicación, mis fuentes). (2) ¿De quién? (el adversario). (3) ¿Qué capacidad tiene? (un vecino vs. una agencia con presupuesto). (4) ¿Qué tan grave es si falla? (la consecuencia). (5) ¿Cuánto esfuerzo estoy dispuesto a invertir? (el costo que acepto). Las respuestas definen tu plan. Sin la 5, caés en el extremo: o no hacés nada, o te aislás tanto que no podés operar.",
+      diagram: "radar",
+      bullets: [
+        "Activos, adversario, capacidad, consecuencia, esfuerzo aceptable.",
+        "Las respuestas definen las contramedidas, no al revés.",
+        "La pregunta 5 evita tanto la vagancia como la paranoia inútil.",
+      ],
+    },
+    {
+      kind: "concept",
+      title: "El espectro de adversarios",
+      body:
+        "Ordenados por capacidad: el vecino/curioso (lo frena una buena contraseña y no sobrecompartir); el anunciante/plataforma (bloqueadores, cuentas separadas); tu ISP o el WiFi (cifrado, VPN/Tor); un atacante dirigido (compartimentación, higiene de endpoint); la policía local (todo lo anterior + no operar desde redes que te identifican); una agencia nacional con capacidad de ver mucho tráfico (acá entran correlación global, bridges, y asumir que el error humano te mata). Subir un escalón cambia TODO el plan. La mayoría de la gente se defiende del escalón equivocado.",
+      diagram: "radar",
+      bullets: [
+        "Vecino → anunciante → ISP → atacante dirigido → policía → agencia.",
+        "Cada escalón exige contramedidas cualitativamente distintas.",
+        "El error típico: blindarse contra el adversario equivocado.",
+      ],
+    },
+    {
+      kind: "quiz",
+      prompt: "¿De qué depende, antes que nada, qué contramedidas de anonimato necesitás?",
+      options: [
+        "Del adversario concreto del que te querés proteger y su capacidad",
+        "De cuántas herramientas instales, cuantas más mejor",
+        "De la marca de tu teléfono",
+        "De nada: hay una solución única para todos",
+      ],
+      correct: 0,
+      explain:
+        "Las contramedidas se derivan del adversario y su capacidad, no de acumular herramientas. Protegerte de un anunciante y de una agencia nacional son planes distintos. 'Más herramientas' sin un modelo detrás suele agregar complejidad (y errores) sin cerrar la amenaza real.",
+      diagram: "radar",
+    },
+    {
+      kind: "concept",
+      title: "El anonimato ama la compañía",
+      body:
+        "Un principio contraintuitivo de Tor: 'anonymity loves company'. Tu anonimato NO sale solo de la tecnología, sino de parecerte a muchos otros. Si sos el único usando una herramienta exótica, destacás y te volvés el sospechoso (recordá a Eldo Kim). Por eso conviene usar herramientas estándar y bien pobladas (Tor con su configuración por defecto, Tor Browser que hace a todos iguales) en vez de inventar tu propia solución 'más segura': una config única es, en sí misma, una huella. Esconderse en la multitud le gana a esconderse solo.",
+      diagram: "tor",
+      bullets: [
+        "Tu anonimato crece con la cantidad de gente igual a vos.",
+        "Herramienta/config exótica = huella que te destaca.",
+        "Usá lo estándar y poblado; no inventes tu 'solución especial'.",
+      ],
+    },
+    {
+      kind: "lab",
+      title: "Mirá tu postura actual",
+      body: "Antes de planificar, medí dónde estás parado: tu identidad de red y tu nivel de anonimato con sus consejos.",
+      command: "identidad",
+      explain:
+        "El panel te da tu nivel (0-3) y tips. Leelo a la luz de TU modelo de amenazas: si solo te escondés de un sitio web, quizás alcanza; si tu adversario es serio, cada tip que falta es una vía abierta. La medición cobra sentido recién cuando sabés de quién te escondés.",
+      diagram: "radar",
+    },
+    {
+      kind: "concept",
+      title: "Sobre-ingeniería y burnout de OPSEC",
+      body:
+        "Un peligro real: el OPSEC insostenible. Si tu plan es tan estricto que no podés mantenerlo, vas a hacer atajos, y el atajo es justo donde se filtra la info. Más capas no siempre es más seguro: a veces agregan complejidad, errores y una falsa sensación de invulnerabilidad. El mejor plan es el MÍNIMO que cubre tu modelo de amenazas y que podés sostener SIEMPRE, sin excepción. Consistencia > intensidad: una regla simple cumplida el 100% de las veces vence a una compleja cumplida el 90%.",
+      diagram: "escudo",
+      bullets: [
+        "OPSEC insostenible = atajos = fugas.",
+        "Más capas pueden sumar errores y falsa seguridad.",
+        "El mejor plan: el mínimo que cubre tu amenaza y sostenés al 100%.",
+      ],
+    },
+    {
+      kind: "concept",
+      title: "Armá tu plan (y revisalo)",
+      body:
+        "Juntá todo en una matriz simple: por cada activo que protegés, listá el adversario, la vía por la que podría llegar, y la contramedida concreta y SOSTENIBLE. Revisá el plan cuando cambie el contexto: un nuevo adversario, una herramienta comprometida, un cambio en lo que hacés. El anonimato no es un estado que alcanzás una vez: es un proceso que mantenés. Y el eslabón más débil, siempre, sos vos en un día de apuro — por eso el plan tiene que caber en tu vida real.",
+      diagram: "escudo",
+      bullets: [
+        "Matriz: activo → adversario → vía → contramedida sostenible.",
+        "Revisá el plan cuando cambia el contexto.",
+        "El anonimato es un proceso que se mantiene, no un estado.",
+      ],
+    },
+  ],
+};
+
+const ANON_CRIPTO: Curso = {
+  id: "c-anon-cripto",
+  title: "Rastro financiero: cripto y anonimato",
+  subtitle: "Bitcoin no es anónimo, es seudónimo: el libro mayor es público y permanente. Cómo se sigue la plata y dónde se corta.",
+  level: "avanzado",
+  skill: "osint",
+  hue: 40,
+  glyph: "search",
+  reward: { xp: 280, coins: 220 },
+  slides: [
+    {
+      kind: "concept",
+      title: "Bitcoin no es anónimo: es seudónimo",
+      body:
+        "El gran malentendido: 'cripto = anónimo'. Falso. Bitcoin es SEUDÓNIMO: cada transacción queda en un libro mayor PÚBLICO y PERMANENTE (la blockchain), visible para cualquiera, para siempre. No aparece tu nombre, aparece tu dirección (un seudónimo). Pero si en algún momento alguien conecta una dirección con tu identidad, puede ver TODA tu historia hacia atrás y hacia adelante. Es lo opuesto al efectivo: no hay forma de 'olvidar' una transacción.",
+      diagram: "hash",
+      bullets: [
+        "La blockchain es un libro mayor público y permanente.",
+        "Tu dirección es un seudónimo, no un anónimo.",
+        "Conectar una dirección con vos revela TODA tu historia.",
+      ],
+    },
+    {
+      kind: "concept",
+      title: "Chain analysis: seguir el grafo",
+      body:
+        "Como todas las transacciones son públicas, se pueden ANALIZAR. Empresas de 'chain analysis' (Chainalysis, Elliptic) arman el grafo de quién le pagó a quién y aplican heurísticas para agrupar direcciones que probablemente pertenecen a la misma persona (por ejemplo, las que se usan juntas como entradas de una transacción). Etiquetan direcciones de exchanges, mercados y servicios conocidos. El resultado: un mapa enorme donde una sola etiqueta puede desenrollar toda una red. La transparencia de la blockchain es un arma de doble filo.",
+      diagram: "radar",
+      bullets: [
+        "Todo es público → se arma el grafo de pagos.",
+        "Heurísticas agrupan direcciones de un mismo dueño (clustering).",
+        "Una etiqueta conocida desenrolla una red entera.",
+      ],
+    },
+    {
+      kind: "concept",
+      title: "El punto de quiebre: el KYC",
+      body:
+        "La cadena de seudónimos se rompe donde el cripto toca el mundo real: los exchanges con KYC ('conocé a tu cliente'). Para pasar de pesos a cripto o al revés (on/off-ramp), casi siempre das tu documento. Desde ese momento, el exchange —y quien lo subpoene— puede unir tus direcciones con tu identidad legal. Por eso 'seguir la plata' resolvió tantos casos: no hace falta romper Tor si el sospechoso cobró en un exchange que pide DNI. El rastro financiero suele ser el eslabón más débil de una operación 'anónima'.",
+      diagram: "radar",
+      bullets: [
+        "El KYC del exchange une tus direcciones con tu DNI.",
+        "El on/off-ramp (pesos ↔ cripto) es el punto de quiebre.",
+        "Seguir la plata resolvió casos sin tocar Tor.",
+      ],
+    },
+    {
+      kind: "quiz",
+      prompt: "¿Qué suele conectar una dirección de Bitcoin 'anónima' con una identidad real?",
+      options: [
+        "El paso por un exchange con KYC (donde diste tu documento)",
+        "El color de la billetera",
+        "La hora del día",
+        "Nada: Bitcoin es imposible de rastrear",
+      ],
+      correct: 0,
+      explain:
+        "El libro mayor es público pero seudónimo; lo que lo ata a una persona es el punto donde el cripto toca el mundo regulado: el exchange con KYC. Ahí queda tu documento ligado a tus direcciones. Creer que 'Bitcoin es intrazable' es justo el error que hundió a muchos.",
+      diagram: "hash",
+    },
+    {
+      kind: "concept",
+      title: "Ofuscación y sus límites",
+      body:
+        "Existen técnicas para dificultar el análisis, con límites claros. Los MIXERS y CoinJoin (Wasabi, Samourai) juntan monedas de muchos para romper el vínculo entrada-salida; ayudan, pero el análisis moderno a veces los desarma, y usarlos puede marcarte. REUTILIZAR direcciones es un error clásico que facilita el clustering: usá una nueva por transacción. Y están las PRIVACY COINS como Monero, diseñadas para ser privadas por defecto (firmas de anillo que ocultan el emisor, direcciones ocultas para el receptor, montos cifrados). Ninguna técnica es magia: el eslabón humano (un KYC, una reutilización, un descuido) sigue mandando.",
+      diagram: "hash",
+      bullets: [
+        "Mixers/CoinJoin rompen el vínculo entrada-salida (con límites).",
+        "No reutilizar direcciones; una nueva por transacción.",
+        "Monero: privado por defecto (ring signatures + stealth addresses).",
+      ],
+    },
+    {
+      kind: "lab",
+      title: "Conectá el rastro con tu OPSEC",
+      body: "El dinero es una dimensión más de tu rastro. Abrí el panel de OPSEC y pensá el rastro financiero como una capa de exposición que no se borra.",
+      command: "opsec",
+      explain:
+        "El tracer te muestra tu exposición de red; sumale mentalmente la financiera, que es PERMANENTE (la blockchain no olvida). Si una operación 'anónima' toca dinero real, asumí que ese rastro puede unirte con tu identidad en cualquier momento futuro. El tiempo juega en contra: lo que hoy es seudónimo, mañana puede etiquetarse.",
+      diagram: "radar",
+    },
+    {
+      kind: "concept",
+      title: "La lección operacional",
+      body:
+        "De los casos reales sale una moraleja dura: en una operación anónima, el dinero es muchas veces el frente más débil, no la red. Podés tener un Tor impecable y caer porque cobraste en una dirección reutilizada que un exchange con KYC terminó ligando a tu nombre, meses después. Si hay dinero real de por medio, tratá cada transacción como permanente y potencialmente atribuible. La privacidad financiera existe y es legítima, pero exige la misma disciplina que el resto del OPSEC: compartimentar, no reutilizar, y entender el modelo de amenazas.",
+      diagram: "escudo",
+      bullets: [
+        "El dinero suele ser el frente más débil de una operación anónima.",
+        "La blockchain es permanente: lo seudónimo puede volverse atribuible.",
+        "Misma disciplina que el OPSEC: compartimentar y no reutilizar.",
+      ],
+    },
+  ],
+};
+
 export const ANONIMATO_AVANZADO_COURSES: Curso[] = [
   ANON_TOR,
   ANON_CENSURA,
   ANON_OPSEC_PRO,
   ANON_DEANON,
+  ANON_METADATA,
+  ANON_THREAT,
+  ANON_CRIPTO,
   OSINT_AVANZADO,
 ];

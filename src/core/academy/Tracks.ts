@@ -740,7 +740,16 @@ export const TRACKS: LearningTrack[] = [
     glyph: "mask",
     hue: 250,
     requires: "t-osint",
-    courseIds: ["c-opsec-anon", "c-anon-tor", "c-anon-censura", "c-anon-opsec-pro", "c-anon-deanon"],
+    courseIds: [
+      "c-opsec-anon",
+      "c-anon-tor",
+      "c-anon-censura",
+      "c-anon-opsec-pro",
+      "c-anon-metadata",
+      "c-anon-threat",
+      "c-anon-cripto",
+      "c-anon-deanon",
+    ],
     finalChallenges: ["r-onion"],
   },
   {
@@ -858,6 +867,18 @@ export const TRACKS: LearningTrack[] = [
       "c-webmod-redirect",
     ],
     finalChallenges: ["r-ssrf-metadata", "r-ssrf-interno", "r-open-redirect"],
+  },
+  {
+    id: "t-redes-avanzada",
+    title: "Redes Avanzadas",
+    subtitle: "Leer la red por dentro: análisis de tráfico (sniffing, streams, credenciales) y TCP/IP a nivel de paquete (handshake, escaneos, evasión).",
+    glyph: "search",
+    hue: 155,
+    requires: "t-redes",
+    courseIds: [
+      "c-redes-trafico",
+      "c-redes-protocolos",
+    ],
   },
 ];
 

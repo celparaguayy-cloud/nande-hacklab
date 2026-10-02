@@ -23,6 +23,7 @@ import { FORENSE_COURSES } from "./forense";
 import { CLOUD_COURSES } from "./cloud";
 import { WEB_MODERNO_COURSES } from "./web-moderno";
 import { ANONIMATO_AVANZADO_COURSES } from "./anonimato-avanzado";
+import { REDES_AVANZADO_COURSES } from "./redes-avanzado";
 
 /** Orden pedagógico: de lo básico (Linux) a lo especializado y el capstone. */
 export const EXTRA_CURSOS: Curso[] = [
@@ -48,4 +49,6 @@ export const EXTRA_CURSOS: Curso[] = [
   ...WEB_MODERNO_COURSES,
   // Sexta tanda: anonimato y OSINT avanzado (Tor, censura, OPSEC, desanon).
   ...ANONIMATO_AVANZADO_COURSES,
+  // Séptima tanda: redes avanzadas (análisis de tráfico, TCP/IP por dentro).
+  ...REDES_AVANZADO_COURSES,
 ];
