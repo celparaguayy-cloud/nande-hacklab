@@ -67,7 +67,11 @@ export type DiagramId =
   | "matrix"
   | "purple"
   | "tunnel"
-  | "radar";
+  | "radar"
+  // Cuarta tanda: cloud native y cadena de suministro.
+  | "cloud"
+  | "kubernetes"
+  | "supplychain";
 
 /** Pantalla de explicación con un dibujo que hace visible la idea. */
 export interface ConceptSlide {

@@ -1173,6 +1173,76 @@ function Radar() {
   );
 }
 
+function Cloud() {
+  return (
+    <Frame>
+      <text x={160} y={20} fill={DIM} fontSize={12} fontFamily={sans} textAnchor="middle">Metadata de la nube: credenciales a un GET</text>
+      <rect x={18} y={70} width={58} height={38} rx={5} fill={PANEL2} stroke={CYAN} />
+      <text x={47} y={93} fill={DIM} fontSize={9} textAnchor="middle" fontFamily={sans}>app (SSRF)</text>
+      <rect x={120} y={60} width={80} height={56} rx={6} fill={PANEL2} stroke={AMBER} />
+      <text x={160} y={82} fill={AMBER} fontSize={10} textAnchor="middle" fontFamily={sans}>metadata</text>
+      <text x={160} y={97} fill={DIM} fontSize={8} textAnchor="middle" fontFamily={mono}>169.254.169.254</text>
+      <text x={160} y={108} fill={DIM} fontSize={7.5} textAnchor="middle" fontFamily={sans}>sin auth (v1)</text>
+      <rect x={244} y={70} width={62} height={38} rx={5} fill="rgba(255,123,114,0.12)" stroke={RED} />
+      <text x={275} y={88} fill={RED} fontSize={9} textAnchor="middle" fontFamily={sans}>IAM temp</text>
+      <text x={275} y={101} fill={DIM} fontSize={8} textAnchor="middle" fontFamily={mono}>AKIA…</text>
+      <path d="M76 89h44" stroke={CYAN} strokeWidth={2} markerEnd="url(#clg)" />
+      <path d="M200 89h44" stroke={RED} strokeWidth={2} markerEnd="url(#clr)" />
+      <text x={160} y={140} fill={DIM} fontSize={9.5} fontFamily={sans} textAnchor="middle">IMDSv2 exige token (PUT) → corta el SSRF simple</text>
+      <defs>
+        <marker id="clg" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0l6 3-6 3z" fill={CYAN} /></marker>
+        <marker id="clr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0l6 3-6 3z" fill={RED} /></marker>
+      </defs>
+    </Frame>
+  );
+}
+
+function Kubernetes() {
+  return (
+    <Frame>
+      <text x={160} y={20} fill={DIM} fontSize={12} fontFamily={sans} textAnchor="middle">Kubernetes: el pod habla con el API server</text>
+      <rect x={200} y={40} width={104} height={100} rx={6} fill="rgba(61,174,233,0.07)" stroke={CYAN} strokeDasharray="4 3" />
+      <text x={252} y={56} fill={CYAN} fontSize={9} textAnchor="middle" fontFamily={sans}>plano de control</text>
+      <rect x={214} y={64} width={76} height={22} rx={3} fill={PANEL2} stroke={CYAN} />
+      <text x={252} y={79} fill={INK} fontSize={9} textAnchor="middle" fontFamily={mono}>API server</text>
+      <rect x={214} y={94} width={76} height={20} rx={3} fill={PANEL2} stroke={LINE} />
+      <text x={252} y={108} fill={DIM} fontSize={8} textAnchor="middle" fontFamily={mono}>etcd · RBAC</text>
+      <rect x={16} y={54} width={110} height={74} rx={6} fill="rgba(185,140,255,0.06)" stroke={VIOLET} strokeDasharray="4 3" />
+      <text x={71} y={70} fill={VIOLET} fontSize={9} textAnchor="middle" fontFamily={sans}>worker node</text>
+      {[0, 1].map((i) => (
+        <g key={i}>
+          <rect x={28} y={78 + i * 24} width={86} height={18} rx={3} fill={PANEL2} stroke={i === 0 ? RED : LINE} />
+          <text x={71} y={91 + i * 24} fill={i === 0 ? RED : DIM} fontSize={8} textAnchor="middle" fontFamily={mono}>{i === 0 ? "pod ⚠ token" : "pod"}</text>
+        </g>
+      ))}
+      <path d="M114 87h86" stroke={RED} strokeWidth={1.8} markerEnd="url(#kbg)" />
+      <text x={160} y={81} fill={DIM} fontSize={8} fontFamily={mono} textAnchor="middle">SA token</text>
+      <text x={160} y={150} fill={DIM} fontSize={9.5} fontFamily={sans} textAnchor="middle">RBAC laxo = el pod manda al cluster</text>
+      <defs><marker id="kbg" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0l6 3-6 3z" fill={RED} /></marker></defs>
+    </Frame>
+  );
+}
+
+function SupplyChain() {
+  const stages = ["commit", "build", "deploy"];
+  return (
+    <Frame>
+      <text x={160} y={20} fill={DIM} fontSize={12} fontFamily={sans} textAnchor="middle">Cadena de suministro: envenenás una etapa</text>
+      {stages.map((s, i) => (
+        <g key={i}>
+          <rect x={20 + i * 100} y={56} width={80} height={34} rx={6} fill={PANEL2} stroke={i === 1 ? RED : CYAN} />
+          <text x={60 + i * 100} y={77} fill={i === 1 ? RED : INK} fontSize={10} textAnchor="middle" fontFamily={mono}>{s}</text>
+          {i < 2 && <path d={`M${100 + i * 100} 73h20`} stroke={DIM} strokeWidth={1.6} markerEnd="url(#scg)" />}
+        </g>
+      ))}
+      <text x={160} y={108} fill={RED} fontSize={9.5} fontFamily={sans} textAnchor="middle">dependencia / runner comprometido</text>
+      <rect x={60} y={118} width={200} height={22} rx={4} fill="rgba(255,123,114,0.10)" stroke={RED} />
+      <text x={160} y={133} fill={DIM} fontSize={9} fontFamily={sans} textAnchor="middle">un solo eslabón infecta a todos los que confían</text>
+      <defs><marker id="scg" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0l6 3-6 3z" fill={DIM} /></marker></defs>
+    </Frame>
+  );
+}
+
 const ART: Record<DiagramId, () => React.ReactElement> = {
   internet: Internet,
   dominio: Dominio,
@@ -1225,6 +1295,9 @@ const ART: Record<DiagramId, () => React.ReactElement> = {
   purple: Purple,
   tunnel: Tunnel,
   radar: Radar,
+  cloud: Cloud,
+  kubernetes: Kubernetes,
+  supplychain: SupplyChain,
 };
 
 /** Dibuja la ilustración pedida (o nada si el id no existe). */

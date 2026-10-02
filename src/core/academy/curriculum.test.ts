@@ -21,6 +21,8 @@ const VALID_DIAGRAMS = new Set([
   "idor", "ssrf", "cmdi", "jwt", "siem", "reversing", "contenedor",
   // Tercera tanda: AD avanzado, defensa, operaciones, OT y forense.
   "adcs", "dcsync", "ics", "matrix", "purple", "tunnel", "radar",
+  // Cuarta tanda: cloud native y cadena de suministro.
+  "cloud", "kubernetes", "supplychain",
 ]);
 
 // Deben coincidir con GlyphName (Glyph.tsx).

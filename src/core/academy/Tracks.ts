@@ -717,6 +717,22 @@ export const TRACKS: LearningTrack[] = [
     ],
     finalChallenges: ["r-dfir", "r-crack"],
   },
+  {
+    id: "t-cloud",
+    title: "Cloud Native y DevSecOps",
+    subtitle: "Contenedores, Kubernetes y fuga al host, cadena de suministro (CI/CD) y metadata de la nube: la superficie moderna.",
+    glyph: "code",
+    hue: 205,
+    requires: "t-operaciones",
+    courseIds: [
+      "c-cloud-contenedores",
+      "c-cloud-kubernetes",
+      "c-cloud-escape",
+      "c-cloud-cicd",
+      "c-cloud-secretos",
+    ],
+    finalChallenges: ["r-yvytu-foothold", "r-yvytu-root", "r-yvytu-exfil"],
+  },
 ];
 
 /** Acceso a itinerarios y retos, mismo patrón que el resto de la academia. */

@@ -20,6 +20,7 @@ import { DEFENSA_AVANZADA_COURSES } from "./defensa-avanzada";
 import { OPERACIONES_RED_COURSES } from "./operaciones-red";
 import { OT_COURSES } from "./ot";
 import { FORENSE_COURSES } from "./forense";
+import { CLOUD_COURSES } from "./cloud";
 
 /** Orden pedagógico: de lo básico (Linux) a lo especializado y el capstone. */
 export const EXTRA_CURSOS: Curso[] = [
@@ -39,4 +40,6 @@ export const EXTRA_CURSOS: Curso[] = [
   ...OPERACIONES_RED_COURSES,
   ...OT_COURSES,
   ...FORENSE_COURSES,
+  // Cuarta tanda: cloud native y DevSecOps (contenido actualizado 2024-2025).
+  ...CLOUD_COURSES,
 ];
