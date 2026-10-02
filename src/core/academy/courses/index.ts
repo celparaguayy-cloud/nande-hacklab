@@ -25,6 +25,7 @@ import { WEB_MODERNO_COURSES } from "./web-moderno";
 import { ANONIMATO_AVANZADO_COURSES } from "./anonimato-avanzado";
 import { REDES_AVANZADO_COURSES } from "./redes-avanzado";
 import { PASSWORDS_AVANZADO_COURSES } from "./passwords-avanzado";
+import { WEB_AVANZADO_COURSES } from "./web-avanzado";
 
 /** Orden pedagógico: de lo básico (Linux) a lo especializado y el capstone. */
 export const EXTRA_CURSOS: Curso[] = [
@@ -54,4 +55,6 @@ export const EXTRA_CURSOS: Curso[] = [
   ...REDES_AVANZADO_COURSES,
   // Octava tanda: cracking y autenticación avanzada.
   ...PASSWORDS_AVANZADO_COURSES,
+  // Novena tanda: web avanzado (LFI/XXE, SSTI/NoSQL, deser/upload, CSRF/race).
+  ...WEB_AVANZADO_COURSES,
 ];

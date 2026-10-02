@@ -25,6 +25,8 @@ const VALID_DIAGRAMS = new Set([
   "cloud", "kubernetes", "supplychain",
   // Quinta tanda: anonimato y OPSEC avanzado.
   "tor", "persona",
+  // Sexta tanda: web avanzado.
+  "carrera",
 ]);
 
 // Deben coincidir con GlyphName (Glyph.tsx).

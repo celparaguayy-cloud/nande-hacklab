@@ -1304,6 +1304,26 @@ function Persona() {
   );
 }
 
+function Carrera() {
+  return (
+    <Frame>
+      <text x={160} y={20} fill={DIM} fontSize={12} fontFamily={sans} textAnchor="middle">Race (TOCTOU): varias piden a la vez</text>
+      <rect x={118} y={44} width={84} height={30} rx={5} fill={PANEL2} stroke={AMBER} />
+      <text x={160} y={63} fill={AMBER} fontSize={9} textAnchor="middle" fontFamily={mono}>saldo = 1</text>
+      {[0, 1, 2].map((i) => (
+        <g key={i}>
+          <rect x={20 + i * 104} y={96} width={80} height={26} rx={5} fill={PANEL2} stroke={GREEN} />
+          <text x={60 + i * 104} y={113} fill={GREEN} fontSize={8.5} textAnchor="middle" fontFamily={sans}>req {i + 1}</text>
+          <path d={`M${60 + i * 104} 96 L${160 + (i - 1) * 6} 76`} stroke={GREEN} strokeWidth={1.4} markerEnd="url(#rcg)" />
+          <text x={60 + i * 104} y={136} fill={DIM} fontSize={7.5} textAnchor="middle" fontFamily={sans}>lee 1 ✓</text>
+        </g>
+      ))}
+      <text x={160} y={154} fill={RED} fontSize={9.5} fontFamily={sans} textAnchor="middle">las 3 leen "1" antes de que una descuente → canjean de más</text>
+      <defs><marker id="rcg" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0l6 3-6 3z" fill={GREEN} /></marker></defs>
+    </Frame>
+  );
+}
+
 const ART: Record<DiagramId, () => React.ReactElement> = {
   internet: Internet,
   dominio: Dominio,
@@ -1361,6 +1381,7 @@ const ART: Record<DiagramId, () => React.ReactElement> = {
   supplychain: SupplyChain,
   tor: Tor,
   persona: Persona,
+  carrera: Carrera,
 };
 
 /** Dibuja la ilustración pedida (o nada si el id no existe). */

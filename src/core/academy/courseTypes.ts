@@ -74,7 +74,9 @@ export type DiagramId =
   | "supplychain"
   // Quinta tanda: anonimato y OPSEC avanzado.
   | "tor"
-  | "persona";
+  | "persona"
+  // Sexta tanda: web avanzado.
+  | "carrera";
 
 /** Pantalla de explicación con un dibujo que hace visible la idea. */
 export interface ConceptSlide {
