@@ -3,5 +3,5 @@
  * qué build estás corriendo (y confirmar que tomaste la última actualización).
  * Subí el número cuando haya un cambio que el jugador deba poder distinguir.
  */
-export const NANDE_VERSION = "5.125.0";
-export const NANDE_BUILD = "academia-anonimato-completo-metadata-threat-cripto-y-redes-avanzadas";
+export const NANDE_VERSION = "5.126.0";
+export const NANDE_BUILD = "academia-cracking-y-autenticacion-avanzada-hashcat-salts-passkeys";

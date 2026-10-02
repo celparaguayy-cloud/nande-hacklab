@@ -869,6 +869,20 @@ export const TRACKS: LearningTrack[] = [
     finalChallenges: ["r-ssrf-metadata", "r-ssrf-interno", "r-open-redirect"],
   },
   {
+    id: "t-cracking",
+    title: "Cracking y Autenticación",
+    subtitle: "Romper contraseñas en serio: hashcat con reglas y máscaras, cómo se almacenan (sal, Argon2), y ataques online + passkeys/MFA.",
+    glyph: "flame",
+    hue: 25,
+    requires: "t-acceso",
+    courseIds: [
+      "c-pass-cracking",
+      "c-pass-almacenamiento",
+      "c-pass-online",
+    ],
+    finalChallenges: ["r-crack", "r-ssh-brute"],
+  },
+  {
     id: "t-redes-avanzada",
     title: "Redes Avanzadas",
     subtitle: "Leer la red por dentro: análisis de tráfico (sniffing, streams, credenciales) y TCP/IP a nivel de paquete (handshake, escaneos, evasión).",
