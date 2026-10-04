@@ -638,8 +638,207 @@ const HACK_WEB: Curso = {
   ],
 };
 
+const HACK_CLOUD: Curso = {
+  id: "c-hack-cloud",
+  title: "Cloud y CI/CD: hackeo del pipeline de despliegue",
+  subtitle: "Walkthrough real contra Yvytu Cloud: entrás al runner de CI, escalás a root por sudo GTFOBins, saqueás los secretos del pipeline y pivotás al repositorio de artefactos interno. Con casos reales (SolarWinds, Codecov, CircleCI).",
+  level: "avanzado",
+  skill: "pentesting",
+  hue: 205,
+  glyph: "target",
+  reward: { xp: 560, coins: 450 },
+  slides: [
+    {
+      kind: "concept",
+      title: "El pipeline de CI/CD es la joya de la corona",
+      body:
+        "Un pipeline de CI/CD construye tu código y lo despliega a producción. Para eso, el RUNNER (la máquina que corre los jobs) tiene credenciales potentísimas: claves de la nube, tokens del registry, acceso a producción, secretos de firma. Comprometer el runner no es 'hackear una máquina más': es conseguir las llaves de TODO lo que ese pipeline toca, y —peor— la capacidad de inyectar código en lo que se distribuye. Por eso el CI/CD es uno de los objetivos más codiciados del atacante moderno: es un MULTIPLICADOR. En este curso vas a comprometer el runner de Yvytu Cloud de punta a punta.",
+      diagram: "supplychain",
+      bullets: [
+        "El runner guarda credenciales a la nube y a producción.",
+        "Comprometerlo = las llaves de todo + inyectar en lo que se distribuye.",
+        "El CI/CD es un multiplicador: un host, acceso a todo.",
+      ],
+    },
+    {
+      kind: "concept",
+      title: "Casos reales: por qué esto importa tanto",
+      body:
+        "No es teoría. SOLARWINDS (2020): atacantes comprometieron el BUILD de Orion e inyectaron el backdoor SUNBURST en actualizaciones FIRMADAS; se distribuyó a ~18.000 organizaciones. CODECOV (2021): por un error en la creación de su imagen Docker se filtró una clave; los atacantes modificaron el 'Bash Uploader' para que EXFILTRARA las variables de entorno (tokens, claves, credenciales) de los pipelines de sus clientes a un servidor externo — meses sin detectar. CIRCLECI (enero 2023): un malware en la laptop de un ingeniero robó una cookie de sesión SSO (¡saltándose el 2FA!), con la que accedieron a los secretos de clientes; CircleCI tuvo que rotar TODOS los tokens. Patrón: el CI es objetivo de alto valor, y su compromiso se propaga.",
+      diagram: "supplychain",
+      bullets: [
+        "SolarWinds (2020): backdoor en el build firmado → ~18.000 orgs.",
+        "Codecov (2021): el uploader modificado exfiltró env vars de los CI.",
+        "CircleCI (2023): cookie de sesión robada (bypass 2FA) → secretos.",
+      ],
+    },
+    {
+      kind: "concept",
+      title: "La cadena: del runner expuesto al repo interno",
+      body:
+        "El plan contra Yvytu: (1) RECON del runner expuesto (deploy.yvytu.nande). (2) FOOTHOLD por un usuario de servicio 'ci' con clave débil. (3) PRIVESC a root abusando un sudo mal puesto (GTFOBins). (4) LOOT: los secretos del pipeline (credenciales a prod y al repositorio de artefactos). (5) PIVOT al repositorio de artefactos interno, que SOLO se alcanza desde el runner. Es la cadena clásica de un ataque a CI/CD: la máquina de build es el pie adentro, y desde sus secretos saltás a todo lo que el pipeline toca. Vamos paso a paso, con bandera en cada hito.",
+      diagram: "cloud",
+      bullets: [
+        "Recon → foothold (ci) → root (GTFOBins) → loot → pivot al repo.",
+        "El runner es el pie adentro; sus secretos, el salto a todo.",
+        "Una bandera real por cada fase.",
+      ],
+    },
+    {
+      kind: "lab",
+      title: "Fase 1 — Recon del runner",
+      body: "Escaneá el runner de despliegue de Yvytu. Mirá qué servicios expone antes de intentar entrar.",
+      command: "nmap -sV deploy.yvytu.nande",
+      explain:
+        "Ves los servicios del runner (SSH abierto, entre otros). Un runner de CI expuesto a Internet con SSH es ya un hallazgo: no debería ser alcanzable así. El vector: un usuario de servicio con clave débil. El usuario 'ci' es el sospechoso natural.",
+      diagram: "escaneo",
+    },
+    {
+      kind: "concept",
+      title: "Fase 2 — Foothold: el usuario de servicio",
+      body:
+        "Los pipelines corren con USUARIOS DE SERVICIO (ci, deploy, runner, jenkins…). Son cuentas automáticas, y por eso a menudo tienen claves débiles 'temporales' que nadie rotó, o la misma clave en muchos lados. El usuario 'ci' de Yvytu dejó una clave de temporada (Deploy2024). Entrar como ese usuario te pone DENTRO del runner, con acceso a todo lo que el pipeline usa en ejecución — exactamente la superficie que Codecov expuso al mundo cuando su uploader filtró las env vars.",
+      diagram: "terminal",
+      bullets: [
+        "Pipelines corren con usuarios de servicio (ci/deploy/runner).",
+        "Cuentas automáticas → claves débiles o reutilizadas sin rotar.",
+        "Dentro del runner, accedés a lo que el pipeline usa en ejecución.",
+      ],
+    },
+    {
+      kind: "lab",
+      title: "Fase 2 — Entrá como el usuario ci (bandera de usuario)",
+      body: "Logueate al runner como ci con su clave débil y llevate la bandera de usuario.",
+      command: "connect deploy.yvytu.nande ci Deploy2024 && cat /home/ci/user.txt",
+      explain:
+        "¡Adentro del runner! Capturaste ND{yvytu_foothold}. Sos el usuario ci: ya podés ver scripts del pipeline, variables de entorno y configs. Pero ci no es root. Para los secretos más jugosos (y el salto al repo interno), hay que escalar.",
+      diagram: "terminal",
+    },
+    {
+      kind: "concept",
+      title: "Fase 3 — Privesc: sudo awk (GTFOBins)",
+      body:
+        "Corrés `sudo -l` y encontrás que ci puede ejecutar `awk` como root SIN contraseña (NOPASSWD) — una mala config típica, puesta para un script viejo de parseo de logs. ¿Por qué awk escala? Porque awk puede EJECUTAR comandos del sistema con BEGIN{system(...)}. Si lo corrés con sudo, ese comando corre como ROOT: `sudo awk 'BEGIN{system(\"/bin/sh\")}'` te deja caer en una shell de root. Es GTFOBins en acción (awk es uno de los clásicos). Lección de defensa: nada de sudo NOPASSWD sobre binarios que ejecutan comandos (awk, find, vim, tar, python…).",
+      diagram: "privesc",
+      bullets: [
+        "sudo -l revela: ci puede correr awk como root sin clave.",
+        "awk BEGIN{system(...)} ejecuta comandos → con sudo, como root.",
+        "GTFOBins: awk/find/vim/tar/python escapan a shell con sudo.",
+      ],
+    },
+    {
+      kind: "build",
+      goal: "Abrir una shell de root abusando el sudo NOPASSWD sobre awk",
+      pieces: ["sudo", "awk", "'BEGIN{system(\"/bin/sh\")}'", "cat", "--version"],
+      answer: ["sudo", "awk", "'BEGIN{system(\"/bin/sh\")}'"],
+      hint: "awk ejecuta comandos con BEGIN{system(\"...\")}. Con sudo, ese system corre como root.",
+      explain:
+        "`sudo awk 'BEGIN{system(\"/bin/sh\")}'` hace que awk, corriendo como root, lance una shell /bin/sh — que hereda el privilegio de root. Una línea, y pasaste de ci a root. Así de fino es el borde entre 'un sudo de conveniencia' y 'comprometieron el runner entero'.",
+    },
+    {
+      kind: "lab",
+      title: "Fase 3 — Escalá a root",
+      body: "Abusá el sudo awk para abrir una shell de root y leé la bandera de root del runner.",
+      command: "connect deploy.yvytu.nande ci Deploy2024 && sudo awk 'BEGIN{system(\"/bin/sh\")}' && cat /root/flag.txt",
+      explain:
+        "¡ROOT en el runner! Capturaste ND{yvytu_root}. Ahora controlás la máquina de build por completo: todos los secretos del pipeline, las claves de despliegue, los tokens. Este es el punto donde un atacante real podría inyectar código en lo que se compila y distribuye (como SUNBURST en SolarWinds). Nosotros vamos por el loot y el pivot.",
+      diagram: "privesc",
+    },
+    {
+      kind: "concept",
+      title: "Fase 4 — Loot: los secretos del pipeline",
+      body:
+        "Ser root en un runner es tener su cofre de secretos. Un pipeline guarda credenciales en variables de entorno, en archivos .env, en el config del propio CI. Acá, /root/deploy.env tiene el host y la credencial del REPOSITORIO DE ARTEFACTOS interno. Esto es EXACTAMENTE lo que el ataque a Codecov cosechó a escala: las env vars con tokens y claves que los pipelines usan en ejecución. Regla del atacante en CI: el loot no son archivos cualquiera, son las LLAVES a los otros sistemas que el pipeline toca.",
+      diagram: "cloud",
+      bullets: [
+        "Root en el runner = su cofre de secretos (env, .env, config del CI).",
+        "/root/deploy.env tiene la credencial del repo de artefactos interno.",
+        "Es lo que Codecov expuso: las env vars con tokens/claves del CI.",
+      ],
+    },
+    {
+      kind: "lab",
+      title: "Fase 4 — Saqueá las credenciales del despliegue",
+      body: "Ya root, leé el archivo de entorno del pipeline. Ahí está la llave al repositorio de artefactos interno.",
+      command: "connect deploy.yvytu.nande ci Deploy2024 && sudo awk 'BEGIN{system(\"/bin/sh\")}' && cat /root/deploy.env",
+      explain:
+        "Leíste /root/deploy.env: aparece el host (artefactos.yvytu.nande) y la credencial del deployer (Art3f@cts!2024). Ese repo interno NO se ve desde Internet — solo desde el runner. El loot de una máquina es el foothold de la siguiente: tenemos la llave y el pivote.",
+      diagram: "archivo",
+    },
+    {
+      kind: "concept",
+      title: "Fase 5 — Pivot: el repositorio de artefactos interno",
+      body:
+        "El botín de producción —los artefactos que se despliegan, las imágenes, los paquetes firmados— vive en un repositorio INTERNO que solo se alcanza desde la infraestructura de CI. Con la credencial robada del deploy.env, pivotás desde el runner comprometido hasta ese repo. Comprometerlo es el impacto máximo de un ataque a la cadena de suministro: quien controla el repo de artefactos puede reemplazar lo que se distribuye a TODOS los que confían en él. Es el paso que, en el mundo real, convierte 'hackeé un runner' en 'infecté a miles' (SolarWinds).",
+      diagram: "pivot",
+      bullets: [
+        "El repo de artefactos interno solo se alcanza desde el CI.",
+        "Con la credencial robada, pivotás del runner al repo.",
+        "Controlar el repo = reemplazar lo que se distribuye a todos.",
+      ],
+    },
+    {
+      kind: "lab",
+      title: "Fase 5 — Exfiltrá del repositorio interno (cadena completa)",
+      body: "Encadená todo: entrás al runner, escalás a root, robás la credencial del deploy.env, pivotás al repo de artefactos y te llevás su bandera.",
+      command: "connect deploy.yvytu.nande ci Deploy2024 && sudo awk 'BEGIN{system(\"/bin/sh\")}' && cat /root/deploy.env && connect artefactos.yvytu.nande deployer Art3f@cts!2024 && cat /root/flag.txt",
+      explain:
+        "🏆 ¡Cadena cloud completa! Capturaste ND{yvytu_exfil}. Recorriste: runner expuesto → foothold (ci) → root (sudo awk) → secretos del pipeline → pivot al repo de artefactos interno. Un solo usuario de servicio con clave débil terminó en control de la cadena de distribución. Así se ve, paso a paso, un ataque a la supply chain.",
+      diagram: "pivot",
+    },
+    {
+      kind: "concept",
+      title: "Las técnicas que amplían esto: PPE y dependency confusion",
+      body:
+        "Dos técnicas modernas que todo pentester de CI/CD conoce. POISONED PIPELINE EXECUTION (PPE): metés comandos en algo que el pipeline EJECUTA (un script del repo, un paso que corre código de un pull request), y el runner los corre con SUS privilegios — sin necesitar credenciales. DEPENDENCY CONFUSION (Alex Birsan, 2021): publicás en un registry PÚBLICO un paquete con el MISMO nombre que uno interno y una versión más alta; el gestor de dependencias se traga el público por error y ejecutás código en el build. Birsan entró así a Apple, Microsoft y decenas más. El denominador común con lo que hiciste: el pipeline confía en entradas que no controla.",
+      diagram: "supplychain",
+      bullets: [
+        "PPE: colás comandos en algo que el pipeline ejecuta (sin credenciales).",
+        "Dependency confusion: un paquete público pisa al interno (Birsan 2021).",
+        "Raíz: el pipeline confía en entradas que no controla.",
+      ],
+    },
+    {
+      kind: "quiz",
+      prompt: "¿Por qué comprometer el runner de CI/CD es tan grave comparado con hackear un servidor cualquiera?",
+      options: [
+        "Porque tiene credenciales a producción y distribuye artefactos: su compromiso se propaga a todos los que confían en el pipeline",
+        "Porque los runners no tienen logs",
+        "Porque siempre corren como invitado",
+        "No es más grave, es un servidor más",
+      ],
+      correct: 0,
+      explain:
+        "El CI/CD concentra confianza y privilegios: firma y reparte software, y guarda las llaves de producción. Comprometerlo convierte un solo acceso en acceso a TODO lo aguas abajo (clientes, otros equipos), justo como SolarWinds y Codecov. Es el apalancamiento que lo vuelve tan codiciado.",
+      diagram: "supplychain",
+    },
+    {
+      kind: "concept",
+      title: "Cómo se rompe cada eslabón (defensa)",
+      body:
+        "Atacar el pipeline enseña a blindarlo. (1) Foothold ← usuario de servicio con clave débil → credenciales EFÍMERAS por OIDC en vez de secretos de larga vida, y nada de usuarios con SSH expuesto. (2) Privesc ← sudo NOPASSWD sobre awk → mínimo privilegio, auditar sudoers, runners sin sudo. (3) Loot ← secretos en el runner → gestor de secretos (Vault) con acceso efímero, no .env en disco. (4) Supply chain ← confianza ciega → firmar y verificar artefactos (Sigstore/cosign), SLSA para procedencia, runners EFÍMEROS (uno limpio por job), pin de dependencias por hash. Y la lección de CircleCI: los tokens de sesión se roban y saltan el 2FA — rotá secretos, acortá su vida, monitoreá el uso.",
+      diagram: "escudo",
+      bullets: [
+        "OIDC efímero + nada de SSH expuesto; mínimo privilegio (sin sudo awk).",
+        "Secretos en Vault (efímeros), no .env en el runner.",
+        "Firmar artefactos (cosign) + SLSA + runners efímeros + pin por hash.",
+      ],
+    },
+    {
+      kind: "lab",
+      title: "Mirá tu cadena de ataque (kill chain)",
+      body: "Cerrá viendo tu ataque al CI/CD como lo ve el defensor: las técnicas en orden de kill chain.",
+      command: "killchain",
+      explain:
+        "El tablero ordena tus técnicas por fase (acceso inicial, escalada, colección de credenciales, movimiento lateral, impacto). Cada una salió de una acción real. Ver tu ataque a la supply chain así te muestra el patrón que comparten SolarWinds, Codecov y CircleCI — y dónde cada defensa lo habría cortado.",
+      diagram: "matrix",
+    },
+  ],
+};
+
 export const HACKING_REAL_COURSES: Curso[] = [
   HACK_MAQUINA,
   HACK_AD,
   HACK_WEB,
+  HACK_CLOUD,
 ];
