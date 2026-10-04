@@ -1101,10 +1101,250 @@ const HACK_OT: Curso = {
   ],
 };
 
+const HACK_MITM: Curso = {
+  id: "c-hack-mitm",
+  title: "Adversary-in-the-Middle: interceptar la LAN y robar credenciales",
+  subtitle: "Walkthrough completo y real: te metés en el medio del tráfico con ARP spoofing, cosechás una credencial que viaja en claro, la usás para entrar, envenenás el DNS — y después ves cómo el Blue Team te caza y cómo se defiende la red. 100% dentro del sandbox, sobre el motor MITM real (no scripteado).",
+  level: "avanzado",
+  skill: "redes",
+  hue: 155,
+  glyph: "mask",
+  reward: { xp: 560, coins: 440 },
+  slides: [
+    {
+      kind: "concept",
+      title: "Adversary-in-the-Middle: el que escucha en el medio",
+      body:
+        "Un ataque Adversary-in-the-Middle (AiTM, antes 'Man-in-the-Middle') consiste en MeterTE entre dos partes que creen hablarse directo: ahora todo su tráfico pasa por vos. Podés LEERLO (sniffing), MODIFICARLO (inyección) o REDIRIGIRLO. Es una de las técnicas más poderosas de una red interna, porque no explota un bug de software: explota la CONFIANZA de los protocolos viejos (ARP, DNS, HTTP) que se diseñaron para una red amiga y no verifican con quién hablan. En este curso vas a recorrer, de punta a punta y con comandos reales, un AiTM completo: recon de vecinos → ARP spoofing → cosecha de credenciales en claro → uso de esa credencial para entrar → DNS spoofing → y la otra cara: cómo un defensor te detecta y cómo se blinda la red. MITRE ATT&CK lo cataloga como T1557 (Adversary-in-the-Middle).",
+      diagram: "mitm",
+      bullets: [
+        "AiTM: te ponés en el medio; el tráfico de la víctima pasa por vos.",
+        "No explota un bug: explota la confianza ciega de ARP/DNS/HTTP.",
+        "Leer, modificar o redirigir. MITRE T1557.",
+      ],
+    },
+    {
+      kind: "concept",
+      title: "ARP: el protocolo que le cree a cualquiera",
+      body:
+        "En una LAN, para mandarle un paquete a un vecino primero hay que saber su dirección MAC (capa 2). Eso lo resuelve ARP: '¿quién tiene la IP 10.10.0.1?' y el dueño responde 'yo, con esta MAC'. El problema: ARP NO autentica NADA. Cualquiera puede gritar 'yo soy el gateway (10.10.0.1), mi MAC es ésta' y envenenar la caché ARP de la víctima. Desde ese momento, la víctima manda al atacante todo lo que creía mandarle al router: estás en el medio. ARP es de capa 2, así que SÓLO funciona dentro de tu propio segmento /24 (no cruza routers) — por eso el AiTM clásico es un ataque de red INTERNA, de alguien que ya está adentro. MITRE lo llama ARP Cache Poisoning (T1557.002).",
+      diagram: "mitm",
+      bullets: [
+        "ARP resuelve IP→MAC en la LAN, y no verifica quién responde.",
+        "Mentís 'yo soy el gateway' y la víctima te manda su tráfico.",
+        "Capa 2: sólo tu /24 (no cruza routers). T1557.002.",
+      ],
+    },
+    {
+      kind: "lab",
+      title: "Fase 1 — Recon: mirá a tus vecinos de segmento",
+      body: "Antes de envenenar nada, mirá quién vive en tu /24. Corré arpspoof sin argumentos: lista los vecinos vivos (candidatos a interceptar) y si ya tenés algún MITM activo.",
+      command: "arpspoof",
+      explain:
+        "Ves la tabla de vecinos de tu segmento (10.10.0.x): workstations de empleados (pc-conta, pc-rrhh), servidores (server, panel) y hasta el controlador de dominio (dc01). Cada uno es un objetivo potencial. La clave del AiTM es elegir a QUIÉN interceptar: una workstation de usuario que manda logins es oro; un servidor que no 'inicia sesión' solo, no tanto. Tu primer blanco natural: una PC de empleado.",
+      diagram: "mitm",
+    },
+    {
+      kind: "concept",
+      title: "Primero en el rango de práctica, con permiso",
+      body:
+        "Regla de oro del hacking ético: la técnica se PRACTICA en un rango propio antes de tocar cualquier otra cosa, y SIEMPRE con permiso. ÑANDE trae un rango de laboratorio aislado (10.10.5.x) hecho para eso: máquinas de ejercicio donde podés ensayar el ARP spoofing y el sniffing sin afectar a nadie, y que te devuelven una bandera cuando la técnica sale. Vamos a ensayar ahí los dos movimientos base del AiTM —ponerse en el medio (ARP) y leer el tráfico en claro (sniff)— y recién después los aplicamos sobre la LAN corporativa del mundo.",
+      diagram: "sniffer",
+      bullets: [
+        "La técnica se ensaya en un rango propio y con permiso.",
+        "Rango de laboratorio aislado de ÑANDE: 10.10.5.x.",
+        "Dos movimientos base: ponerse en el medio (ARP) y leer (sniff).",
+      ],
+    },
+    {
+      kind: "lab",
+      title: "Fase 2 — Ensayo: ARP spoofing en el rango",
+      body: "Poné en práctica el envenenamiento ARP contra la máquina de laboratorio weblab01.lab. Observá cómo su tráfico empieza a pasar por vos.",
+      command: "arpspoof weblab01.lab",
+      explain:
+        "Te hiciste pasar por el router ante la víctima: su caché ARP ahora cree que vos sos la puerta de enlace, y su tráfico pasa por vos. Interceptaste hasta una cookie de sesión. Capturaste ND{arp_mitm}: dominás el movimiento base del AiTM. La defensa que ya asoma: cifrado extremo a extremo + ARP estático + detección de MITM. Ahora, el segundo movimiento: leer lo que viaja en claro.",
+      diagram: "mitm",
+    },
+    {
+      kind: "lab",
+      title: "Fase 2 — Ensayo: sniffing de credenciales en claro",
+      body: "Con un sniffer, leé el tráfico de la máquina de laboratorio 10.10.5.10 (weblab01.lab). Si un servicio manda el login por HTTP (sin cifrar), lo vas a ver en texto plano.",
+      command: "tcpdump 10.10.5.10",
+      explain:
+        "El sniffer capturó un login que viajó SIN CIFRAR (HTTP): usuario y contraseña en texto plano, a la vista. Capturaste ND{sniff_credenciales}. Ésta es la lección que define el AiTM: lo que viaja en claro, se lee. Con HTTPS/TLS ese mismo login sería un bloque cifrado inútil. Ya tenés las dos piezas: ponerte en el medio y leer. Hora de usarlas sobre la red real.",
+      diagram: "sniffer",
+    },
+    {
+      kind: "concept",
+      title: "Fase 3 — La LAN real: empleados que mandan login en claro",
+      body:
+        "En la red corporativa del mundo ÑANDE hay workstations de empleados que usan servicios internos por HTTP, sin cifrar — como pasa en tantas redes reales con apps legadas. La PC de Contaduría (pc-conta.nande) manda cada mañana su login al banco interno (banco.nande) en texto plano. Esa credencial es REAL y vive en la única fuente de verdad del mundo: si te ponés en el medio cuando la víctima se loguea, la cosechás, y como es la MISMA credencial que la víctima usa de verdad, DESPUÉS te sirve para entrar vos. Nada scripteado: sin víctima que mande algo en claro, no hay botín; con ella, el botín es una credencial que funciona.",
+      diagram: "mitm",
+      bullets: [
+        "Workstations reales que loguean por HTTP sin cifrar (apps legadas).",
+        "pc-conta.nande manda su login a banco.nande en claro.",
+        "La credencial cosechada es la REAL: después te sirve para entrar.",
+      ],
+    },
+    {
+      kind: "lab",
+      title: "Fase 3 — Interceptá a la PC de Contaduría",
+      body: "Poné a pc-conta.nande en el medio. Si en ese momento manda su login en claro, lo vas a interceptar.",
+      command: "arpspoof pc-conta.nande",
+      explain:
+        "ARP spoofing activo contra la PC de Contaduría: su tráfico pasa por vos. Interceptaste su login EN CLARO a banco.nande — el sistema te avisa que hay botín para cosechar. Ojo al cartel: esto es RUIDOSO y detectable (respuestas ARP anómalas, MAC duplicada). Lo vas a confirmar más adelante cuando mires el lado del defensor. Primero, cosechá la credencial.",
+      diagram: "mitm",
+    },
+    {
+      kind: "lab",
+      title: "Fase 4 — Cosechá la credencial interceptada",
+      body: "Pedile al sniffer (NandeShark) las credenciales que viajaron en claro y pasaron por vos. Ahí está el botín del MITM.",
+      command: "sniff creds",
+      explain:
+        "NandeShark te muestra la credencial interceptada: la contraseña de la contadora (Contadora#2024), capturada en claro del login a banco.nande. No la adivinaste ni la rompiste: la LEÍSTE del cable porque viajaba sin cifrar. Esto es exactamente lo que hace que el tráfico en claro sea inaceptable en una red moderna. Y lo mejor para vos: es la credencial REAL — en el próximo paso la usás para entrar.",
+      diagram: "sniffer",
+    },
+    {
+      kind: "concept",
+      title: "Fase 5 — DNS spoofing: el AiTM que no necesita tu segmento",
+      body:
+        "El ARP spoofing tiene un límite: sólo alcanza tu /24. El DNS spoofing (cache poisoning) rompe ese límite. El DNS traduce nombres (banco.nande) a IPs; si envenenás esa resolución, TODO lo que resuelva ese nombre —nslookup, dig, curl, el navegador de una víctima— cae en la IP que vos elijas (tu equipo). Es GLOBAL: no depende del segmento. Si una víctima usa ese nombre para loguearse, su sesión entera aterriza en vos. Es el mismo AiTM, por otra capa: en vez de mentir '¿quién es el gateway?' (ARP), mentís '¿a qué IP corresponde este nombre?' (DNS). MITRE: T1557 (AiTM) / T1584 e infra de redirección.",
+      diagram: "dns",
+      bullets: [
+        "ARP sólo alcanza tu /24; el DNS spoofing es GLOBAL.",
+        "Envenenás nombre→IP: todo lo que resuelve ese nombre cae en vos.",
+        "Mismo AiTM, otra capa: mentir en la resolución de nombres.",
+      ],
+    },
+    {
+      kind: "lab",
+      title: "Fase 5 — Envenená la resolución de banco.nande",
+      body: "Hacé que banco.nande resuelva a tu equipo (10.10.0.10). A partir de ahí, cualquiera que use ese nombre cae en vos.",
+      command: "dnsspoof banco.nande",
+      explain:
+        "Envenenaste el DNS: banco.nande ahora resuelve a tu IP en lugar de a la real. Comprobalo con `nslookup banco.nande`. Como es global, las víctimas que se logueen a ese nombre caen directo en vos y su login se intercepta. Fijate la diferencia con ARP: esto no depende de estar en el mismo segmento que la víctima. Dos capas, el mismo objetivo: ponerte en el medio.",
+      diagram: "dns",
+    },
+    {
+      kind: "build",
+      goal: "Usar la credencial que robaste en claro (mvera / Contadora#2024) para iniciar sesión en banco.nande — la prueba de que el botín del MITM es real",
+      pieces: ["connect", "banco.nande", "mvera", "Contadora#2024", "sniff", "&&", "sudo"],
+      answer: ["connect", "banco.nande", "mvera", "Contadora#2024"],
+      hint: "connect <host> <usuario> <clave>, con el usuario (mvera) y la contraseña (Contadora#2024) que leíste del tráfico en claro.",
+      explain:
+        "`connect banco.nande mvera Contadora#2024` usa la credencial interceptada. Funciona porque es la MISMA que la víctima usa de verdad (fuente única de verdad): un MITM no 'simula' acceso, te da la llave auténtica. Así se encadena el AiTM: interceptás → cosechás → ENTRÁS.",
+    },
+    {
+      kind: "lab",
+      title: "Fase 6 — Usá la credencial robada para entrar",
+      body: "Iniciá sesión en banco.nande con la credencial que cosechaste del tráfico en claro. Es la prueba de que el botín del MITM es real y usable.",
+      command: "connect banco.nande mvera Contadora#2024",
+      explain:
+        "¡Adentro! Entraste a banco.nande con la credencial que interceptaste en claro — ni fuerza bruta ni exploit: pura escucha. Este es el impacto real del tráfico sin cifrar: un AiTM pasivo de unos minutos te entregó un acceso legítimo. Imaginá esto contra un panel de administración, un webmail o una VPN. La credencial era auténtica porque el mundo tiene una sola fuente de verdad: lo que la víctima usa es lo que vos capturaste.",
+      diagram: "terminal",
+    },
+    {
+      kind: "quiz",
+      prompt: "Interceptaste el login de la contadora y lo leíste en texto plano. ¿Qué habría cambiado si banco.nande usara HTTPS (TLS) en vez de HTTP?",
+      options: [
+        "El login viajaría cifrado de punta a punta: aunque estuvieras en el medio, verías un bloque ilegible, no la contraseña.",
+        "Nada: HTTPS sólo cambia el candado del navegador, el tráfico viaja igual.",
+        "El ARP spoofing dejaría de funcionar y no podrías ponerte en el medio.",
+        "Verías la contraseña igual, pero tardarías más en leerla.",
+      ],
+      correct: 0,
+      explain:
+        "TLS cifra el contenido extremo a extremo: podés seguir estando en el medio (el AiTM a nivel ARP/DNS no se rompe), pero lo que pasa por vos es ilegible sin la clave. Por eso 'cifrá todo' es la defensa central contra el sniffing: no evita que te metas en el medio, evita que el estar en el medio sirva de algo. (Ojo: un atacante puede intentar sslstrip o un certificado falso — por eso también existen HSTS y la validación estricta de certificados.)",
+      diagram: "handshake",
+    },
+    {
+      kind: "concept",
+      title: "Fase 7 — La otra cara: el AiTM es RUIDOSO",
+      body:
+        "Acá entra el OPSEC. El AiTM es potente pero DELATOR: envenenar ARP deja una MAC duplicada (tu MAC responde por el gateway Y la víctima lo nota); envenenar DNS deja respuestas que no coinciden con lo esperado. Un defensor con las herramientas básicas (arpwatch para MAC duplicadas, monitoreo de respuestas DNS, un IDS que mira el cable) te caza AUNQUE el ataque no rompa nada — porque la anomalía está en el estado de la red, no en un archivo. Esta es una lección central de OPSEC ofensivo: 'funcionó' no es lo mismo que 'no me vieron'. Un operador real mide su ruido antes y después, y entiende que cada técnica tiene un costo de detección.",
+      diagram: "radar",
+      bullets: [
+        "ARP spoofing → MAC duplicada (arpwatch la ve). DNS spoofing → respuestas incoherentes.",
+        "El defensor te caza por la ANOMALÍA de red, aunque no rompas nada.",
+        "OPSEC: 'funcionó' ≠ 'no me vieron'. Medí tu ruido.",
+      ],
+    },
+    {
+      kind: "lab",
+      title: "Fase 7 — Mirá cómo te caza el Blue Team",
+      body: "Ponete en los zapatos del defensor: corré el IDS, que analiza el estado real de la red. Vas a ver tu propio ataque reflejado.",
+      command: "ids",
+      explain:
+        "El IDS detecta DOS anomalías rojas derivadas de tu actividad real: ARP SPOOFING (tu MAC responde por el gateway y por otro host — MAC duplicada, típico de arpwatch) y DNS SPOOFING (banco.nande resuelve a una IP que no es la esperada — cache poisoning). No hizo falta que rompieras nada: la sola presencia del envenenamiento es la evidencia. Por eso el AiTM es un arma de ventana corta: entrás, cosechás y te vas antes de que el SOC actúe. Dejar el MITM puesto es dejar la alarma sonando.",
+      diagram: "radar",
+    },
+    {
+      kind: "lab",
+      title: "Fase 8 — Limpieza: cortá el MITM y restaurá la red",
+      body: "Un operador prolijo no deja rastros encendidos. Cortá el ARP spoofing y limpiá el DNS envenenado: la caché ARP y la resolución vuelven a lo normal.",
+      command: "arpspoof stop && dnsspoof stop banco.nande",
+      explain:
+        "Detuviste el MITM: la caché ARP se restaura y el tráfico vuelve a su ruta normal; el nombre envenenado vuelve a resolver lo real. Bajás tu ruido y reducís la ventana en que el defensor te ve. En una operación real esto importa tanto como el ataque: la persistencia de la anomalía es la persistencia de la alarma. Limpiar es parte de la técnica, no un extra.",
+      diagram: "radar",
+    },
+    {
+      kind: "concept",
+      title: "Casos reales: Firesheep, sslstrip, Responder y el hijack de MyEtherWallet",
+      body:
+        "El AiTM no es un ejercicio de museo. FIRESHEEP (2010) fue una extensión de Firefox que, en un WiFi abierto, secuestraba las sesiones (cookies) de Facebook/Twitter de cualquiera alrededor con dos clicks — empujó a media web a HTTPS. SSLSTRIP (Moxie Marlinspike, 2009) degradaba HTTPS a HTTP en el medio para seguir leyendo en claro (lo que motivó HSTS). En pentests internos, RESPONDER + LLMNR/NBT-NS poisoning es el pan de cada día: Windows pregunta por nombres mal escritos con protocolos broadcast sin autenticar, el atacante responde, captura hashes NetNTLM y los relaya (NTLM relay) para moverse — un AiTM de capa de nombres idéntico en espíritu al que hiciste. Y en 2018, un ataque de BGP/DNS redirigió a usuarios de MYETHERWALLET a un clon y les vació wallets: AiTM a escala de Internet. Mismo principio, distintas capas: la confianza sin verificación se explota.",
+      diagram: "mitm",
+      bullets: [
+        "Firesheep (2010): robo de sesiones en WiFi abierto → empujó HTTPS masivo.",
+        "sslstrip (2009): degradar HTTPS a HTTP → motivó HSTS.",
+        "Responder/LLMNR + NTLM relay: el AiTM diario del pentest interno.",
+      ],
+    },
+    {
+      kind: "concept",
+      title: "Defensa: cómo se blinda una red contra el AiTM",
+      body:
+        "La defensa es por capas, atacando cada confianza que explotaste. CAPA 2 (ARP): Dynamic ARP Inspection (DAI) + DHCP Snooping en los switches validan que una MAC diga ser quien es; Port Security limita MACs por puerto; 802.1X/NAC exige autenticar antes de entrar a la red. CAPA DNS: DNSSEC firma las respuestas (no se pueden falsear sin la clave); resolvers internos confiables y monitoreo de respuestas incoherentes. CAPA APLICACIÓN: HTTPS/TLS EN TODO (nada de HTTP para logins), HSTS para que el navegador NUNCA acepte el downgrade, y validación estricta de certificados. CAPA WiFi: PMF (802.11w, Protected Management Frames) corta el deauth y los AiTM de gestión. DETECCIÓN: arpwatch y un IDS que mire ARP/DNS cazan la anomalía aunque el ataque sea sigiloso. La idea de fondo: el AiTM explota protocolos que confían sin verificar; la defensa es, en cada capa, VERIFICAR.",
+      diagram: "escudo",
+      bullets: [
+        "Capa 2: Dynamic ARP Inspection + DHCP Snooping + 802.1X/NAC.",
+        "DNS: DNSSEC + resolvers confiables. App: HTTPS en todo + HSTS.",
+        "Detección: arpwatch + IDS que mira ARP/DNS. En cada capa: verificar.",
+      ],
+    },
+    {
+      kind: "quiz",
+      prompt: "De todas las defensas, ¿cuál corta de raíz el impacto del sniffing que hiciste (leer la credencial en claro), aunque el atacante igual logre ponerse en el medio?",
+      options: [
+        "HTTPS/TLS en todo el tráfico (con HSTS): aunque el atacante esté en el medio, lo que pasa por él va cifrado e ilegible.",
+        "Cambiar las contraseñas de los empleados cada 30 días.",
+        "Apagar el DNS interno para que nadie resuelva nombres.",
+        "Poner un antivirus en cada workstation.",
+        ],
+      correct: 0,
+      explain:
+        "El sniffing vive de que el contenido viaje en claro. Cifrar todo con TLS (y forzarlo con HSTS para que no haya downgrade) hace que estar en el medio no sirva para leer: ves bloques cifrados, no contraseñas. El atacante puede seguir envenenando ARP/DNS, pero se queda sin botín. Rotar contraseñas no ayuda si se capturan en claro; apagar el DNS rompe la red; el antivirus no mira el cable. La defensa que ataca la causa del sniffing es el cifrado de extremo a extremo.",
+      diagram: "handshake",
+    },
+    {
+      kind: "concept",
+      title: "Cierre: el método AiTM, y cuándo se usa",
+      body:
+        "Recorriste un AiTM completo y real: recon de vecinos → ARP spoofing → sniffing de credenciales en claro → cosecha → uso de la credencial para entrar → DNS spoofing → y la otra cara, la detección y la defensa. El patrón se repite en cada capa: ARP, DNS, HTTP y hasta LLMNR en Windows confían sin verificar, y esa confianza es el vector. Como profesional, el AiTM es tu herramienta en un pentest interno autorizado (y la pesadilla que diseñás para evitar como defensor). Las reglas: SIEMPRE con permiso y alcance escrito; preferí el rango de práctica para ensayar; medí tu ruido (es ruidoso) y limpiá lo que encendiste; y reportá la causa, no sólo el truco: 'esta app loguea por HTTP y la LAN no tiene DAI' vale más que 'robé una clave'. La técnica es poderosa; la responsabilidad, también.",
+      diagram: "matrix",
+      bullets: [
+        "El patrón: protocolos que confían sin verificar (ARP/DNS/HTTP/LLMNR).",
+        "Ético: permiso + alcance, ensayo en rango, medí el ruido, limpiá, reportá la causa.",
+        "Arma de pentest interno; pesadilla a prevenir como defensor.",
+      ],
+    },
+  ],
+};
+
 export const HACKING_REAL_COURSES: Curso[] = [
   HACK_MAQUINA,
   HACK_AD,
   HACK_WEB,
   HACK_CLOUD,
   HACK_OT,
+  HACK_MITM,
 ];
