@@ -365,7 +365,7 @@ const ANON_OPSEC_PRO: Curso = {
   skill: "osint",
   hue: 230,
   glyph: "person",
-  reward: { xp: 310, coins: 250 },
+  reward: { xp: 440, coins: 350 },
   slides: [
     {
       kind: "concept",
@@ -393,6 +393,18 @@ const ANON_OPSEC_PRO: Curso = {
     },
     {
       kind: "concept",
+      title: "Niveles de persona: desechable, seudónima, real",
+      body:
+        "No todas las identidades necesitan el mismo blindaje. Una persona DESECHABLE (burner) se usa una vez y se quema: alias nuevo, sistema amnésico, cero reutilización — ideal para un acto puntual. Una persona SEUDÓNIMA sostenida (un alias que mantenés meses) necesita más disciplina: su propio 'personaje', horarios, estilo y una historia coherente, porque cuanto más vive, más rastro deja. Y está tu identidad REAL, que jamás toca las otras. Elegí el nivel según el riesgo: sobre-blindar una cuenta trivial es desgaste; sub-blindar una sensible es una filtración esperando pasar.",
+      diagram: "persona",
+      bullets: [
+        "Desechable (burner): un uso, se quema, cero reutilización.",
+        "Seudónima sostenida: más disciplina cuanto más vive.",
+        "Real: nunca toca las otras. El nivel se elige por riesgo.",
+      ],
+    },
+    {
+      kind: "concept",
       title: "Lo que cruza los muros sin que lo notes",
       body:
         "Los puentes no siempre son obvios. El email o alias reutilizado es el clásico. Pero también te unen: el HORARIO (siempre activo a la misma hora delata tu zona y rutina), el ESTILO DE ESCRITURA (la 'stylometry' puede atribuir textos por vocabulario y puntuación), los METADATOS de un archivo que subís (GPS, autor), una foto con un reflejo o un paisaje reconocible, y hasta pagar dos cosas con la misma billetera. La compartimentación falla por el detalle más humano, no por la criptografía.",
@@ -401,6 +413,18 @@ const ANON_OPSEC_PRO: Curso = {
         "Horario y rutina: tu zona y tus hábitos son una huella.",
         "Stylometry: cómo escribís puede atribuir tus textos.",
         "Metadatos, reflejos en fotos y pagos cruzados también unen.",
+      ],
+    },
+    {
+      kind: "concept",
+      title: "Stylometry: tu forma de escribir te delata",
+      body:
+        "Vale detenerse acá porque casi nadie lo considera. La STYLOMETRY mide CÓMO escribís —largo de frases, vocabulario, puntuación, muletillas, errores típicos— y puede atribuir un texto anónimo a su autor con sorprendente precisión. Casos reales: a la autora J.K. Rowling la 'desenmascararon' como el seudónimo Robert Galbraith en parte por análisis estilístico; y hay herramientas abiertas (como las del Drexel 'Anonymouth') que atacan y defienden la autoría. Mitigarla cuesta: escribir deliberadamente distinto, frases cortas y neutras, o pasar el texto por traducción ida y vuelta para 'lavar' el estilo. Para OPSEC es una amenaza seria en identidades que escriben mucho.",
+      diagram: "osint",
+      bullets: [
+        "Atribuye textos por estilo (frases, vocabulario, puntuación).",
+        "Caso real: Rowling/Galbraith desenmascarada en parte así.",
+        "Mitigar cuesta: estilo neutro, frases cortas, traducción ida/vuelta.",
       ],
     },
     {
@@ -419,6 +443,18 @@ const ANON_OPSEC_PRO: Curso = {
     },
     {
       kind: "concept",
+      title: "El endpoint: tu equipo es el eslabón",
+      body:
+        "Podés tener Tor impecable y caer igual si TU EQUIPO está comprometido: un malware ve todo DESDE ADENTRO, con el anonimato de red andando perfecto. Por eso el OPSEC serio cuida el endpoint: sistemas amnésicos que no persisten infecciones (Tails), aislamiento por VM (Qubes/Whonix) para que una app comprometida no alcance tu IP real, no abrir archivos de origen dudoso, deshabilitar macros/scripts, y en casos extremos un equipo DEDICADO y hasta air-gapped para la actividad más sensible. La cadena de anonimato es tan fuerte como el dispositivo donde empieza.",
+      diagram: "escudo",
+      bullets: [
+        "Un malware te delata desde adentro, con Tor andando.",
+        "Amnesia (Tails) + aislamiento por VM (Qubes/Whonix).",
+        "Casos extremos: equipo dedicado, incluso air-gapped.",
+      ],
+    },
+    {
+      kind: "concept",
       title: "Sistemas para compartimentar: Tails, Whonix, Qubes",
       body:
         "La compartimentación se apoya en sistemas pensados para eso. TAILS: un sistema 'amnésico' que arranca desde un USB, enruta TODO por Tor y no deja rastro al apagarse (ideal para una persona desechable). WHONIX: separa en dos máquinas — un 'gateway' que fuerza todo por Tor y una 'workstation' aislada que NUNCA conoce tu IP real, así una app comprometida no puede filtrarla. QUBES OS: lleva la compartimentación al extremo, cada actividad en su propia VM desechable ('seguridad por aislamiento'), y se integra con Whonix. La elección depende de tu modelo de amenaza.",
@@ -427,6 +463,18 @@ const ANON_OPSEC_PRO: Curso = {
         "Tails: amnésico, todo por Tor, cero rastro (persona desechable).",
         "Whonix: gateway + workstation; la app nunca ve tu IP real.",
         "Qubes: cada actividad en su VM; seguridad por aislamiento.",
+      ],
+    },
+    {
+      kind: "concept",
+      title: "Whonix por dentro: por qué 'falla cerrado'",
+      body:
+        "Vale entender la joya de Whonix. Son DOS máquinas virtuales: el GATEWAY, cuya única salida a internet es por Tor, y la WORKSTATION, que SOLO puede hablar con el gateway (no tiene otra ruta de red). ¿La consecuencia hermosa? Si una app de la workstation se compromete o intenta 'llamar a casa', no tiene forma de alcanzar internet salvo por Tor, y NUNCA ve tu IP real porque ni siquiera la conoce. Se dice que 'falla cerrado' (fail-closed): ante un error o un exploit, por defecto NO se filtra la identidad. Ese diseño vence a un montón de fugas (DNS, WebRTC, exploits) sin que vos tengas que acordarte de nada.",
+      diagram: "persona",
+      bullets: [
+        "Gateway (solo-Tor) + Workstation (solo-gateway).",
+        "La workstation no conoce tu IP real: no puede filtrarla.",
+        "Fail-closed: ante un error, por defecto NO se expone.",
       ],
     },
     {
@@ -468,6 +516,65 @@ const ANON_OPSEC_PRO: Curso = {
         "Tor Browser uniforma a todos y tapa esas fugas: usalo, no improvises.",
       ],
     },
+    {
+      kind: "concept",
+      title: "Rutina y horarios: la huella que nadie cuida",
+      body:
+        "Un patrón sutil y potente: CUÁNDO actuás. Si tu persona anónima publica siempre entre las 20 y las 23, y descansa fines de semana, estás revelando tu zona horaria y tu rutina — a veces hasta tu profesión. Correlacionar 'cuándo está activo' con husos horarios achica el mapa enormemente. Operadores serios rompen el patrón a propósito: publican en horarios variados, a veces simulando otra zona horaria, y evitan la regularidad que delata. El tiempo es un metadato más, y de los más difíciles de 'apagar' porque es tu propia vida.",
+      diagram: "radar",
+      bullets: [
+        "Tus horarios revelan zona horaria, rutina y a veces profesión.",
+        "Correlacionar 'cuándo está activo' achica el mapa muchísimo.",
+        "Rompé el patrón: horarios variados, evitá la regularidad.",
+      ],
+    },
+    {
+      kind: "concept",
+      title: "OPSEC sostenible: la disciplina que podés mantener",
+      body:
+        "El peor enemigo del OPSEC no es la falta de herramientas: es la INSOSTENIBILIDAD. Si tu plan es tan estricto que no lo podés mantener un día cansado, vas a hacer un atajo — y el atajo es justo por donde se filtra todo. Más capas no siempre es más seguro: suman complejidad, errores y falsa sensación de invulnerabilidad. El mejor plan es el MÍNIMO que cubre tu modelo de amenaza y que sostenés SIEMPRE, sin excepción. Consistencia > intensidad: una regla simple cumplida el 100% de las veces le gana a una compleja cumplida el 90%. Diseñá un OPSEC que quepa en tu vida real.",
+      diagram: "escudo",
+      bullets: [
+        "El atajo (por cansancio) es por donde se filtra todo.",
+        "Más capas pueden sumar errores y falsa seguridad.",
+        "Consistencia > intensidad: el mínimo que sostenés al 100%.",
+      ],
+    },
+    {
+      kind: "quiz",
+      prompt: "¿Cuál es el mejor plan de OPSEC para una identidad que vas a mantener meses?",
+      options: [
+        "El mínimo que cubre tu modelo de amenaza y que podés sostener SIEMPRE, sin excepción",
+        "El más complejo posible, con todas las herramientas que existan",
+        "Uno distinto cada día para confundir al adversario",
+        "Ninguno: con Tor alcanza",
+      ],
+      correct: 0,
+      explain:
+        "La seguridad real sale de la CONSISTENCIA. Un plan insostenible genera atajos, y el atajo es la fuga. El mínimo que cubre tu amenaza y cumplís el 100% de las veces vence a uno elaborado que abandonás a la semana. Tor solo no alcanza: es una pieza del proceso.",
+      diagram: "escudo",
+    },
+    {
+      kind: "concept",
+      title: "Tu matriz: activo → amenaza → fuga → contramedida",
+      body:
+        "Cerremos con el entregable concreto del OPSEC. Armá una matriz simple: por cada ACTIVO que protegés (tu ubicación, tu identidad, tus fuentes), listá la AMENAZA (quién y con qué capacidad), la FUGA posible (por dónde se filtra: red, metadatos, estilo, horario, endpoint, dinero) y la CONTRAMEDIDA concreta y SOSTENIBLE. Revisá la matriz cuando cambie el contexto (nuevo adversario, herramienta comprometida, cambio en lo que hacés). El anonimato no es un estado que alcanzás una vez: es un proceso que mantenés, y la matriz es cómo lo hacés auditable para vos mismo.",
+      diagram: "radar",
+      bullets: [
+        "Matriz: activo → amenaza → fuga → contramedida sostenible.",
+        "Cubrí todas las vías: red, metadatos, estilo, horario, endpoint, dinero.",
+        "Revisala cuando cambie el contexto: es un proceso, no un estado.",
+      ],
+    },
+    {
+      kind: "lab",
+      title: "Cerrá midiendo tu rastro operacional",
+      body: "Juntá todo lo medible: abrí el panel de OPSEC y leé tu exposición real — enmascarado vs. expuesto, tu 'calor' y la regla de atribución.",
+      command: "opsec",
+      explain:
+        "El tracer te muestra si operás enmascarado (por el circuito) o exponés tu origen, y tu 'calor'. Leelo a la luz de tu matriz: lo técnico (red) es solo una fila. Las otras —identidades, metadatos, estilo, horarios, endpoint, dinero— no las mide un panel: las sostenés vos. Esa es la diferencia entre encender Tor y hacer OPSEC.",
+      diagram: "radar",
+    },
   ],
 };
 
@@ -503,6 +610,30 @@ const ANON_DEANON: Curso = {
         "No rompieron Tor: reutilizó alias e identidad.",
         "'altoid' promocionó Silk Road y luego filtró su gmail real.",
         "Una pregunta en StackOverflow con su nombre selló el caso.",
+      ],
+    },
+    {
+      kind: "concept",
+      title: "Caso AlphaBay (2017): el email de bienvenida",
+      body:
+        "AlphaBay fue el sucesor gigante de Silk Road. Su administrador, Alexandre Cazes, cayó por un detalle de OPSEC tan chico como mortal: los correos de BIENVENIDA y de recuperación de contraseña del mercado salían con su email PERSONAL en los encabezados ('pimp_alex_91@hotmail.com'), un alias que ya estaba ligado a su identidad real en otros lados. Sumado a reutilización de infraestructura, eso bastó para atribuirle el mercado. Fue arrestado en Tailandia en 2017. Moraleja: una fuga en un rincón que 'nadie mira' (una cabecera de email automática) puede deshacer años de anonimato. Revisá TODO lo que tu sistema emite, no solo lo que vos escribís.",
+      diagram: "osint",
+      bullets: [
+        "El email automático del mercado llevaba su correo personal real.",
+        "Un alias reutilizado lo ligó a su identidad; + reúso de infra.",
+        "Revisá lo que tu sistema EMITE, no solo lo que escribís.",
+      ],
+    },
+    {
+      kind: "concept",
+      title: "Caso Freedom Hosting (2013): el exploit del navegador",
+      body:
+        "Acá sí hubo ataque técnico, pero NO a Tor: al NAVEGADOR. El FBI usó una 'NIT' (Network Investigative Technique): un exploit de la versión de Firefox que venía en el Tor Browser, que ejecutaba JavaScript para hacer que la máquina de la víctima 'llamara a casa' REVELANDO su IP real por fuera de Tor. Afectó a usuarios de servicios alojados en Freedom Hosting. Lecciones durísimas: mantené el Tor Browser SIEMPRE actualizado, usá el nivel de seguridad 'Safest' (JavaScript desactivado) para lo sensible, y recordá que el eslabón atacado fue el endpoint/navegador, no la red. Tor te anonimiza; un navegador vulnerable te desanonimiza.",
+      diagram: "escudo",
+      bullets: [
+        "NIT = exploit del Firefox del Tor Browser, no de Tor.",
+        "JavaScript hizo 'llamar a casa' revelando la IP real.",
+        "Defensa: Tor Browser al día + modo 'Safest' (JS off).",
       ],
     },
     {
@@ -545,6 +676,18 @@ const ANON_DEANON: Curso = {
     },
     {
       kind: "concept",
+      title: "Honeypots: cuando la ley opera el servicio",
+      body:
+        "Un frente que no es técnico ni de OPSEC personal: a veces el servicio oculto al que te conectás ESTÁ controlado por la policía. Hubo operaciones donde las fuerzas de seguridad incautaron un servicio oculto y lo SIGUIERON OPERANDO un tiempo para observar y desplegar NITs contra sus usuarios. Contra esto no hay 'truco Tor' que valga: si el servidor del otro lado te quiere identificar y vos le das una superficie (JavaScript activo, un navegador viejo, datos personales), te agarra. La defensa es la misma disciplina de siempre: minimizar la superficie del endpoint, no entregar datos, y asumir que el otro lado puede ser hostil.",
+      diagram: "radar",
+      bullets: [
+        "A veces el servicio oculto lo opera la propia policía.",
+        "Lo mantienen vivo para observar y desplegar NITs.",
+        "Defensa: minimizar superficie del endpoint; el otro lado puede ser hostil.",
+      ],
+    },
+    {
+      kind: "concept",
       title: "El endpoint y el dinero: los otros dos frentes",
       body:
         "Dos vías más que no tocan Tor. EL ENDPOINT: si tu equipo se infecta (un PDF o un exploit del navegador), el malware te delata desde adentro, con Tor andando perfecto; por eso importan los sistemas amnésicos/aislados (Tails/Whonix/Qubes) y no abrir cualquier cosa. EL DINERO: la cadena de Bitcoin es pública y permanente; si en algún punto convertiste a dinero real por un exchange con KYC, ese rastro financiero une tu actividad 'anónima' con tu identidad legal. Muchos casos se resolvieron siguiendo la plata, no la red.",
@@ -556,12 +699,38 @@ const ANON_DEANON: Curso = {
       ],
     },
     {
+      kind: "concept",
+      title: "Chain analysis: cómo se sigue la plata",
+      body:
+        "Vale profundizar en el frente financiero porque resolvió casos enormes. Como el libro mayor de Bitcoin es PÚBLICO y PERMANENTE, empresas de 'chain analysis' (Chainalysis, Elliptic) arman el grafo de quién pagó a quién y agrupan direcciones que probablemente son del mismo dueño (heurística: las que se usan juntas como entradas de una transacción). Etiquetan direcciones de exchanges, mercados y servicios conocidos. Cuando una cadena de pagos toca un exchange con KYC, se une a una identidad legal — y como la blockchain NO OLVIDA, ese análisis se puede hacer AÑOS después. Por eso 'me pagaron en cripto' no es anonimato: es un rastro permanente esperando ser etiquetado.",
+      diagram: "radar",
+      bullets: [
+        "Grafo público de pagos + clustering de direcciones del mismo dueño.",
+        "El KYC de un exchange ata la cadena a una identidad legal.",
+        "La blockchain no olvida: el análisis se hace años después.",
+      ],
+    },
+    {
       kind: "lab",
       title: "Mirá tu propio rastro",
       body: "Llevá la lección a vos: abrí el panel de OPSEC y mirá qué estás dejando. ¿Tus acciones quedan enmascaradas o expuestas? ¿Cuál es tu 'calor'?",
       command: "opsec",
       explain:
         "El tracer te muestra, sobre el estado real, si operás enmascarado o exponés tu origen, y tu 'calor' acumulado. Los casos de arriba cayeron por detalles así: una red que identifica, una identidad reutilizada, un rastro que nadie midió. El espejo es incómodo a propósito.",
+      diagram: "radar",
+    },
+    {
+      kind: "quiz",
+      prompt: "Mirando todos los casos, ¿cuál es el patrón de POR QUÉ cae la gente 'anónima'?",
+      options: [
+        "Errores humanos y de endpoint/dinero (identidad reutilizada, navegador vulnerable, rastro financiero), casi nunca romper Tor",
+        "Porque Tor tiene una puerta trasera conocida",
+        "Porque el cifrado de Tor es débil",
+        "Por mala suerte, sin un patrón",
+      ],
+      correct: 0,
+      explain:
+        "Silk Road (alias reutilizado), AlphaBay (email automático), Harvard (red que identifica), Freedom Hosting (exploit del navegador), el dinero (chain analysis): NINGUNO fue romper el cifrado de Tor. El patrón es siempre el mismo: el eslabón humano, el endpoint y el dinero. Por eso la disciplina —no la herramienta— es lo que no falla.",
       diagram: "radar",
     },
     {
