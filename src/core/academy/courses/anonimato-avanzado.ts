@@ -13,18 +13,18 @@ import type { Curso } from "../courseTypes";
 const ANON_TOR: Curso = {
   id: "c-anon-tor",
   title: "Tor en profundidad",
-  subtitle: "Cómo funciona de verdad el enrutamiento cebolla: guard, relay medio, salida, el consenso y los servicios .onion v3.",
+  subtitle: "Curso completo: el modelo de confianza, el circuito de 3 saltos, celdas y streams, el consenso, los guards, el exit, los servicios .onion v3, rendimiento, mitos y ética.",
   level: "avanzado",
   skill: "osint",
   hue: 265,
   glyph: "mask",
-  reward: { xp: 300, coins: 240 },
+  reward: { xp: 460, coins: 360 },
   slides: [
     {
       kind: "concept",
       title: "El problema que Tor resuelve",
       body:
-        "Una VPN te obliga a confiar en UN servidor que ve las dos puntas (quién sos y a dónde vas). Tor (The Onion Router) elimina ese punto único de confianza distribuyéndolo: tu tráfico pasa por TRES relays operados por gente distinta, elegidos de una red de miles de voluntarios, y ninguno conoce la historia completa. No es 'una VPN mejor': es un modelo de confianza diferente. La red la mantienen voluntarios y el proyecto Tor; vos no confiás en una empresa, confiás en que los tres relays no estén coludidos.",
+        "Una VPN te obliga a confiar en UN servidor que ve las dos puntas (quién sos y a dónde vas). Tor (The Onion Router) elimina ese punto único de confianza distribuyéndolo: tu tráfico pasa por TRES relays operados por gente distinta, elegidos de una red de miles de voluntarios, y ninguno conoce la historia completa. No es 'una VPN mejor': es un modelo de confianza diferente. Con la VPN confiás en una empresa; con Tor confiás en que los tres relays de tu circuito no estén coludidos — y como los elegís de miles al azar, esa colusión es estadísticamente difícil.",
       diagram: "tor",
       bullets: [
         "VPN = un solo punto que ve las dos puntas (confianza única).",
@@ -34,12 +34,24 @@ const ANON_TOR: Curso = {
     },
     {
       kind: "concept",
-      title: "Los tres saltos: guard, medio y salida",
+      title: "De dónde viene Tor, y qué protege (y qué no)",
       body:
-        "El circuito tiene tres relays con roles claros. El GUARD (entrada) sabe tu IP real, pero no a dónde vas (solo ve tráfico cifrado hacia el siguiente). El RELAY DEL MEDIO solo conecta entrada con salida: no sabe ni quién sos ni a dónde vas. El de SALIDA (exit) sabe a dónde va el tráfico, pero no quién lo originó. La propiedad clave: NINGÚN nodo tiene las dos puntas a la vez. El guard se mantiene estable un tiempo (meses) a propósito, para reducir la chance de toparte con uno malicioso.",
+        "Tor nació a principios de los 2000 en un laboratorio de investigación naval de EE.UU. (The Onion Routing) y hoy lo mantiene una ONG sin fines de lucro con financiamiento diverso. Paradoja clave de su diseño: para que TE proteja a VOS, tiene que proteger a MUCHA gente distinta — anonimato ama la compañía. Qué protege: tu UBICACIÓN/identidad de red frente al destino, tu ISP y observadores locales. Qué NO protege: lo que vos mismo revelás (logins, nombres, metadatos), el contenido si la app no cifra (el exit lo ve), ni te salva de malware en tu equipo. Entender ese límite es la mitad del uso correcto.",
       diagram: "tor",
       bullets: [
-        "Guard: sabe tu IP, no el destino (es estable por meses).",
+        "Origen: 'onion routing' en investigación naval (EE.UU.), años 2000.",
+        "Protege: ubicación/identidad de red frente a destino, ISP y locales.",
+        "NO protege: lo que vos revelás, el contenido en claro, ni tu endpoint.",
+      ],
+    },
+    {
+      kind: "concept",
+      title: "Los tres saltos: guard, medio y salida",
+      body:
+        "El circuito tiene tres relays con roles claros. El GUARD (entrada) sabe tu IP real, pero no a dónde vas (solo ve tráfico cifrado hacia el siguiente). El RELAY DEL MEDIO solo conecta entrada con salida: no sabe ni quién sos ni a dónde vas (es un 'puente ciego'). El de SALIDA (exit) sabe a dónde va el tráfico, pero no quién lo originó. La propiedad que lo hace funcionar: NINGÚN nodo tiene las dos puntas a la vez. Para deanonimizarte por la red haría falta que el MISMO adversario controle o vea tu guard Y tu exit al mismo tiempo.",
+      diagram: "tor",
+      bullets: [
+        "Guard: sabe tu IP, no el destino.",
         "Medio: solo une entrada y salida; no sabe nada útil.",
         "Salida: sabe el destino, no tu identidad.",
       ],
@@ -48,24 +60,24 @@ const ANON_TOR: Curso = {
       kind: "concept",
       title: "El cifrado en capas (la cebolla)",
       body:
-        "Antes de enviar, tu cliente envuelve el paquete en TRES capas de cifrado, una por relay, en orden inverso. El guard pela la primera capa y ve 'mandáselo al relay medio'; el medio pela la segunda y ve 'mandáselo a la salida'; la salida pela la última y recién ahí aparece el pedido real. Por eso se llama 'cebolla': cada salto quita una capa. Cada relay solo puede descifrar SU capa, así que solo conoce al anterior y al siguiente, nunca la ruta entera.",
+        "Antes de enviar, tu cliente negocia una clave con CADA relay y envuelve el paquete en TRES capas de cifrado, una por relay, en orden inverso. El guard pela la primera capa y ve 'mandáselo al relay medio'; el medio pela la segunda y ve 'mandáselo a la salida'; la salida pela la última y recién ahí aparece el pedido real. Por eso se llama 'cebolla': cada salto quita una capa. Cada relay solo puede descifrar SU capa con SU clave, así que conoce solo al anterior y al siguiente, nunca la ruta entera ni el contenido final (salvo el exit).",
       diagram: "tor",
       bullets: [
         "3 capas de cifrado, una por relay (orden inverso).",
         "Cada salto pela una capa y ve solo el próximo tramo.",
-        "Ningún relay puede leer más allá de su capa.",
+        "Claves distintas por relay: nadie lee más allá de su capa.",
       ],
     },
     {
       kind: "concept",
-      title: "¿Cómo conoce tu cliente los relays? El consenso",
+      title: "Celdas y streams: cómo viaja de verdad",
       body:
-        "Tu cliente no 'adivina' los relays: los obtiene de un documento firmado llamado CONSENSO, publicado por un puñado de servidores de confianza (las directory authorities) que votan cada hora qué relays existen, cuáles son estables y cuáles pueden ser guard o salida. Ese consenso es la lista maestra de la red. Por eso los relays públicos son conocidos — un dato clave cuando veamos cómo un país intenta bloquear Tor y por qué existen los 'bridges'.",
-      diagram: "tor",
+        "Dentro del circuito, Tor no manda 'paquetes de cualquier tamaño': manda CELDAS de tamaño FIJO (512 bytes). Ese tamaño uniforme es a propósito — evita que el largo de los paquetes delate qué hacés. Sobre UN mismo circuito pueden viajar varios STREAMS (varias conexiones: dos pestañas, una descarga) multiplexados. Y entre relay y relay todo va por TLS, así que ni siquiera se ve 'que adentro hay celdas de Tor' a simple vista. Un circuito se arma de a poco (se 'extiende' un salto a la vez) y se reusa unos minutos antes de rotar.",
+      diagram: "capas",
       bullets: [
-        "Directory authorities votan el 'consenso' cada hora.",
-        "El consenso es la lista firmada de todos los relays.",
-        "Los relays públicos son conocidos: eso habilita el bloqueo (→ bridges).",
+        "Celdas de tamaño FIJO (512 B): el largo no te delata.",
+        "Varios streams multiplexados sobre un mismo circuito.",
+        "TLS entre relays; el circuito se extiende salto a salto.",
       ],
     },
     {
@@ -84,44 +96,94 @@ const ANON_TOR: Curso = {
     },
     {
       kind: "lab",
-      title: "Levantá un circuito y mirá tu salida",
-      body: "Encendé la red de anonimato y observá por qué país y con qué IP salís. Ese es tu nodo de salida real para esta sesión.",
+      title: "Levantá un circuito y leé los 3 saltos",
+      body: "Encendé la red de anonimato. Fijate en el circuito completo que se dibuja: los tres relays, de qué país es cada uno y qué sabe cada uno.",
       command: "anon on",
       explain:
-        "Activaste el circuito: el destino verá la IP del nodo de salida (en otro país), no la tuya. Comprobá tu estado con `anon status`. Rotá a otro circuito con `anon new` cuando quieras separar actividades. Esto es enrutamiento cebolla real sobre el estado del mundo, no un cartel decorativo.",
+        "Se construye un circuito REAL de 3 saltos: vas a ver el guard (sabe quién sos, no a dónde), el relay del medio (no sabe nada útil) y el exit (sabe a dónde, no quién), con sus apodos, países, IPs, huellas y ancho de banda. El destino verá la IP del exit, no la tuya. Mirá que ningún relay tiene las dos puntas: ahí vive tu anonimato.",
+      diagram: "tor",
+    },
+    {
+      kind: "concept",
+      title: "¿Cómo conoce tu cliente los relays? El consenso",
+      body:
+        "Tu cliente no 'adivina' los relays: los obtiene de un documento firmado llamado CONSENSO, publicado por un puñado de servidores de confianza (las directory authorities, ~9 repartidas por el mundo) que votan cada hora qué relays existen, cuáles son estables, su ancho de banda y qué rol pueden cumplir (Guard, Exit, HSDir…). Ese consenso es la lista maestra de la red, firmada para que no la puedan falsificar. Tiene un costo: como los relays públicos están todos ahí, un censor puede descargar la lista y bloquearlos — por eso existen los bridges (lo ves en el curso de censura).",
+      diagram: "tor",
+      bullets: [
+        "~9 directory authorities votan el 'consenso' cada hora.",
+        "Es la lista firmada de todos los relays (y sus flags/bw).",
+        "Al ser pública, habilita el bloqueo por IP (→ bridges).",
+      ],
+    },
+    {
+      kind: "concept",
+      title: "Los guards y el 'guard discovery'",
+      body:
+        "¿Por qué el guard es casi siempre el MISMO por meses, en vez de rotar como los otros? Por seguridad. Si eligieras un guard nuevo cada rato, tarde o temprano te tocaría uno malicioso que, combinado con un exit observado, podría deanonimizarte. Al fijar un guard estable por mucho tiempo, reducís la probabilidad de 'toparte' con un relay hostil en la entrada. El ataque que esto mitiga se llama 'guard discovery' / correlación en la entrada. Es un ejemplo hermoso de diseño: la estabilidad del guard es una DEFENSA, no una comodidad.",
+      diagram: "tor",
+      bullets: [
+        "El guard se mantiene estable ~meses a propósito.",
+        "Rotarlo seguido aumentaría la chance de un guard malicioso.",
+        "Mitiga el 'guard discovery' / correlación en la entrada.",
+      ],
+    },
+    {
+      kind: "lab",
+      title: "Rotá el circuito (NEWNYM)",
+      body: "Pedí un circuito nuevo y comparalo con el anterior: cambian el medio y la salida. Separar actividades en circuitos distintos es parte de operar con cabeza.",
+      command: "anon new",
+      explain:
+        "Obtuviste un circuito nuevo (la señal se llama NEWNYM). En la práctica, un circuito nuevo por 'actividad' evita que dos cosas que hacés queden ligadas por el mismo punto de salida. Ojo: el guard tiende a mantenerse (por lo que vimos); lo que rota es el resto. El anonimato se administra, no se enciende y se olvida.",
       diagram: "tor",
     },
     {
       kind: "concept",
       title: "El riesgo del nodo de salida",
       body:
-        "El tramo entre el nodo de salida e internet NO lo cifra Tor: viaja como salga de la aplicación. Si entrás a un sitio por HTTP plano, un exit malicioso puede leer y hasta modificar ese tráfico (contraseñas incluidas). Tor te da anonimato de ORIGEN, no confidencialidad de extremo a extremo. Por eso la regla de oro es HTTPS SIEMPRE sobre Tor, y desconfiar de descargas y logins en claro. El anonimato de red no reemplaza al cifrado de la aplicación.",
+        "El tramo entre el nodo de salida e internet NO lo cifra Tor: viaja como salga de la aplicación. Si entrás a un sitio por HTTP plano, un exit malicioso puede leer y hasta modificar ese tráfico (contraseñas incluidas); hubo casos reales de exits que hacían 'sslstrip' para degradar HTTPS. Tor te da anonimato de ORIGEN, no confidencialidad de extremo a extremo. Además, cada exit publica una 'exit policy' (qué puertos/destinos permite), y el proyecto marca como 'BadExit' a los que detectan abusando. La regla de oro: HTTPS SIEMPRE sobre Tor, y desconfiar de descargas y logins en claro.",
       diagram: "tor",
       bullets: [
         "Salida → internet NO lo cifra Tor: depende de la app.",
-        "HTTP plano sobre Tor = un exit malicioso te lee/modifica.",
-        "Tor da anonimato de origen, no confidencialidad E2E: usá HTTPS.",
+        "Exit malicioso: espía/modifica HTTP, intenta sslstrip.",
+        "Exit policies + marca 'BadExit'; vos, HTTPS siempre.",
       ],
     },
     {
-      kind: "lab",
-      title: "Rotá el circuito",
-      body: "Pedí un circuito nuevo y fijate que cambia el nodo de salida. Separar actividades en circuitos distintos es parte de operar con cabeza.",
-      command: "anon new",
+      kind: "quiz",
+      prompt: "Vas a loguearte a un sitio por Tor. ¿Por qué es crítico que sea HTTPS y no HTTP?",
+      options: [
+        "Porque el nodo de salida ve el tráfico en claro: con HTTP leería tu usuario y contraseña",
+        "Porque HTTP no funciona sobre Tor",
+        "Porque HTTPS te hace más anónimo ante tu ISP",
+        "Porque el guard vería la contraseña",
+      ],
+      correct: 0,
       explain:
-        "Obtuviste un circuito nuevo con otra salida. En la práctica, un circuito nuevo por 'actividad' evita que dos cosas que hacés queden ligadas por el mismo punto de salida. El anonimato se administra, no se enciende y se olvida.",
+        "Tor cifra hasta el exit, pero el tramo exit→destino viaja como lo mande la app. Con HTTP plano, un exit hostil lee (y puede alterar) todo, credenciales incluidas. Con HTTPS, ese tramo va cifrado de punta a punta y el exit solo ve a QUÉ dominio te conectás, no el contenido.",
       diagram: "tor",
     },
     {
       kind: "concept",
       title: "Servicios ocultos .onion (v3)",
       body:
-        "Un servicio .onion vive DENTRO de Tor: no usa nodo de salida (no toca internet público) y su dirección ES su clave pública (en v3, 56 caracteres). Eso trae dos regalos: el servidor también es anónimo (nadie sabe dónde está alojado) y la dirección se AUTOVALIDA (si te conectás a esa .onion, criptográficamente es la correcta, sin autoridades de certificación). Cliente y servicio se encuentran en un 'punto de rendezvous' sin que ninguno revele su ubicación. Muchos son legítimos: espejos anti-censura, buzones de filtraciones para prensa.",
+        "Un servicio .onion vive DENTRO de Tor: no usa nodo de salida (no toca internet público) y su dirección ES su clave pública (en v3, 56 caracteres). Eso trae dos regalos: el servidor también es anónimo (nadie sabe dónde está alojado) y la dirección se AUTOVALIDA — si te conectás a esa .onion, criptográficamente es la correcta, sin autoridades de certificación que puedan fallar. No hay 'certificado falso' posible: la dirección y la clave son la misma cosa. Muchos .onion son legítimos: espejos anti-censura de medios, el buzón SecureDrop de diarios para recibir filtraciones, versiones .onion de redes sociales.",
       diagram: "tor",
       bullets: [
         "La .onion no usa exit: cliente y servicio quedan ocultos.",
-        "La dirección v3 es la clave pública: se autovalida sin CA.",
-        "Usos legítimos: anti-censura, buzones seguros de denuncia.",
+        "La dirección v3 (56 chars) ES la clave pública: se autovalida.",
+        "Usos legítimos: anti-censura, SecureDrop, espejos de prensa.",
+      ],
+    },
+    {
+      kind: "concept",
+      title: "Cómo se encuentran cliente y servicio oculto",
+      body:
+        "El baile de un .onion es ingenioso. El servicio elige unos 'introduction points' (relays que lo representan) y publica un DESCRIPTOR firmado en los HSDir (una parte del anillo de directorios), indexado por su clave. Cuando querés entrar, bajás ese descriptor, elegís un 'rendezvous point' (un relay cualquiera), y le pedís al servicio —vía sus introduction points— que se encuentre con vos AHÍ. Resultado: ni vos ni el servicio revelan su ubicación real, y ambos hablan a través del rendezvous. Todo con circuitos Tor de por medio en cada tramo.",
+      diagram: "tor",
+      bullets: [
+        "El servicio publica un descriptor firmado en los HSDir.",
+        "Se encuentran en un 'rendezvous point' neutral.",
+        "Ni cliente ni servicio revelan su ubicación real.",
       ],
     },
     {
@@ -131,7 +193,61 @@ const ANON_TOR: Curso = {
       answer: ["onion", "biblioteca7k2fx.onion"],
       hint: "El comando para alcanzar un servicio oculto es onion, seguido de la dirección .onion. curl no sirve: los .onion no se resuelven por la red normal.",
       explain:
-        "`onion biblioteca7k2fx.onion` alcanza el servicio oculto, pero SOLO con el circuito activo (anon on): fuera de Tor, esa dirección no existe. La reachability depende del estado real de tu anonimato, no de un truco.",
+        "`onion biblioteca7k2fx.onion` alcanza el servicio oculto, pero SOLO con el circuito activo (anon on): fuera de Tor, esa dirección no existe (no hay DNS que la resuelva). La reachability depende del estado real de tu anonimato, no de un truco.",
+    },
+    {
+      kind: "lab",
+      title: "Leé el estado de tu circuito",
+      body: "Revisá el estado del anonimato: la ruta completa del circuito y la IP que ve el destino. Es tu tablero antes de operar.",
+      command: "anon status",
+      explain:
+        "Ves si el circuito está activo, la ruta guard→medio→salida y la IP visible (la del exit). Es el reflejo de confirmar tu salida antes de hacer algo sensible. Si estuviera apagado, te avisa que tu IP real queda expuesta. Combinalo con `identidad` para ver además tu MAC y nivel de anonimato, y con `opsec` para tu rastro.",
+      diagram: "radar",
+    },
+    {
+      kind: "concept",
+      title: "Rendimiento, latencia y aislamiento de streams",
+      body:
+        "Tor es más LENTO que una conexión directa, y es inevitable: tu tráfico da la vuelta por 3 relays voluntarios repartidos por el mundo, con cifrado en cada salto. No es para streaming 4K; es para privacidad. Dato clave de OPSEC: el navegador Tor usa 'stream isolation' — distintos sitios salen por circuitos distintos, para que dos pestañas no queden ligadas por un mismo exit. Y por diseño evita cosas que arruinan el anonimato o la latencia (como UDP, que Tor no transporta: por eso no sirve para cualquier cosa, solo TCP).",
+      diagram: "capas",
+      bullets: [
+        "Más lento por diseño: 3 saltos globales + cifrado por capa.",
+        "Stream isolation: sitios distintos → circuitos distintos.",
+        "Transporta TCP, no UDP: no es para todo tipo de tráfico.",
+      ],
+    },
+    {
+      kind: "concept",
+      title: "Mitos y malentendidos",
+      body:
+        "Aclaremos lo que la gente cree mal. (1) 'Tor ES la dark web': no — Tor es una red de anonimato; los .onion son una parte chica, y la mayoría del uso de Tor es navegar la web normal con privacidad. (2) 'Tor te hace invisible/intrazable': no — te da anonimato de red, pero tus errores (identidades reutilizadas, metadatos, malware) te delatan igual. (3) 'Tor es ilegal': no — es legal en casi todo el mundo y lo usan periodistas, activistas, fuerzas de seguridad y gente común. (4) 'La NSA controla todos los relays': no hay evidencia de eso; el riesgo real es el adversario que ve ambas puntas, no un dueño secreto de la red.",
+      diagram: "radar",
+      bullets: [
+        "Tor ≠ dark web: los .onion son una fracción del uso.",
+        "No te vuelve invisible: tus errores te delatan.",
+        "Es legal y de uso amplio; el riesgo real es ver ambas puntas.",
+      ],
+    },
+    {
+      kind: "concept",
+      title: "Usos legítimos, ética y cómo no caer",
+      body:
+        "La privacidad fuerte es infraestructura de libertad: periodistas que protegen fuentes, activistas bajo regímenes represivos, víctimas que escapan de un acosador, gente común que no quiere ser perfilada. La herramienta es neutral; el uso define la ética, y acá todo es educativo y defensivo. Para cerrar: Tor es UNA capa. No operes desde una red que te identifica, no reutilices identidades, limpiá metadatos, usá Tor Browser (no tu navegador 'con Tor'), y recordá que casi nadie cae por romper Tor, sino por OPSEC. Lo profundizan los cursos de compartimentación y desanonimización de este mismo itinerario.",
+      diagram: "escudo",
+      bullets: [
+        "Privacidad fuerte = infraestructura de libertad (uso neutral).",
+        "Tor es UNA capa: sumá OPSEC (identidades, metadatos, red).",
+        "Usá Tor Browser; no operes desde redes que te identifican.",
+      ],
+    },
+    {
+      kind: "lab",
+      title: "Cerrá midiendo tu rastro",
+      body: "Ya entendés el circuito. Mirá tu panel de OPSEC: ¿tus acciones quedan enmascaradas por el circuito o exponés tu origen? ¿Cuál es tu 'calor'?",
+      command: "opsec",
+      explain:
+        "El tracer te muestra, sobre el estado real, si operás enmascarado (por el circuito) o exponés tu IP, tu 'calor' acumulado y la regla de oro: detección ≠ atribución. Tor te vuelve no-atribuible, no invisible. Ese es el cierre correcto de un curso de Tor: la red es media historia; la otra media es tu disciplina.",
+      diagram: "radar",
     },
   ],
 };
