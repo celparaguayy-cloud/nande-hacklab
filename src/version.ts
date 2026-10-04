@@ -3,5 +3,5 @@
  * qué build estás corriendo (y confirmar que tomaste la última actualización).
  * Subí el número cuando haya un cambio que el jugador deba poder distinguir.
  */
-export const NANDE_VERSION = "5.130.0";
-export const NANDE_BUILD = "cursos-opsec-y-desanon-completos-casos-reales-alphabay-freedom-hosting";
+export const NANDE_VERSION = "5.131.0";
+export const NANDE_BUILD = "hacking-real-walkthrough-completo-recon-foothold-root-pivot-con-banderas";

@@ -26,6 +26,7 @@ import { ANONIMATO_AVANZADO_COURSES } from "./anonimato-avanzado";
 import { REDES_AVANZADO_COURSES } from "./redes-avanzado";
 import { PASSWORDS_AVANZADO_COURSES } from "./passwords-avanzado";
 import { WEB_AVANZADO_COURSES } from "./web-avanzado";
+import { HACKING_REAL_COURSES } from "./hacking-real";
 
 /** Orden pedagógico: de lo básico (Linux) a lo especializado y el capstone. */
 export const EXTRA_CURSOS: Curso[] = [
@@ -57,4 +58,6 @@ export const EXTRA_CURSOS: Curso[] = [
   ...PASSWORDS_AVANZADO_COURSES,
   // Novena tanda: web avanzado (LFI/XXE, SSTI/NoSQL, deser/upload, CSRF/race).
   ...WEB_AVANZADO_COURSES,
+  // Décima tanda: hacking real (walkthroughs completos de cadena de ataque).
+  ...HACKING_REAL_COURSES,
 ];

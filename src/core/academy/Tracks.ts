@@ -898,7 +898,7 @@ export const TRACKS: LearningTrack[] = [
     glyph: "target",
     hue: 0,
     requires: "t-acceso",
-    courseIds: ["c-exploit-msf", "c-ad-directorio", "c-op-killchain"],
+    courseIds: ["c-exploit-msf", "c-hack-maquina", "c-ad-directorio", "c-op-killchain"],
     finalChallenges: ["r-ad-dominio", "r-web01-user", "r-privesc-sudo", "r-pivot", "r-lan-nas", "r-lan-restringido", "r-ot-hmi", "r-ot-plc", "r-yvytu-foothold", "r-yvytu-root", "r-yvytu-exfil"],
   },
   {
