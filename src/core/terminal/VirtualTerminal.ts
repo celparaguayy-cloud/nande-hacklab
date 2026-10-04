@@ -5646,17 +5646,30 @@ export class VirtualTerminal {
     const lines = tl.map(
       (t) => `  t=${String(t.tick).padStart(5)} ${t.exposed ? "🔴 EXPUESTO" : "🟢 enmascarado"}  ${t.mitreId} ${t.technique}  (origen visto: ${t.seenSource})`,
     );
+    // Termómetro de calor (0 = invisible, 10+ = redada inminente).
+    const heat = s.heat;
+    const nivel = heat >= 10 ? "CRÍTICO" : heat >= 6 ? "ALTO" : heat >= 3 ? "medio" : heat >= 1 ? "bajo" : "frío";
+    const barraN = Math.min(10, Math.round(heat));
+    const termo = "▓".repeat(barraN) + "░".repeat(10 - barraN);
+    const total = s.exposedCount + s.maskedCount;
+    const pctExp = total > 0 ? Math.round((s.exposedCount / total) * 100) : 0;
     return {
       output:
-        `═══ OPSEC · tu rastro ═══\n` +
-        `Anonimato: ${s.tor ? `🟢 activo (salida ${s.exitIp})` : "🔴 apagado (tu IP real queda expuesta)"}\n` +
-        `Ataques expuestos: ${s.exposedCount} · enmascarados: ${s.maskedCount} · redadas: ${s.busts}\n` +
-        `Calor actual: ${s.heat}\n\n` +
-        (lines.length ? lines.join("\n") + "\n" : "  (todavía no ejecutaste técnicas ruidosas)\n") +
+        `╔══════════════ OPSEC · tu rastro operacional ══════════════╗\n` +
+        `  Anonimato:  ${s.tor ? `🟢 ACTIVO (salida ${s.exitIp})` : "🔴 APAGADO — tu IP real queda en cada log"}\n` +
+        `  Calor:      [${termo}] ${heat}  (${nivel})\n` +
+        `  Técnicas:   ${total} ejecutadas · 🔴 ${s.exposedCount} expuestas (${pctExp}%) · 🟢 ${s.maskedCount} enmascaradas\n` +
+        `  Redadas:    ${s.busts}${s.busts > 0 ? "  ⚠ ya te ubicaron al menos una vez" : ""}\n` +
+        `\n  Línea de tiempo (lo que vio el otro lado):\n` +
+        (lines.length ? lines.join("\n") + "\n" : "   (todavía no ejecutaste técnicas ruidosas: rastro limpio)\n") +
         (op.atRisk()
-          ? `\n⚠ Estás atacando sin anonimato. Enrutá antes de seguir: anon on\n`
-          : "") +
-        `\nLección: el anonimato no es cosmético. Sin él, tus técnicas te delatan.\n`,
+          ? `\n  ⚠ Estás operando SIN anonimato: cada técnica queda atada a tu IP.\n     Enrutá antes de seguir:  anon on\n`
+          : s.tor
+            ? `\n  ✓ Enrutás por el circuito: te detectan, pero no te atribuyen el origen.\n`
+            : "") +
+        `\n  Regla: detección ≠ atribución. El SOC contiene lo que puede atribuir;\n` +
+        `  el anonimato no te vuelve invisible, te vuelve no-atribuible.\n` +
+        `╚═══════════════════════════════════════════════════════════╝\n`,
       isError: false,
     };
   }
@@ -5925,38 +5938,83 @@ export class VirtualTerminal {
   private anonCmd(args: string[]): { output: string; isError: boolean } {
     const action = args[0] ?? "status";
     const a = this.kernel.anonymity;
+    const eth0 = this.kernel.network.getInterface("eth0");
+    const realIp = eth0?.ip ?? "10.10.0.10";
+
+    /** Dibuja el circuito de 3 saltos como lo muestra una herramienta real. */
+    const drawCircuit = (): string => {
+      const c = a.circuit();
+      const hop = (rol: string, r: import("../security/Anonymity").Relay, sabe: string) =>
+        `  ${rol}\n` +
+        `    ${r.bandera} ${r.nick.padEnd(10)} ${r.ip.padEnd(15)} ${r.bw} MiB/s  [${r.flags.join(" ")}]\n` +
+        `    huella ${r.fp}  ·  ${sabe}\n`;
+      return (
+        `┌─ CIRCUITO (3 saltos · cifrado en capas) ───────────────────┐\n` +
+        hop("① ENTRADA  (guard)", c.guard, "sabe quién sos, NO a dónde vas") +
+        `         │  (cifrado capa 1)\n` +
+        hop("② MEDIO    (relay)", c.middle, "no sabe ni quién ni a dónde") +
+        `         │  (cifrado capa 2)\n` +
+        hop("③ SALIDA   (exit) ", c.exit, "sabe a dónde vas, NO quién sos") +
+        `         ▼\n` +
+        `  🌐 Internet — el destino ve ${c.exit.ip} (${c.exit.pais})\n` +
+        `└────────────────────────────────────────────────────────────┘\n`
+      );
+    };
 
     if (action === "on" || action === "start") {
-      const exit = a.enableTor();
+      a.enableTor();
       return {
         output:
-          `🧅 Red de anonimato ACTIVADA.\n` +
-          `Tu tráfico sale por un nodo en ${exit.pais} (${exit.ip}).\n` +
-          `El destino ve esa IP, no la tuya. Cambiá de circuito con 'anon new'.\n`,
+          `🧅 Red de anonimato ACTIVADA — circuito construido en 3 saltos.\n\n` +
+          drawCircuit() +
+          `\nTu IP real (${realIp}) queda oculta: el destino sólo ve la del exit.\n` +
+          `Ningún relay conoce las dos puntas a la vez: ahí está tu anonimato.\n` +
+          `⚠ El tramo exit→destino NO lo cifra Tor: usá HTTPS siempre.\n` +
+          `Rotá el circuito con 'anon new' · estado con 'anon status' · apagá con 'anon off'.\n`,
         isError: false,
       };
     }
     if (action === "off" || action === "stop") {
       a.disableTor();
-      return { output: "Red de anonimato DESACTIVADA. Volvés a salir con tu IP real.\n", isError: false };
+      return {
+        output:
+          "🔴 Red de anonimato DESACTIVADA.\n" +
+          `Volvés a salir con tu IP real (${realIp}): el destino y su SOC te ven directo.\n`,
+        isError: false,
+      };
     }
     if (action === "new" || action === "circuito") {
       const exit = a.newCircuit();
-      return exit
-        ? { output: `Nuevo circuito: salís por ${exit.pais} (${exit.ip}).\n`, isError: false }
-        : { output: "La red de anonimato está apagada. Encendela con 'anon on'.\n", isError: false };
+      if (!exit) {
+        return { output: "La red de anonimato está apagada. Encendela con 'anon on'.\n", isError: false };
+      }
+      return {
+        output: `🔄 Circuito nuevo construido (señal NEWNYM):\n\n` + drawCircuit(), isError: false,
+      };
     }
 
     // status
-    const eth0 = this.kernel.network.getInterface("eth0");
-    const realIp = eth0?.ip ?? "10.10.0.10";
     const on = a.isTorEnabled();
+    if (!on) {
+      return {
+        output:
+          `═══ Estado de anonimato ═══\n` +
+          `  Red de anonimato: 🔴 apagada\n` +
+          `  IP que ve el destino: ${realIp}  (TU IP REAL — expuesta)\n\n` +
+          `  Sin circuito, cada técnica queda atada a tu IP real en los logs.\n` +
+          `  Encendé el anonimato con: anon on\n`,
+        isError: false,
+      };
+    }
+    const c = a.circuit();
     return {
       output:
-        `Estado de anonimato:\n` +
-        `  Red de anonimato: ${on ? "ACTIVA 🧅" : "apagada"}\n` +
-        `  IP que ve el destino: ${a.visibleIp(realIp)}${on ? ` (nodo de salida en ${a.exitNode().pais})` : " (tu IP real)"}\n` +
-        `  Comandos: anon on · anon off · anon new\n`,
+        `═══ Estado de anonimato ═══\n` +
+        `  Red de anonimato: 🟢 ACTIVA 🧅\n` +
+        `  IP que ve el destino: ${a.visibleIp(realIp)}  (nodo de salida en ${c.exit.pais})\n` +
+        `  Ruta del circuito: ${c.guard.bandera}${c.guard.nick} → ${c.middle.bandera}${c.middle.nick} → ${c.exit.bandera}${c.exit.nick}\n\n` +
+        drawCircuit() +
+        `  Comandos: anon new (rotar) · anon off (apagar)\n`,
       isError: false,
     };
   }
@@ -6000,17 +6058,32 @@ export class VirtualTerminal {
     const a = this.kernel.anonymity;
     const changed = this.macChanged();
     const nivel = a.level(changed);
+    const on = a.isTorEnabled();
+    // Barra visual del nivel de anonimato (0-3).
+    const barra = "█".repeat(nivel.score) + "░".repeat(3 - nivel.score);
+    const macEthCh = eth0 && eth0.mac !== DEFAULT_MACS.eth0;
+    const macWlanCh = wlan0 && wlan0.mac !== DEFAULT_MACS.wlan0;
+    // Chequeo educativo de fugas: qué te delataría aunque ocultes la IP.
+    const fuga = (ok: boolean, txt: string) => `  ${ok ? "🟢" : "🔴"} ${txt}`;
     const lines = [
-      "═══ TU IDENTIDAD EN LA RED ═══",
-      `  IP real:         ${realIp}`,
-      `  IP visible:      ${a.visibleIp(realIp)}${a.isTorEnabled() ? " (por la red de anonimato)" : ""}`,
-      `  MAC eth0:        ${eth0?.mac ?? "-"}${eth0 && eth0.mac !== DEFAULT_MACS.eth0 ? " (cambiada)" : ""}`,
-      `  MAC wlan0:       ${wlan0?.mac ?? "-"}${wlan0 && wlan0.mac !== DEFAULT_MACS.wlan0 ? " (cambiada)" : ""}`,
-      `  Anonimato:       ${nivel.label.toUpperCase()} (${nivel.score}/3)`,
+      "╔═══════════════ TU IDENTIDAD EN LA RED ═══════════════╗",
+      `  IP real:         ${realIp}  ${on ? "🟢 oculta tras el circuito" : "🔴 EXPUESTA al destino"}`,
+      `  IP visible:      ${a.visibleIp(realIp)}${on ? " (por la red de anonimato)" : " (tu IP real)"}`,
+      on ? `  Circuito:        ${a.circuit().guard.bandera}${a.circuit().guard.nick} → ${a.circuit().middle.bandera}${a.circuit().middle.nick} → ${a.circuit().exit.bandera}${a.circuit().exit.nick}` : "  Circuito:        — (sin circuito)",
+      `  MAC eth0:        ${eth0?.mac ?? "-"}${macEthCh ? " (cambiada ✓)" : " (de fábrica)"}`,
+      `  MAC wlan0:       ${wlan0?.mac ?? "-"}${macWlanCh ? " (cambiada ✓)" : " (de fábrica)"}`,
       "",
-      "Para mejorar:",
-      ...nivel.tips.map((t) => `  • ${t}`),
+      `  Nivel de anonimato:  [${barra}] ${nivel.label.toUpperCase()} (${nivel.score}/3)`,
       "",
+      "  Chequeo de fugas (lo que te delata aunque ocultes la IP):",
+      fuga(on, "IP de salida enmascarada" + (on ? "" : " — enrutá por anon")),
+      fuga(Boolean(macEthCh || macWlanCh), "MAC local rotada" + (macEthCh || macWlanCh ? "" : " — macchanger wlan0 random")),
+      fuga(false, "Fingerprint del navegador: usá Tor Browser (uniforma a todos)"),
+      fuga(false, "DNS/WebRTC: un navegador normal filtra tu IP real por fuera del túnel"),
+      "",
+      "  Para mejorar:",
+      ...nivel.tips.map((t) => `   • ${t}`),
+      "╚══════════════════════════════════════════════════════╝",
     ];
     return { output: lines.join("\n") + "\n", isError: false };
   }
@@ -7325,11 +7398,48 @@ export class VirtualTerminal {
     const sub = args[0] ?? "ps";
 
     if (sub === "ps" || sub === "get" || sub === "pods") {
-      const rows = cr.list().map(
-        (c) => `  ${c.status === "Running" ? "🟢" : "🔴"} ${c.name.padEnd(16)} ${c.image.padEnd(20)} ns=${c.namespace}${c.privileged ? " ⚠privileged" : ""}`,
-      );
+      const list = cr.list();
+      const fmtAge = (m?: number) =>
+        m == null ? "?" : m >= 1440 ? `${Math.floor(m / 1440)}d` : m >= 60 ? `${Math.floor(m / 60)}h` : `${m}m`;
+      const header =
+        "  " +
+        "NAMESPACE".padEnd(12) +
+        "NAME".padEnd(15) +
+        "READY".padEnd(6) +
+        "STATUS".padEnd(18) +
+        "RST".padEnd(5) +
+        "AGE".padEnd(5) +
+        "IP".padEnd(14) +
+        "NODE";
+      const rows = list.map((c) => {
+        const dot = c.status === "Running" ? "🟢" : c.status === "Pending" ? "🟡" : "🔴";
+        return (
+          `${dot} ` +
+          c.namespace.padEnd(12) +
+          c.name.padEnd(15) +
+          (c.ready ?? "?/?").padEnd(6) +
+          c.status.padEnd(18) +
+          String(c.restarts ?? 0).padEnd(5) +
+          fmtAge(c.ageMin).padEnd(5) +
+          (c.podIp ?? "-").padEnd(14) +
+          (c.node ?? "-") +
+          (c.privileged ? "  ⚠PRIVILEGED" : "")
+        );
+      });
+      // Pistas derivadas del estado real (lo que mira un atacante/defensor).
+      const priv = list.filter((c) => c.privileged).map((c) => c.name);
+      const leaks = list.filter((c) => cr.leakedSecrets(c.name).length > 0).map((c) => c.name);
+      const crash = list.filter((c) => c.status !== "Running").map((c) => c.name);
+      const notas: string[] = [];
+      if (priv.length) notas.push(`  ⚠ Pod(s) privilegiado(s): ${priv.join(", ")} → candidato a escape (nandec inspect ${priv[0]})`);
+      if (leaks.length) notas.push(`  🔓 Secreto(s) en env: ${leaks.join(", ")} → nandec exec ${leaks[0]} env`);
+      if (crash.length) notas.push(`  🔁 Reinicios anómalos: ${crash.join(", ")} (CrashLoopBackOff: algo falla o se explota)`);
       return {
-        output: `PODS/CONTENEDORES:\n${rows.join("\n")}\n\nInspeccioná con: nandec inspect <nombre>\n`,
+        output:
+          `═══ kubectl get pods -A  ·  cluster nande (${list.length} pods) ═══\n` +
+          `${header}\n${rows.join("\n")}\n` +
+          (notas.length ? `\nLo que salta a la vista:\n${notas.join("\n")}\n` : "") +
+          `\nInspeccioná un pod: nandec inspect <nombre>  ·  su env: nandec exec <nombre> env\n`,
         isError: false,
       };
     }

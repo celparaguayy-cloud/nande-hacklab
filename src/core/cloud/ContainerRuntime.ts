@@ -28,6 +28,16 @@ export interface Container {
   mounts: Mount[];
   /** Puerto expuesto del pod (informativo). */
   port?: number;
+  /** Contenedores listos / totales (estilo kubectl, p. ej. "1/1"). */
+  ready?: string;
+  /** Reinicios acumulados. */
+  restarts?: number;
+  /** Antigüedad del pod (minutos). */
+  ageMin?: number;
+  /** IP interna del pod en la red del cluster. */
+  podIp?: string;
+  /** Nodo donde está programado. */
+  node?: string;
 }
 
 /** Campos de env que son secretos (fuga si están en claro). */
@@ -55,6 +65,11 @@ export class ContainerRuntime {
       privileged: false,
       mounts: [],
       port: 80,
+      ready: "1/1",
+      restarts: 0,
+      ageMin: 1440,
+      podIp: "10.244.1.12",
+      node: "worker-1",
     });
 
     // Un pod de API que FILTRA un secreto en env (mala práctica real).
@@ -72,6 +87,44 @@ export class ContainerRuntime {
       privileged: false,
       mounts: [],
       port: 8080,
+      ready: "1/1",
+      restarts: 2,
+      ageMin: 1440,
+      podIp: "10.244.1.31",
+      node: "worker-1",
+    });
+
+    // Caché Redis sin autenticación (típico en clusters internos).
+    this.add({
+      name: "redis-cache",
+      image: "redis:7.0-alpine",
+      namespace: "default",
+      status: "Running",
+      env: { MAXMEMORY: "256mb" },
+      privileged: false,
+      mounts: [],
+      port: 6379,
+      ready: "1/1",
+      restarts: 0,
+      ageMin: 2880,
+      podIp: "10.244.2.7",
+      node: "worker-2",
+    });
+
+    // Un worker que reinicia en loop (pista de que algo falla / se explota).
+    this.add({
+      name: "batch-worker",
+      image: "nande/worker:0.9",
+      namespace: "jobs",
+      status: "CrashLoopBackOff",
+      env: { QUEUE: "amqp://rabbit.jobs.svc" },
+      privileged: false,
+      mounts: [],
+      ready: "0/1",
+      restarts: 147,
+      ageMin: 320,
+      podIp: "10.244.2.44",
+      node: "worker-2",
     });
 
     // Un "debug pod" PRIVILEGIADO con el host montado: escape de contenedor.
@@ -83,6 +136,11 @@ export class ContainerRuntime {
       env: { DEBUG: "1" },
       privileged: true,
       mounts: [{ hostPath: "/", containerPath: "/host", readOnly: false }],
+      ready: "1/1",
+      restarts: 0,
+      ageMin: 90,
+      podIp: "10.244.0.5",
+      node: "control-plane",
     });
   }
 
