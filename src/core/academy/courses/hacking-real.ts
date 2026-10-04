@@ -218,6 +218,190 @@ const HACK_MAQUINA: Curso = {
   ],
 };
 
+const HACK_AD: Curso = {
+  id: "c-hack-ad",
+  title: "Dominio Active Directory: de cero a Domain Admin",
+  subtitle: "Walkthrough completo: enumerás el dominio, roasteás una cuenta de servicio, crackeás su clave, saltás de máquina en máquina y te volvés dueño de NANDE.LOCAL. Cada paso, un comando real.",
+  level: "avanzado",
+  skill: "pentesting",
+  hue: 275,
+  glyph: "crown",
+  reward: { xp: 560, coins: 450 },
+  slides: [
+    {
+      kind: "concept",
+      title: "Por qué el dominio es EL objetivo",
+      body:
+        "En una empresa Windows, todo gira alrededor de un DOMINIO gobernado por un Controlador de Dominio (DC). Usuarios, equipos, grupos y permisos forman un GRAFO de relaciones. Quien controla el grupo 'Domain Admins' controla TODO: cada máquina, cada cuenta, cada dato. Por eso, en un pentest interno, el objetivo casi siempre es el mismo: de un usuario cualquiera, llegar a Domain Admin. Y acá está la clave que lo hace posible: no hace falta la contraseña del administrador — alcanza con ENCADENAR permisos mal puestos a lo largo del grafo. En este curso vas a hacer exactamente eso, de punta a punta, contra NANDE.LOCAL.",
+      diagram: "adgrafo",
+      bullets: [
+        "El DC gobierna el dominio; Domain Admins = control total.",
+        "AD es un grafo de relaciones (MemberOf, AdminTo, HasSession…).",
+        "No se adivina la clave del admin: se encadenan abusos.",
+      ],
+    },
+    {
+      kind: "concept",
+      title: "El método: enumerar el grafo, encontrar la ruta",
+      body:
+        "Atacar AD es leer un mapa. Primero ENUMERÁS: volcás usuarios, grupos, equipos y marcás las cuentas interesantes (las que tienen SPN = kerberoasteables, las sin pre-auth = AS-REP roasteables). Después armás el GRAFO (con una herramienta tipo BloodHound) y le pedís la RUTA más corta desde lo que ya controlás hasta Domain Admins. Esa ruta es una secuencia de aristas abusables: 'crackeá esta cuenta de servicio → es admin de este servidor → ahí hay una sesión de un Domain Admin → robá su hash → sos dueño del dominio'. El grafo te dice el camino; vos lo caminás.",
+      diagram: "adgrafo",
+      bullets: [
+        "Enumerar → marcar SPN y AS-REP → armar el grafo → pedir la ruta.",
+        "La ruta es una cadena de aristas abusables.",
+        "El grafo muestra el camino; vos lo ejecutás.",
+      ],
+    },
+    {
+      kind: "lab",
+      title: "Fase 1 — Enumerá el dominio",
+      body: "Apuntá al dominio y volcá usuarios, grupos y equipos. Fijate qué cuentas quedan marcadas [SPN] (kerberoasteables) y [AS-REP].",
+      command: "enum4linux NANDE.LOCAL",
+      explain:
+        "Ves el inventario REAL del dominio: usuarios, grupos y equipos, con las cuentas marcadas. SVC-SQL aparece con [SPN]: es una cuenta de SERVICIO, kerberoasteable. Ese es tu primer objetivo concreto. Enumerar primero, disparar después.",
+      diagram: "adgrafo",
+    },
+    {
+      kind: "lab",
+      title: "Fase 1 — Mirá el grafo y la ruta a Domain Admins",
+      body: "Armá el grafo del dominio y pedile la ruta más corta desde tu posición hasta Domain Admins. Ese es tu plan de ataque.",
+      command: "nandeblood",
+      explain:
+        "NandeBlood (el BloodHound de ÑANDE) te dibuja el dominio como grafo y te marca la cadena de abusos hasta Domain Admins: SVC-SQL → DB01 → ADMIN-SQL. Cada flecha es un paso que vas a dar. Dejás de mirar cuentas sueltas y empezás a ver CAMINOS.",
+      diagram: "adgrafo",
+    },
+    {
+      kind: "concept",
+      title: "Fase 2 — Kerberoasting: pedí el ticket y crackealo",
+      body:
+        "Las cuentas de servicio tienen un SPN, y Kerberos deja que CUALQUIER usuario del dominio pida un ticket (TGS) para ese servicio. Ese ticket viene cifrado con el hash de la clave de la cuenta de servicio. ¿La consecuencia? Pedís el ticket y te lo llevás para CRACKEARLO OFFLINE, a tu ritmo, sin tocar la cuenta ni disparar bloqueos. Funciona porque muchas cuentas de servicio tienen claves débiles y humanas ('Verano2024!'). Es sigiloso: pedir un TGS es una operación legítima; el crackeo ocurre en tu máquina.",
+      diagram: "kerberos",
+      bullets: [
+        "Cuenta de servicio = SPN = cualquier usuario puede pedir su TGS.",
+        "El TGS viaja cifrado con la clave de la cuenta → crackeable offline.",
+        "Sigiloso: sin logins fallidos; la señal es el pico de eventos 4769.",
+      ],
+    },
+    {
+      kind: "lab",
+      title: "Fase 2 — Roasteá la cuenta de servicio",
+      body: "Pedí el ticket (TGS) de SVC-SQL. Vas a recibir un hash $krb5tgs$ listo para crackear offline.",
+      command: "kerberoast SVC-SQL@NANDE.LOCAL",
+      explain:
+        "Recibís el hash $krb5tgs$ de SVC-SQL, sin tocar su cuenta. Ese hash es la clave de la cuenta, cifrada: ahora hay que adivinarla offline. Pista del mundo real: las cuentas de servicio suelen tener claves de temporada (Estación+Año). Probemos 'Verano2024!'.",
+      diagram: "kerberos",
+    },
+    {
+      kind: "build",
+      goal: "Crackear offline el TGS de SVC-SQL con una clave de temporada",
+      pieces: ["crack-tgs", "SVC-SQL@NANDE.LOCAL", "Verano2024!", "hydra", "-l"],
+      answer: ["crack-tgs", "SVC-SQL@NANDE.LOCAL", "Verano2024!"],
+      hint: "crack-tgs <cuenta> <clave candidata>. La clave huele a estación + año.",
+      explain:
+        "`crack-tgs SVC-SQL@NANDE.LOCAL Verano2024!` prueba esa clave contra el hash del TGS. Si acierta, POSEÉS la cuenta de servicio de verdad: el grafo lo recalcula y aparecen sus permisos (AdminTo a DB01). Pasaste de 'un usuario cualquiera' a 'dueño de una cuenta de servicio'.",
+    },
+    {
+      kind: "lab",
+      title: "Fase 2 — Crackeá y poseé la cuenta",
+      body: "Roasteá y crackeá en un solo tiro: pedí el TGS y probá la clave de temporada. Si acierta, la cuenta de servicio es tuya.",
+      command: "kerberoast SVC-SQL@NANDE.LOCAL && crack-tgs SVC-SQL@NANDE.LOCAL Verano2024!",
+      explain:
+        "¡Clave crackeada! Ahora poseés SVC-SQL. El motor recalcula el grafo: SVC-SQL es AdminTo DB01, así que tu próximo salto es DB01. Esto es lo lindo de AD: cada cuenta que caés abre nuevas aristas en el grafo.",
+      diagram: "kerberos",
+    },
+    {
+      kind: "concept",
+      title: "Fase 3 — Movimiento lateral: abusar AdminTo",
+      body:
+        "Ya tenés SVC-SQL, y el grafo dice que SVC-SQL es ADMINISTRADOR de DB01 (arista AdminTo). Movimiento lateral es usar ese permiso para 'saltar' a DB01: ahora controlás esa máquina. ¿Por qué importa DB01? Porque es donde el grafo detectó una HasSession de un Domain Admin — es decir, un administrador del dominio dejó una sesión abierta ahí, y con eso su hash está en la memoria de DB01, listo para que lo robes. El movimiento lateral no es azar: seguís las aristas que el grafo ya te marcó.",
+      diagram: "adgrafo",
+      bullets: [
+        "SVC-SQL es AdminTo DB01 → saltás a DB01 (movimiento lateral).",
+        "DB01 tiene una sesión de Domain Admin (HasSession).",
+        "Seguís las aristas del grafo, no probás al azar.",
+      ],
+    },
+    {
+      kind: "concept",
+      title: "Fase 4 — Pass-the-Hash: el hash ES la credencial",
+      body:
+        "Windows autentica con el HASH NT de la contraseña, no con la contraseña en texto. Si volcás el hash de una cuenta de la memoria de una máquina que controlás (con mimikatz, sekurlsa::logonpasswords), podés autenticarte COMO esa cuenta pasando el hash — sin conocer la clave. Eso es Pass-the-Hash. En DB01 vas a encontrar el hash de un Domain Admin (ADMIN-SQL) por esa sesión abierta. Reusás ese hash contra el DC y… caíste el dominio. Credencial robada de la RAM, nunca crackeada.",
+      diagram: "pth",
+      bullets: [
+        "NTLM autentica con el hash, no con la clave en claro.",
+        "mimikatz sekurlsa::logonpasswords vuelca hashes de sesiones.",
+        "Con el hash de un DA, Pass-the-Hash = dominio comprometido.",
+      ],
+    },
+    {
+      kind: "lab",
+      title: "Fase 5 — El golpe final: de cero a Domain Admin",
+      body: "Encadená TODO: enumerar → roastear → crackear → saltar a DB01 → volcar el hash del Domain Admin → Pass-the-Hash. Es el ataque completo, de un tiro.",
+      command: "enum4linux NANDE.LOCAL && kerberoast SVC-SQL@NANDE.LOCAL && crack-tgs SVC-SQL@NANDE.LOCAL Verano2024! && abuse SVC-SQL@NANDE.LOCAL DB01@NANDE.LOCAL && mimikatz sekurlsa::logonpasswords && mimikatz \"sekurlsa::pth /user:ADMIN-SQL@NANDE.LOCAL\"",
+      explain:
+        "🏆 ¡DOMINIO COMPROMETIDO! Capturaste ND{dominio_comprometido}. Recorriste la cadena entera: un usuario cualquiera → cuenta de servicio (kerberoast+crack) → DB01 (lateral) → hash del Domain Admin (mimikatz) → Pass-the-Hash → dueño de NANDE.LOCAL. Nunca adivinaste la clave del admin: encadenaste permisos mal puestos. Así se cae un dominio real.",
+      diagram: "pth",
+    },
+    {
+      kind: "concept",
+      title: "Fase 6 — Post-dominio: DCSync y Golden Ticket",
+      body:
+        "Ser Domain Admin no es el final: es el permiso para la PERSISTENCIA TOTAL. Con el derecho de replicación, pedís al DC que te 'replique' los secretos del dominio (DCSync) — incluido el hash de KRBTGT, la cuenta más importante de Kerberos. Con el hash de krbtgt forjás un GOLDEN TICKET: un TGT válido para cualquier cuenta, que sobrevive aunque reseteen todas las contraseñas. La ÚNICA cura real es rotar krbtgt DOS veces. Es el 'game over' definitivo de un dominio.",
+      diagram: "dcsync",
+      bullets: [
+        "DCSync: replicás los secretos del DC (incluido krbtgt).",
+        "Golden Ticket: TGT forjado que sobrevive resets de contraseña.",
+        "Cura: rotar krbtgt DOS veces (el KDC honra la clave anterior).",
+      ],
+    },
+    {
+      kind: "lab",
+      title: "Fase 6 — Replicá krbtgt (DCSync)",
+      body: "Ya dueño del dominio, pedile al DC el secreto de la cuenta krbtgt. Es el material para forjar un Golden Ticket.",
+      command: "mimikatz lsadump::dcsync /user:krbtgt",
+      explain:
+        "Replicaste el hash de krbtgt como si fueras otro DC (MITRE T1003.006). Con eso se forja un Golden Ticket: persistencia que sobrevive al reseteo de cuentas. Del lado defensor, un DCSync desde un host que no es DC es una alerta roja (evento 4662).",
+      diagram: "dcsync",
+    },
+    {
+      kind: "quiz",
+      prompt: "En la cadena que hiciste, ¿cómo pasaste de 'usuario cualquiera' a comprometer el dominio?",
+      options: [
+        "Encadenando permisos mal puestos: kerberoast → crack → lateral (AdminTo) → robo de hash de un DA → Pass-the-Hash",
+        "Adivinando la contraseña del administrador por fuerza bruta",
+        "Apagando el controlador de dominio",
+        "Reseteando todas las contraseñas del dominio",
+      ],
+      correct: 0,
+      explain:
+        "Nunca adivinaste la clave del admin. Seguiste la ruta del grafo: crackeaste una cuenta de servicio con clave débil, usaste su permiso AdminTo para saltar a DB01, robaste de la memoria el hash de un Domain Admin que había dejado sesión ahí, y lo reutilizaste (PtH). Permisos mal puestos encadenados: así se compromete AD.",
+      diagram: "adgrafo",
+    },
+    {
+      kind: "concept",
+      title: "Cómo se rompe cada eslabón (defensa)",
+      body:
+        "Atacar AD enseña a defenderlo. (1) Kerberoasting cayó por una CLAVE DÉBIL de cuenta de servicio → usá gMSA (claves de 120+ caracteres, rotadas solas) y monitoreá el evento 4769. (2) El movimiento lateral, por una sesión de DA en un equipo común → TIERING (los Domain Admins no inician sesión en máquinas comunes) y Credential Guard (aísla los secretos de LSASS). (3) El robo de hash, por volcado de LSASS → Credential Guard + detección de volcado. (4) La persistencia (DCSync/Golden) → rotar krbtgt, minimizar quién tiene replicación, alertar el evento 4662. Cada eslabón bien puesto corta la cadena.",
+      diagram: "escudo",
+      bullets: [
+        "Kerberoasting ← clave débil → gMSA + monitorear 4769.",
+        "Lateral/robo de hash ← sesión de DA + LSASS → tiering + Credential Guard.",
+        "Persistencia ← DCSync/Golden → rotar krbtgt + alertar 4662.",
+      ],
+    },
+    {
+      kind: "lab",
+      title: "Mirá tu cadena de ataque (kill chain)",
+      body: "Cerrá viendo tu ataque al dominio como lo ve el defensor: las técnicas ATT&CK en orden de kill chain.",
+      command: "killchain",
+      explain:
+        "El tablero ordena tus técnicas por fase (acceso a credenciales, movimiento lateral, dominancia de dominio, persistencia). Cada una se encendió con una acción real que hiciste. Ver tu propio ataque a AD así te vuelve mejor atacante Y mejor defensor: sabés qué eventos dispara y dónde se te corta.",
+      diagram: "matrix",
+    },
+  ],
+};
+
 export const HACKING_REAL_COURSES: Curso[] = [
   HACK_MAQUINA,
+  HACK_AD,
 ];
