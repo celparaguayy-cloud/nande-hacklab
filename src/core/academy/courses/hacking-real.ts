@@ -836,9 +836,275 @@ const HACK_CLOUD: Curso = {
   ],
 };
 
+const HACK_OT: Curso = {
+  id: "c-hack-ot",
+  title: "Hackeo de una planta industrial (OT): de IT al daño físico",
+  subtitle: "Walkthrough completo y real: saltás de la red corporativa (IT) a la industrial (OT) por el historian puenteado, tomás la HMI y el PLC, y manipulás Modbus hasta deshabilitar la seguridad y provocar una rotura catastrófica — el ataque estilo TRITON, paso a paso, 100% dentro del sandbox.",
+  level: "avanzado",
+  skill: "pentesting",
+  hue: 25,
+  glyph: "flame",
+  reward: { xp: 650, coins: 520 },
+  slides: [
+    {
+      kind: "concept",
+      title: "IT no es OT: acá los bits mueven cosas físicas",
+      body:
+        "En IT (tu red de oficina) un ataque roba datos, cifra discos, tira servicios. En OT (Operational Technology: la red que gobierna una PLANTA — bombas, válvulas, turbinas, hornos) un ataque mueve el mundo físico: abre un interruptor y una ciudad se queda sin luz; sube una presión y una vasija revienta. Por eso la OT es el nivel más profundo y más peligroso de una red. Las prioridades se INVIERTEN: en IT la tríada es Confidencialidad → Integridad → Disponibilidad; en OT es al revés — SEGURIDAD y DISPONIBILIDAD mandan, porque un paro de planta cuesta millones y un accidente cuesta vidas. En este curso vas a recorrer, de punta a punta, cómo un atacante salta de IT a OT y llega al proceso físico de una planta real del sandbox (plc.planta.nande), capturando una bandera en cada hito.",
+      diagram: "ics",
+      bullets: [
+        "IT: roba datos. OT: mueve el mundo físico (bombas, válvulas, red eléctrica).",
+        "La tríada se invierte: en OT mandan SEGURIDAD y disponibilidad, no confidencialidad.",
+        "Equipos legados, protocolos de los 70 sin autenticar, parches casi imposibles.",
+      ],
+    },
+    {
+      kind: "concept",
+      title: "El modelo de Purdue y el puente que todos odian: el historian",
+      body:
+        "Las plantas se diseñan en CAPAS (modelo de Purdue): Nivel 4/5 es IT corporativo; Nivel 3 es operaciones de sitio (donde vive el HISTORIAN, que levanta datos de proceso); Niveles 2-0 son el control real (HMI, PLC, sensores y actuadores). Entre IT y OT va una DMZ industrial. La regla sagrada: IT y OT NO deben tocarse. Pero SIEMPRE hay un puente — y casi siempre es el historian, porque el negocio quiere ver la producción en sus tableros. Ese historian doble-homed (una pata en IT, otra en OT) es el agujero por el que entra el atacante. En ÑANDE, el historian es `db-core.interna.nande`: lo alcanzás pivotando por la red corporativa, y desde él llegás a la red de planta (10.10.77.0/24). La red completa: Internet → DMZ (server) → Corporativa (10.10.66) → BD restringida (10.10.99 / historian) → OT (10.10.77).",
+      diagram: "ics",
+      bullets: [
+        "Purdue: IT (N4/5) · DMZ industrial · operaciones+historian (N3) · control HMI/PLC (N2-0).",
+        "La regla: IT y OT no se tocan. La realidad: el historian las puentea.",
+        "db-core = historian doble-homed: tu puerta de IT a OT.",
+      ],
+    },
+    {
+      kind: "concept",
+      title: "Fase 1 — Reconocer el camino: de IT a la planta",
+      body:
+        "No se llega al PLC de un salto: hay que ATRAVESAR la red, host por host, como en una máquina real segmentada. El reconocimiento acá es de RUTA: ¿qué host puentea a qué segmento? La herramienta `netmap` (correla desde adentro de cada host) y `route <destino>` te dibujan la cadena de pivotes y te dicen qué falta comprometer para alcanzar el objetivo. El camino a la planta: entrás a la DMZ (`server.nande`, credencial de soporte), saltás a la corporativa (`nas.interna.nande`), y de ahí al segmento restringido donde vive el historian (`db-core.interna.nande`). Recién desde el historian ves la red de planta. Correr `route plc.planta.nande` desde tu equipo te lo confirma: 'no hay ruta — pivoteá hasta la OT primero'.",
+      diagram: "pivot",
+      bullets: [
+        "El recon OT es de RUTA: qué host puentea qué segmento.",
+        "netmap (desde cada host) y route <destino> dibujan la cadena de pivotes.",
+        "Camino: server (DMZ) → nas (corp) → db-core (historian/OT).",
+      ],
+    },
+    {
+      kind: "build",
+      goal: "Encadenar el pivote IT→OT: de la DMZ (server) a la corporativa (nas) y hasta el historian (db-core), que puentea a la red de planta",
+      pieces: [
+        "connect", "server.nande", "soporte", "Verano2024", "&&",
+        "connect", "nas.interna.nande", "respaldo", "NasÑande#2024", "&&",
+        "connect", "db-core.interna.nande", "dbadmin", "Core-DB!2024", "nmap",
+      ],
+      answer: [
+        "connect", "server.nande", "soporte", "Verano2024", "&&",
+        "connect", "nas.interna.nande", "respaldo", "NasÑande#2024", "&&",
+        "connect", "db-core.interna.nande", "dbadmin", "Core-DB!2024",
+      ],
+      hint: "Tres saltos encadenados con &&: server (DMZ) → nas (corporativa) → db-core (historian). Cada connect mantiene la sesión para el siguiente.",
+      explain:
+        "Cada `connect <host> <user> <pass>` abre una sesión y, encadenado con &&, el siguiente salta DESDE ese host (así alcanzás segmentos que no ves desde tu equipo). Al llegar a db-core estás parado en el historian: el único host puenteado a la red de planta. Desde acá, la OT es alcanzable.",
+    },
+    {
+      kind: "lab",
+      title: "Fase 2 — Pivotá hasta el historian (el puente IT→OT)",
+      body: "Atravesá los tres saltos hasta db-core.interna.nande. Es el historian doble-homed: tu cabeza de playa en la frontera IT/OT.",
+      command: "connect server.nande soporte Verano2024 && connect nas.interna.nande respaldo NasÑande#2024 && connect db-core.interna.nande dbadmin Core-DB!2024",
+      explain:
+        "Estás parado en el historian (db-core), en el segmento restringido 10.10.99.0/24. Desde acá —y SÓLO desde acá— la red de planta (10.10.77.0/24) es alcanzable. Fijate que no entraste 'hackeando el PLC': llegaste caminando la red, que es como pasa de verdad. Próximo paso: leer la config del puente para encontrar las credenciales de la planta.",
+      diagram: "pivot",
+    },
+    {
+      kind: "lab",
+      title: "Saqueo del puente: la config filtra las credenciales de la planta",
+      body: "Ya en el historian, leé la configuración del enlace OT. Un historian doble-homed guarda cómo habla con la planta — y ahí suelen quedar credenciales en texto plano.",
+      command: "connect server.nande soporte Verano2024 && connect nas.interna.nande respaldo NasÑande#2024 && connect db-core.interna.nande dbadmin Core-DB!2024 && cat /etc/historian/ot-uplink.conf",
+      explain:
+        "El `ot-uplink.conf` canta: el segmento de planta (10.10.77.0/24), el host de la HMI (hmi.planta.nande) y la credencial del operador (operador / Planta#2024) en texto plano. Esto es movimiento lateral REAL: no adivinaste la clave, la leíste de una config mal protegida. Una auditoría marcaría exactamente esto: 'IT y OT no deberían compartir host — esto es un puente'.",
+      diagram: "terminal",
+    },
+    {
+      kind: "concept",
+      title: "Fase 3 — Modbus: el protocolo que nació sin contraseña",
+      body:
+        "Modbus (1979, Modicon) es el idioma industrial más usado del planeta. Se diseñó para una red serie confiable y cerrada, así que NO autentica, NO cifra, NO firma nada: quien alcanza el puerto 502/TCP de un PLC lo lee y lo ESCRIBE. No hay 'login'. Las funciones que importan: fn 01 lee coils (salidas booleanas: bomba ON/OFF, modo AUTO); fn 05 las escribe. fn 03 lee holding registers (parámetros analógicos R/W: apertura de válvula, setpoint de presión); fn 06 los escribe. fn 04 lee input registers (variables de proceso que el PLC CALCULA: nivel del tanque, presión real — sólo lectura: son la física). Y fn 43/MEI 14 es Read Device Identification: la huella (marca/modelo/revisión) que un pentester OT lee ANTES de tocar nada, para saber qué soporta el equipo.",
+      diagram: "ics",
+      bullets: [
+        "Modbus no autentica: alcanzar :502 = control total de lectura y escritura.",
+        "fn 01/05 coils (ON/OFF) · fn 03/06 holding (parámetros) · fn 04 inputs (física, read-only).",
+        "fn 43 / MEI 14: Read Device ID — el fingerprint OT antes de atacar.",
+      ],
+    },
+    {
+      kind: "lab",
+      title: "Fingerprint del PLC (Modbus fn 43)",
+      body: "Desde el historian, pedile al PLC su identificación de dispositivo. Modbus no pide credenciales: sólo tenés que alcanzar el 502.",
+      command: "connect server.nande soporte Verano2024 && connect nas.interna.nande respaldo NasÑande#2024 && connect db-core.interna.nande dbadmin Core-DB!2024 && modbus id plc.planta.nande",
+      explain:
+        "El PLC te canta su huella sin pedir nada: VendorName ÑANDE Industrial, ProductCode NPLC-3000, revisión 3.11, Unit ID 1 activo. Eso es Read Device Identification (fn 43 / MEI 14), el equivalente OT de un banner grab. Con la marca y modelo ya sabés qué registros y comandos soporta. Y confirmaste lo peor: Modbus NO autentica — cualquiera que llegue al 502 escribe el control.",
+      diagram: "ics",
+    },
+    {
+      kind: "lab",
+      title: "Leé el proceso físico (holding + input registers)",
+      body: "Leé los parámetros R/W del PLC (fn 03): válvula y setpoint. Son los puntos que, si escribís, cambian la física de la planta.",
+      command: "connect server.nande soporte Verano2024 && connect nas.interna.nande respaldo NasÑande#2024 && connect db-core.interna.nande dbadmin Core-DB!2024 && modbus read plc.planta.nande holding",
+      explain:
+        "Ves los holding registers: [0] Válvula-3 apertura = 40%, [1] Setpoint presión = 42 (4.2 bar). Son escribibles (fn 06). El setpoint es el blanco clave: con la bomba encendida y el lazo en AUTO, la presión real SIGUE al setpoint. Si subís ese número, subís la presión física del tanque. Leé también `modbus read plc.planta.nande input`: ahí está la física que el PLC calcula (nivel y presión reales) — esos no se escriben, son la consecuencia.",
+      diagram: "ics",
+    },
+    {
+      kind: "concept",
+      title: "Fase 4 — Tomar la consola: qué significa comprometer una HMI",
+      body:
+        "La HMI (Human-Machine Interface) es la pantalla del operador: ve el proceso y manda órdenes. Comprometerla es oro doble — ves TODO lo que ve el operador (y podés MENTIRLE, como hizo Stuxnet mostrando valores normales mientras destruía centrífugas), y desde ella alcanzás el PLC por la red de control. En ÑANDE la HMI (hmi.planta.nande) se alcanza desde el historian con la credencial que leíste. Su archivo /var/scada/proceso.status muestra el estado en vivo del proceso — derivado del MISMO motor que gobierna el PLC, no un texto inventado. Y su config /etc/scada/plc-links.conf filtra la credencial de INGENIERÍA del PLC (el acceso privilegiado que reprograma el controlador).",
+      diagram: "terminal",
+      bullets: [
+        "La HMI: ves lo que ve el operador y podés mentirle (técnica Stuxnet).",
+        "Desde la HMI se alcanza el PLC por la red de control.",
+        "Su config filtra la credencial de ingeniería del PLC.",
+      ],
+    },
+    {
+      kind: "lab",
+      title: "Fase 4 — Tomá la consola de operador (HMI)",
+      body: "Saltá del historian a la HMI con la credencial del operador y llevate su bandera. Es tu primer pie DENTRO de la red de planta.",
+      command: "connect server.nande soporte Verano2024 && connect nas.interna.nande respaldo NasÑande#2024 && connect db-core.interna.nande dbadmin Core-DB!2024 && connect hmi.planta.nande operador Planta#2024 && cat /root/flag.txt",
+      explain:
+        "¡Adentro de la planta! Capturaste ND{ot_hmi_tomado}: tomaste la consola de operador. Desde acá ves el proceso en vivo (cat /var/scada/proceso.status) y tenés línea directa al PLC. Fijate que cruzaste la frontera IT→OT: ya no estás robando datos, estás parado frente al control físico. Leé /etc/scada/plc-links.conf: filtra la credencial de ingeniería (ingenieria / PlcÑande!2024) para el acceso privilegiado al PLC.",
+      diagram: "terminal",
+    },
+    {
+      kind: "lab",
+      title: "Fase 5 — Tomá el PLC (el que gobierna el proceso)",
+      body: "Desde la HMI, saltá al PLC con la credencial de ingeniería y capturá su bandera. Es el corazón del control físico.",
+      command: "connect server.nande soporte Verano2024 && connect nas.interna.nande respaldo NasÑande#2024 && connect db-core.interna.nande dbadmin Core-DB!2024 && connect hmi.planta.nande operador Planta#2024 && connect plc.planta.nande ingenieria PlcÑande!2024 && cat /root/flag.txt",
+      explain:
+        "Capturaste ND{ot_plc_control}: llegaste al controlador lógico. En /cfg/ladder.txt está el programa LADDER que maneja bombas y válvulas. Ahora tenés acceso de ingeniería (SSH de mantenimiento) Y Modbus/TCP: el control total del proceso físico. Ojo: el PLC tiene DOS entradas (regla de red real) — se alcanza desde la HMI y también directo desde el historian. Dos atacantes, dos caminos, mismo objetivo.",
+      diagram: "ics",
+    },
+    {
+      kind: "concept",
+      title: "El proceso físico: coils, registros y los tres peligros",
+      body:
+        "El PLC de la planta modela un lazo real: un tanque con una bomba que lo llena y una válvula que lo drena, y una presión que el lazo sostiene. El estado de control: Bomba-A (coil 0), Modo AUTO (coil 1), Válvula-3 (holding 0, %), Setpoint (holding 1, bar×10). La física es DETERMINISTA: con bomba ON y AUTO, presión = setpoint; nivel = 100 − apertura de válvula. Escribir un punto cambia DE VERDAD el proceso, y puede cruzarlo a un estado peligroso: SOBREPRESIÓN (presión ≥ 8.0 bar), DESBORDE (nivel ≥ 95%, válvula muy cerrada con bomba on) o MARCHA EN SECO (bomba on con tanque casi vacío → cavitación). Cada escritura enciende su técnica MITRE ATT&CK for ICS: Modify Parameter (T0836) para un registro, Unauthorized Command Message (T0855) para un coil.",
+      diagram: "ics",
+      bullets: [
+        "Bomba (coil 0) · AUTO (coil 1) · Válvula (hold 0) · Setpoint (hold 1).",
+        "En AUTO: presión = setpoint. Subir el setpoint sube la presión real.",
+        "Tres peligros físicos: sobrepresión, desborde, marcha en seco.",
+      ],
+    },
+    {
+      kind: "concept",
+      title: "El SIS y el ataque TRITON: cómo se destruye una planta",
+      body:
+        "Entre vos y la catástrofe hay una última red: el SIS (Safety Instrumented System / Sistema Instrumentado de Seguridad). Es una capa INDEPENDIENTE del control, hecha para una sola cosa: si la presión cruza un umbral crítico (acá 10.0 bar), DISPARA la planta a paro seguro (la detiene, intacta). Mientras el SIS vigila, lo peor que lográs es un paro de producción. El ataque avanzado —el que hizo TRITON/TRISIS en 2017 contra un SIS Triconex de Schneider en una petroquímica— es DESHABILITAR el SIS primero. Sin esa red, la misma sobrepresión que antes paraba la planta, ahora la DESTRUYE: rotura de vasija, daño físico irreversible, posible pérdida de vidas. En ÑANDE eso enciende T0858 (Change Operating Mode) al tocar el SIS, y T0879 (Damage to Property) + T0880 (Loss of Safety) en la rotura. Además, muchos PLC legados traen una defensa física: la llave en modo RUN (write-protect) que rechaza toda escritura remota. El atacante tiene que sacarla primero (también T0858).",
+      diagram: "escudo",
+      bullets: [
+        "SIS: capa independiente que lleva la planta a paro seguro ante sobrepresión.",
+        "Con SIS puesto: lo peor es un paro. Sin SIS: la sobrepresión DESTRUYE (TRITON, 2017).",
+        "Defensa física extra: la llave RUN (write-protect) rechaza escrituras remotas.",
+      ],
+    },
+    {
+      kind: "lab",
+      title: "Paso previo del atacante: sacar la protección de escritura",
+      body: "Si el PLC estuviera en modo protegido, Modbus rechazaría toda escritura. Sacá la protección de forma remota (cambiar el modo de operación del controlador) para habilitar el sabotaje.",
+      command: "connect server.nande soporte Verano2024 && connect nas.interna.nande respaldo NasÑande#2024 && connect db-core.interna.nande dbadmin Core-DB!2024 && modbus protect plc.planta.nande off",
+      explain:
+        "Capturaste ND{ot_proteccion_deshabilitada}. Deshabilitar la protección de escritura es cambiar el modo de operación del controlador (MITRE ATT&CK for ICS T0858): el PLC vuelve a aceptar escrituras remotas. En una planta real esto equivale a un operador que dejó la llave en REMOTO/PROGRAM en vez de RUN — exactamente el estado que hace explotable un PLC. El SOC lo ve: tocar el modo de un controlador es una señal roja.",
+      diagram: "ics",
+    },
+    {
+      kind: "lab",
+      title: "El paso TRITON: deshabilitá el sistema de seguridad (SIS)",
+      body: "Quitá la red de seguridad del proceso. No cambia nada al instante — pero desarma la contención, igual que hizo TRITON antes de intentar el daño físico.",
+      command: "connect server.nande soporte Verano2024 && connect nas.interna.nande respaldo NasÑande#2024 && connect db-core.interna.nande dbadmin Core-DB!2024 && modbus sis plc.planta.nande off",
+      explain:
+        "Capturaste ND{ot_seguridad_deshabilitada} (MITRE T0858 — Inhibit Response Function). El SIS ya no vigila: la próxima sobrepresión NO disparará a paro seguro, DESTRUIRÁ la planta. El mundo reacciona ('deshabilitaron el sistema de seguridad de una planta') porque este es el momento más grave de todo el ataque: no es robo de datos, es poner vidas en riesgo. Es, literalmente, el paso central del incidente TRITON de 2017.",
+      diagram: "escudo",
+    },
+    {
+      kind: "quiz",
+      prompt: "Con la bomba encendida y el lazo en AUTO, subís el setpoint de presión muy por encima del umbral crítico (10.0 bar). ¿Qué pasa según si el SIS está puesto o deshabilitado?",
+      options: [
+        "Con SIS: la planta dispara a PARO SEGURO (se detiene, intacta). Sin SIS: la sobrepresión DESTRUYE la vasija (daño irreversible).",
+        "Pasa lo mismo en ambos casos: el PLC ignora los setpoints peligrosos.",
+        "Con SIS puesto la planta se destruye; deshabilitarlo la protege.",
+        "Nada: Modbus no permite escribir el setpoint sin autenticación.",
+      ],
+      correct: 0,
+      explain:
+        "El SIS es la diferencia entre un susto y una catástrofe. Puesto, convierte la sobrepresión en un paro seguro (perdés producción, no la planta). Deshabilitado, la misma sobrepresión rompe la vasija: daño físico irreversible. Por eso el paso clave del atacante avanzado es apagar el SIS ANTES de forzar el proceso — y por eso la integridad del SIS es la joya a defender.",
+      diagram: "escudo",
+    },
+    {
+      kind: "lab",
+      title: "Sabotaje con el SIS puesto: observá el paro seguro",
+      body: "Con el SIS todavía vigilando, forzá una sobrepresión subiendo el setpoint. Mirá cómo la seguridad hace su trabajo y detiene la planta sin destruirla.",
+      command: "connect server.nande soporte Verano2024 && connect nas.interna.nande respaldo NasÑande#2024 && connect db-core.interna.nande dbadmin Core-DB!2024 && modbus write plc.planta.nande reg 1 150",
+      explain:
+        "Escribiste el setpoint a 15.0 bar (Modify Parameter, T0836). La presión cruzó el umbral y el SIS DISPARÓ: la planta quedó en PARO SEGURO (ND{ot_planta_en_paro}, MITRE T0828 — Loss of Productivity and Revenue). Perdiste producción, pero la planta sobrevivió: la seguridad hizo exactamente lo que debía. Ese es el resultado 'bueno dentro de lo malo'. Un atacante que quiere DESTRUIR tiene que apagar el SIS primero — lo ves en el próximo lab.",
+      diagram: "ics",
+    },
+    {
+      kind: "lab",
+      title: "El ataque completo (TRISIS): SIS off + sobrepresión = rotura",
+      body: "La cadena completa de destrucción física: deshabilitá el SIS y, acto seguido, forzá la sobrepresión. Sin la red de seguridad, el resultado es irreversible.",
+      command: "connect server.nande soporte Verano2024 && connect nas.interna.nande respaldo NasÑande#2024 && connect db-core.interna.nande dbadmin Core-DB!2024 && modbus sis plc.planta.nande off && modbus write plc.planta.nande reg 1 150",
+      explain:
+        "Capturaste ND{ot_planta_destruida}: ROTURA CATASTRÓFICA. Sin SIS, la sobrepresión destruyó la vasija — daño físico IRREVERSIBLE (MITRE T0879 Damage to Property + T0880 Loss of Safety). El Blue Team te detectó y el mundo reacciona con una alerta de catástrofe industrial. Esta es, exactamente, la secuencia del ataque TRITON/TRISIS de 2017: primero desarmar la seguridad, después empujar el proceso al límite. En una planta real, esto son equipos destruidos y potencialmente vidas. Por eso la OT se aísla con tanta obsesión.",
+      diagram: "matrix",
+    },
+    {
+      kind: "concept",
+      title: "Casos reales: Stuxnet, Ucrania y TRITON",
+      body:
+        "Esto no es teoría: pasó. STUXNET (2010) saboteó los PLC Siemens S7 de la planta de enriquecimiento de Natanz (Irán): variaba la velocidad de las centrífugas para romperlas mientras mostraba valores NORMALES a los operadores (un 'man-in-the-PLC'). Fue el primer arma cibernética que causó destrucción física; se propagó por USB con cuatro 0-days. UCRANIA 2015: el grupo Sandworm, con BlackEnergy3 + KillDisk, abrió remotamente los interruptores de tres distribuidoras y dejó a ~230.000 personas sin luz; después borró sistemas y firmware de conversores serie para alargar el apagón. UCRANIA 2016: Industroyer/CRASHOVERRIDE, el primer malware diseñado a medida para hablar los protocolos de red eléctrica (IEC 60870-5-104, IEC 61850), golpeó una subestación de transmisión en Kyiv. TRITON/TRISIS (2017): malware que reprogramó los controladores de SEGURIDAD Triconex (Schneider) de una petroquímica saudí — el primero en atacar un SIS. Se descubrió porque un bug hizo DISPARAR el SIS a paro seguro; el objetivo real era deshabilitarlo para permitir una catástrofe. El ataque que acabás de recorrer.",
+      diagram: "ics",
+      bullets: [
+        "Stuxnet (2010): rompió centrífugas y mintió a los operadores. Primer daño físico por malware.",
+        "Ucrania 2015/2016: Sandworm apagó la luz (BlackEnergy) e Industroyer atacó la red eléctrica.",
+        "TRITON (2017): primer malware contra un SIS — la secuencia exacta de este curso.",
+      ],
+    },
+    {
+      kind: "concept",
+      title: "Defensa OT: segmentar, bloquear la escritura y vigilar el SIS",
+      body:
+        "La defensa número uno es la SEGMENTACIÓN: si IT y OT no se tocan, la cadena que recorriste se corta en el primer salto. Nada de historians doble-homed sin una DMZ industrial real y un diodo de datos (gateway UNIDIRECCIONAL: los datos salen de OT hacia IT, pero NADA entra). Segundo: WRITE-PROTECT físico — la llave del PLC en RUN rechaza toda escritura remota; es la defensa #1 contra Modbus sin autenticación. Tercero: la INTEGRIDAD DEL SIS es sagrada — debe estar en una red aparte, con su llave física, y cualquier cambio de su modo de operación tiene que gritar en el SOC (TRITON se descubrió justamente por un disparo anómalo). Cuarto: monitoreo pasivo de OT (un IDS industrial que entiende Modbus/DNP3) para ver escrituras no autorizadas. En el próximo lab activás la defensa real: proteger el PLC bloquea el sabotaje siguiente de verdad.",
+      diagram: "escudo",
+      bullets: [
+        "Segmentación + diodo de datos (gateway unidireccional): corta la cadena IT→OT.",
+        "Write-protect (llave RUN): el PLC rechaza escrituras remotas. Defensa #1.",
+        "Integridad del SIS en red aparte + IDS industrial que entiende Modbus.",
+      ],
+    },
+    {
+      kind: "lab",
+      title: "Defensa en acción: blindá el PLC",
+      body: "Ponete el sombrero azul. Activá la protección de escritura del PLC y comprobá que el sabotaje siguiente REBOTA: la defensa funciona de verdad, no es un cartel.",
+      command: "connect server.nande soporte Verano2024 && connect nas.interna.nande respaldo NasÑande#2024 && connect db-core.interna.nande dbadmin Core-DB!2024 && modbus protect plc.planta.nande on",
+      explain:
+        "Activaste la protección (llave en RUN): el PLC ahora RECHAZA toda escritura Modbus remota. Probá tras esto `modbus write plc.planta.nande reg 1 130` — rebota ('rechazada'), y la planta no se toca. Esta es la defensa #1 contra Modbus sin autenticación, y acá ocurre de verdad en el motor: el estado cambió y el ataque siguiente falla. Combinalo con segmentación IT/OT y verás que la cadena entera que recorriste se vuelve inviable.",
+      diagram: "escudo",
+    },
+    {
+      kind: "quiz",
+      prompt: "Sos el defensor de una planta y sólo podés aplicar UNA medida esta semana. ¿Cuál corta de raíz el ataque que recorriste?",
+      options: [
+        "Segmentar IT/OT con un gateway unidireccional (diodo de datos): sin el puente del historian, el atacante nunca alcanza la red de planta.",
+        "Cambiar las contraseñas de los PLC por unas más largas.",
+        "Instalar un antivirus en la HMI.",
+        "Subir el umbral de disparo del SIS para que no moleste la producción.",
+      ],
+      correct: 0,
+      explain:
+        "Todo el ataque dependió de UN puente: el historian doble-homed que une IT y OT. Cortá ese puente (segmentación real + diodo de datos que sólo deja salir datos de OT) y el atacante se queda en IT, sin ruta a la planta. Las contraseñas ayudan, pero Modbus igual no autentica; subir el umbral del SIS es justo lo contrario de defender. La arquitectura vence al parche: en OT, segmentar es la madre de todas las defensas.",
+      diagram: "escudo",
+    },
+  ],
+};
+
 export const HACKING_REAL_COURSES: Curso[] = [
   HACK_MAQUINA,
   HACK_AD,
   HACK_WEB,
   HACK_CLOUD,
+  HACK_OT,
 ];
