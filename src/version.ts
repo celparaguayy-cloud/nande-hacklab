@@ -3,5 +3,5 @@
  * qué build estás corriendo (y confirmar que tomaste la última actualización).
  * Subí el número cuando haya un cambio que el jugador deba poder distinguir.
  */
-export const NANDE_VERSION = "5.132.0";
-export const NANDE_BUILD = "hacking-real-dominio-ad-de-cero-a-domain-admin-walkthrough-completo";
+export const NANDE_VERSION = "5.133.0";
+export const NANDE_BUILD = "hacking-real-pentest-web-completo-sqli-union-idor-traversal-cmdi-xss";

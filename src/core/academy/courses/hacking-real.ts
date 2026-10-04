@@ -401,7 +401,245 @@ const HACK_AD: Curso = {
   ],
 };
 
+const HACK_WEB: Curso = {
+  id: "c-hack-web",
+  title: "Pentest web completo: de recon a la base de datos",
+  subtitle: "Walkthrough real: mapeás un sitio, lo escaneás, burlás el login con SQLi, robás la base entera con UNION, y después barrés IDOR, traversal, command injection y XSS. Una bandera por falla.",
+  level: "avanzado",
+  skill: "web",
+  hue: 275,
+  glyph: "code",
+  reward: { xp: 540, coins: 430 },
+  slides: [
+    {
+      kind: "concept",
+      title: "La mentalidad del pentest web",
+      body:
+        "Una web es una conversación entre tu navegador y un servidor, y casi toda vulnerabilidad web nace de lo mismo: el servidor CONFÍA en datos que vos controlás (la URL, un parámetro, un formulario, una cookie). El método del pentester web: (1) MAPEAR la superficie (qué rutas, qué parámetros, qué tecnología), (2) IDENTIFICAR dónde tu input toca algo sensible (una consulta SQL, un archivo, un comando, el HTML de otro usuario), (3) EXPLOTAR, (4) medir el IMPACTO, (5) REPORTAR con el arreglo. En este curso vas a recorrer el OWASP de verdad: entrás sin contraseña, robás la base, y seguís abriendo fallas, cada una con su bandera.",
+      diagram: "inyeccion",
+      bullets: [
+        "Casi toda vuln web = el servidor confía en input que vos controlás.",
+        "Mapear → identificar dónde tu input toca algo sensible → explotar.",
+        "Vas a recorrer el OWASP Top 10 con labs reales.",
+      ],
+    },
+    {
+      kind: "concept",
+      title: "Fase 1 — Mapear la superficie",
+      body:
+        "Antes de atacar, MAPEÁS el sitio: qué páginas existen, qué parámetros aceptan, qué tecnología corre. Muchas rutas no están enlazadas (un /admin, un /backup, un /api) pero existen: se descubren por FUERZA BRUTA de directorios con herramientas como gobuster o ffuf, que prueban miles de nombres comunes contra el servidor. Cada ruta nueva es superficie de ataque nueva. El mapeo paciente es lo que separa 'probé el login' de 'encontré el panel de admin olvidado'.",
+      diagram: "directorios",
+      bullets: [
+        "Descubrí rutas no enlazadas (/admin, /backup, /api).",
+        "gobuster/ffuf: fuerza bruta de directorios con diccionarios.",
+        "Cada ruta nueva = superficie de ataque nueva.",
+      ],
+    },
+    {
+      kind: "lab",
+      title: "Fase 1 — Descubrí rutas ocultas",
+      body: "Corré un descubrimiento de directorios contra banco.nande. Mirá qué rutas aparecen más allá de la portada.",
+      command: "gobuster dir banco.nande",
+      explain:
+        "gobuster probó cientos de nombres y te devolvió las rutas que existen (login, movimientos, etc.). Ese es el mapa del sitio: cada ruta es un lugar donde probar. El /movimientos y el /login van a ser nuestros objetivos. Ahora, ¿cuáles son vulnerables? Pasemos al escaneo.",
+      diagram: "directorios",
+    },
+    {
+      kind: "lab",
+      title: "Fase 2 — Escaneá vulnerabilidades",
+      body: "Apuntá los scripts de vulnerabilidades de nmap contra el banco. Dejá que te señale dónde está el problema antes de tocar nada.",
+      command: "nmap --script vuln banco.nande",
+      explain:
+        "El script http-sql-injection marca /login y /movimientos como posibles inyecciones SQL: reconocimiento que se convierte directo en plan de ataque. No explotó nada —te dio el mapa de dónde atacar—. Vamos por el login primero.",
+      diagram: "escaneo",
+    },
+    {
+      kind: "concept",
+      title: "Fase 3 — SQL Injection: entrar sin la clave",
+      body:
+        "Cuando entrás tu usuario, el programa arma una consulta pegando tu texto: SELECT * FROM usuarios WHERE user='LO_QUE_ESCRIBAS' AND pass='...'. Si no separa tu texto de la orden, podés ROMPER la consulta y escribir una nueva: eso es SQL Injection. El payload clásico de bypass de login: admin' OR '1'='1 --. Cerrás la comilla, agregás una condición SIEMPRE verdadera (OR '1'='1'), y comentás el resto (--) para anular el chequeo de la contraseña. La base encuentra una fila y te deja pasar sin saber ninguna clave.",
+      diagram: "inyeccion",
+      bullets: [
+        "Tu texto termina DENTRO de una consulta SQL.",
+        "' OR '1'='1 = condición siempre verdadera; -- comenta el resto.",
+        "Entrás sin conocer ninguna contraseña real.",
+      ],
+    },
+    {
+      kind: "lab",
+      title: "Fase 3 — Burlá el login con SQLi",
+      body: "Mandá el payload de bypass al login del banco. Entrás al panel sin conocer la contraseña real.",
+      command: "curl -X POST http://banco.nande/login -d \"usuario=admin' OR '1'='1 --&password=x\"",
+      explain:
+        "¡Adentro! Capturaste ND{sqli_login_bypass}. La condición '1'='1' hizo que la consulta encontrara una fila, y el -- anuló el chequeo de la clave. Entraste como admin sin saber nada. Pero entrar es solo el principio: la misma falla permite ROBAR la base entera.",
+      diagram: "inyeccion",
+    },
+    {
+      kind: "concept",
+      title: "Fase 4 — UNION: robar la base entera",
+      body:
+        "El bypass te deja entrar; UNION te deja EXTRAER. Si una consulta devuelve resultados en la página (como un buscador), podés agregar 'UNION SELECT ...' para pegar los resultados de OTRA consulta tuya a los del sitio. Así traés datos de cualquier tabla: UNION SELECT id,usuario,password,rol FROM usuarios te vuelca TODOS los usuarios y sus contraseñas en la misma lista de resultados. La clave técnica: tu UNION tiene que tener la MISMA cantidad de columnas que la consulta original (acá, 4). SQLi de bypass abre la puerta; SQLi UNION se lleva el botín.",
+      diagram: "inyeccion",
+      bullets: [
+        "UNION SELECT pega TU consulta a la del sitio.",
+        "Traés datos de cualquier tabla (usuarios, contraseñas).",
+        "Tu UNION debe tener la misma cantidad de columnas (acá, 4).",
+      ],
+    },
+    {
+      kind: "build",
+      goal: "Volcar la tabla de usuarios del banco con una inyección UNION de 4 columnas",
+      pieces: ["UNION", "SELECT", "id,usuario,password,rol", "FROM", "usuarios--", "DROP TABLE"],
+      answer: ["UNION", "SELECT", "id,usuario,password,rol", "FROM", "usuarios--"],
+      hint: "UNION SELECT <columnas> FROM <tabla>--. La cantidad de columnas (4) tiene que coincidir con la consulta original.",
+      explain:
+        "`' UNION SELECT id,usuario,password,rol FROM usuarios--` pega a los resultados del buscador una fila por cada usuario de la tabla, con su contraseña. El -- comenta lo que sigue. Nada de DROP TABLE: un pentester extrae y reporta, no destruye.",
+    },
+    {
+      kind: "lab",
+      title: "Fase 4 — Volcá la base con UNION",
+      body: "Logueate con el bypass y después inyectá el UNION en el buscador de movimientos para traer todos los usuarios y contraseñas. Dos pasos encadenados.",
+      command: "curl -X POST http://banco.nande/login -d \"usuario=admin' -- &password=x\" && curl \"http://banco.nande/movimientos?q=a%' UNION SELECT id,usuario,password,rol FROM usuarios--\"",
+      explain:
+        "¡Base volcada! Capturaste ND{sqli_union_dump}: todos los usuarios y sus contraseñas aparecieron en la lista de movimientos. Eso es una brecha total de datos con una sola consulta. En la vida real, esas contraseñas (si están hasheadas débiles) caen después en hashcat.",
+      diagram: "inyeccion",
+    },
+    {
+      kind: "lab",
+      title: "Fase 4 — Automatizá con sqlmap",
+      body: "Lo mismo que hiciste a mano, sqlmap lo automatiza: detecta la inyección y vuelca la base. Útil para confirmar y acelerar.",
+      command: "sqlmap -u \"http://banco.nande/movimientos?q=a\" --dump",
+      explain:
+        "sqlmap detectó la inyección en el parámetro q y volcó la tabla automáticamente (otra vez ND{sqli_union_dump}). En un pentest real, sqlmap confirma y acelera, pero entender el UNION a mano es lo que te deja explotar casos raros que la herramienta no resuelve sola. Herramienta + criterio.",
+      diagram: "inyeccion",
+    },
+    {
+      kind: "concept",
+      title: "Fase 5 — No todo es SQLi: ampliar la superficie",
+      body:
+        "Una web mal hecha rara vez tiene UNA sola falla. El OWASP Top 10 lista las categorías más comunes, y un buen pentester las barre todas: control de acceso roto (IDOR), lectura de archivos (traversal/LFI), inyección de comandos del sistema, XSS (código en el navegador de otros), SSRF, deserialización, mala config… En las próximas fases vas a abrir cuatro fallas MÁS, cada una en una app distinta del mundo ÑANDE, cada una con su bandera. La idea: un pentest no termina en la primera vuln; termina cuando mapeaste TODA la superficie.",
+      diagram: "escudo",
+      bullets: [
+        "Una web mal hecha tiene varias fallas, no una.",
+        "Barré el OWASP Top 10: acceso, archivos, comandos, XSS, SSRF…",
+        "El pentest termina al mapear TODA la superficie, no en la primera vuln.",
+      ],
+    },
+    {
+      kind: "concept",
+      title: "IDOR: control de acceso roto",
+      body:
+        "IDOR (Insecure Direct Object Reference) es el rey del 'control de acceso roto'. Pasa cuando un recurso se pide por un identificador que vos controlás (?id=7) y el servidor NO verifica que ese recurso sea TUYO. Cambiás el número y ves lo ajeno: el álbum de otra persona, la factura de otro cliente, el pedido de otro usuario. No hay 'exploit' sofisticado: cambiás un dígito. Es una de las fallas más comunes y más dañinas, justamente porque parece inofensiva.",
+      diagram: "idor",
+      bullets: [
+        "?id=7 → el recurso se pide por un número que controlás.",
+        "El servidor no chequea que el recurso sea TUYO.",
+        "Cambiás el número y ves datos ajenos. Simple y grave.",
+      ],
+    },
+    {
+      kind: "lab",
+      title: "Fase 5a — Accedé a lo ajeno (IDOR)",
+      body: "En fotos.arandu.nande cada álbum se pide con ?id=. Pedí un álbum que no es tuyo cambiando el número.",
+      command: "curl http://fotos.arandu.nande/album?id=7",
+      explain:
+        "Capturaste ND{idor_album_ajeno}: accediste a un álbum privado que no es tuyo, solo cambiando el id. El servidor nunca verificó de quién era. La defensa es trivial de decir y común de olvidar: comprobá SIEMPRE que el recurso pedido pertenezca al usuario autenticado.",
+      diagram: "idor",
+    },
+    {
+      kind: "concept",
+      title: "Path traversal: escapar de la carpeta",
+      body:
+        "Cuando una app sirve archivos por nombre (?archivo=reporte.pdf), si no confina la ruta, podés usar ../ para SUBIR de carpeta y leer archivos del servidor que no deberías: configs con credenciales, /etc/passwd, código fuente. Es el primo del LFI. '../' sube un nivel; encadenás varios para llegar a donde quieras. La causa raíz es la misma de siempre: el servidor construye una ruta de archivo con input del usuario sin validarlo.",
+      diagram: "traversal",
+      bullets: [
+        "../ sube de carpeta; encadenás para salir de lo permitido.",
+        "Objetivo: configs con secretos, /etc/passwd, código.",
+        "Causa: ruta de archivo construida con input sin validar.",
+      ],
+    },
+    {
+      kind: "lab",
+      title: "Fase 5b — Leé archivos del servidor (traversal)",
+      body: "El visor de docs.tape.nande recibe un nombre de archivo. Escapá de su carpeta con ../ y leé un secreto del servidor.",
+      command: "curl \"http://docs.tape.nande/ver?archivo=../config/secrets.env\"",
+      explain:
+        "Capturaste ND{path_traversal_secreto}: leíste la config con secretos saliendo de la carpeta permitida con ../. La defensa: canonicalizar la ruta y verificar que quede DENTRO del directorio permitido, o servir por una lista blanca de archivos, nunca por nombre libre.",
+      diagram: "traversal",
+    },
+    {
+      kind: "concept",
+      title: "Command injection: tu texto se ejecuta",
+      body:
+        "A veces una web pasa tu input a un COMANDO del sistema (una herramienta de ping, un conversor, un backup). Si no lo sanitiza, colás tu propio comando: el ';' separa comandos en Linux, así que 'x; cat flag' ejecuta el ping Y tu cat. Es de las fallas más graves porque te da ejecución de código en el servidor directamente. Variantes del separador: ; | && `` $(). La defensa real: no armar comandos con input del usuario; usar APIs que reciban argumentos por separado, nunca una cadena de shell.",
+      diagram: "cmdi",
+      bullets: [
+        "Tu input se mete en un comando del sistema.",
+        "; | && $() separan/encadenan comandos: colás el tuyo.",
+        "Da ejecución en el servidor: de las más graves.",
+      ],
+    },
+    {
+      kind: "lab",
+      title: "Fase 5c — Ejecutá un comando en el servidor (cmdi)",
+      body: "La herramienta de ping de tools.pyta.nande arma un comando con lo que escribís. Colá tu propio comando con ';'.",
+      command: "curl \"http://tools.pyta.nande/ping?host=x; cat flag\"",
+      explain:
+        "Capturaste ND{cmd_injection_pwned}: el ';' encadenó tu 'cat flag' al ping, y el servidor lo ejecutó. Eso es ejecución de comandos en el servidor — el peor caso de una web. La defensa: jamás construir comandos con input del usuario; usar llamadas con argumentos parametrizados.",
+      diagram: "cmdi",
+    },
+    {
+      kind: "concept",
+      title: "XSS: código en el navegador de la víctima",
+      body:
+        "A diferencia de las anteriores, el XSS ataca a OTROS USUARIOS, no al servidor. Si una web refleja tu input en la página sin limpiarlo, podés inyectar <script>…</script> y ese código se ejecuta en el navegador de quien vea la página: robar su cookie de sesión, hacer acciones en su nombre, redirigirlo. Hay reflejado (en la respuesta inmediata), almacenado (guardado y servido a todos) y basado en DOM. La defensa: codificar la salida (output encoding) según el contexto y una CSP (Content-Security-Policy) que limite qué scripts corren.",
+      diagram: "xss",
+      bullets: [
+        "XSS ataca a otros usuarios, no al servidor.",
+        "Tu <script> corre en el navegador de la víctima (roba cookies…).",
+        "Reflejado / almacenado / DOM. Defensa: output encoding + CSP.",
+      ],
+    },
+    {
+      kind: "lab",
+      title: "Fase 5d — Inyectá un script (XSS)",
+      body: "El buscador de blog.yvoty.nande refleja lo que escribís sin limpiarlo. Hacé que ejecute tu script.",
+      command: "curl \"http://blog.yvoty.nande/buscar?q=<script>alert(1)</script>\"",
+      explain:
+        "Capturaste ND{xss_reflejado}: tu <script> se reflejó sin escapar y se ejecutaría en el navegador de cualquiera que abriera ese enlace. Con un payload real, en vez de alert(1) robarías la cookie de sesión. La defensa: codificar la salida y una CSP estricta.",
+      diagram: "xss",
+    },
+    {
+      kind: "quiz",
+      prompt: "¿Cuál es la causa raíz COMÚN de SQLi, command injection y XSS?",
+      options: [
+        "El servidor mezcla datos del usuario con código/consultas/HTML sin separarlos ni sanitizarlos",
+        "Contraseñas débiles",
+        "Falta de HTTPS",
+        "Servidores desactualizados",
+      ],
+      correct: 0,
+      explain:
+        "Las tres son INYECCIONES: el input del usuario termina interpretado como código (SQL, comando de shell, HTML/JS) porque no se separó el dato de la instrucción. La cura es la misma familia: consultas parametrizadas (SQLi), APIs con argumentos (cmdi), output encoding + CSP (XSS). El dato del usuario nunca debe volverse instrucción.",
+      diagram: "inyeccion",
+    },
+    {
+      kind: "concept",
+      title: "El reporte y la defensa",
+      body:
+        "Cerrás el pentest con el REPORTE: cada hallazgo, su severidad y su arreglo. Para este sitio: SQLi (crítico) → consultas preparadas (parametrizadas), que separan el dato de la orden. IDOR (alto) → verificar ownership en cada acceso. Traversal (alto) → confinar rutas / lista blanca. Command injection (crítico) → no armar comandos con input; APIs parametrizadas. XSS (medio/alto) → output encoding + CSP. Y transversal: validación de entrada, mínimo privilegio de la cuenta de la base, y un WAF como capa extra (no como única defensa). El valor del pentest es esta lista de arreglos, priorizada.",
+      diagram: "escudo",
+      bullets: [
+        "SQLi/cmdi → separar dato de instrucción (parametrizar).",
+        "IDOR → verificar ownership; traversal → confinar/lista blanca.",
+        "XSS → output encoding + CSP; WAF como capa extra, no única.",
+      ],
+    },
+  ],
+};
+
 export const HACKING_REAL_COURSES: Curso[] = [
   HACK_MAQUINA,
   HACK_AD,
+  HACK_WEB,
 ];
